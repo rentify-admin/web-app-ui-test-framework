@@ -336,7 +336,7 @@ function createSlackMessage(workflowName, environment, runId, results, status, v
     console.log(`🔗 Debug - publicReportUrl: ${publicReportUrl}`);
     
     if (testrailLink) {
-        linksText += `\n• <${testrailLink}|TestRail Report>`;
+        linksText += `\n<${testrailLink}|TestRail Report>`;
         console.log(`✅ TestRail link added to Slack message`);
     } else {
         console.log(`❌ TestRail link not added - link is empty`);
