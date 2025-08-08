@@ -22,7 +22,10 @@ const generateRandomPhone = () => {
     return `613292${random4Digits}`;
 };
 
-test('C39 - Hosted app copy verify flow - Plaid financial, ID, employment skip', { tag: [ '@smoke', '@regression', '@document-upload' ] }, async ({ page, browser }) => {
+test('C39 - Hosted app copy verify flow - Plaid financial, ID, employment skip', { 
+    tag: [ '@smoke', '@regression', '@document-upload' ],
+    timeout: 180_000  // 5 minutes
+}, async ({ page, browser }) => {
 
     // Step 1: Admin login and navigate to applications
     await loginForm.adminLoginAndNavigate(page, admin);

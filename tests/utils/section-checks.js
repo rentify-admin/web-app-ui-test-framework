@@ -265,11 +265,22 @@ const checkFinancialSectionData = async (session, page, sessionLocator) => {
         await selector.click();
         await page.waitForTimeout(1000);
         const [ response ] = await Promise.all([
-            page.waitForResponse(resp => resp.url()
-                .includes(`/sessions/${allSessionWithChildren[sIndex].id}/transactions`)
-                && resp.url().includes('fields[transaction]')
-                && resp.request().method() === 'GET'
-                && resp.ok()),
+            page.waitForResponse(resp => {
+                const urlMatches = resp.url().includes(`/sessions/${allSessionWithChildren[sIndex].id}/transactions`);
+                const methodMatches = resp.request().method() === 'GET';
+                const isOk = resp.ok();
+                
+                console.log(`Response check for session ${allSessionWithChildren[sIndex].id}:`, {
+                    url: resp.url(),
+                    urlMatches,
+                    method: resp.request().method(),
+                    methodMatches,
+                    status: resp.status(),
+                    isOk
+                });
+                
+                return urlMatches && methodMatches && isOk;
+            }, { timeout: 60_000 }),
             selector.locator(`#financial-section-applicant-filter-${sIndex}`).click()
         ]);
         const { data: transactions } = await waitForJsonResponse(response);

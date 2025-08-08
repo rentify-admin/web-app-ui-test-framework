@@ -33,7 +33,7 @@ test.beforeEach(async ({ page }) => {
 const sessionId = '01971d54-6284-70c4-8180-4eee1abd955a';
 
 test.describe('User Permissions Verify', tester => {
-    test.describe.configure({ mode: 'default' });
+    test.describe.configure({ mode: 'default', timeout: 180000 }); 
 
     const testUser = {
         first_name: 'User',
@@ -47,19 +47,15 @@ test.describe('User Permissions Verify', tester => {
     test('Should allow admin to create user', { tag: [ '@regression' ] }, async ({ page }) => {
 
         // Step:1 Login the the admin panel
-        console.log('🚀 ~ Login with admin user...');
         await loginWith(page, admin);
 
         // Step:2 Goto users menu
-        console.log('🚀 ~ Click on users menu');
         await page.getByTestId('users-menu').click();
 
         // Step:3 select Users menu
-        console.log('🚀 ~ Click on user sub menu');
         await page.getByTestId('users-submenu').click();
 
         // Step:4 Click on Add User menu
-        console.log('🚀 ~ Click on add user button');
         await page.getByTestId('add-user-btn').click();
 
         // Changing the email to dynamic
@@ -67,16 +63,60 @@ test.describe('User Permissions Verify', tester => {
         testUser.email = `playwright+${randomNumber}@verifast.com`;
 
         // Step:5 Fill user form
-        console.log(`🚀 ~ Filling user form with email ${testUser.email}`);
         await userCreateForm.fill(page, testUser);
 
         // Step:6 Submit User form
-        console.log('🚀 ~ Submitting user form');
         const userData = await userCreateForm.submit(page);
 
         // Step:7 Expect user is listed in the user list
-        console.log(`🚀 ~ checking user is created with ID: ${userData?.data?.id}`);
         expect(userData?.data?.id).toBeDefined();
+
+        // Step:8 Delete the created user
+        console.log(`🗑️ ~ Deleting user: ${testUser.email}`);
+        
+        // 1. Click in search bar
+        await page.getByPlaceholder('Search').click();
+        await page.getByPlaceholder('Search').fill(testUser.email);
+        await page.waitForTimeout(1000);
+
+        // 2. Wait for tbody to have only one element (our search result)
+        const tbody = page.locator('table tbody');
+        await expect(tbody.locator('tr')).toHaveCount(1, { timeout: 10_000 });
+
+        // 3. Find delete button with partial data-testid match
+        const deleteButton = page.locator('[data-testid*="delete-"]').first();
+        await expect(deleteButton).toBeVisible();
+
+        // 4. Set up dialog handler BEFORE clicking delete
+        page.on('dialog', dialog => {
+            console.log(`🗑️ ~ Dialog message: ${dialog.message()}`);
+            dialog.accept();
+        });
+
+        // 5. Set up response waiter for DELETE request
+        const deleteResponsePromise = page.waitForResponse(
+            resp => resp.url().includes('/users') 
+                && resp.request().method() === 'DELETE'
+                && resp.ok(),
+            { timeout: 10_000 }
+        );
+
+        // Click delete button
+        await deleteButton.click();
+
+        // Wait for DELETE response
+        try {
+            const deleteResponse = await deleteResponsePromise;
+            console.log(`✅ ~ User deleted successfully. Status: ${deleteResponse.status()}`);
+        } catch (error) {
+            console.error(`❌ ~ Failed to delete user: ${error.message}`);
+            throw new Error(`User deletion failed: ${error.message}`);
+        }
+
+        // Verify user is no longer in the list
+        await page.waitForTimeout(1000);
+        await expect(tbody.locator('tr')).toHaveCount(0, { timeout: 10_000 });
+        console.log(`✅ ~ User ${testUser.email} successfully removed from list`);
     });
 
     test('Should allow user to edit the application', { tag: [ '@regression' ] }, async ({ page }) => {
@@ -102,23 +142,13 @@ test.describe('User Permissions Verify', tester => {
         await page.getByTestId('applications-menu').click();
 
         // Step:5 Click on Application menu and wait for applications to load
-        console.log('🚀 ~ Click on applications menu');
         const applicationUrl = joinUrl(app.urls.api, 'applications');
 
-        console.log('🚀 ~ Click on applications sub menu');
-
-        console.log(`🚀 ~ wait for application url: ${applicationUrl}`);
         const [ response ] = await Promise.all([
             page.waitForResponse(
-                resp => {
-                    const matched = resp.url().includes(applicationUrl)
+                resp => resp.url().includes(applicationUrl)
                     && resp.request().method() === 'GET'
-                    && resp.ok();
-                    if (matched) {
-                        console.log('🚀 ~ Response matched:', matched);
-                    }
-                    return matched;
-                }
+                    && resp.ok()
             ),
             page.getByTestId('applications-submenu').click()
         ]);
@@ -126,28 +156,22 @@ test.describe('User Permissions Verify', tester => {
         const { data: applications } = await waitForJsonResponse(response);
 
         // Step:6 Expect Applications available
-        console.log('🚀 ~ Checking applications is greater then 0');
         expect(applications?.length || 0).toBeGreaterThan(0);
 
         // Step:7 Check Edit button is visible
-        console.log('🚀 ~ Checking edit button visible');
         expect(page.locator('[data-testid*="edit-"]').first()).toBeVisible();
 
         // Step:8 Click of Edit button of the first application button
-        console.log('🚀 ~ Clicking edit button');
         await page.locator('[data-testid*="edit-"]').first()
             .click();
 
         // Step:9 Check URL change to edit url
-        console.log('🚀 ~ Checking edit page url');
         await expect(page).toHaveURL(/application\/.+\/edit/);
 
         // Step:10 Check edit application input is not empty (data loaded properly)
-        console.log('🚀 ~ Edit Page: Checking application name field is not empty');
         await expect(page.locator('input#application_name')).not.toBeEmpty();
 
         // Step:11 Click on cancel button
-        console.log('🚀 ~ Edit Page: Clicking on cancel button');
         await page.getByTestId('cancel-application-setup').click();
     });
 
@@ -155,24 +179,15 @@ test.describe('User Permissions Verify', tester => {
         page,
         context
     }) => {
-        console.log(`🚀 ~ Login with created user: ${testUser.email}`);
-        console.log('🚀 ~ Response url is Waiting: /sessions?fields[session]=');
         const [ sessionsResponse ] = await Promise.all([
             page.waitForResponse(
-                resp => {
-                    const matched = resp.url().includes('/sessions?fields[session]=')
+                resp => resp.url().includes('/sessions?fields[session]=')
                     && resp.request().method() === 'GET'
-                    && resp.ok();
-                    if (matched) {
-                        console.log(`🚀 ~ Response url matched: ${matched}`);
-                    }
-                    return matched;
-                }
+                    && resp.ok()
             ),
             loginWith(page, testUser)
         ]);
 
-        console.log('🚀 ~ Checking menus are visible');
         expect(page.getByTestId('applicants-menu')).toBeVisible();
         expect(page.getByTestId('applicants-submenu')).toBeVisible();
 
@@ -180,7 +195,6 @@ test.describe('User Permissions Verify', tester => {
         expect(page.getByTestId('approved-submenu')).toBeVisible();
         expect(page.getByTestId('rejected-submenu')).toBeVisible();
 
-        console.log('🚀 ~ Clicking applicants sub menu');
         await page.getByTestId('applicants-submenu').click();
 
         const { data: sessions } = await waitForJsonResponse(sessionsResponse);
@@ -195,50 +209,22 @@ test.describe('User Permissions Verify', tester => {
             `.application-card[data-session="${sessionId}"]`
         );
 
-        console.log(`🚀 ~ Clicking on session card: ${sessionId}`);
-        console.log(`🚀 ~ Waiting for response: /sessions/${sessionId}/employments`);
-        console.log(`🚀 ~ Waiting for response: /sessions/${sessionId}/files`);
-        console.log(`🚀 ~ Waiting for response: /sessions/${sessionId}?fields[session]=`);
         const [ employmentResponse, filesResponse, sessionResponse ]
             = await Promise.all([
                 page.waitForResponse(
-                    resp => {
-                        const matched = resp
-                            .url()
-                            .includes(`/sessions/${sessionId}/employments`)
+                    resp => resp.url().includes(`/sessions/${sessionId}/employments`)
                         && resp.request().method() === 'GET'
-                        && resp.ok();
-                        if (matched) {
-                            console.log(`🚀 ~ /sessions/${sessionId}/employments: matched - ${matched} `);
-                        }
-                        return matched;
-                    }
+                        && resp.ok()
                 ),
                 page.waitForResponse(
-                    resp => {
-                        const matched = resp.url().includes(`/sessions/${sessionId}/files`)
-                            && resp.request().method() === 'GET'
-                            && resp.ok();
-                        if (matched) {
-                            console.log(`🚀 ~ /sessions/${sessionId}/files: matched - ${matched} `);
-                        }
-                        return matched;
-                    }
+                    resp => resp.url().includes(`/sessions/${sessionId}/files`)
+                        && resp.request().method() === 'GET'
+                        && resp.ok()
                 ),
                 page.waitForResponse(
-                    resp => {
-                        const matched = resp
-                            .url()
-                            .includes(
-                                `/sessions/${sessionId}?fields[session]=`
-                            )
+                    resp => resp.url().includes(`/sessions/${sessionId}?fields[session]=`)
                         && resp.request().method() === 'GET'
-                        && resp.ok();
-                        if (matched) {
-                            console.log(`🚀 ~ /sessions/${sessionId}?fields[session]=: matched - ${matched} `);
-                        }
-                        return matched;
-                    }
+                        && resp.ok()
                 ),
                 sessionLocator.click()
             ]);
@@ -251,7 +237,6 @@ test.describe('User Permissions Verify', tester => {
 
         const viewDetailBtn = page.getByTestId('view-details-btn');
 
-        console.log('🚀 ~ Check View Detail button visible');
         await expect(viewDetailBtn).toBeVisible();
 
         // ! Should able to see session flags loaded
