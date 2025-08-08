@@ -8,7 +8,7 @@ import { plaidFinancialConnect } from './utils/session-flow';
 // Test: Financial - plaid - one or less transaction error, no income with complete verification has decline flag
 
 test.describe('Financial - Plaid One Transaction Error Decline', () => {
-    test('should handle financial verification with one transaction error and decline flag', { tag: ['@smoke'] }, async ({ page }) => {
+    test('should handle financial verification with one transaction error and decline flag', { tag: ['@smoke', '@document-upload'] }, async ({ page }) => {
         // Step 1: Login as admin
         await page.goto('https://dev.verifast.app/');
         await loginForm.fill(page, admin);

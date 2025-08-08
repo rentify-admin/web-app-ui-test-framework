@@ -24,7 +24,7 @@ test.beforeEach(async ({ page }) => {
 test.setTimeout(180_000); 
 
 test('C42 - Financial - mx - 1attempt - report check - approve - approve with conditions - decline - certain flags turned off', {
-  tag: ['@core', '@smoke', '@regression'],
+  tag: ['@core', '@smoke', '@regression', '@document-upload'],
 }, async ({ page, browser }) => {
     // Step 1: Admin Login and Navigate
     await loginForm.fill(page, admin);

@@ -93,7 +93,7 @@ test.describe('Document Upload Verifications Core Flow', () => {
     test.describe.configure({ mode: 'default' });
 
     test.skip('Complete document upload verification flow', {
-        tag: ['@core'],
+        tag: ['@core', '@document-upload'],
     }, async ({ browser, page }) => {
         //Big time out due the file upload process
         test.setTimeout(260000);

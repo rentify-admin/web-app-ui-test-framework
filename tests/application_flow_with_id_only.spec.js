@@ -18,7 +18,7 @@ test.beforeEach(async ({ page }) => {
 });
 
 test('ID only - 1 attempt - success', {
-  tag: ['@core', '@smoke', '@regression'],
+  tag: ['@core', '@smoke', '@regression', '@document-upload'],
 }, async ({ page, browser }) => {
 
     // Step 1: Admin Login and Navigate

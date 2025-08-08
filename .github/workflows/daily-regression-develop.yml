@@ -40,7 +40,7 @@ jobs:
           echo "🌐 Environment: $APP_ENV"
           echo "🔗 Base URL: $APP_URL"
           echo ""
-          npx playwright test --project=chromium --grep-invert "document.*upload|upload.*document"
+          npx playwright test --project=chromium --grep-invert "@document-upload"
           
           echo "📁 Checking generated files:"
           ls -la playwright-report/ || echo "playwright-report/ directory not found"

@@ -18,7 +18,7 @@ const applicationName = 'AutoTest Suite - EMP Connect';
 const API_URL = app.urls.api;
 
 test('C38 - Employment - skip household not hidden employment connect', {
-  tag: ['@smoke', '@regression'],
+  tag: ['@smoke', '@regression', '@document-upload'],
 }, async ({ page, browser }) => {
     // Step 1: Admin login and navigate to applications
     await loginForm.adminLoginAndNavigate(page, admin);

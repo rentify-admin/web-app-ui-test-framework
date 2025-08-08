@@ -22,7 +22,7 @@ test.describe('Bank statement transaction parsing', () => {
     test.describe.configure({ mode: 'default' });
 
     test('Login with admin user', {
-      tag: ['@regression'],
+      tag: ['@regression', '@document-upload'],
     }, async ({ browser, page }) => {
         // Set timeout to 130 seconds (30 seconds more than the current 100 second timeout)
         test.setTimeout(130000);

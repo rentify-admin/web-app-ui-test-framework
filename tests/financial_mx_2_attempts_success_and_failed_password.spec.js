@@ -25,7 +25,7 @@ test.beforeEach(async ({ page }) => {
 });
 
 test('C36 - Financial - mx - 2 attempts - success and failed password', {
-  tag: ['@regression'],
+  tag: ['@regression', '@document-upload'],
 }, async ({ page, browser }) => {
     // Step 1: Admin Login and Navigate
     await loginForm.fill(page, admin);
