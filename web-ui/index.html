@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Verifast Test Runner</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            opacity: 0.9;
+            font-size: 1.1rem;
+        }
+
+        .content {
+            padding: 40px;
+        }
+
+        .form-group {
+            margin-bottom: 25px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        select, input, textarea {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #e1e5e9;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.3s ease;
+        }
+
+        select:focus, input:focus, textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .test-cases {
+            max-height: 300px;
+            overflow-y: auto;
+            border: 2px solid #e1e5e9;
+            border-radius: 8px;
+            padding: 10px;
+        }
+
+        .test-case {
+            display: flex;
+            align-items: center;
+            padding: 10px;
+            border-bottom: 1px solid #f0f0f0;
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+        }
+
+        .test-case:hover {
+            background-color: #f8f9fa;
+        }
+
+        .test-case:last-child {
+            border-bottom: none;
+        }
+
+        .test-case input[type="checkbox"] {
+            width: auto;
+            margin-right: 12px;
+        }
+
+        .test-case-info {
+            flex: 1;
+        }
+
+        .test-case-title {
+            font-weight: 600;
+            color: #333;
+        }
+
+        .test-case-description {
+            font-size: 14px;
+            color: #666;
+            margin-top: 4px;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s ease;
+            width: 100%;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .status {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 8px;
+            display: none;
+        }
+
+        .status.success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .status.error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .status.info {
+            background-color: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            margin: 20px 0;
+        }
+
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .quick-select {
+            margin-bottom: 15px;
+        }
+
+        .quick-select button {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            padding: 8px 16px;
+            margin-right: 10px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .quick-select button:hover {
+            background: #e9ecef;
+        }
+
+        .quick-select button.active {
+            background: #667eea;
+            color: white;
+            border-color: #667eea;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🚀 Verifast Test Runner</h1>
+            <p>Select test cases and run them in your preferred environment</p>
+        </div>
+
+        <div class="content">
+            <form id="testForm">
+                <div class="form-group">
+                    <label for="environment">Environment</label>
+                    <select id="environment" required>
+                        <option value="">Select environment...</option>
+                        <option value="develop">Develop</option>
+                        <option value="staging">Staging</option>
+                        <option value="production">Production</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="browser">Browser</label>
+                    <select id="browser" required>
+                        <option value="chromium">Chromium</option>
+                        <option value="firefox">Firefox</option>
+                        <option value="webkit">WebKit</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>Test Cases</label>
+                    <div class="quick-select">
+                        <button type="button" onclick="selectAll()">Select All</button>
+                        <button type="button" onclick="deselectAll()">Deselect All</button>
+                        <button type="button" onclick="selectSmoke()">Smoke Tests</button>
+                        <button type="button" onclick="selectRegression()">Regression Tests</button>
+                    </div>
+                    <div class="test-cases" id="testCases">
+                        <!-- Test cases will be loaded here -->
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="description">Description (Optional)</label>
+                    <textarea id="description" rows="3" placeholder="Add any additional notes about this test run..."></textarea>
+                </div>
+
+                <button type="submit" class="btn" id="runButton">
+                    🚀 Run Selected Tests
+                </button>
+            </form>
+
+            <div class="loading" id="loading">
+                <div class="spinner"></div>
+                <p>Triggering GitHub Actions workflow...</p>
+            </div>
+
+            <div class="status" id="status"></div>
+        </div>
+    </div>
+
+    <script>
+        // Test cases will be loaded from API
+        let testCases = [];
+
+        async function loadTestCases() {
+            const container = document.getElementById('testCases');
+            container.innerHTML = '<div style="text-align: center; padding: 20px;">Loading test cases...</div>';
+
+            try {
+                const response = await fetch('/api/test-cases');
+                if (response.ok) {
+                    testCases = await response.json();
+                } else {
+                    throw new Error('Failed to load test cases');
+                }
+            } catch (error) {
+                console.error('Error loading test cases:', error);
+                // Fallback to sample data
+                testCases = [
+                    { id: 1, title: "Frontend Heartbeat", description: "Basic frontend connectivity test", tags: ["smoke"] },
+                    { id: 2, title: "User Login", description: "User authentication flow", tags: ["smoke", "regression"] },
+                    { id: 3, title: "Document Upload", description: "File upload functionality", tags: ["regression"] },
+                    { id: 4, title: "Employment Verification", description: "Employment verification flow", tags: ["regression"] },
+                    { id: 5, title: "Financial Verification", description: "Financial verification flow", tags: ["regression"] },
+                    { id: 6, title: "Application Flow", description: "Complete application process", tags: ["regression"] },
+                    { id: 7, title: "Bank Statement Parsing", description: "Bank statement processing", tags: ["regression"] },
+                    { id: 8, title: "Report Generation", description: "Report creation and download", tags: ["regression"] }
+                ];
+            }
+
+            container.innerHTML = '';
+
+            testCases.forEach(testCase => {
+                const div = document.createElement('div');
+                div.className = 'test-case';
+                div.innerHTML = `
+                    <input type="checkbox" id="test-${testCase.id}" value="${testCase.id}">
+                    <div class="test-case-info">
+                        <div class="test-case-title">${testCase.title}</div>
+                        <div class="test-case-description">${testCase.description}</div>
+                        <div style="font-size: 12px; color: #666; margin-top: 4px;">
+                            Tags: ${testCase.tags.join(', ')}
+                        </div>
+                    </div>
+                `;
+                container.appendChild(div);
+            });
+        }
+
+        function selectAll() {
+            document.querySelectorAll('#testCases input[type="checkbox"]').forEach(cb => cb.checked = true);
+        }
+
+        function deselectAll() {
+            document.querySelectorAll('#testCases input[type="checkbox"]').forEach(cb => cb.checked = false);
+        }
+
+        function selectSmoke() {
+            deselectAll();
+            testCases.forEach((testCase, index) => {
+                if (testCase.tags.includes('smoke')) {
+                    document.getElementById(`test-${testCase.id}`).checked = true;
+                }
+            });
+        }
+
+        function selectRegression() {
+            deselectAll();
+            testCases.forEach((testCase, index) => {
+                if (testCase.tags.includes('regression')) {
+                    document.getElementById(`test-${testCase.id}`).checked = true;
+                }
+            });
+        }
+
+        function showStatus(message, type) {
+            const status = document.getElementById('status');
+            status.textContent = message;
+            status.className = `status ${type}`;
+            status.style.display = 'block';
+        }
+
+        function hideStatus() {
+            document.getElementById('status').style.display = 'none';
+        }
+
+        function showLoading() {
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('runButton').disabled = true;
+        }
+
+        function hideLoading() {
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('runButton').disabled = false;
+        }
+
+        async function triggerGitHubWorkflow(selectedCases, environment, browser, description) {
+            const payload = {
+                event_type: 'testrail-run-request',
+                client_payload: {
+                    case_ids: selectedCases.join(','),
+                    environment: environment,
+                    browser: browser,
+                    description: description,
+                    testrail_user: 'web-ui'
+                }
+            };
+
+            try {
+                const response = await fetch('/api/trigger-workflow', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(payload)
+                });
+
+                if (response.ok) {
+                    const result = await response.json();
+                    return result;
+                } else {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+            } catch (error) {
+                throw error;
+            }
+        }
+
+        document.getElementById('testForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const environment = document.getElementById('environment').value;
+            const browser = document.getElementById('browser').value;
+            const description = document.getElementById('description').value;
+            
+            const selectedCases = Array.from(document.querySelectorAll('#testCases input[type="checkbox"]:checked'))
+                .map(cb => cb.value);
+
+            if (selectedCases.length === 0) {
+                showStatus('Please select at least one test case.', 'error');
+                return;
+            }
+
+            hideStatus();
+            showLoading();
+
+            try {
+                const result = await triggerGitHubWorkflow(selectedCases, environment, browser, description);
+                
+                showStatus(`
+                    ✅ Workflow triggered successfully!
+                    📋 Selected ${selectedCases.length} test cases
+                    🌍 Environment: ${environment}
+                    🌐 Browser: ${browser}
+                    🔗 <a href="https://github.com/rentify-admin/web-app-ui-test-framework/actions" target="_blank">View in GitHub Actions</a>
+                `, 'success');
+                
+            } catch (error) {
+                showStatus(`❌ Error: ${error.message}`, 'error');
+            } finally {
+                hideLoading();
+            }
+        });
+
+        // Load test cases when page loads
+        document.addEventListener('DOMContentLoaded', loadTestCases);
+    </script>
+</body>
+</html>

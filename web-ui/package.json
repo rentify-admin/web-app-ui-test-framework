@@ -1,0 +1,26 @@
+{
+  "name": "verifast-test-runner-web-ui",
+  "version": "1.0.0",
+  "description": "Web UI for triggering Verifast test runs",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon server.js",
+    "test": "echo \"No tests specified\" && exit 0"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "node-fetch": "^2.6.7"
+  },
+  "devDependencies": {
+    "nodemon": "^2.0.22"
+  },
+  "keywords": [
+    "test-automation",
+    "playwright",
+    "github-actions",
+    "testrail"
+  ],
+  "author": "Verifast Team",
+  "license": "MIT"
+}
