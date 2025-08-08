@@ -6,6 +6,19 @@ import { createApplicationFlow, searchAndEditApplication, searchAndVerifyApplica
 import { getRandomNumber } from './utils/helper';
 
 test.describe('Workflow Isolation Test', () => {
+    let app1Name, app2Name;
+
+    test.afterAll(async ({ page }) => {
+        //TODO IMPORTANT. IMPLEMENT CLEAN UP BY API
+        try {
+            // Clean up applications even if test fails
+            if (app1Name) await searchAndDeleteApplication(page, app1Name).catch(() => {});
+            if (app2Name) await searchAndDeleteApplication(page, app2Name).catch(() => {});
+        } catch (error) {
+            console.log('Cleanup failed:', error.message);
+        }
+    });
+
     test('C42 - Applicant edits a workflow used by another applicant only reflects changes to current', { tag: ['@core', '@regression'] }, async ({ page, browserName }) => {
         // Step 1-5: Login as admin (using admin instead of craig as requested)
         await page.goto(app.urls.app);
@@ -15,8 +28,8 @@ test.describe('Workflow Isolation Test', () => {
 
         // Generate browser-specific application names to avoid conflicts when running in parallel
         const browserPrefix = browserName.charAt(0).toUpperCase() + browserName.slice(1);
-        const app1Name = `AutoTest Edit_1_${browserPrefix}_${getRandomNumber()}`;
-        const app2Name = `AutoTest Edit_2_${browserPrefix}_${getRandomNumber()}`;
+        app1Name = `AutoTest Edit_1_${browserPrefix}_${getRandomNumber()}`;
+        app2Name = `AutoTest Edit_2_${browserPrefix}_${getRandomNumber()}`;
 
         // Application configurations
         const app1Config = {
@@ -74,12 +87,6 @@ test.describe('Workflow Isolation Test', () => {
 
         expect(edit2Length).toBeGreaterThan(edit1Length);
         console.log(`Application 2 has ${edit2Length} applicant types, Application 1 has ${edit1Length} applicant types`);
-
-        // Step 110-117: Clean up - delete both applications
-        console.log('Cleaning up applications...');
-        await searchAndDeleteApplication(page, app1Name);
-        await page.waitForTimeout(2000);
-        await searchAndDeleteApplication(page, app2Name);
 
         console.log('Workflow isolation test completed successfully');
     });
