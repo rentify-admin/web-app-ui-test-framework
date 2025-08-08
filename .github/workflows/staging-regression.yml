@@ -155,11 +155,26 @@ jobs:
           TESTRAIL_PROJECT_ID: ${{ secrets.TESTRAIL_PROJECT_ID }}
           TESTRAIL_SUITE_ID: ${{ secrets.TESTRAIL_SUITE_ID }}
 
+      - name: Analyze flaky tests
+        if: always()
+        run: |
+          echo "🔍 Analyzing test results for flakiness..."
+          node scripts/flaky-test-analyzer.js "playwright-report/results.xml" "flaky-analysis.json" "20" "2"
+          echo "📊 Flaky analysis completed"
+          
+          # Tag flaky tests if any found
+          if [ -f "flaky-analysis.json" ]; then
+            echo "🏷️ Checking for flaky tests to tag..."
+            node scripts/flaky-test-tagger.js tag "flaky-analysis.json" "tests"
+          fi
+          
+          echo "✅ Flaky test analysis and tagging completed"
+
       - name: Send Slack notification
         if: always()
         run: |
           echo "📤 Sending Slack notification..."
-          node scripts/slack-notification.js "Staging Regression Tests" "${{ env.APP_ENV }}" "${{ github.run_id }}" "playwright-report/results.xml" "${{ env.TESTRAIL_RUN_ID }}" "${{ env.PUBLIC_REPORT_URL }}"
+          node scripts/slack-notification.js "Staging Regression Tests" "${{ env.APP_ENV }}" "${{ github.run_id }}" "playwright-report/results.xml" "${{ env.TESTRAIL_RUN_ID }}" "${{ env.PUBLIC_REPORT_URL }}" "flaky-analysis.json"
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
           GITHUB_SERVER_URL: ${{ github.server_url }}

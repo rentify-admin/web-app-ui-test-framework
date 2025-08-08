@@ -15,10 +15,10 @@ import path from 'path';
 import { FlakyTestAnalyzer } from './flaky-test-analyzer.js';
 
 // Get command line arguments
-const [,, workflowName, environment, runId, resultsFile, testrailRunId, publicReportUrl] = process.argv;
+const [,, workflowName, environment, runId, resultsFile, testrailRunId, publicReportUrl, flakyAnalysisFile] = process.argv;
 
 if (!workflowName || !environment || !runId || !resultsFile) {
-    console.error('Usage: node scripts/slack-notification.js <workflow-name> <environment> <run-id> <results-file> [testrail-run-id]');
+    console.error('Usage: node scripts/slack-notification.js <workflow-name> <environment> <run-id> <results-file> [testrail-run-id] [public-report-url] [flaky-analysis-file]');
     process.exit(1);
 }
 
@@ -194,7 +194,26 @@ function getFailedTestNames(filePath) {
     return failedNames.slice(0, 5).map(name => `- ${name}`).join('\n');
 }
 
-function createSlackMessage(workflowName, environment, runId, results, status, visualDots, duration, failedTestNames, testrailRunId, publicReportUrl) {
+function getFlakyAnalysisSummary(flakyAnalysisFile) {
+    if (!flakyAnalysisFile || !fs.existsSync(flakyAnalysisFile)) {
+        return null;
+    }
+
+    try {
+        const analysis = JSON.parse(fs.readFileSync(flakyAnalysisFile, 'utf8'));
+        return {
+            total: analysis.summary?.total || 0,
+            flaky: analysis.summary?.flaky || 0,
+            threshold: analysis.summary?.threshold || 20,
+            flakyTests: analysis.flakyTests || []
+        };
+    } catch (error) {
+        console.error(`Error reading flaky analysis: ${error.message}`);
+        return null;
+    }
+}
+
+function createSlackMessage(workflowName, environment, runId, results, status, visualDots, duration, failedTestNames, testrailRunId, publicReportUrl, flakyAnalysisFile) {
     const currentTime = new Date().toISOString();
     const pipelineType = environment === 'develop' ? 'UI' : 'API';
     
@@ -283,6 +302,23 @@ function createSlackMessage(workflowName, environment, runId, results, status, v
             text: {
                 type: "mrkdwn",
                 text: `*❌ Failed Tests (${results.failed}):*\n${failedTestNames}`
+            }
+        });
+    }
+
+    // Add flaky analysis section if available
+    const flakyAnalysis = getFlakyAnalysisSummary(flakyAnalysisFile);
+    if (flakyAnalysis && flakyAnalysis.flaky > 0) {
+        const flakyTestNames = flakyAnalysis.flakyTests
+            .slice(0, 3)
+            .map(test => `- ${test.name}: ${test.flakinessPercent}% flaky (${test.passes}P/${test.fails}F)`)
+            .join('\n');
+        
+        message.blocks.push({
+            type: "section",
+            text: {
+                type: "mrkdwn",
+                text: `*🟡 Flaky Tests (≥${flakyAnalysis.threshold}% threshold):*\n${flakyTestNames}`
             }
         });
     }
@@ -384,7 +420,8 @@ async function main() {
         duration,
         failedTestNames,
         testrailRunId,
-        publicReportUrl
+        publicReportUrl,
+        flakyAnalysisFile
     );
     
     const success = await sendSlackNotification(message);
