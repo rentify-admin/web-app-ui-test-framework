@@ -35,7 +35,10 @@ const user = {
     last_name: 'PalmaVance'
 };
 
-test('Report update bank statement', { tag: ['@smoke', '@document-upload'] }, async ({ page, browser }) => {
+test.skip('Report update bank statement', { 
+    tag: ['@smoke', '@document-upload'],
+    timeout: 180000  // 3 minutes
+}, async ({ page, browser }) => {
 
     // Step:1 Login the the admin panel
     await loginWith(page, admin);

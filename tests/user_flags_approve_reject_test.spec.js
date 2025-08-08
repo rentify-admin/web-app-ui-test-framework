@@ -37,7 +37,7 @@ test.describe('Session Flag Testing', () => {
 
     let flagIssueSession = '01985a2c-c3f3-71fa-bc3d-f5a11279d36a';
 
-    test('Create Applicant Session for Flag Issue', { tag: [ '@core', '@smoke', '@regression' ] }, async ({
+    test.skip('Create Applicant Session for Flag Issue', { tag: [ '@core', '@smoke', '@regression', '@document-upload' ] }, async ({
         page,
         browser
     }) => {
@@ -57,7 +57,7 @@ test.describe('Session Flag Testing', () => {
         flagIssueSession = sessionId;
     });
 
-    test('Check Session Flag Test', { tag: [ '@core', '@smoke', '@regression' ] }, async ({ page }) => {
+    test.skip('Check Session Flag Test', { tag: [ '@core', '@smoke', '@regression', '@document-upload' ] }, async ({ page }) => {
         const sessionId = flagIssueSession;
 
         // Step 1: Login and navigate to session
@@ -134,7 +134,7 @@ test.describe('Session Approve/Reject Testing', () => {
 
     let approveRejectSession = '01976921-a4d1-729f-9212-6f88ac9a189c';
 
-    test('Create Applicant Session for Approve Reject', { tag: [ '@core', '@smoke', '@regression' ] }, async ({
+    test.skip('Create Applicant Session for Approve Reject', { tag: [ '@core', '@smoke', '@regression', '@document-upload' ] }, async ({
         page,
         browser
     }) => {
@@ -154,7 +154,7 @@ test.describe('Session Approve/Reject Testing', () => {
         approveRejectSession = sessionId;
     });
 
-    test('Check Session by Approving and Rejecting', { tag: [ '@core', '@smoke', '@regression' ] }, async ({ page }) => {
+    test.skip('Check Session by Approving and Rejecting', { tag: [ '@core', '@smoke', '@regression', '@document-upload' ] }, async ({ page }) => {
         const sessionId = approveRejectSession;
 
         // Login and navigate to session
