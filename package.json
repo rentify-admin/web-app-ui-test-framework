@@ -32,7 +32,10 @@
     "testrail:generate-mapping": "node scripts/test-case-mapper.js generate",
     "testrail:validate-mapping": "node scripts/test-case-mapper.js validate",
     "testrail:test-enhanced": "node scripts/test-enhanced-features.js",
-    "testrail:create-public-report": "node scripts/create-public-report.js"
+    "testrail:create-public-report": "node scripts/create-public-report.js",
+    "testrail:run-selected": "node scripts/run-selected-tests.js run",
+    "testrail:list-cases": "node scripts/run-selected-tests.js list",
+    "testrail:setup-guide": "node scripts/setup-testrail-webhook-manual.js"
   },
   "devDependencies": {
     "@playwright/test": "^1.52.0",
