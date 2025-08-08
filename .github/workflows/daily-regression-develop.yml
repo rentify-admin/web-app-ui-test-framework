@@ -142,7 +142,7 @@ jobs:
           TESTRAIL_SUITE_ID: ${{ secrets.TESTRAIL_SUITE_ID }}
 
       - name: Create public report
-        if: always()
+        if: false  # Temporarily disabled - TestRail API endpoint not available
         run: |
           echo "🔗 Creating public report..."
           if [ -n "${{ env.TESTRAIL_RUN_ID }}" ]; then

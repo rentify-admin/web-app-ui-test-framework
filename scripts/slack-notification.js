@@ -256,7 +256,7 @@ function createSlackMessage(workflowName, environment, runId, results, status, v
     }
 
     // Add links section
-    const linksText = `*🔗 Related Links:*\n• <${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${runId}|GitHub Actions Run>`;
+    let linksText = `*🔗 Related Links:*\n• <${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${runId}|GitHub Actions Run>`;
     
     if (testrailLink) {
         linksText += `\n• <${testrailLink}|TestRail Report>`;
