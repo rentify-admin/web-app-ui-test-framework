@@ -91,7 +91,7 @@ jobs:
           # Create TestRail test run and upload results
           trcli -y \
             -h $TESTRAIL_HOST \
-            --project "$TESTRAIL_PROJECT_ID" \
+            --project "$TESTRAIL_PROJECT_NAME" \
             --username $TESTRAIL_USER \
             --key $TESTRAIL_API_KEY \
             parse_junit \
@@ -103,7 +103,7 @@ jobs:
             --file playwright-report/results.xml
         env:
           TESTRAIL_HOST: ${{ secrets.TESTRAIL_HOST }}
-          TESTRAIL_PROJECT_ID: ${{ secrets.TESTRAIL_PROJECT_ID }}
+          TESTRAIL_PROJECT_NAME: ${{ secrets.TESTRAIL_PROJECT_NAME }}
           TESTRAIL_SUITE_ID: ${{ secrets.TESTRAIL_SUITE_ID }}
           TESTRAIL_USER: ${{ secrets.TESTRAIL_USER }}
           TESTRAIL_API_KEY: ${{ secrets.TESTRAIL_API_KEY }}
