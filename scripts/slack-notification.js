@@ -416,11 +416,18 @@ async function uploadFileToSlack(filePath, filename, fileType = 'auto') {
             return null;
         }
         
+        if (!SLACK_BOT_TOKEN) {
+            console.log(`⚠️ SLACK_BOT_TOKEN not available, skipping file upload: ${filename}`);
+            return null;
+        }
+        
         const fileBuffer = fs.readFileSync(filePath);
         const formData = new FormData();
         formData.append('file', new Blob([fileBuffer]), filename);
         formData.append('channels', 'general'); // You can customize this
         formData.append('initial_comment', `TestRail Report: ${filename}`);
+        
+        console.log(`📤 Uploading file to Slack: ${filename} (${fileBuffer.length} bytes)`);
         
         const response = await fetch('https://slack.com/api/files.upload', {
             method: 'POST',
@@ -486,7 +493,11 @@ async function main() {
         const pdfUrl = await uploadFileToSlack(pdfFile, pdfFile);
         if (pdfUrl) {
             console.log(`✅ PDF report uploaded: ${pdfUrl}`);
+        } else {
+            console.log(`⚠️ PDF report upload failed`);
         }
+    } else {
+        console.log(`⚠️ PDF report not found: ${pdfFile}`);
     }
     
     // Upload failed test videos if available
@@ -499,20 +510,32 @@ async function main() {
             try {
                 const videoFiles = execSync(`find ${videoDir} -name "*.webm" -o -name "*.mp4"`, { encoding: 'utf8' }).trim().split('\n');
                 
-                for (const videoFile of videoFiles) {
-                    if (videoFile && fs.existsSync(videoFile)) {
-                        const filename = videoFile.split('/').pop();
-                        console.log(`📹 Uploading video: ${filename}`);
-                        const videoUrl = await uploadFileToSlack(videoFile, filename);
-                        if (videoUrl) {
-                            console.log(`✅ Video uploaded: ${videoUrl}`);
+                if (videoFiles.length === 0 || (videoFiles.length === 1 && videoFiles[0] === '')) {
+                    console.log(`⚠️ No video files found in ${videoDir}`);
+                } else {
+                    console.log(`📹 Found ${videoFiles.length} video files`);
+                    
+                    for (const videoFile of videoFiles) {
+                        if (videoFile && fs.existsSync(videoFile)) {
+                            const filename = videoFile.split('/').pop();
+                            console.log(`📹 Uploading video: ${filename}`);
+                            const videoUrl = await uploadFileToSlack(videoFile, filename);
+                            if (videoUrl) {
+                                console.log(`✅ Video uploaded: ${videoUrl}`);
+                            } else {
+                                console.log(`⚠️ Video upload failed: ${filename}`);
+                            }
                         }
                     }
                 }
             } catch (error) {
-                console.log(`⚠️ No video files found or error uploading: ${error.message}`);
+                console.log(`⚠️ Error finding video files: ${error.message}`);
             }
+        } else {
+            console.log(`⚠️ Video directory not found: ${videoDir}`);
         }
+    } else {
+        console.log(`ℹ️ No failed tests, skipping video uploads`);
     }
     
     process.exit(success ? 0 : 1);

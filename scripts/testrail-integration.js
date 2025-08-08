@@ -260,22 +260,38 @@ class TestRailIntegration {
     try {
       console.log(`📄 Exporting TestRail run ${runId} as PDF...`);
       
+      // Check if we have the required environment variables
+      if (!process.env.TESTRAIL_HOST) {
+        console.log(`⚠️ TESTRAIL_HOST not set, skipping PDF export`);
+        return null;
+      }
+      
       // TestRail doesn't have a direct PDF export API, so we'll use the web interface
-      const pdfUrl = `${this.api.host.replace('/api/', '/index.php?/runs/view/')}${runId}&format=pdf`;
+      const baseUrl = process.env.TESTRAIL_HOST.replace('/api/', '');
+      const pdfUrl = `${baseUrl}/index.php?/runs/view/${runId}&format=pdf`;
+      
+      console.log(`🔗 PDF URL: ${pdfUrl}`);
       
       // Download the PDF using curl
       const { execSync } = await import('child_process');
       const fs = await import('fs');
       
       const pdfFilename = `testrail-report-${runId}.pdf`;
-      const authHeader = `-H "Authorization: Basic ${Buffer.from(`${this.api.username}:${this.api.apiKey}`).toString('base64')}"`;
+      const authHeader = `-H "Authorization: Basic ${Buffer.from(`${process.env.TESTRAIL_USER}:${process.env.TESTRAIL_API_KEY}`).toString('base64')}"`;
       
       try {
         execSync(`curl -L ${authHeader} "${pdfUrl}" -o "${pdfFilename}"`, { stdio: 'inherit' });
         
         if (fs.existsSync(pdfFilename)) {
-          console.log(`✅ PDF exported successfully: ${pdfFilename}`);
-          return pdfFilename;
+          const stats = fs.statSync(pdfFilename);
+          if (stats.size > 0) {
+            console.log(`✅ PDF exported successfully: ${pdfFilename} (${stats.size} bytes)`);
+            return pdfFilename;
+          } else {
+            console.log(`⚠️ PDF file created but empty`);
+            fs.unlinkSync(pdfFilename);
+            return null;
+          }
         } else {
           console.log(`⚠️ PDF export failed, file not created`);
           return null;
@@ -306,18 +322,14 @@ class TestRailIntegration {
       const videoFiles = this.findVideoFiles(videoDir);
       const failedVideos = [];
       
+      // Simply collect all video files without trying to match to TestRail cases
       for (const videoFile of videoFiles) {
         const testName = this.extractTestNameFromFileName(videoFile);
-        const caseId = await this.findCaseIdByTestName(testName);
-        
-        if (caseId) {
-          failedVideos.push({
-            path: videoFile,
-            testName,
-            caseId,
-            filename: path.basename(videoFile)
-          });
-        }
+        failedVideos.push({
+          path: videoFile,
+          testName,
+          filename: path.basename(videoFile)
+        });
       }
       
       console.log(`✅ Found ${failedVideos.length} videos for Slack attachment`);
