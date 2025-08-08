@@ -213,7 +213,7 @@ function getFlakyAnalysisSummary(flakyAnalysisFile) {
     }
 }
 
-function createSlackMessage(workflowName, environment, runId, results, status, visualDots, duration, failedTestNames, testrailRunId, publicReportUrl, flakyAnalysisFile) {
+function createSlackMessage(workflowName, environment, runId, results, status, visualDots, duration, failedTestNames, testrailRunId, flakyAnalysisFile) {
     const currentTime = new Date().toISOString();
     const pipelineType = environment === 'develop' ? 'UI' : 'API';
     
@@ -347,9 +347,7 @@ function createSlackMessage(workflowName, environment, runId, results, status, v
     } else {
         console.log(`❌ TestRail link not added - link is empty`);
     }
-    if (publicReportUrl) {
-        linksText += `\n• <${publicReportUrl}|Public Report>`;
-    }
+
     
     message.blocks.push(
         {
@@ -409,6 +407,48 @@ async function sendSlackNotification(message) {
     }
 }
 
+async function uploadFileToSlack(filePath, filename, fileType = 'auto') {
+    try {
+        const fs = await import('fs');
+        
+        if (!fs.existsSync(filePath)) {
+            console.log(`⚠️ File not found: ${filePath}`);
+            return null;
+        }
+        
+        const fileBuffer = fs.readFileSync(filePath);
+        const formData = new FormData();
+        formData.append('file', new Blob([fileBuffer]), filename);
+        formData.append('channels', 'general'); // You can customize this
+        formData.append('initial_comment', `TestRail Report: ${filename}`);
+        
+        const response = await fetch('https://slack.com/api/files.upload', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${SLACK_BOT_TOKEN}`,
+            },
+            body: formData
+        });
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const result = await response.json();
+        
+        if (result.ok) {
+            console.log(`✅ File uploaded to Slack: ${filename}`);
+            return result.file.permalink;
+        } else {
+            console.error(`❌ Slack file upload failed: ${result.error}`);
+            return null;
+        }
+    } catch (error) {
+        console.error(`❌ Failed to upload file to Slack: ${error.message}`);
+        return null;
+    }
+}
+
 // Main execution
 async function main() {
     console.log(`📊 Processing test results for ${workflowName} in ${environment}`);
@@ -432,11 +472,49 @@ async function main() {
         duration,
         failedTestNames,
         testrailRunId,
-        publicReportUrl,
         flakyAnalysisFile
     );
     
+    // Send the main notification first
     const success = await sendSlackNotification(message);
+    
+    // Upload PDF report if available
+    const fs = await import('fs');
+    const pdfFile = `testrail-report-${testrailRunId}.pdf`;
+    if (fs.existsSync(pdfFile)) {
+        console.log(`📄 Uploading PDF report: ${pdfFile}`);
+        const pdfUrl = await uploadFileToSlack(pdfFile, pdfFile);
+        if (pdfUrl) {
+            console.log(`✅ PDF report uploaded: ${pdfUrl}`);
+        }
+    }
+    
+    // Upload failed test videos if available
+    if (results.failed > 0) {
+        const videoDir = 'test-results';
+        if (fs.existsSync(videoDir)) {
+            console.log(`🎥 Uploading failed test videos...`);
+            const { execSync } = await import('child_process');
+            
+            try {
+                const videoFiles = execSync(`find ${videoDir} -name "*.webm" -o -name "*.mp4"`, { encoding: 'utf8' }).trim().split('\n');
+                
+                for (const videoFile of videoFiles) {
+                    if (videoFile && fs.existsSync(videoFile)) {
+                        const filename = videoFile.split('/').pop();
+                        console.log(`📹 Uploading video: ${filename}`);
+                        const videoUrl = await uploadFileToSlack(videoFile, filename);
+                        if (videoUrl) {
+                            console.log(`✅ Video uploaded: ${videoUrl}`);
+                        }
+                    }
+                }
+            } catch (error) {
+                console.log(`⚠️ No video files found or error uploading: ${error.message}`);
+            }
+        }
+    }
+    
     process.exit(success ? 0 : 1);
 }
 

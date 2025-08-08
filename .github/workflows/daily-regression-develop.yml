@@ -124,15 +124,30 @@ jobs:
           TESTRAIL_USER: ${{ secrets.TESTRAIL_USER }}
           TESTRAIL_API_KEY: ${{ secrets.TESTRAIL_API_KEY }}
 
-      - name: Process failed test videos
+      - name: Export TestRail report and prepare attachments
         if: always()
         run: |
-          echo "🎥 Processing failed test videos..."
-          if [ -d "test-results" ]; then
-            echo "Found test-results directory, processing videos..."
-            node scripts/testrail-integration.js attach-videos "${{ env.TESTRAIL_RUN_ID }}"
+          echo "📊 Exporting TestRail report and preparing attachments..."
+          if [ -n "${{ env.TESTRAIL_RUN_ID }}" ]; then
+            # Export TestRail report as PDF
+            echo "📄 Exporting TestRail report as PDF..."
+            node scripts/testrail-integration.js export-pdf "${{ env.TESTRAIL_RUN_ID }}"
+            
+            # Process failed test videos
+            if [ -d "test-results" ]; then
+              echo "🎥 Processing failed test videos..."
+              node scripts/testrail-integration.js attach-videos "${{ env.TESTRAIL_RUN_ID }}"
+              
+              # Prepare videos for Slack attachment
+              echo "📹 Preparing videos for Slack attachment..."
+              node scripts/testrail-integration.js prepare-slack-videos "${{ env.TESTRAIL_RUN_ID }}"
+            else
+              echo "No test-results directory found, skipping video processing"
+            fi
+            
+            echo "✅ TestRail report export and video preparation completed"
           else
-            echo "No test-results directory found, skipping video processing"
+            echo "⚠️ No TestRail run ID available, skipping export"
           fi
         env:
           TESTRAIL_HOST: ${{ secrets.TESTRAIL_HOST }}
@@ -141,23 +156,6 @@ jobs:
           TESTRAIL_PROJECT_ID: ${{ secrets.TESTRAIL_PROJECT_ID }}
           TESTRAIL_SUITE_ID: ${{ secrets.TESTRAIL_SUITE_ID }}
 
-      - name: Create public report
-        if: false  # Disabled - TestRail public link API not available
-        run: |
-          echo "🔗 Creating public report..."
-          if [ -n "${{ env.TESTRAIL_RUN_ID }}" ]; then
-            PUBLIC_REPORT=$(node scripts/create-public-report.js "${{ env.TESTRAIL_RUN_ID }}" --save)
-            echo "PUBLIC_REPORT_URL=$(echo "$PUBLIC_REPORT" | grep -o 'https://[^[:space:]]*')" >> $GITHUB_ENV
-            echo "✅ Public report created"
-          else
-            echo "⚠️ No TestRail run ID available, skipping public report creation"
-          fi
-        env:
-          TESTRAIL_HOST: ${{ secrets.TESTRAIL_HOST }}
-          TESTRAIL_USER: ${{ secrets.TESTRAIL_USER }}
-          TESTRAIL_API_KEY: ${{ secrets.TESTRAIL_API_KEY }}
-          TESTRAIL_PROJECT_ID: ${{ secrets.TESTRAIL_PROJECT_ID }}
-          TESTRAIL_SUITE_ID: ${{ secrets.TESTRAIL_SUITE_ID }}
 
       - name: Analyze flaky tests
         if: always()
@@ -177,10 +175,11 @@ jobs:
       - name: Send Slack notification
         if: always()
         run: |
-          echo "📤 Sending Slack notification..."
-          node scripts/slack-notification.js "Pipeline Witness Tests" "develop" "${{ github.run_id }}" "playwright-report/results.xml" "${{ env.TESTRAIL_RUN_ID }}" "${{ env.PUBLIC_REPORT_URL }}" "flaky-analysis.json"
+          echo "📤 Sending Slack notification with attachments..."
+          node scripts/slack-notification.js "Pipeline Witness Tests" "develop" "${{ github.run_id }}" "playwright-report/results.xml" "${{ env.TESTRAIL_RUN_ID }}" "flaky-analysis.json"
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
           GITHUB_SERVER_URL: ${{ github.server_url }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           GITHUB_ACTOR: ${{ github.actor }}

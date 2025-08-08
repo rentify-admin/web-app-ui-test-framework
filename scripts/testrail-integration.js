@@ -255,6 +255,78 @@ class TestRailIntegration {
       throw error;
     }
   }
+
+  async exportPdf(runId) {
+    try {
+      console.log(`📄 Exporting TestRail run ${runId} as PDF...`);
+      
+      // TestRail doesn't have a direct PDF export API, so we'll use the web interface
+      const pdfUrl = `${this.api.host.replace('/api/', '/index.php?/runs/view/')}${runId}&format=pdf`;
+      
+      // Download the PDF using curl
+      const { execSync } = await import('child_process');
+      const fs = await import('fs');
+      
+      const pdfFilename = `testrail-report-${runId}.pdf`;
+      const authHeader = `-H "Authorization: Basic ${Buffer.from(`${this.api.username}:${this.api.apiKey}`).toString('base64')}"`;
+      
+      try {
+        execSync(`curl -L ${authHeader} "${pdfUrl}" -o "${pdfFilename}"`, { stdio: 'inherit' });
+        
+        if (fs.existsSync(pdfFilename)) {
+          console.log(`✅ PDF exported successfully: ${pdfFilename}`);
+          return pdfFilename;
+        } else {
+          console.log(`⚠️ PDF export failed, file not created`);
+          return null;
+        }
+      } catch (curlError) {
+        console.log(`⚠️ PDF export via curl failed: ${curlError.message}`);
+        return null;
+      }
+    } catch (error) {
+      console.error(`❌ Failed to export PDF: ${error.message}`);
+      return null;
+    }
+  }
+
+  async prepareSlackVideos(runId) {
+    try {
+      console.log(`📹 Preparing videos for Slack attachment...`);
+      
+      const fs = await import('fs');
+      const path = await import('path');
+      
+      const videoDir = 'test-results';
+      if (!fs.existsSync(videoDir)) {
+        console.log(`⚠️ No test-results directory found`);
+        return [];
+      }
+      
+      const videoFiles = this.findVideoFiles(videoDir);
+      const failedVideos = [];
+      
+      for (const videoFile of videoFiles) {
+        const testName = this.extractTestNameFromFileName(videoFile);
+        const caseId = await this.findCaseIdByTestName(testName);
+        
+        if (caseId) {
+          failedVideos.push({
+            path: videoFile,
+            testName,
+            caseId,
+            filename: path.basename(videoFile)
+          });
+        }
+      }
+      
+      console.log(`✅ Found ${failedVideos.length} videos for Slack attachment`);
+      return failedVideos;
+    } catch (error) {
+      console.error(`❌ Failed to prepare videos for Slack: ${error.message}`);
+      return [];
+    }
+  }
 }
 
 // Export for use in other modules
@@ -283,6 +355,24 @@ if (import.meta.url === `file://${process.argv[1]}`) {
         .catch(console.error);
       break;
       
+    case 'export-pdf':
+      integration.exportPdf(runId)
+        .then(pdfFile => {
+          if (pdfFile) {
+            console.log(`PDF exported: ${pdfFile}`);
+          } else {
+            console.log('PDF export failed');
+          }
+        })
+        .catch(console.error);
+      break;
+      
+    case 'prepare-slack-videos':
+      integration.prepareSlackVideos(runId)
+        .then(videos => console.log(`Prepared ${videos.length} videos for Slack`))
+        .catch(console.error);
+      break;
+      
     case 'create-public-link':
       integration.createPublicReport(runId)
         .then(link => console.log(`Public link: ${link.url}`))
@@ -296,6 +386,6 @@ if (import.meta.url === `file://${process.argv[1]}`) {
       break;
       
     default:
-      console.log('Usage: node testrail-integration.js [attach-videos|create-public-link|close-run] <runId>');
+      console.log('Usage: node testrail-integration.js [attach-videos|export-pdf|prepare-slack-videos|create-public-link|close-run] <runId>');
   }
 }
