@@ -41,6 +41,10 @@ jobs:
           echo "🔗 Base URL: $APP_URL"
           echo ""
           npx playwright test --project=chromium --grep "C40 - Frontend Heartbeat"
+          
+          echo "📁 Checking generated files:"
+          ls -la playwright-report/ || echo "playwright-report/ directory not found"
+          find . -name "*.xml" -type f || echo "No XML files found"
         env:
           APP_ENV: ${{ vars.APP_ENV || 'development' }}
           APP_URL: ${{ vars.APP_URL || 'https://dev.verifast.app' }}
