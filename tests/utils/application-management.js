@@ -162,9 +162,9 @@ export const configureApplicationSettings = async (page, config) => {
  * @param {import('@playwright/test').Page} page
  */
 export const publishApplicationToLive = async page => {
-    await page.waitForSelector('[data-testid="app-publish-live-btn"]', { timeout: 20000 });
+    await page.waitForSelector('[data-testid="app-publish-live-btn"]', { state: 'visible', timeout: 20000 });
     await page.getByTestId('app-publish-live-btn').click();
-    await page.waitForTimeout(2000);
+    await page.waitForTimeout(2000); //Wait for UI animation
 
     // Set up response waiter BEFORE the action
     const publishResponsePromise = page.waitForResponse(resp => resp.url().includes('/applications')
