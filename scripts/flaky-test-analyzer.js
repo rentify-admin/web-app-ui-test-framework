@@ -252,10 +252,10 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   const results = analyzer.analyzeTestResults(xmlFile);
   analyzer.exportResults(outputFile);
   
-  // Exit with code 1 if flaky tests found (for CI)
+  // Exit with code 0 for CI (we don't want to fail the pipeline for flaky tests)
   if (results.summary.flaky > 0) {
     console.log(`⚠️ ${results.summary.flaky} flaky tests detected (≥${threshold}%)`);
-    process.exit(1);
+    process.exit(0); // Changed from 1 to 0 for CI
   } else {
     console.log(`✅ No flaky tests detected (≥${threshold}%)`);
     process.exit(0);

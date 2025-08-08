@@ -229,6 +229,12 @@ function createSlackMessage(workflowName, environment, runId, results, status, v
         testrailLink = `${testrailWebUrl}${testrailRunId}&group_by=cases:section_id&group_order=asc&display=tree`;
         console.log(`🔗 TestRail link constructed: ${testrailLink}`);
         console.log(`🔗 TestRail link length: ${testrailLink.length}`);
+        
+        // Validate the link format
+        if (!testrailLink.startsWith('http')) {
+            console.log(`⚠️ TestRail link doesn't start with http: ${testrailLink}`);
+            testrailLink = ''; // Reset if invalid
+        }
     } else {
         console.log(`❌ TestRail link not created - testrailRunId: ${testrailRunId}, TESTRAIL_HOST: ${TESTRAIL_HOST}`);
     }
