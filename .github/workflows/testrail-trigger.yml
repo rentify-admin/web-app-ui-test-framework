@@ -38,17 +38,45 @@ jobs:
           echo "REQUESTED_ENVIRONMENT=${{ github.event.client_payload.environment }}" >> $GITHUB_ENV
           echo "TESTRAIL_USER=${{ github.event.client_payload.testrail_user }}" >> $GITHUB_ENV
           
+          # Parse environment from multiple possible sources
+          ENVIRONMENT="${{ github.event.client_payload.environment }}"
+          
+          # If environment is not set, try to extract from description or references
+          if [ -z "$ENVIRONMENT" ] || [ "$ENVIRONMENT" = "null" ]; then
+            echo "🔍 Environment not found in payload, checking alternative sources..."
+            
+            # Check if environment is in description (format: ENVIRONMENT: develop)
+            if echo "${{ github.event.client_payload.description }}" | grep -q "ENVIRONMENT:"; then
+              ENVIRONMENT=$(echo "${{ github.event.client_payload.description }}" | grep -o "ENVIRONMENT: [a-zA-Z]*" | cut -d' ' -f2)
+              echo "✅ Found environment in description: $ENVIRONMENT"
+            fi
+            
+            # Check if environment is in references (format: env:develop)
+            if [ -z "$ENVIRONMENT" ] && echo "${{ github.event.client_payload.references }}" | grep -q "env:"; then
+              ENVIRONMENT=$(echo "${{ github.event.client_payload.references }}" | grep -o "env:[a-zA-Z]*" | cut -d':' -f2)
+              echo "✅ Found environment in references: $ENVIRONMENT"
+            fi
+            
+            # Default to develop if still not found
+            if [ -z "$ENVIRONMENT" ]; then
+              ENVIRONMENT="develop"
+              echo "⚠️ Environment not found, defaulting to: $ENVIRONMENT"
+            fi
+          fi
+          
+          echo "REQUESTED_ENVIRONMENT=$ENVIRONMENT" >> $GITHUB_ENV
+          
           # Set environment-specific variables
-          if [ "${{ github.event.client_payload.environment }}" = "develop" ]; then
+          if [ "$ENVIRONMENT" = "develop" ]; then
             echo "APP_ENV=development" >> $GITHUB_ENV
             echo "APP_URL=${{ vars.APP_URL }}" >> $GITHUB_ENV
             echo "API_URL=${{ vars.API_URL }}" >> $GITHUB_ENV
-          elif [ "${{ github.event.client_payload.environment }}" = "staging" ]; then
+          elif [ "$ENVIRONMENT" = "staging" ]; then
             echo "APP_ENV=staging" >> $GITHUB_ENV
             echo "APP_URL=${{ vars.STAGING_APP_URL }}" >> $GITHUB_ENV
             echo "API_URL=${{ vars.STAGING_API_URL }}" >> $GITHUB_ENV
           else
-            echo "❌ Unsupported environment: ${{ github.event.client_payload.environment }}"
+            echo "❌ Unsupported environment: $ENVIRONMENT"
             exit 1
           fi
 
