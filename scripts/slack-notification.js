@@ -232,7 +232,7 @@ function createSlackMessage(workflowName, environment, runId, results, status, v
             // If TESTRAIL_HOST doesn't contain /api/, assume it's the base URL
             testrailWebUrl = `${TESTRAIL_HOST}/index.php?/runs/view/`;
         }
-        testrailLink = `${testrailWebUrl}${testrailRunId}?group_by=cases:section_id&group_order=asc&display=tree`;
+        testrailLink = `${testrailWebUrl}${testrailRunId}&group_by=cases:section_id&group_order=asc&display=tree`;
         console.log(`🔗 TestRail link constructed: ${testrailLink}`);
         console.log(`🔗 TestRail link length: ${testrailLink.length}`);
         
