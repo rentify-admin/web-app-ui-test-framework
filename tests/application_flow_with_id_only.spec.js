@@ -17,7 +17,7 @@ test.beforeEach(async ({ page }) => {
     await page.goto('/');
 });
 
-test('C33 - ID only - 1 attempt - success', {
+test('ID only - 1 attempt - success', {
   tag: ['@core', '@smoke', '@regression'],
 }, async ({ page, browser }) => {
 

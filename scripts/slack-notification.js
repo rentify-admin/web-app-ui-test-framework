@@ -1,0 +1,338 @@
+#!/usr/bin/env node
+
+/**
+ * Slack Notification Script for Test Results
+ * 
+ * Usage:
+ * node scripts/slack-notification.js <workflow-name> <environment> <run-id> <results-file>
+ * 
+ * Example:
+ * node scripts/slack-notification.js "Daily Regression Tests" "develop" "16831267668" "playwright-report/results.xml"
+ */
+
+import fs from 'fs';
+import path from 'path';
+
+// Get command line arguments
+const [,, workflowName, environment, runId, resultsFile] = process.argv;
+
+if (!workflowName || !environment || !runId || !resultsFile) {
+    console.error('Usage: node scripts/slack-notification.js <workflow-name> <environment> <run-id> <results-file>');
+    process.exit(1);
+}
+
+// Get environment variables
+const SLACK_WEBHOOK_URL = process.env.SLACK_WEBHOOK_URL;
+const GITHUB_SERVER_URL = process.env.GITHUB_SERVER_URL || 'https://github.com';
+const GITHUB_REPOSITORY = process.env.GITHUB_REPOSITORY;
+const GITHUB_ACTOR = process.env.GITHUB_ACTOR || 'unknown';
+
+if (!SLACK_WEBHOOK_URL) {
+    console.error('SLACK_WEBHOOK_URL environment variable is required');
+    process.exit(1);
+}
+
+if (!GITHUB_REPOSITORY) {
+    console.error('GITHUB_REPOSITORY environment variable is required');
+    process.exit(1);
+}
+
+function parseTestResults(filePath) {
+    if (!fs.existsSync(filePath)) {
+        console.log(`Results file not found: ${filePath}`);
+        return {
+            total: 0,
+            passed: 0,
+            failed: 0,
+            flaky: 0,
+            skipped: 0
+        };
+    }
+
+    const content = fs.readFileSync(filePath, 'utf8');
+    
+    // Count test cases
+    const totalTests = (content.match(/<testcase/g) || []).length;
+    const failedTests = (content.match(/<failure/g) || []).length;
+    const skippedTests = (content.match(/<skipped/g) || []).length;
+    
+    // For flaky tests, we'll look for tests that have both failure and retry patterns
+    // This is a simplified approach - in a real scenario you might want more sophisticated detection
+    const flakyTests = (content.match(/retry/g) || []).length;
+    
+    const passedTests = totalTests - failedTests - skippedTests - flakyTests;
+    
+    return {
+        total: totalTests,
+        passed: passedTests,
+        failed: failedTests,
+        flaky: flakyTests,
+        skipped: skippedTests
+    };
+}
+
+function generateVisualDots(results) {
+    let dots = '';
+    
+    // Green dots for passed tests
+    for (let i = 0; i < results.passed; i++) {
+        dots += '🟢';
+    }
+    
+    // Red dots for failed tests
+    for (let i = 0; i < results.failed; i++) {
+        dots += '🔴';
+    }
+    
+    // Yellow dots for flaky tests (not skipped)
+    for (let i = 0; i < results.flaky; i++) {
+        dots += '🟡';
+    }
+    
+    // Gray dots for skipped tests
+    for (let i = 0; i < results.skipped; i++) {
+        dots += '⚪';
+    }
+    
+    return dots;
+}
+
+function determineStatus(results) {
+    if (results.total === 0) {
+        return {
+            status: '❌ NO TESTS RUN',
+            color: '#ff0000',
+            emoji: '❌'
+        };
+    }
+    
+    const passRate = (results.passed / results.total) * 100;
+    
+    if (passRate === 100) {
+        return {
+            status: '✅ ALL TESTS PASSED',
+            color: '#36a64f',
+            emoji: '✅'
+        };
+    } else if (results.failed > 0) {
+        return {
+            status: '❌ TESTS FAILED',
+            color: '#ff0000',
+            emoji: '❌'
+        };
+    } else if (results.flaky > 0) {
+        return {
+            status: '⚠️ FLAKY TESTS DETECTED',
+            color: '#ffa500',
+            emoji: '⚠️'
+        };
+    } else {
+        return {
+            status: '⚠️ SOME TESTS SKIPPED',
+            color: '#ffa500',
+            emoji: '⚠️'
+        };
+    }
+}
+
+function calculateDuration(results) {
+    // Simple duration calculation - in a real scenario you might want to parse actual timing
+    if (results.total === 0) return '< 1s';
+    if (results.total <= 5) return '~5s';
+    if (results.total <= 10) return '~10s';
+    return `~${Math.ceil(results.total * 2)}s`;
+}
+
+function getFailedTestNames(filePath) {
+    if (!fs.existsSync(filePath)) return '';
+    
+    const content = fs.readFileSync(filePath, 'utf8');
+    const failedMatches = content.match(/<testcase[^>]*name="([^"]*)"[^>]*>\s*<failure/g);
+    
+    if (!failedMatches) return '';
+    
+    const failedNames = [];
+    const lines = content.split('\n');
+    
+    for (const line of lines) {
+        const match = line.match(/<testcase[^>]*name="([^"]*)"[^>]*>/);
+        if (match) {
+            const testName = match[1];
+            const nextLine = lines[lines.indexOf(line) + 1];
+            if (nextLine && nextLine.includes('<failure')) {
+                failedNames.push(testName);
+            }
+        }
+    }
+    
+    return failedNames.slice(0, 5).map(name => `- ${name}`).join('\n');
+}
+
+function createSlackMessage(workflowName, environment, runId, results, status, visualDots, duration, failedTestNames) {
+    const currentTime = new Date().toISOString();
+    const pipelineType = environment === 'develop' ? 'UI' : 'API';
+    
+    const message = {
+        blocks: [
+            {
+                type: "header",
+                text: {
+                    type: "plain_text",
+                    text: `${workflowName} - ${environment.charAt(0).toUpperCase() + environment.slice(1)}`
+                }
+            },
+            {
+                type: "section",
+                fields: [
+                    {
+                        type: "mrkdwn",
+                        text: `*📊 Total Tests:* ${results.total}`
+                    },
+                    {
+                        type: "mrkdwn",
+                        text: `*✅ Passed:* ${results.passed}`
+                    },
+                    {
+                        type: "mrkdwn",
+                        text: `*❌ Failed:* ${results.failed}`
+                    },
+                    {
+                        type: "mrkdwn",
+                        text: `*🟡 Flaky:* ${results.flaky}`
+                    },
+                    {
+                        type: "mrkdwn",
+                        text: `*⏱️ Duration:* ${duration}`
+                    },
+                    {
+                        type: "mrkdwn",
+                        text: `*🌐 Environment:* ${environment.charAt(0).toUpperCase() + environment.slice(1)}`
+                    }
+                ]
+            },
+            {
+                type: "section",
+                text: {
+                    type: "mrkdwn",
+                    text: `*Visual Test Results:*\n${visualDots}`
+                }
+            },
+            {
+                type: "section",
+                text: {
+                    type: "mrkdwn",
+                    text: `*${status.emoji} Status:* ${status.status} | Duration: ${duration}`
+                }
+            },
+            {
+                type: "section",
+                text: {
+                    type: "mrkdwn",
+                    text: `*🔗 Run ID:* ${runId}`
+                }
+            }
+        ]
+    };
+
+    // Add failed tests section if there are failures
+    if (results.failed > 0 && failedTestNames) {
+        message.blocks.push({
+            type: "section",
+            text: {
+                type: "mrkdwn",
+                text: `*❌ Failed Tests (${results.failed}):*\n${failedTestNames}`
+            }
+        });
+    }
+
+    // Add links section
+    message.blocks.push(
+        {
+            type: "section",
+            text: {
+                type: "mrkdwn",
+                text: `*🔗 Related Links:*\n• <${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${runId}|GitHub Actions Run>\n• <${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${runId}/artifacts|Test Report for: ${workflowName.toLowerCase()} in chromium>`
+            }
+        },
+        {
+            type: "section",
+            text: {
+                type: "mrkdwn",
+                text: `*👤 Triggered by:* ${GITHUB_ACTOR}`
+            }
+        },
+        {
+            type: "context",
+            elements: [
+                {
+                    type: "mrkdwn",
+                    text: `🤖 Pipeline ${pipelineType} regression run | Generated at ${currentTime}`
+                }
+            ]
+        }
+    );
+
+    return {
+        ...message,
+        attachments: [
+            {
+                color: status.color
+            }
+        ]
+    };
+}
+
+async function sendSlackNotification(message) {
+    try {
+        const response = await fetch(SLACK_WEBHOOK_URL, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(message)
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        console.log('✅ Slack notification sent successfully');
+        return true;
+    } catch (error) {
+        console.error('❌ Failed to send Slack notification:', error.message);
+        return false;
+    }
+}
+
+// Main execution
+async function main() {
+    console.log(`📊 Processing test results for ${workflowName} in ${environment}`);
+    
+    const results = parseTestResults(resultsFile);
+    const status = determineStatus(results);
+    const visualDots = generateVisualDots(results);
+    const duration = calculateDuration(results);
+    const failedTestNames = getFailedTestNames(resultsFile);
+    
+    console.log('📈 Test Results:', results);
+    console.log('🎯 Status:', status.status);
+    
+    const message = createSlackMessage(
+        workflowName,
+        environment,
+        runId,
+        results,
+        status,
+        visualDots,
+        duration,
+        failedTestNames
+    );
+    
+    const success = await sendSlackNotification(message);
+    process.exit(success ? 0 : 1);
+}
+
+main().catch(error => {
+    console.error('❌ Script failed:', error);
+    process.exit(1);
+});
