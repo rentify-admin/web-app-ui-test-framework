@@ -178,11 +178,17 @@ function createSlackMessage(workflowName, environment, runId, results, status, v
     // Create TestRail link if run ID is available
     let testrailLink = '';
     console.log(`🔍 Debug - testrailRunId: ${testrailRunId}, TESTRAIL_HOST: ${TESTRAIL_HOST}`);
+    console.log(`🔍 Debug - testrailRunId type: ${typeof testrailRunId}, length: ${testrailRunId ? testrailRunId.length : 0}`);
+    console.log(`🔍 Debug - TESTRAIL_HOST type: ${typeof TESTRAIL_HOST}, length: ${TESTRAIL_HOST ? TESTRAIL_HOST.length : 0}`);
+    
     if (testrailRunId && TESTRAIL_HOST) {
         // Convert TestRail API host to web URL format
         const testrailWebUrl = TESTRAIL_HOST.replace('/api/', '/index.php?/runs/view/');
         testrailLink = `${testrailWebUrl}${testrailRunId}&group_by=cases:section_id&group_order=asc&display=tree`;
         console.log(`🔗 TestRail link constructed: ${testrailLink}`);
+        console.log(`🔗 TestRail link length: ${testrailLink.length}`);
+    } else {
+        console.log(`❌ TestRail link not created - testrailRunId: ${testrailRunId}, TESTRAIL_HOST: ${TESTRAIL_HOST}`);
     }
     
     const message = {
@@ -207,19 +213,19 @@ function createSlackMessage(workflowName, environment, runId, results, status, v
                     },
                     {
                         type: "mrkdwn",
-                        text: `*❌ Failed:* ${results.failed}`
-                    },
-                    {
-                        type: "mrkdwn",
-                        text: `*🟡 Flaky:* ${results.flaky}`
-                    },
-                    {
-                        type: "mrkdwn",
                         text: `*⚪ Skipped:* ${results.skipped}`
                     },
                     {
                         type: "mrkdwn",
+                        text: `*❌ Failed:* ${results.failed}`
+                    },
+                    {
+                        type: "mrkdwn",
                         text: `*⏱️ Duration:* ${duration}`
+                    },
+                    {
+                        type: "mrkdwn",
+                        text: `*🟡 Flaky:* ${results.flaky}`
                     }
                 ]
             },
@@ -261,8 +267,14 @@ function createSlackMessage(workflowName, environment, runId, results, status, v
     // Add links section
     let linksText = `*🔗 Related Links:*\n• <${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${runId}|GitHub Actions Run>`;
     
+    console.log(`🔗 Debug - testrailLink: ${testrailLink}`);
+    console.log(`🔗 Debug - publicReportUrl: ${publicReportUrl}`);
+    
     if (testrailLink) {
         linksText += `\n• <${testrailLink}|TestRail Report>`;
+        console.log(`✅ TestRail link added to Slack message`);
+    } else {
+        console.log(`❌ TestRail link not added - link is empty`);
     }
     if (publicReportUrl) {
         linksText += `\n• <${publicReportUrl}|Public Report>`;
