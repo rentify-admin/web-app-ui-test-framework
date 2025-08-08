@@ -58,11 +58,12 @@ function parseTestResults(filePath) {
     const failedTests = (content.match(/<failure/g) || []).length;
     const skippedTests = (content.match(/<skipped/g) || []).length;
     
-    // For flaky tests, we'll look for tests that have both failure and retry patterns
-    // This is a simplified approach - in a real scenario you might want more sophisticated detection
-    const flakyTests = (content.match(/retry/g) || []).length;
+    // For flaky tests, look for tests with retry patterns but don't count skipped as flaky
+    const retryMatches = content.match(/retry/g) || [];
+    const flakyTests = Math.max(0, retryMatches.length - skippedTests);
     
-    const passedTests = totalTests - failedTests - skippedTests - flakyTests;
+    // Calculate passed tests correctly
+    const passedTests = Math.max(0, totalTests - failedTests - skippedTests);
     
     return {
         total: totalTests,
@@ -176,10 +177,12 @@ function createSlackMessage(workflowName, environment, runId, results, status, v
     
     // Create TestRail link if run ID is available
     let testrailLink = '';
+    console.log(`🔍 Debug - testrailRunId: ${testrailRunId}, TESTRAIL_HOST: ${TESTRAIL_HOST}`);
     if (testrailRunId && TESTRAIL_HOST) {
         // Convert TestRail API host to web URL format
         const testrailWebUrl = TESTRAIL_HOST.replace('/api/', '/index.php?/runs/view/');
         testrailLink = `${testrailWebUrl}${testrailRunId}&group_by=cases:section_id&group_order=asc&display=tree`;
+        console.log(`🔗 TestRail link constructed: ${testrailLink}`);
     }
     
     const message = {
@@ -212,11 +215,11 @@ function createSlackMessage(workflowName, environment, runId, results, status, v
                     },
                     {
                         type: "mrkdwn",
-                        text: `*⏱️ Duration:* ${duration}`
+                        text: `*⚪ Skipped:* ${results.skipped}`
                     },
                     {
                         type: "mrkdwn",
-                        text: `*🌐 Environment:* ${environment.charAt(0).toUpperCase() + environment.slice(1)}`
+                        text: `*⏱️ Duration:* ${duration}`
                     }
                 ]
             },
