@@ -36,11 +36,11 @@
     "testrail:run-selected": "node scripts/run-selected-tests.js run",
     "testrail:list-cases": "node scripts/run-selected-tests.js list",
     "testrail:setup-guide": "node scripts/setup-testrail-webhook-manual.js",
-    "flaky:analyze": "node scripts/flaky-test-analyzer.js",
-    "flaky:analyze:strict": "node scripts/flaky-test-analyzer.js playwright-report/results.xml flaky-analysis.json 10 3",
-    "flaky:analyze:lenient": "node scripts/flaky-test-analyzer.js playwright-report/results.xml flaky-analysis.json 30 2",
-    "flaky:tag": "node scripts/flaky-test-tagger.js tag",
-    "flaky:clean": "node scripts/flaky-test-tagger.js clean"
+    "flaky:analyze": "node scripts/flaky_analysis/flaky-test-analyzer.js",
+    "flaky:analyze:strict": "node scripts/flaky_analysis/flaky-test-analyzer.js playwright-report/results.xml flaky-analysis.json 10 3",
+    "flaky:analyze:lenient": "node scripts/flaky_analysis/flaky-test-analyzer.js playwright-report/results.xml flaky-analysis.json 30 2",
+    "flaky:tag": "node scripts/flaky_analysis/flaky-test-tagger.js tag",
+    "flaky:clean": "node scripts/flaky_analysis/flaky-test-tagger.js clean"
   },
   "devDependencies": {
     "@playwright/test": "^1.52.0",

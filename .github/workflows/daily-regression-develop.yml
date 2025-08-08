@@ -159,20 +159,20 @@ jobs:
           TESTRAIL_PROJECT_ID: ${{ secrets.TESTRAIL_PROJECT_ID }}
           TESTRAIL_SUITE_ID: ${{ secrets.TESTRAIL_SUITE_ID }}
 
-      - name: Analyze flaky tests
-        if: always()
-        run: |
-          echo "🔍 Analyzing test results for flakiness..."
-          node scripts/flaky-test-analyzer.js "playwright-report/results.xml" "flaky-analysis.json" "20" "2"
-          echo "📊 Flaky analysis completed"
-          
-          # Tag flaky tests if any found
-          if [ -f "flaky-analysis.json" ]; then
-            echo "🏷️ Checking for flaky tests to tag..."
-            node scripts/flaky-test-tagger.js tag "flaky-analysis.json" "tests"
-          fi
-          
-          echo "✅ Flaky test analysis and tagging completed"
+                       - name: Analyze flaky tests
+                   if: always()
+                   run: |
+                     echo "🔍 Analyzing test results for flakiness..."
+                     node scripts/flaky_analysis/flaky-test-analyzer.js "playwright-report/results.xml" "flaky-analysis.json" "20" "2"
+                     echo "📊 Flaky analysis completed"
+                     
+                     # Tag flaky tests if any found
+                     if [ -f "flaky-analysis.json" ]; then
+                       echo "🏷️ Checking for flaky tests to tag..."
+                       node scripts/flaky_analysis/flaky-test-tagger.js tag "flaky-analysis.json" "tests"
+                     fi
+                     
+                     echo "✅ Flaky test analysis and tagging completed"
 
       - name: Send Slack notification
         if: always()

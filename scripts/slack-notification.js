@@ -12,7 +12,7 @@
 
 import fs from 'fs';
 import path from 'path';
-import { FlakyTestAnalyzer } from './flaky-test-analyzer.js';
+import { FlakyTestAnalyzer } from './flaky_analysis/flaky-test-analyzer.js';
 
 // Get command line arguments
 const [,, workflowName, environment, runId, resultsFile, testrailRunId, publicReportUrl, flakyAnalysisFile] = process.argv;
