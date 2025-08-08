@@ -8,7 +8,7 @@ import { getRandomNumber } from './utils/helper';
 test.describe('Workflow Isolation Test', () => {
     let app1Name, app2Name;
 
-    test.afterAll(async ({ page }) => {
+    test.afterEach(async ({ page }) => {
         //TODO IMPORTANT. IMPLEMENT CLEAN UP BY API
         try {
             // Clean up applications even if test fails
