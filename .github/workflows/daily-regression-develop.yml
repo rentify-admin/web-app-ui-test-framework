@@ -68,17 +68,31 @@ jobs:
           retention-days: 30
 
       - name: Install trcli
+        if: always()
         run: |
           echo "Installing trcli..."
           pip install trcli
+          echo "✅ trcli installation completed"
+          which trcli || echo "❌ trcli not found in PATH"
 
       - name: Create TestRail test run
         if: always()
         run: |
+          echo "🔧 Debugging TestRail setup..."
+          echo "Checking trcli installation:"
+          which trcli || echo "❌ trcli not found"
+          trcli --version || echo "❌ trcli version check failed"
+          
+          echo "Checking JUnit XML file:"
+          ls -la playwright-report/ || echo "❌ playwright-report directory not found"
+          ls -la playwright-report/results.xml || echo "❌ results.xml not found"
+          
           # Generate TestRail test run title with current date
           TEST_RUN_TITLE="Witness Test - Frontend Heartbeat: development - Browser: chromium - Date $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+          echo "📝 Test run title: $TEST_RUN_TITLE"
           
           # Create TestRail test run and upload results
+          echo "🚀 Running trcli command..."
           TESTRAIL_OUTPUT=$(trcli -y \
             -h $TESTRAIL_HOST \
             --project "$TESTRAIL_PROJECT_NAME" \
