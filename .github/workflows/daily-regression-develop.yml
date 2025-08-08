@@ -79,7 +79,7 @@ jobs:
           TEST_RUN_TITLE="Automated regression in: development - Browser: chromium - Date $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
           
           # Create TestRail test run and upload results
-          trcli -y \
+          TESTRAIL_OUTPUT=$(trcli -y \
             -h $TESTRAIL_HOST \
             --project "$TESTRAIL_PROJECT_NAME" \
             --username $TESTRAIL_USER \
@@ -90,7 +90,19 @@ jobs:
             --case-matcher "name" \
             --case-fields "custom_environment:development" \
             --result-fields "custom_browser:chromium" \
-            --file playwright-report/results.xml
+            --file playwright-report/results.xml 2>&1)
+          
+          echo "TestRail Output: $TESTRAIL_OUTPUT"
+          
+          # Extract TestRail run ID from output
+          TESTRAIL_RUN_ID=$(echo "$TESTRAIL_OUTPUT" | grep -o "Run ID: [0-9]*" | head -1 | awk '{print $3}')
+          if [ -n "$TESTRAIL_RUN_ID" ]; then
+            echo "TESTRAIL_RUN_ID=$TESTRAIL_RUN_ID" >> $GITHUB_ENV
+            echo "✅ TestRail run created with ID: $TESTRAIL_RUN_ID"
+          else
+            echo "❌ Could not extract TestRail run ID"
+            echo "TESTRAIL_RUN_ID=" >> $GITHUB_ENV
+          fi
         env:
           TESTRAIL_HOST: ${{ secrets.TESTRAIL_HOST }}
           TESTRAIL_PROJECT_NAME: ${{ secrets.TESTRAIL_PROJECT_NAME }}
@@ -102,9 +114,11 @@ jobs:
         if: always()
         run: |
           echo "📤 Sending Slack notification..."
-          node scripts/slack-notification.js "Daily Regression Tests" "develop" "${{ github.run_id }}" "playwright-report/results.xml"
+          node scripts/slack-notification.js "Daily Regression Tests" "develop" "${{ github.run_id }}" "playwright-report/results.xml" "${{ env.TESTRAIL_RUN_ID }}"
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
           GITHUB_SERVER_URL: ${{ github.server_url }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           GITHUB_ACTOR: ${{ github.actor }}
+          TESTRAIL_HOST: ${{ secrets.TESTRAIL_HOST }}
+          TESTRAIL_PROJECT_NAME: ${{ secrets.TESTRAIL_PROJECT_NAME }}

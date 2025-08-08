@@ -14,10 +14,10 @@ import fs from 'fs';
 import path from 'path';
 
 // Get command line arguments
-const [,, workflowName, environment, runId, resultsFile] = process.argv;
+const [,, workflowName, environment, runId, resultsFile, testrailRunId] = process.argv;
 
 if (!workflowName || !environment || !runId || !resultsFile) {
-    console.error('Usage: node scripts/slack-notification.js <workflow-name> <environment> <run-id> <results-file>');
+    console.error('Usage: node scripts/slack-notification.js <workflow-name> <environment> <run-id> <results-file> [testrail-run-id]');
     process.exit(1);
 }
 
@@ -26,6 +26,8 @@ const SLACK_WEBHOOK_URL = process.env.SLACK_WEBHOOK_URL;
 const GITHUB_SERVER_URL = process.env.GITHUB_SERVER_URL || 'https://github.com';
 const GITHUB_REPOSITORY = process.env.GITHUB_REPOSITORY;
 const GITHUB_ACTOR = process.env.GITHUB_ACTOR || 'unknown';
+const TESTRAIL_HOST = process.env.TESTRAIL_HOST;
+const TESTRAIL_PROJECT_NAME = process.env.TESTRAIL_PROJECT_NAME;
 
 if (!SLACK_WEBHOOK_URL) {
     console.error('SLACK_WEBHOOK_URL environment variable is required');
@@ -168,9 +170,17 @@ function getFailedTestNames(filePath) {
     return failedNames.slice(0, 5).map(name => `- ${name}`).join('\n');
 }
 
-function createSlackMessage(workflowName, environment, runId, results, status, visualDots, duration, failedTestNames) {
+function createSlackMessage(workflowName, environment, runId, results, status, visualDots, duration, failedTestNames, testrailRunId) {
     const currentTime = new Date().toISOString();
     const pipelineType = environment === 'develop' ? 'UI' : 'API';
+    
+    // Create TestRail link if run ID is available
+    let testrailLink = '';
+    if (testrailRunId && TESTRAIL_HOST && TESTRAIL_PROJECT_NAME) {
+        // Convert TestRail host to web URL format
+        const testrailWebUrl = TESTRAIL_HOST.replace('/api/', '/index.php?/runs/view/');
+        testrailLink = `${testrailWebUrl}${testrailRunId}&group_by=cases:section_id&group_order=asc&display=tree`;
+    }
     
     const message = {
         blocks: [
@@ -246,12 +256,18 @@ function createSlackMessage(workflowName, environment, runId, results, status, v
     }
 
     // Add links section
+    const linksText = `*🔗 Related Links:*\n• <${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${runId}|GitHub Actions Run>`;
+    
+    if (testrailLink) {
+        linksText += `\n• <${testrailLink}|TestRail Report>`;
+    }
+    
     message.blocks.push(
         {
             type: "section",
             text: {
                 type: "mrkdwn",
-                text: `*🔗 Related Links:*\n• <${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${runId}|GitHub Actions Run>\n• <${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${runId}/artifacts|Test Report for: ${workflowName.toLowerCase()} in chromium>`
+                text: linksText
             }
         },
         {
@@ -325,7 +341,8 @@ async function main() {
         status,
         visualDots,
         duration,
-        failedTestNames
+        failedTestNames,
+        testrailRunId
     );
     
     const success = await sendSlackNotification(message);
