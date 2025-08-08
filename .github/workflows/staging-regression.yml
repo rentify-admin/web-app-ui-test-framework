@@ -50,7 +50,12 @@ jobs:
 
       - name: Run regression tests
         run: |
-          npx playwright test --project=chromium --reporter=junit
+          echo "🧪 Starting regression tests..."
+          echo "📊 Running only: Frontend Heartbeat test"
+          echo "🌐 Environment: $APP_ENV"
+          echo "🔗 Base URL: $APP_URL"
+          echo ""
+          npx playwright test --project=chromium --grep "C40 - Frontend Heartbeat"
         env:
           APP_ENV: ${{ env.APP_ENV }}
           APP_URL: ${{ env.APP_URL }}

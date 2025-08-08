@@ -40,7 +40,7 @@ jobs:
           echo "🌐 Environment: $APP_ENV"
           echo "🔗 Base URL: $APP_URL"
           echo ""
-          npx playwright test --project=chromium --reporter=junit --grep "C40 - Frontend Heartbeat"
+          npx playwright test --project=chromium --grep "C40 - Frontend Heartbeat"
         env:
           APP_ENV: ${{ vars.APP_ENV || 'development' }}
           APP_URL: ${{ vars.APP_URL || 'https://dev.verifast.app' }}
