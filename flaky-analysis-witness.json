@@ -1,0 +1,21 @@
+{
+  "timestamp": "2025-08-08T19:00:30.608Z",
+  "flakyTests": [],
+  "allTests": [
+    {
+      "name": "pipeline-witness-tests.spec.js",
+      "isFlaky": false,
+      "passes": 2,
+      "fails": 1,
+      "total": 3,
+      "skipped": 0,
+      "flakinessPercent": 33,
+      "reason": "Low flakiness: 33% failure rate"
+    }
+  ],
+  "summary": {
+    "total": 1,
+    "flaky": 0,
+    "threshold": 50
+  }
+}

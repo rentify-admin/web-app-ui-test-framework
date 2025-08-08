@@ -1,8 +1,251 @@
 {
-  "timestamp": "2025-08-08T18:53:00.422Z",
+  "timestamp": "2025-08-08T18:59:52.566Z",
   "flakyTests": [],
+  "allTests": [
+    {
+      "name": "applicant_type_workflow_affordable_occupant.spec.js",
+      "isFlaky": false,
+      "passes": 0,
+      "fails": 0,
+      "total": 0,
+      "skipped": 1,
+      "flakinessPercent": 0,
+      "reason": "All cases skipped"
+    },
+    {
+      "name": "applicant-edits-a-workflow-used-by-another-applicant.spec.js",
+      "isFlaky": false,
+      "passes": 0,
+      "fails": 0,
+      "total": 0,
+      "skipped": 1,
+      "flakinessPercent": 0,
+      "reason": "All cases skipped"
+    },
+    {
+      "name": "application_create_delete_test.spec.js",
+      "isFlaky": false,
+      "passes": 0,
+      "fails": 0,
+      "total": 0,
+      "skipped": 1,
+      "flakinessPercent": 0,
+      "reason": "All cases skipped"
+    },
+    {
+      "name": "application_edit_id_template_settings.spec.js",
+      "isFlaky": false,
+      "passes": 0,
+      "fails": 0,
+      "total": 0,
+      "skipped": 1,
+      "flakinessPercent": 0,
+      "reason": "All cases skipped"
+    },
+    {
+      "name": "application_flow_with_id_only.spec.js",
+      "isFlaky": false,
+      "passes": 0,
+      "fails": 0,
+      "total": 0,
+      "skipped": 1,
+      "flakinessPercent": 0,
+      "reason": "All cases skipped"
+    },
+    {
+      "name": "bank_statement_transaction_parsing.spec.js",
+      "isFlaky": false,
+      "passes": 0,
+      "fails": 0,
+      "total": 0,
+      "skipped": 1,
+      "flakinessPercent": 0,
+      "reason": "All cases skipped"
+    },
+    {
+      "name": "check_coapp_income_ratio_exceede_flag.spec.js",
+      "isFlaky": false,
+      "passes": 0,
+      "fails": 0,
+      "total": 0,
+      "skipped": 1,
+      "flakinessPercent": 0,
+      "reason": "All cases skipped"
+    },
+    {
+      "name": "check_org_member_application_permission_update.spec.js",
+      "isFlaky": false,
+      "passes": 0,
+      "fails": 0,
+      "total": 0,
+      "skipped": 1,
+      "flakinessPercent": 0,
+      "reason": "All cases skipped"
+    },
+    {
+      "name": "co_app_household_with_flag_errors.spec.js",
+      "isFlaky": false,
+      "passes": 0,
+      "fails": 0,
+      "total": 0,
+      "skipped": 1,
+      "flakinessPercent": 0,
+      "reason": "All cases skipped"
+    },
+    {
+      "name": "co_applicant_effect_on_session_test.spec.js",
+      "isFlaky": false,
+      "passes": 0,
+      "fails": 0,
+      "total": 0,
+      "skipped": 1,
+      "flakinessPercent": 0,
+      "reason": "All cases skipped"
+    },
+    {
+      "name": "document_upload_verifications_core_flow.spec.js",
+      "isFlaky": false,
+      "passes": 0,
+      "fails": 0,
+      "total": 0,
+      "skipped": 1,
+      "flakinessPercent": 0,
+      "reason": "All cases skipped"
+    },
+    {
+      "name": "employment-skip-household-not-hidden-employment-connect.spec.js",
+      "isFlaky": false,
+      "passes": 0,
+      "fails": 0,
+      "total": 0,
+      "skipped": 1,
+      "flakinessPercent": 0,
+      "reason": "All cases skipped"
+    },
+    {
+      "name": "financial_mx_2_attempts_success_and_failed_password.spec.js",
+      "isFlaky": false,
+      "passes": 0,
+      "fails": 0,
+      "total": 0,
+      "skipped": 1,
+      "flakinessPercent": 0,
+      "reason": "All cases skipped"
+    },
+    {
+      "name": "financial_plaid_one_transaction_error_decline.spec.js",
+      "isFlaky": false,
+      "passes": 0,
+      "fails": 0,
+      "total": 0,
+      "skipped": 1,
+      "flakinessPercent": 0,
+      "reason": "All cases skipped"
+    },
+    {
+      "name": "financial-1attempt-report-check-approve-with-conditions.spec.js",
+      "isFlaky": false,
+      "passes": 0,
+      "fails": 0,
+      "total": 0,
+      "skipped": 1,
+      "flakinessPercent": 0,
+      "reason": "All cases skipped"
+    },
+    {
+      "name": "frontend-heartbeat.spec.js",
+      "isFlaky": false,
+      "passes": 0,
+      "fails": 0,
+      "total": 0,
+      "skipped": 1,
+      "flakinessPercent": 0,
+      "reason": "All cases skipped"
+    },
+    {
+      "name": "hosted-app-copy-verify-flow-plaid-id-emp-skip.spec.js",
+      "isFlaky": false,
+      "passes": 0,
+      "fails": 0,
+      "total": 0,
+      "skipped": 1,
+      "flakinessPercent": 0,
+      "reason": "All cases skipped"
+    },
+    {
+      "name": "pdf_download_test.spec.js",
+      "isFlaky": false,
+      "passes": 0,
+      "fails": 0,
+      "total": 0,
+      "skipped": 1,
+      "flakinessPercent": 0,
+      "reason": "All cases skipped"
+    },
+    {
+      "name": "property_admin_permission_test.spec.js",
+      "isFlaky": false,
+      "passes": 0,
+      "fails": 0,
+      "total": 0,
+      "skipped": 3,
+      "flakinessPercent": 0,
+      "reason": "All cases skipped"
+    },
+    {
+      "name": "report_update_bank_statement_test.spec.js",
+      "isFlaky": false,
+      "passes": 0,
+      "fails": 0,
+      "total": 0,
+      "skipped": 1,
+      "flakinessPercent": 0,
+      "reason": "All cases skipped"
+    },
+    {
+      "name": "staff_user_permissions_test.spec.js",
+      "isFlaky": false,
+      "passes": 0,
+      "fails": 0,
+      "total": 0,
+      "skipped": 2,
+      "flakinessPercent": 0,
+      "reason": "All cases skipped"
+    },
+    {
+      "name": "user_flags_approve_reject_test.spec.js",
+      "isFlaky": false,
+      "passes": 0,
+      "fails": 0,
+      "total": 0,
+      "skipped": 4,
+      "flakinessPercent": 0,
+      "reason": "All cases skipped"
+    },
+    {
+      "name": "user_permissions_verify.spec.js",
+      "isFlaky": false,
+      "passes": 0,
+      "fails": 0,
+      "total": 0,
+      "skipped": 3,
+      "flakinessPercent": 0,
+      "reason": "All cases skipped"
+    },
+    {
+      "name": "verify_application_edit_id_step_edit.spec.js",
+      "isFlaky": false,
+      "passes": 0,
+      "fails": 0,
+      "total": 0,
+      "skipped": 2,
+      "flakinessPercent": 0,
+      "reason": "All cases skipped"
+    }
+  ],
   "summary": {
-    "total": 0,
-    "flaky": 0
+    "total": 24,
+    "flaky": 0,
+    "threshold": 1
   }
 }

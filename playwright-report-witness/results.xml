@@ -1,0 +1,101 @@
+<testsuites id="" name="" tests="3" failures="1" skipped="0" errors="0" time="3.2582889999999995">
+<testsuite name="pipeline-witness-tests.spec.js" timestamp="2025-08-08T19:00:11.671Z" hostname="chromium" tests="3" failures="1" skipped="0" time="1.725" errors="0">
+<testcase name="WITNESS-001 - Fast Pass Test" classname="pipeline-witness-tests.spec.js" time="0.719">
+</testcase>
+<testcase name="WITNESS-002 - Fast Fail Test" classname="pipeline-witness-tests.spec.js" time="0.505">
+<failure message="pipeline-witness-tests.spec.js:17:1 WITNESS-002 - Fast Fail Test" type="FAILURE">
+<![CDATA[  [chromium] › pipeline-witness-tests.spec.js:17:1 › WITNESS-002 - Fast Fail Test @witness @pipeline @fast 
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: 3
+    Received: 2
+
+      19 | }, async ({ page }) => {
+      20 |   // Simple test that should always fail
+    > 21 |   await expect(1 + 1).toBe(3); // This will always fail
+         |                       ^
+      22 | });
+      23 |
+      24 | // Test 3: Flaky Test - Sometimes passes, sometimes fails
+        at /Users/isecco/Code/verifast/web-app-ui-test-framework/tests/pipeline-witness-tests.spec.js:21:23
+
+    attachment #1: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../test-results/pipeline-witness-tests-WITNESS-002---Fast-Fail-Test-chromium/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Retry #1 ───────────────────────────────────────────────────────────────────────────────────────
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: 3
+    Received: 2
+
+      19 | }, async ({ page }) => {
+      20 |   // Simple test that should always fail
+    > 21 |   await expect(1 + 1).toBe(3); // This will always fail
+         |                       ^
+      22 | });
+      23 |
+      24 | // Test 3: Flaky Test - Sometimes passes, sometimes fails
+        at /Users/isecco/Code/verifast/web-app-ui-test-framework/tests/pipeline-witness-tests.spec.js:21:23
+
+    attachment #1: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../test-results/pipeline-witness-tests-WITNESS-002---Fast-Fail-Test-chromium-retry1/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../test-results/pipeline-witness-tests-WITNESS-002---Fast-Fail-Test-chromium-retry1/trace.zip
+    Usage:
+
+        npx playwright show-trace ../test-results/pipeline-witness-tests-WITNESS-002---Fast-Fail-Test-chromium-retry1/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Retry #2 ───────────────────────────────────────────────────────────────────────────────────────
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: 3
+    Received: 2
+
+      19 | }, async ({ page }) => {
+      20 |   // Simple test that should always fail
+    > 21 |   await expect(1 + 1).toBe(3); // This will always fail
+         |                       ^
+      22 | });
+      23 |
+      24 | // Test 3: Flaky Test - Sometimes passes, sometimes fails
+        at /Users/isecco/Code/verifast/web-app-ui-test-framework/tests/pipeline-witness-tests.spec.js:21:23
+
+    Retry #3 ───────────────────────────────────────────────────────────────────────────────────────
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: 3
+    Received: 2
+
+      19 | }, async ({ page }) => {
+      20 |   // Simple test that should always fail
+    > 21 |   await expect(1 + 1).toBe(3); // This will always fail
+         |                       ^
+      22 | });
+      23 |
+      24 | // Test 3: Flaky Test - Sometimes passes, sometimes fails
+        at /Users/isecco/Code/verifast/web-app-ui-test-framework/tests/pipeline-witness-tests.spec.js:21:23
+]]>
+</failure>
+<system-out>
+<![CDATA[
+[[ATTACHMENT|../test-results/pipeline-witness-tests-WITNESS-002---Fast-Fail-Test-chromium/video.webm]]
+
+[[ATTACHMENT|../test-results/pipeline-witness-tests-WITNESS-002---Fast-Fail-Test-chromium-retry1/video.webm]]
+
+[[ATTACHMENT|../test-results/pipeline-witness-tests-WITNESS-002---Fast-Fail-Test-chromium-retry1/trace.zip]]
+]]>
+</system-out>
+</testcase>
+<testcase name="WITNESS-003 - Flaky Test" classname="pipeline-witness-tests.spec.js" time="0.501">
+</testcase>
+</testsuite>
+</testsuites>

@@ -4,8 +4,10 @@ import fs from 'fs';
 import path from 'path';
 
 class FlakyTestAnalyzer {
-  constructor() {
-    this.flakyTests = new Map(); // testName -> { passes: number, fails: number, total: number }
+  constructor(options = {}) {
+    this.flakyTests = new Map(); // testName -> { passes: number, fails: number, total: number, flakinessPercent: number }
+    this.flakinessThreshold = options.flakinessThreshold || 20; // Default: 20% flakiness threshold
+    this.minRunsForAnalysis = options.minRunsForAnalysis || 2; // Minimum runs to consider for flakiness
   }
 
   /**
@@ -23,6 +25,8 @@ class FlakyTestAnalyzer {
     const testCases = this.extractTestCases(content);
     
     console.log(`📊 Analyzing ${testCases.length} test cases for flakiness...`);
+    console.log(`🎯 Flakiness threshold: ${this.flakinessThreshold}%`);
+    console.log(`📈 Minimum runs for analysis: ${this.minRunsForAnalysis}`);
     
     // Group test cases by name (handling retries)
     const testGroups = this.groupTestCases(testCases);
@@ -30,9 +34,11 @@ class FlakyTestAnalyzer {
     // Analyze each test group for flakiness
     const flakyTests = [];
     const stableTests = [];
+    this.allTestResults = [];
     
     for (const [testName, cases] of testGroups) {
       const analysis = this.analyzeTestGroup(testName, cases);
+      this.allTestResults.push(analysis);
       
       if (analysis.isFlaky) {
         flakyTests.push(analysis);
@@ -45,18 +51,19 @@ class FlakyTestAnalyzer {
     const summary = {
       total: testGroups.size,
       flaky: flakyTests.length,
-      stable: stableTests.length
+      stable: stableTests.length,
+      threshold: this.flakinessThreshold
     };
     
     console.log(`✅ Analysis complete:`);
     console.log(`   • Total unique tests: ${summary.total}`);
-    console.log(`   • Flaky tests: ${summary.flaky}`);
+    console.log(`   • Flaky tests (≥${this.flakinessThreshold}%): ${summary.flaky}`);
     console.log(`   • Stable tests: ${summary.stable}`);
     
     if (flakyTests.length > 0) {
       console.log(`\n🟡 Flaky tests detected:`);
       flakyTests.forEach(test => {
-        console.log(`   • ${test.name}: ${test.passes}P/${test.fails}F (${test.total} runs)`);
+        console.log(`   • ${test.name}: ${test.passes}P/${test.fails}F (${test.total} runs) - ${test.flakinessPercent}% flaky`);
       });
     }
     
@@ -131,7 +138,7 @@ class FlakyTestAnalyzer {
   }
   
   /**
-   * Analyze a group of test cases for flakiness
+   * Analyze a group of test cases for flakiness using percentile-based approach
    */
   analyzeTestGroup(testName, cases) {
     // Filter out skipped tests - they don't count for flakiness analysis
@@ -145,6 +152,7 @@ class FlakyTestAnalyzer {
         fails: 0,
         total: 0,
         skipped: cases.length,
+        flakinessPercent: 0,
         reason: 'All cases skipped'
       };
     }
@@ -154,8 +162,35 @@ class FlakyTestAnalyzer {
     const total = runCases.length;
     const skipped = cases.length - total;
     
-    // A test is flaky if it has both passes and failures
-    const isFlaky = passes > 0 && fails > 0;
+    // Calculate flakiness percentage
+    let flakinessPercent = 0;
+    let isFlaky = false;
+    let reason = '';
+    
+    if (total >= this.minRunsForAnalysis) {
+      if (passes === 0) {
+        // All runs failed - not flaky, just consistently failing
+        flakinessPercent = 0;
+        isFlaky = false;
+        reason = 'Consistently failing';
+      } else if (fails === 0) {
+        // All runs passed - not flaky, consistently passing
+        flakinessPercent = 0;
+        isFlaky = false;
+        reason = 'Consistently passing';
+      } else {
+        // Mixed results - calculate flakiness percentage
+        // Flakiness = (failures / total runs) * 100
+        flakinessPercent = Math.round((fails / total) * 100);
+        isFlaky = flakinessPercent >= this.flakinessThreshold;
+        reason = isFlaky ? `Flaky: ${flakinessPercent}% failure rate` : `Low flakiness: ${flakinessPercent}% failure rate`;
+      }
+    } else {
+      // Not enough runs for reliable analysis
+      flakinessPercent = 0;
+      isFlaky = false;
+      reason = `Insufficient runs (${total} < ${this.minRunsForAnalysis})`;
+    }
     
     return {
       name: testName,
@@ -164,7 +199,8 @@ class FlakyTestAnalyzer {
       fails,
       total,
       skipped,
-      reason: isFlaky ? 'Inconsistent results' : 'Consistent results'
+      flakinessPercent,
+      reason
     };
   }
   
@@ -182,9 +218,11 @@ class FlakyTestAnalyzer {
     const results = {
       timestamp: new Date().toISOString(),
       flakyTests: Array.from(this.flakyTests.values()),
+      allTests: this.allTestResults || [],
       summary: {
-        total: this.flakyTests.size,
-        flaky: this.flakyTests.size
+        total: this.allTestResults ? this.allTestResults.length : 0,
+        flaky: this.flakyTests.size,
+        threshold: this.flakinessThreshold
       }
     };
     
@@ -195,23 +233,31 @@ class FlakyTestAnalyzer {
 
 // CLI usage
 if (import.meta.url === `file://${process.argv[1]}`) {
-  const analyzer = new FlakyTestAnalyzer();
   const xmlFile = process.argv[2] || 'playwright-report/results.xml';
   const outputFile = process.argv[3] || 'flaky-analysis.json';
+  const threshold = parseInt(process.argv[4]) || 20; // Default 20% threshold
+  const minRuns = parseInt(process.argv[5]) || 2; // Default 2 minimum runs
+  
+  const analyzer = new FlakyTestAnalyzer({
+    flakinessThreshold: threshold,
+    minRunsForAnalysis: minRuns
+  });
   
   console.log(`🔍 Starting flaky test analysis...`);
   console.log(`📁 Input file: ${xmlFile}`);
   console.log(`📁 Output file: ${outputFile}`);
+  console.log(`🎯 Flakiness threshold: ${threshold}%`);
+  console.log(`📈 Minimum runs: ${minRuns}`);
   
   const results = analyzer.analyzeTestResults(xmlFile);
   analyzer.exportResults(outputFile);
   
   // Exit with code 1 if flaky tests found (for CI)
   if (results.summary.flaky > 0) {
-    console.log(`⚠️ ${results.summary.flaky} flaky tests detected`);
+    console.log(`⚠️ ${results.summary.flaky} flaky tests detected (≥${threshold}%)`);
     process.exit(1);
   } else {
-    console.log(`✅ No flaky tests detected`);
+    console.log(`✅ No flaky tests detected (≥${threshold}%)`);
     process.exit(0);
   }
 }
