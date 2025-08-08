@@ -35,12 +35,12 @@ jobs:
 
       - name: Run regression tests
         run: |
-          echo "🧪 Starting witness test..."
-          echo "📊 Running only frontend-heartbeat test as witness"
+          echo "🧪 Starting witness tests..."
+          echo "📊 Running pipeline witness tests (pass, fail, flaky)"
           echo "🌐 Environment: $APP_ENV"
           echo "🔗 Base URL: $APP_URL"
           echo ""
-          npx playwright test tests/frontend-heartbeat.spec.js --project=chromium
+          npx playwright test tests/pipeline-witness-tests.spec.js --project=chromium
           
           echo "📁 Checking generated files:"
           ls -la playwright-report/ || echo "playwright-report/ directory not found"
@@ -88,7 +88,7 @@ jobs:
           ls -la playwright-report/results.xml || echo "❌ results.xml not found"
           
           # Generate TestRail test run title with current date
-          TEST_RUN_TITLE="Witness Test - Frontend Heartbeat: development - Browser: chromium - Date $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+          TEST_RUN_TITLE="Pipeline Witness Tests: development - Browser: chromium - Date $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
           echo "📝 Test run title: $TEST_RUN_TITLE"
           
           # Create TestRail test run and upload results
@@ -163,7 +163,7 @@ jobs:
         if: always()
         run: |
           echo "📤 Sending Slack notification..."
-          node scripts/slack-notification.js "Witness Test - Frontend Heartbeat" "develop" "${{ github.run_id }}" "playwright-report/results.xml" "${{ env.TESTRAIL_RUN_ID }}" "${{ env.PUBLIC_REPORT_URL }}"
+          node scripts/slack-notification.js "Pipeline Witness Tests" "develop" "${{ github.run_id }}" "playwright-report/results.xml" "${{ env.TESTRAIL_RUN_ID }}" "${{ env.PUBLIC_REPORT_URL }}"
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
           GITHUB_SERVER_URL: ${{ github.server_url }}
