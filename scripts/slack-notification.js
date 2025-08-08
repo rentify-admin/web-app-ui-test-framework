@@ -81,11 +81,11 @@ function parseTestResults(filePath) {
             continue;
         }
         
-        const analysis = analyzer.analyzeTestGroup(testName, cases);
+        const testAnalysis = analyzer.analyzeTestGroup(testName, cases);
         totalTests++;
-        totalPassed += analysis.passes;
-        totalFailed += analysis.fails;
-        totalSkipped += analysis.skipped;
+        totalPassed += testAnalysis.passes;
+        totalFailed += testAnalysis.fails;
+        totalSkipped += testAnalysis.skipped;
     }
     
     return {
