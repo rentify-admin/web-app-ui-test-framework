@@ -78,84 +78,103 @@ class TestRailIntegration {
   }
 
   async attachVideosForFailedTests(runId, testResultsDir = 'test-results') {
+    if (!runId) {
+      console.log('⚠️ No TestRail run ID provided, skipping video processing');
+      return;
+    }
+
+    console.log(`🎥 Processing videos for TestRail run: ${runId}`);
+    
+    try {
+      const videoFiles = this.findVideoFiles(testResultsDir);
+      console.log(`Found ${videoFiles.length} video files to process...`);
+      
+      let attachedCount = 0;
+      
+      for (const videoFile of videoFiles) {
+        try {
+          const testName = this.extractTestNameFromFileName(videoFile);
+          console.log(`🔍 Processing video for test: ${testName}`);
+          
+          if (!testName || testName === 'video') {
+            console.log(`⚠️ Skipping video with invalid test name: ${videoFile}`);
+            continue;
+          }
+          
+          const caseId = await this.findCaseIdByTestName(testName);
+          
+          if (caseId) {
+            console.log(`📎 Attaching video to case ${caseId} for test: ${testName}`);
+            await this.attachVideo(runId, caseId, videoFile);
+            attachedCount++;
+          } else {
+            console.log(`⚠️ No TestRail case found for test: ${testName}`);
+          }
+        } catch (error) {
+          console.error(`❌ Error processing video ${videoFile}: ${error.message}`);
+        }
+      }
+      
+      console.log(`✅ Attached ${attachedCount} videos to TestRail cases`);
+      return attachedCount;
+    } catch (error) {
+      console.error(`❌ Error in attachVideosForFailedTests: ${error.message}`);
+      throw error;
+    }
+  }
+
+  findVideoFiles(testResultsDir) {
     if (!fs.existsSync(testResultsDir)) {
       console.log(`No test results directory found: ${testResultsDir}`);
       return [];
     }
 
-    const attachments = [];
+    const videoFiles = [];
     const videoExtensions = ['.webm', '.mp4', '.avi', '.mov'];
 
-    try {
-      // Find all video files in test results
-      const videoFiles = [];
-      const findVideos = (dir) => {
-        const files = fs.readdirSync(dir);
-        for (const file of files) {
-          const filePath = path.join(dir, file);
-          const stat = fs.statSync(filePath);
-          
-          if (stat.isDirectory()) {
-            findVideos(filePath);
-          } else if (videoExtensions.includes(path.extname(file).toLowerCase())) {
-            videoFiles.push(filePath);
-          }
-        }
-      };
-
-      findVideos(testResultsDir);
-
-      console.log(`Found ${videoFiles.length} video files to process...`);
-
-      for (const videoPath of videoFiles) {
-        // Extract test name from video filename
-        const fileName = path.basename(videoPath, path.extname(videoPath));
-        const testName = this.extractTestNameFromFileName(fileName);
+    const findVideos = (dir) => {
+      const files = fs.readdirSync(dir);
+      for (const file of files) {
+        const filePath = path.join(dir, file);
+        const stat = fs.statSync(filePath);
         
-        if (testName) {
-          // Find corresponding TestRail case ID
-          const caseId = await this.findCaseIdByTestName(testName);
-          
-          if (caseId) {
-            const attachment = await this.attachVideo(runId, caseId, videoPath);
-            if (attachment) {
-              attachments.push({
-                caseId,
-                testName,
-                videoPath,
-                attachment
-              });
-            }
-          } else {
-            console.warn(`⚠️ No TestRail case found for test: ${testName}`);
-          }
+        if (stat.isDirectory()) {
+          findVideos(filePath);
+        } else if (videoExtensions.includes(path.extname(file).toLowerCase())) {
+          videoFiles.push(filePath);
         }
       }
+    };
 
-      console.log(`✅ Attached ${attachments.length} videos to TestRail cases`);
-      return attachments;
-    } catch (error) {
-      console.error(`❌ Error processing videos: ${error.message}`);
-      return attachments;
-    }
+    findVideos(testResultsDir);
+    return videoFiles;
   }
 
   extractTestNameFromFileName(fileName) {
-    // Common patterns for Playwright video filenames
-    const patterns = [
-      /^(.+)-[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/, // UUID pattern
-      /^(.+)-[0-9]+$/, // Number pattern
-      /^(.+)$/ // Fallback: use entire name
-    ];
-
-    for (const pattern of patterns) {
-      const match = fileName.match(pattern);
-      if (match) {
-        return match[1].replace(/[-_]/g, ' ').trim();
+    // Remove file extension
+    const nameWithoutExt = fileName.replace(/\.(webm|mp4|avi)$/i, '');
+    
+    // Remove common suffixes like -retry1, -retry2, etc.
+    const nameWithoutRetry = nameWithoutExt.replace(/-retry\d+$/, '');
+    
+    // Extract the actual test name from the path
+    // Example: test-results/test-name-test-name-chromium/video.webm
+    // Should extract: test-name-test-name
+    const parts = nameWithoutRetry.split('/');
+    const lastPart = parts[parts.length - 1];
+    
+    // Remove browser suffix if present
+    const nameWithoutBrowser = lastPart.replace(/-chromium$/, '');
+    
+    // If the name is just "video", try to get it from the directory name
+    if (nameWithoutBrowser === 'video') {
+      const dirName = parts[parts.length - 2];
+      if (dirName && dirName !== 'test-results') {
+        return dirName.replace(/-chromium$/, '');
       }
     }
-
-    return null;
+    
+    return nameWithoutBrowser;
   }
 
   async findCaseIdByTestName(testName) {
@@ -260,7 +279,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   switch (command) {
     case 'attach-videos':
       integration.attachVideosForFailedTests(runId)
-        .then(attachments => console.log(`Attached ${attachments.length} videos`))
+        .then(attachments => console.log(`Attached ${attachments} videos`))
         .catch(console.error);
       break;
       

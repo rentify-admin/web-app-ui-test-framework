@@ -29,10 +29,15 @@ export class TestRailAPI {
     };
 
     try {
+      console.log(`🔗 Making TestRail API request to: ${url}`);
       const response = await fetch(url, options);
       
       if (!response.ok) {
         const errorText = await response.text();
+        console.error(`❌ TestRail API Error: ${response.status} - ${errorText}`);
+        console.error(`🔗 URL: ${url}`);
+        console.error(`👤 Username: ${this.username}`);
+        console.error(`🔑 API Key: ${this.apiKey ? '***' + this.apiKey.slice(-4) : 'NOT SET'}`);
         throw new Error(`TestRail API Error: ${response.status} - ${errorText}`);
       }
 
@@ -44,7 +49,7 @@ export class TestRailAPI {
       
       return await response.text();
     } catch (error) {
-      console.error(`TestRail API request failed: ${error.message}`);
+      console.error(`❌ TestRail API request failed: ${error.message}`);
       throw error;
     }
   }
