@@ -14,7 +14,7 @@ import fs from 'fs';
 import path from 'path';
 
 // Get command line arguments
-const [,, workflowName, environment, runId, resultsFile, testrailRunId] = process.argv;
+const [,, workflowName, environment, runId, resultsFile, testrailRunId, publicReportUrl] = process.argv;
 
 if (!workflowName || !environment || !runId || !resultsFile) {
     console.error('Usage: node scripts/slack-notification.js <workflow-name> <environment> <run-id> <results-file> [testrail-run-id]');
@@ -170,7 +170,7 @@ function getFailedTestNames(filePath) {
     return failedNames.slice(0, 5).map(name => `- ${name}`).join('\n');
 }
 
-function createSlackMessage(workflowName, environment, runId, results, status, visualDots, duration, failedTestNames, testrailRunId) {
+function createSlackMessage(workflowName, environment, runId, results, status, visualDots, duration, failedTestNames, testrailRunId, publicReportUrl) {
     const currentTime = new Date().toISOString();
     const pipelineType = environment === 'develop' ? 'UI' : 'API';
     
@@ -261,6 +261,9 @@ function createSlackMessage(workflowName, environment, runId, results, status, v
     if (testrailLink) {
         linksText += `\n• <${testrailLink}|TestRail Report>`;
     }
+    if (publicReportUrl) {
+        linksText += `\n• <${publicReportUrl}|Public Report>`;
+    }
     
     message.blocks.push(
         {
@@ -342,7 +345,8 @@ async function main() {
         visualDots,
         duration,
         failedTestNames,
-        testrailRunId
+        testrailRunId,
+        publicReportUrl
     );
     
     const success = await sendSlackNotification(message);

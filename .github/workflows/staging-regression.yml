@@ -120,11 +120,46 @@ jobs:
           TESTRAIL_USER: ${{ secrets.TESTRAIL_USER }}
           TESTRAIL_API_KEY: ${{ secrets.TESTRAIL_API_KEY }}
 
+      - name: Process failed test videos
+        if: always()
+        run: |
+          echo "🎥 Processing failed test videos..."
+          if [ -d "test-results" ]; then
+            echo "Found test-results directory, processing videos..."
+            node scripts/testrail-integration.js attach-videos "${{ env.TESTRAIL_RUN_ID }}"
+          else
+            echo "No test-results directory found, skipping video processing"
+          fi
+        env:
+          TESTRAIL_HOST: ${{ secrets.TESTRAIL_HOST }}
+          TESTRAIL_USER: ${{ secrets.TESTRAIL_USER }}
+          TESTRAIL_API_KEY: ${{ secrets.TESTRAIL_API_KEY }}
+          TESTRAIL_PROJECT_ID: ${{ secrets.TESTRAIL_PROJECT_ID }}
+          TESTRAIL_SUITE_ID: ${{ secrets.TESTRAIL_SUITE_ID }}
+
+      - name: Create public report
+        if: always()
+        run: |
+          echo "🔗 Creating public report..."
+          if [ -n "${{ env.TESTRAIL_RUN_ID }}" ]; then
+            PUBLIC_REPORT=$(node scripts/create-public-report.js "${{ env.TESTRAIL_RUN_ID }}" --save)
+            echo "PUBLIC_REPORT_URL=$(echo "$PUBLIC_REPORT" | grep -o 'https://[^[:space:]]*')" >> $GITHUB_ENV
+            echo "✅ Public report created"
+          else
+            echo "⚠️ No TestRail run ID available, skipping public report creation"
+          fi
+        env:
+          TESTRAIL_HOST: ${{ secrets.TESTRAIL_HOST }}
+          TESTRAIL_USER: ${{ secrets.TESTRAIL_USER }}
+          TESTRAIL_API_KEY: ${{ secrets.TESTRAIL_API_KEY }}
+          TESTRAIL_PROJECT_ID: ${{ secrets.TESTRAIL_PROJECT_ID }}
+          TESTRAIL_SUITE_ID: ${{ secrets.TESTRAIL_SUITE_ID }}
+
       - name: Send Slack notification
         if: always()
         run: |
           echo "📤 Sending Slack notification..."
-          node scripts/slack-notification.js "Staging Regression Tests" "${{ env.APP_ENV }}" "${{ github.run_id }}" "playwright-report/results.xml" "${{ env.TESTRAIL_RUN_ID }}"
+          node scripts/slack-notification.js "Staging Regression Tests" "${{ env.APP_ENV }}" "${{ github.run_id }}" "playwright-report/results.xml" "${{ env.TESTRAIL_RUN_ID }}" "${{ env.PUBLIC_REPORT_URL }}"
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
           GITHUB_SERVER_URL: ${{ github.server_url }}
