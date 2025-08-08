@@ -162,7 +162,8 @@ export const configureApplicationSettings = async (page, config) => {
  * @param {import('@playwright/test').Page} page
  */
 export const publishApplicationToLive = async page => {
-    await page.waitForSelector('[data-testid="app-publish-live-btn"]', { state: 'visible', timeout: 20000 });
+    await page.locator('h3').filter({ hasText: 'Publish Live' }).waitFor({ state: 'visible', timeout: 10000 });
+    await page.waitForSelector('[data-testid="app-publish-live-btn"]', { state: 'visible', timeout: 3000 });
     await page.getByTestId('app-publish-live-btn').click();
     await page.waitForTimeout(2000); //Wait for UI animation
 
@@ -240,14 +241,14 @@ export const searchAndEditApplication = async (page, applicationName, options = 
         const workflowEditBtn = page.getByTestId('submit-app-workflow-edit-form');
         if (await workflowEditBtn.isVisible()) {
             await workflowEditBtn.click();
-            await page.waitForTimeout(1000);
+            await page.waitForTimeout(2000); //Wait for UI animation
         }
 
         // Handle settings modal if present (just navigation)
         const settingsBtn = page.getByTestId('submit-application-setting-modal');
         if (await settingsBtn.isVisible()) {
             await settingsBtn.click();
-            await page.waitForTimeout(1000);
+            await page.waitForTimeout(2000); //Wait for UI animation
         }
 
         // Publish changes using existing utility
