@@ -142,7 +142,7 @@ jobs:
           TESTRAIL_SUITE_ID: ${{ secrets.TESTRAIL_SUITE_ID }}
 
       - name: Create public report
-        if: always()  # Enable public report creation
+        if: false  # Disabled - TestRail public link API not available
         run: |
           echo "🔗 Creating public report..."
           if [ -n "${{ env.TESTRAIL_RUN_ID }}" ]; then
