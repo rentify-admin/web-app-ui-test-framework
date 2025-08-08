@@ -1,0 +1,16 @@
+{
+  "runIds": [
+    109,
+    111,
+    113
+  ],
+  "planIds": [
+    109,
+    111,
+    113
+  ],
+  "reportUrl": "https://verifast.testrail.io/index.php?/plans/view/",
+  "testType": "Core Tests (PR)",
+  "tag": "core",
+  "totalPlans": 3
+}

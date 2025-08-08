@@ -1,0 +1,37 @@
+{
+  "name": "web-app-ui-test-framework",
+  "version": "1.0.0",
+  "description": "UI Test Framework for Verifast Web Application",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "test": "npx playwright test",
+    "test:ui": "npx playwright test --ui",
+    "test:chromium": "npx playwright test --project=chromium",
+    "test:firefox": "npx playwright test --project=firefox",
+    "test:webkit": "npx playwright test --project=webkit",
+    "test:develop": "APP_ENV=development npx playwright test --project=chromium",
+    "test:staging": "APP_ENV=staging npx playwright test --project=chromium",
+    "test:develop-progress": "APP_ENV=development node scripts/test-progress.js --project=chromium",
+    "test:staging-progress": "APP_ENV=staging node scripts/test-progress.js --project=chromium",
+    "install-browsers": "npx playwright install",
+    "install-deps": "npx playwright install-deps",
+    "e2e-test": "npx playwright install && npx playwright test",
+    "e2e-ui": "npx playwright install && npx playwright test --ui",
+    "run-all-tests-chromium": "PLAYWRIGHT_JUNIT_OUTPUT_NAME=playwright-report/results-chromium.xml npx playwright install && npx playwright test --project=chromium && trcli -y -h $TESTRAIL_HOST --project \"$TESTRAIL_PROJECT_NAME\" --username $TESTRAIL_USER --key $TESTRAIL_API_KEY parse_junit --title \"Automated Tests from Local Run\" --suite-id $TESTRAIL_SUITE_ID --run-description \"Local run on $(date)\" --file playwright-report/results-chromium.xml && npx playwright show-report",
+    "run-all-tests-firefox": "PLAYWRIGHT_JUNIT_OUTPUT_NAME=playwright-report/results-firefox.xml npx playwright install && npx playwright test --project=firefox && trcli -y -h $TESTRAIL_HOST --project \"$TESTRAIL_PROJECT_NAME\" --username $TESTRAIL_USER --key $TESTRAIL_API_KEY parse_junit --title \"Automated Tests from Local Run\" --suite-id $TESTRAIL_SUITE_ID --run-description \"Local run on $(date)\" --file playwright-report/results-firefox.xml && npx playwright show-report",
+    "run-all-tests-webkit": "PLAYWRIGHT_JUNIT_OUTPUT_NAME=playwright-report/results-webkit.xml npx playwright install && npx playwright test --project=webkit && trcli -y -h $TESTRAIL_HOST --project \"$TESTRAIL_PROJECT_NAME\" --username $TESTRAIL_USER --key $TESTRAIL_API_KEY parse_junit --title \"Automated Tests from Local Run\" --suite-id $TESTRAIL_SUITE_ID --run-description \"Local run on $(date)\" --file playwright-report/results-webkit.xml && npx playwright show-report",
+    "local-regression": "./scripts/local-regression-testrail.sh",
+    "local-regression:develop": "./scripts/local-regression-testrail.sh --develop",
+    "local-regression:staging": "./scripts/local-regression-testrail.sh --staging",
+    "local-regression:develop-no-uploads": "./scripts/local-regression-testrail.sh --develop --skip-document-upload",
+    "local-regression:staging-no-uploads": "./scripts/local-regression-testrail.sh --staging --skip-document-upload"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.52.0",
+    "dotenv": "^16.4.5"
+  },
+  "dependencies": {
+    "axios": "^1.11.0"
+  }
+}
