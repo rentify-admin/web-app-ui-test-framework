@@ -35,7 +35,10 @@
     "testrail:create-public-report": "node scripts/create-public-report.js",
     "testrail:run-selected": "node scripts/run-selected-tests.js run",
     "testrail:list-cases": "node scripts/run-selected-tests.js list",
-    "testrail:setup-guide": "node scripts/setup-testrail-webhook-manual.js"
+    "testrail:setup-guide": "node scripts/setup-testrail-webhook-manual.js",
+    "flaky:analyze": "node scripts/flaky-test-analyzer.js",
+    "flaky:tag": "node scripts/flaky-test-tagger.js tag",
+    "flaky:clean": "node scripts/flaky-test-tagger.js clean"
   },
   "devDependencies": {
     "@playwright/test": "^1.52.0",

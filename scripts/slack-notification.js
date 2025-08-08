@@ -12,6 +12,7 @@
 
 import fs from 'fs';
 import path from 'path';
+import { FlakyTestAnalyzer } from './flaky-test-analyzer.js';
 
 // Get command line arguments
 const [,, workflowName, environment, runId, resultsFile, testrailRunId, publicReportUrl] = process.argv;
@@ -51,26 +52,48 @@ function parseTestResults(filePath) {
         };
     }
 
+    // Use the FlakyTestAnalyzer for proper analysis
+    const analyzer = new FlakyTestAnalyzer();
+    const analysis = analyzer.analyzeTestResults(filePath);
+    
+    // Calculate totals from all tests (including stable ones)
+    let totalTests = 0;
+    let totalPassed = 0;
+    let totalFailed = 0;
+    let totalSkipped = 0;
+    
+    // Count from flaky tests
+    analysis.flakyTests.forEach(test => {
+        totalTests++;
+        totalPassed += test.passes;
+        totalFailed += test.fails;
+        totalSkipped += test.skipped;
+    });
+    
+    // Count from stable tests (we need to get this from the analyzer)
     const content = fs.readFileSync(filePath, 'utf8');
+    const allTestCases = analyzer.extractTestCases(content);
+    const testGroups = analyzer.groupTestCases(allTestCases);
     
-    // Count test cases
-    const totalTests = (content.match(/<testcase/g) || []).length;
-    const failedTests = (content.match(/<failure/g) || []).length;
-    const skippedTests = (content.match(/<skipped/g) || []).length;
-    
-    // For flaky tests, look for tests with retry patterns but don't count skipped as flaky
-    const retryMatches = content.match(/retry/g) || [];
-    const flakyTests = Math.max(0, retryMatches.length - skippedTests);
-    
-    // Calculate passed tests correctly
-    const passedTests = Math.max(0, totalTests - failedTests - skippedTests);
+    for (const [testName, cases] of testGroups) {
+        // Skip if already counted in flaky tests
+        if (analysis.flakyTests.find(t => t.name === testName)) {
+            continue;
+        }
+        
+        const analysis = analyzer.analyzeTestGroup(testName, cases);
+        totalTests++;
+        totalPassed += analysis.passes;
+        totalFailed += analysis.fails;
+        totalSkipped += analysis.skipped;
+    }
     
     return {
         total: totalTests,
-        passed: passedTests,
-        failed: failedTests,
-        flaky: flakyTests,
-        skipped: skippedTests
+        passed: totalPassed,
+        failed: totalFailed,
+        flaky: analysis.flakyTests.length, // Number of flaky tests, not retries
+        skipped: totalSkipped
     };
 }
 
