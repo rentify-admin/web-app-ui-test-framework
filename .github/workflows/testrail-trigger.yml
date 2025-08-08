@@ -143,7 +143,7 @@ jobs:
           echo "TestRail Output: $TESTRAIL_OUTPUT"
           
           # Extract TestRail run ID from output
-          TESTRAIL_RUN_ID=$(echo "$TESTRAIL_OUTPUT" | grep -o "Run ID: [0-9]*" | head -1 | awk '{print $3}')
+          TESTRAIL_RUN_ID=$(echo "$TESTRAIL_OUTPUT" | grep -o "Test run: .*/runs/view/[0-9]*" | head -1 | sed 's/.*\/runs\/view\///')
           if [ -n "$TESTRAIL_RUN_ID" ]; then
             echo "TESTRAIL_RUN_ID=$TESTRAIL_RUN_ID" >> $GITHUB_ENV
             echo "✅ TestRail run created with ID: $TESTRAIL_RUN_ID"

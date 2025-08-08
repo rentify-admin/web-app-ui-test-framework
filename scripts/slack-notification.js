@@ -176,8 +176,8 @@ function createSlackMessage(workflowName, environment, runId, results, status, v
     
     // Create TestRail link if run ID is available
     let testrailLink = '';
-    if (testrailRunId && TESTRAIL_HOST && TESTRAIL_PROJECT_NAME) {
-        // Convert TestRail host to web URL format
+    if (testrailRunId && TESTRAIL_HOST) {
+        // Convert TestRail API host to web URL format
         const testrailWebUrl = TESTRAIL_HOST.replace('/api/', '/index.php?/runs/view/');
         testrailLink = `${testrailWebUrl}${testrailRunId}&group_by=cases:section_id&group_order=asc&display=tree`;
     }
