@@ -24,6 +24,8 @@ if (!workflowName || !environment || !runId || !resultsFile) {
 
 // Get environment variables
 const SLACK_WEBHOOK_URL = process.env.SLACK_WEBHOOK_URL;
+const SLACK_BOT_TOKEN = process.env.SLACK_BOT_TOKEN;
+const SLACK_UPLOAD_CHANNEL = process.env.SLACK_UPLOAD_CHANNEL || 'general';
 const GITHUB_SERVER_URL = process.env.GITHUB_SERVER_URL || 'https://github.com';
 const GITHUB_REPOSITORY = process.env.GITHUB_REPOSITORY;
 const GITHUB_ACTOR = process.env.GITHUB_ACTOR || 'unknown';
@@ -410,44 +412,32 @@ async function sendSlackNotification(message) {
 async function uploadFileToSlack(filePath, filename, fileType = 'auto') {
     try {
         const fs = await import('fs');
-        
         if (!fs.existsSync(filePath)) {
             console.log(`⚠️ File not found: ${filePath}`);
             return null;
         }
-        
         if (!SLACK_BOT_TOKEN) {
             console.log(`⚠️ SLACK_BOT_TOKEN not available, skipping file upload: ${filename}`);
             return null;
         }
-        
-        const fileBuffer = fs.readFileSync(filePath);
-        const formData = new FormData();
-        formData.append('file', new Blob([fileBuffer]), filename);
-        formData.append('channels', 'general'); // You can customize this
-        formData.append('initial_comment', `TestRail Report: ${filename}`);
-        
-        console.log(`📤 Uploading file to Slack: ${filename} (${fileBuffer.length} bytes)`);
-        
-        const response = await fetch('https://slack.com/api/files.upload', {
-            method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${SLACK_BOT_TOKEN}`,
-            },
-            body: formData
-        });
-        
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
+        const { execSync } = await import('child_process');
+        const safeFilename = filename.replace(/"/g, '\\"');
+        const cmd = `curl -sS -f -X POST https://slack.com/api/files.upload -H "Authorization: Bearer ${SLACK_BOT_TOKEN}" -F channels=${SLACK_UPLOAD_CHANNEL} -F initial_comment=\"${safeFilename}\" -F file=@\"${filePath}\"`;
+        let out;
+        try {
+            out = execSync(cmd, { encoding: 'utf8' });
+        } catch (e) {
+            console.error(`❌ Slack upload failed via curl: ${e.message}`);
+            return null;
         }
-        
-        const result = await response.json();
-        
-        if (result.ok) {
-            console.log(`✅ File uploaded to Slack: ${filename}`);
-            return result.file.permalink;
+        let parsed;
+        try { parsed = JSON.parse(out); } catch { parsed = { ok: false, error: 'parse_error', raw: out }; }
+        if (parsed.ok) {
+            const permalink = parsed.file && parsed.file.permalink ? parsed.file.permalink : null;
+            console.log(`✅ File uploaded to Slack: ${permalink || filename}`);
+            return permalink;
         } else {
-            console.error(`❌ Slack file upload failed: ${result.error}`);
+            console.error(`❌ Slack file upload failed: ${parsed.error || 'unknown_error'}`);
             return null;
         }
     } catch (error) {
@@ -487,17 +477,26 @@ async function main() {
     
     // Upload PDF report if available
     const fs = await import('fs');
-    const pdfFile = `testrail-report-${testrailRunId}.pdf`;
-    if (fs.existsSync(pdfFile)) {
+    let pdfFile = '';
+    try {
+        const { execSync } = await import('child_process');
+        const latest = execSync('ls -1t testrail_reports/*.pdf 2>/dev/null | head -1', { encoding: 'utf8' }).trim();
+        if (latest) pdfFile = latest;
+    } catch {}
+    if (!pdfFile) {
+        const fallback = `testrail-report-${testrailRunId}.pdf`;
+        if (fs.existsSync(fallback)) pdfFile = fallback;
+    }
+    if (pdfFile && fs.existsSync(pdfFile)) {
         console.log(`📄 Uploading PDF report: ${pdfFile}`);
-        const pdfUrl = await uploadFileToSlack(pdfFile, pdfFile);
+        const pdfUrl = await uploadFileToSlack(pdfFile, pdfFile.split('/').pop());
         if (pdfUrl) {
             console.log(`✅ PDF report uploaded: ${pdfUrl}`);
         } else {
             console.log(`⚠️ PDF report upload failed`);
         }
     } else {
-        console.log(`⚠️ PDF report not found: ${pdfFile}`);
+        console.log(`⚠️ PDF report not found in expected locations`);
     }
     
     // Upload failed test videos if available

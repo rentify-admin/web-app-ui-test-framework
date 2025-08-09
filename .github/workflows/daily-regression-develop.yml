@@ -124,6 +124,31 @@ jobs:
           TESTRAIL_USER: ${{ secrets.TESTRAIL_USER }}
           TESTRAIL_API_KEY: ${{ secrets.TESTRAIL_API_KEY }}
 
+      - name: Generate TestRail report via TRCLI (optional)
+        if: always()
+        run: |
+          if [ -n "${{ secrets.TESTRAIL_REPORT_ID }}" ]; then
+            echo "🧾 Generating TestRail report via TRCLI (report_id=${{ secrets.TESTRAIL_REPORT_ID }})"
+            mkdir -p testrail_reports
+            set +e
+            trcli -y \
+              -h $TESTRAIL_HOST \
+              --username $TESTRAIL_USER \
+              --key $TESTRAIL_API_KEY \
+              report run \
+              --report-id ${{ secrets.TESTRAIL_REPORT_ID }} \
+              --output testrail_reports 2>&1 | tee trcli_report.log
+            echo "✅ TRCLI report run attempted (non-blocking). Listing PDFs:"
+            find testrail_reports -maxdepth 2 -type f -name "*.pdf" -print || true
+            set -e
+          else
+            echo "ℹ️ TESTRAIL_REPORT_ID not set; skipping TRCLI report generation"
+          fi
+        env:
+          TESTRAIL_HOST: ${{ secrets.TESTRAIL_HOST }}
+          TESTRAIL_USER: ${{ secrets.TESTRAIL_USER }}
+          TESTRAIL_API_KEY: ${{ secrets.TESTRAIL_API_KEY }}
+
       - name: Export TestRail report and prepare attachments
         if: always()
         run: |
@@ -180,6 +205,7 @@ jobs:
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+          SLACK_UPLOAD_CHANNEL: ${{ vars.SLACK_UPLOAD_CHANNEL || '' }}
           GITHUB_SERVER_URL: ${{ github.server_url }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           GITHUB_ACTOR: ${{ github.actor }}
