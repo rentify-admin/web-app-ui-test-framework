@@ -17,84 +17,84 @@ test.beforeEach(async ({ page }) => {
     await page.goto('/');
 });
 
-test('ID only - 1 attempt - success', {
-  tag: ['@core', '@smoke', '@regression', '@document-upload'],
-}, async ({ page, browser }) => {
+test.describe('application_flow_with_id_only', () => {
+    test('ID only - 1 attempt - success', {
+      tag: ['@core', '@smoke', '@regression', '@document-upload'],
+    }, async ({ page, browser }) => {
 
-    // Step 1: Admin Login and Navigate
-    await loginForm.fill(page, admin);
-    await loginForm.submit(page);
-    await expect(page.getByTestId('household-status-alert')).toBeVisible();
-    await expect(page).toHaveTitle(/Applicants/, { timeout: 10_000 });
+        // Step 1: Admin Login and Navigate
+        await loginForm.fill(page, admin);
+        await loginForm.submit(page);
+        await expect(page.getByTestId('household-status-alert')).toBeVisible();
+        await expect(page).toHaveTitle(/Applicants/, { timeout: 10_000 });
 
-    await gotoApplicationsPage(page);
+        await gotoApplicationsPage(page);
 
-    // Step 2: Locate Target Application
-    await searchApplication(page, 'AutoTest Suite - ID Only');
+        // Step 2: Locate Target Application
+        await searchApplication(page, 'AutoTest Suite - ID Only');
 
-    await expect(
-        page.locator('table > tbody > tr > td:nth-child(2)')
-    ).toHaveText(/AutoTest Suite - ID Only/);
+        await expect(
+            page.locator('table > tbody > tr > td:nth-child(2)')
+        ).toHaveText(/AutoTest Suite - ID Only/);
 
-    await page.locator('table > tbody > tr > td:nth-child(7) a').click();
+        await page.locator('table > tbody > tr > td:nth-child(7) a').click();
 
-    // Step 3: Generate Session
-    await generateSessionForm.fill(page);
-    const sessionData = await generateSessionForm.submit(page);
+        // Step 3: Generate Session
+        await generateSessionForm.fill(page);
+        const sessionData = await generateSessionForm.submit(page);
 
-    const linkSection = page.getByTestId('session-invite-link');
-    await expect(linkSection).toBeVisible();
+        const linkSection = page.getByTestId('session-invite-link');
+        await expect(linkSection).toBeVisible();
 
-    const link = await linkSection.getAttribute('href');
-    const sessionId = sessionData.data?.id;
-    const sessionUrl = joinUrl(API_URL, `sessions/${sessionId}`);
+        const link = await linkSection.getAttribute('href');
+        const sessionId = sessionData.data?.id;
+        const sessionUrl = joinUrl(API_URL, `sessions/${sessionId}`);
 
-    // await page.close();
+        // await page.close();
 
-    // Step 4: Applicant View — New Context
-    const context = await browser.newContext();
-    const applicantPage = await context.newPage();
-    await applicantPage.goto(link);
+        // Step 4: Applicant View — New Context
+        const context = await browser.newContext();
+        const applicantPage = await context.newPage();
+        await applicantPage.goto(link);
 
-    // Step 4.1: Complete Initial Application Form
-    await applicantPage.locator('input#rent_budget').fill('500');
-    await applicantPage.locator('button[type="submit"]').click();
+        // Step 4.1: Complete Initial Application Form
+        await applicantPage.locator('input#rent_budget').fill('500');
+        await applicantPage.locator('button[type="submit"]').click();
 
-    await applicantPage.waitForResponse(sessionUrl);
-    await applicantPage.waitForTimeout(1000);
+        await applicantPage.waitForResponse(sessionUrl);
+        await applicantPage.waitForTimeout(1000);
 
-    // Step 5: Start ID Verification
-    await applicantPage
-        .locator('button', { hasText: 'Start Id Verification' })
-        .click();
-    await applicantPage.waitForResponse(
-        joinUrl(API_URL, 'identity-verifications')
-    );
+        // Step 5: Start ID Verification
+        await applicantPage
+            .locator('button', { hasText: 'Start Id Verification' })
+            .click();
+        await applicantPage.waitForResponse(
+            joinUrl(API_URL, 'identity-verifications')
+        );
 
-    const personaIFrame = applicantPage.frameLocator(
-        'iframe[src*="withpersona.com"]'
-    );
-    await applicantPage.waitForTimeout(3000);
+        const personaIFrame = applicantPage.frameLocator(
+            'iframe[src*="withpersona.com"]'
+        );
+        await applicantPage.waitForTimeout(3000);
 
-    await personaIFrame.locator('[data-test="button__basic"]').click();
-    await personaIFrame.locator('[data-test="button__primary"]:not(disabled)', { hasText: 'Begin Verifying' }).click();
-    await applicantPage.waitForTimeout(1000);
+        await personaIFrame.locator('[data-test="button__basic"]').click();
+        await personaIFrame.locator('[data-test="button__primary"]:not(disabled)', { hasText: 'Begin Verifying' }).click();
+        await applicantPage.waitForTimeout(1000);
 
-    // Step 6: Select Document Type and Upload
-    await personaIFrame.locator('[data-test="button__primary"]:not(disabled)', { hasText: 'Select' }).click();
-    await applicantPage.waitForTimeout(1000);
+        // Step 6: Select Document Type and Upload
+        await personaIFrame.locator('[data-test="button__primary"]:not(disabled)', { hasText: 'Select' }).click();
+        await applicantPage.waitForTimeout(1000);
 
-    await personaIFrame.locator('#select__option--pp').click();
-    const uploadInput = personaIFrame.locator('input[data-test="file-upload"]');
-    const filePath = join(__dirname, 'test_files', 'passport.jpg');
-    await uploadInput.setInputFiles(filePath);
+        await personaIFrame.locator('#select__option--pp').click();
+        const uploadInput = personaIFrame.locator('input[data-test="file-upload"]');
+        const filePath = join(__dirname, 'test_files', 'passport.jpg');
+        await uploadInput.setInputFiles(filePath);
 
-    await personaIFrame.locator('#government_id__use-image').click();
-    await applicantPage.waitForTimeout(3000);
+        await personaIFrame.locator('#government_id__use-image').click();
+        await applicantPage.waitForTimeout(3000);
 
-    await personaIFrame.locator('[data-test="button__primary"]').click();
+        await personaIFrame.locator('[data-test="button__primary"]').click();
 
-    await expect(
-        applicantPage.locator('h3', { hasText: 'Summary' })
-    ).toBeVisible({ timeout: 110_000 });
+        await expect(applicantPage.locator('h3', { hasText: 'Summary' })).toBeVisible({ timeout: 110_000 });
+    });
 });
