@@ -17,7 +17,7 @@ const userData = {
 const applicationName = 'AutoTest Suite - EMP Connect';
 const API_URL = app.urls.api;
 
-describe('employment_skip_household_not_hidden_employment_connect', () => {
+test.describe('employment_skip_household_not_hidden_employment_connect', () => {
     test('Should skip household setup and connect to employment', {
       tag: ['@smoke', '@regression', '@document-upload'],
     }, async ({ page, browser }) => {

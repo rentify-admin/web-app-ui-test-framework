@@ -23,7 +23,7 @@ test.beforeEach(async ({ page }) => {
 
 test.setTimeout(180_000); 
 
-describe('financial_mx_1_attempt_report_check_approve_with_conditions', () => {
+test.describe('financial_mx_1_attempt_report_check_approve_with_conditions', () => {
     test('Should complete MX OAuth financial verification and test approval workflow with conditions', {
       tag: ['@core', '@smoke', '@regression', '@document-upload'],
     }, async ({ page, browser }) => {
