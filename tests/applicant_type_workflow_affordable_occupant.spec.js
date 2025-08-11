@@ -6,8 +6,10 @@ import { findAndInviteApplication } from '~/tests/utils/applications-page';
 import generateSessionForm from '~/tests/utils/generate-session-form';
 import { handleOptionalStateModal, selectApplicantType, completeApplicantForm, completeIdVerification } from '~/tests/utils/session-flow';
 
-test.describe('Applicant Type Workflow Test', () => {
-    test('C32 - Applicant Type Workflow Affordable Occupant', { tag: ['@core'] }, async ({ page }) => {
+test.describe('applicant_type_workflow_affordable_occupant', () => {
+    test('Should complete applicant flow with affordable occupant applicant type', { 
+        tag: ['@core'],
+    }, async ({ page }) => {
         // Step 1: Login as admin
         await page.goto(app.urls.app);
         await loginForm.fill(page, admin);
