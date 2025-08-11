@@ -89,10 +89,10 @@ async function verifyAdminResults(page, sessionId) {
     await verifyReportFlags(page, TEST_CONFIG.expectedFlags);
 } 
 
-test.describe('Document Upload Verifications Core Flow', () => {
+test.describe('document_upload_verifications_core_flow', () => {
     test.describe.configure({ mode: 'default' });
 
-    test.skip('Complete document upload verification flow', {
+    test.skip('Should complete document upload verification flow', {
         tag: ['@core', '@document-upload'],
     }, async ({ browser, page }) => {
         //Big time out due the file upload process
