@@ -32,10 +32,10 @@ const loginWith = async (page, data) => {
 
 const sessionID = '01971d4f-2f5e-7151-88d5-d038c044d13b';
 
-test.describe('User Permissions Verify', () => {
+test.describe('staff_user_permissions_test', () => {
     test.describe.configure({ mode: 'default' });
 
-    test('Create Member record and assign it to the Staff role', { tag: [ '@regression' ] }, async ({ page }) => {
+    test('Should create member record and assign it to the Staff role', { tag: [ '@regression' ] }, async ({ page }) => {
         const randomNumber = Math.floor(Math.random() * 100000);
         const userToCreate = { ...staffUser };
         userToCreate.email = `playwright+${randomNumber}@verifast.com`;
@@ -62,7 +62,7 @@ test.describe('User Permissions Verify', () => {
         expect(userData?.data?.id).toBeDefined();
     });
 
-    test('Verify Permission of Staff role', { tag: [ '@regression' ] }, async ({ page }) => {
+    test('Verify permission of Staff role', { tag: [ '@regression' ] }, async ({ page }) => {
 
         // Login
         await loginWith(page, staffUser);
