@@ -5,7 +5,7 @@ import app from '~/tests/test_config/app';
 import { createApplicationFlow, searchAndEditApplication, searchAndVerifyApplication, searchAndDeleteApplication } from '~/tests/utils/application-management';
 import { getRandomNumber } from './utils/helper';
 
-test.describe('Workflow Isolation Test', () => {
+test.describe('applicant-edits-a-workflow-used-by-another-applicant', () => {
     let app1Name, app2Name;
 
     test.afterEach(async ({ page }) => {
@@ -19,7 +19,9 @@ test.describe('Workflow Isolation Test', () => {
         }
     });
 
-    test('C42 - Applicant edits a workflow used by another applicant only reflects changes to current', { tag: ['@core', '@regression'] }, async ({ page, browserName }) => {
+    test('Should edit a workflow used by another applicant and only reflects changes to current', { 
+        tag: ['@core', '@regression'],
+    }, async ({ page, browserName }) => {
         // Step 1-5: Login as admin (using admin instead of craig as requested)
         await page.goto(app.urls.app);
         await loginForm.fill(page, admin);
