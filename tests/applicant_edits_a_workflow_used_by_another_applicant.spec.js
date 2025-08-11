@@ -5,7 +5,7 @@ import app from '~/tests/test_config/app';
 import { createApplicationFlow, searchAndEditApplication, searchAndVerifyApplication, searchAndDeleteApplication } from '~/tests/utils/application-management';
 import { getRandomNumber } from './utils/helper';
 
-test.describe('applicant-edits-a-workflow-used-by-another-applicant', () => {
+test.describe('applicant_edits_a_workflow_used_by_another_applicant', () => {
     let app1Name, app2Name;
 
     test.afterEach(async ({ page }) => {
