@@ -32,7 +32,7 @@ test.beforeEach(async ({ page }) => {
 
 const sessionId = '01971d54-6284-70c4-8180-4eee1abd955a';
 
-test.describe('User Permissions Verify', tester => {
+test.describe('user_permissions_verify', tester => {
     test.describe.configure({ mode: 'default', timeout: 180000 }); 
 
     const testUser = {
@@ -175,7 +175,7 @@ test.describe('User Permissions Verify', tester => {
         await page.getByTestId('cancel-application-setup').click();
     });
 
-    test('should allow user to perform permited actions', { tag: [ '@regression' ] }, async ({
+    test('Should allow user to perform permited actions', { tag: [ '@regression' ] }, async ({
         page,
         context
     }) => {
