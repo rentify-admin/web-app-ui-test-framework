@@ -6,8 +6,10 @@ import { searchSessionWithText, navigateToSessionById, checkExportPdf } from '~/
 // Test: PDF Download functionality
 // Original Selenium test: "09 - PDF Download"
 
-test.describe('PDF Download Test', () => {
-    test('should successfully export PDF for an application', { tag: ['@core'] }, async ({ page, context }) => {
+test.describe('pdf_download_test', () => {
+    test('Should successfully export PDF for an application', { 
+        tag: ['@core'],
+    }, async ({ page, context }) => {
         // Step 1-5: Login as staff user
         await page.goto('https://dev.verifast.app/');
         await loginForm.fill(page, staff);
