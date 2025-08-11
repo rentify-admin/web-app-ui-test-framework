@@ -8,9 +8,10 @@ test.beforeEach(async ({ page }) => {
     await page.goto('/');
 });
 
-test.describe('Application Create and Delete Test', () => {
-    test('should create and delete an application with multiple applicant types', { tag: [ '@core' ] }, async ({ page }) => {
-
+test.describe('application_create_delete_test', () => {
+    test('Should create and delete an application with multiple applicant types', { 
+        tag: [ '@core' ],
+    }, async ({ page }) => {
         // Step 1-5: Login as admin (dhaval)
         await loginForm.fill(page, admin);
         await loginForm.submit(page);
