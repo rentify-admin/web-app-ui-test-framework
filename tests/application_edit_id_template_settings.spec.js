@@ -4,7 +4,7 @@ import { admin } from '~/tests/test_config';
 import { searchApplication } from './utils/applications-page';
 import { openApplicationEditModal, openWorkflowIdentitySetup, setPersonaTemplateId, expectPersonaTemplateId } from './utils/workflow-identity-utils';
 
-describe('application_edit_id_template_settings', () => {
+test.describe('application_edit_id_template_settings', () => {
     test('Should edit an application ID template settings', {
       tag: ['@regression'],
     }, async ({ page }) => {
