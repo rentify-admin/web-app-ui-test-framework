@@ -4,7 +4,7 @@ import { admin, app } from '~/tests/test_config';
 
 import { joinUrl } from './utils/helper';
 
-test.describe('Organization Member Application Permissions', () => {
+test.describe('check_org_member_application_permission_update', () => {
 
     test('Admin should be able to update an organization member\'s application permissions', async ({ page }) => {
 

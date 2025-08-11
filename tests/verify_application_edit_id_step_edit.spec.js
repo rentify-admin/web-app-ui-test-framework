@@ -11,10 +11,10 @@ const loginWith = async (page, data) => {
     await expect(page).toHaveTitle(/Applicants/, { timeout: 10_000 });
 };
 
-test.describe('Verify application edit and ID step edit updates properly', () => {
+test.describe('verify_application_edit_id_step_edit', () => {
     test.describe.configure({ mode: 'default' });
 
-    test('Login User and edit ID only application', {
+    test('Should login user and edit ID only application', {
       tag: ['@regression'],
     }, async ({ page }) => {
         await page.goto('/');

@@ -18,10 +18,10 @@ const user = {
     password: 'password'
 };
 
-test.describe('Bank statement transaction parsing', () => {
+test.describe('bank_statement_transaction_parsing', () => {
     test.describe.configure({ mode: 'default' });
 
-    test('Login with admin user', {
+    test('Should complete applicant flow and upload bank statement document', {
       tag: ['@regression', '@document-upload'],
     }, async ({ browser, page }) => {
         // Set timeout to 130 seconds (30 seconds more than the current 100 second timeout)

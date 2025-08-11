@@ -26,18 +26,20 @@ const testAdmin = {
     password: 'Test1234'
 };
 
-test.describe('Session Flag Testing', () => {
-    test.describe.configure({ mode: 'default' });
-    test.setTimeout(200_000);
-    const userData = {
-        first_name: 'Flag Issue',
-        last_name: 'Testing',
-        email: 'FlagIssueTesting@verifast.com'
-    };
+test.describe('user_flags_approve_reject_test', () => {
 
-    let flagIssueSession = '01985a2c-c3f3-71fa-bc3d-f5a11279d36a';
+    test.describe('Session Flag', () => {
+        test.describe.configure({ mode: 'default' });
+        test.setTimeout(200_000);
+        const userData = {
+            first_name: 'Flag Issue',
+            last_name: 'Testing',
+            email: 'FlagIssueTesting@verifast.com'
+        };
 
-    test.skip('Create Applicant Session for Flag Issue', { tag: [ '@core', '@smoke', '@regression', '@document-upload' ] }, async ({
+        let flagIssueSession = '01985a2c-c3f3-71fa-bc3d-f5a11279d36a';
+
+        test.skip('Should create applicant session for flag issue', { tag: [ '@core', '@smoke', '@regression', '@document-upload' ] }, async ({
         page,
         browser
     }) => {
@@ -55,9 +57,9 @@ test.describe('Session Flag Testing', () => {
         );
 
         flagIssueSession = sessionId;
-    });
+        });
 
-    test.skip('Check Session Flag Test', { tag: [ '@core', '@smoke', '@regression', '@document-upload' ] }, async ({ page }) => {
+        test.skip('Check Session Flag', { tag: [ '@core', '@smoke', '@regression', '@document-upload' ] }, async ({ page }) => {
         const sessionId = flagIssueSession;
 
         // Step 1: Login and navigate to session
@@ -120,21 +122,21 @@ test.describe('Session Flag Testing', () => {
         await expect(
             riSection.getByTestId('MISSING_TRANSACTIONS')
         ).toBeVisible({ timeout: 30_000 });
+        });
     });
-});
 
-test.describe('Session Approve/Reject Testing', () => {
-    test.describe.configure({ mode: 'default' });
-    test.setTimeout(200_000);
-    const userData2 = {
-        first_name: 'Approval_reject',
-        last_name: 'Testing',
-        email: 'ApprovalRejecttesting@verifast.com'
-    };
+    test.describe('Session Approve/Reject', () => {
+        test.describe.configure({ mode: 'default' });
+        test.setTimeout(200_000);
+        const userData2 = {
+            first_name: 'Approval_reject',
+            last_name: 'Testing',
+            email: 'ApprovalRejecttesting@verifast.com'
+        };
 
-    let approveRejectSession = '01976921-a4d1-729f-9212-6f88ac9a189c';
+        let approveRejectSession = '01976921-a4d1-729f-9212-6f88ac9a189c';
 
-    test.skip('Create Applicant Session for Approve Reject', { tag: [ '@core', '@smoke', '@regression', '@document-upload' ] }, async ({
+        test.skip('Should create applicant session for approve reject', { tag: [ '@core', '@smoke', '@regression', '@document-upload' ] }, async ({
         page,
         browser
     }) => {
@@ -152,9 +154,9 @@ test.describe('Session Approve/Reject Testing', () => {
         );
 
         approveRejectSession = sessionId;
-    });
+        });
 
-    test.skip('Check Session by Approving and Rejecting', { tag: [ '@core', '@smoke', '@regression', '@document-upload' ] }, async ({ page }) => {
+        test.skip('Check session by Approving and Rejecting', { tag: [ '@core', '@smoke', '@regression', '@document-upload' ] }, async ({ page }) => {
         const sessionId = approveRejectSession;
 
         // Login and navigate to session
@@ -174,5 +176,6 @@ test.describe('Session Approve/Reject Testing', () => {
             'Unreviewed'
         );
         await checkSessionApproveReject(page, sessionId);
+        });
     });
 });
