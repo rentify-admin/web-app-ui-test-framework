@@ -21,7 +21,7 @@ const loginWith = async (page, data) => {
     await expect(page.getByTestId('household-status-alert')).toBeVisible();
 };
 
-test.describe('Property admin flow test', () => {
+test.describe('property_admin_permission_test', () => {
     test.describe.configure({ mode: 'default' });
 
     const propertyAdminUser = {
@@ -33,7 +33,7 @@ test.describe('Property admin flow test', () => {
         role: 'Property Admin'
     };
 
-    test('Create property admin role user', { tag: [ '@regression' ] }, async({ page }) => {
+    test('Should create property admin role user', { tag: [ '@regression' ] }, async({ page }) => {
         propertyAdminUser.email = getRandomEmail();
         await page.goto('/');
         await loginWith(page, admin);
@@ -184,7 +184,7 @@ test.describe('Property admin flow test', () => {
         await checkRolesVisibleInTable(page, roles);
     });
 
-    test('Check Applicant Inbox permissions', async ({ page, context }) => {
+    test('Check applicant inbox permissions', { tag: [ '@regression' ] }, async ({ page, context }) => {
         await page.goto('/');
         await loginWith(page, propertyAdminUser);
 
