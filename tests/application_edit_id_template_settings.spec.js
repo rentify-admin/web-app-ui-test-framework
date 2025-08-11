@@ -4,49 +4,49 @@ import { admin } from '~/tests/test_config';
 import { searchApplication } from './utils/applications-page';
 import { openApplicationEditModal, openWorkflowIdentitySetup, setPersonaTemplateId, expectPersonaTemplateId } from './utils/workflow-identity-utils';
 
-test.describe('Edit an Application ID Template Settings from the dashboard', () => {
-  test('C41 - Dashboard - Application Edit ID Template Settings', {
-    tag: ['@regression'],
-  }, async ({ page }) => {
-    // Step 1: Login as admin
-    await page.goto('/');
-    await loginForm.fill(page, admin);
-    await loginForm.submit(page);
-    await expect(page.getByTestId('applicants-menu')).toBeVisible();
+describe('application_edit_id_template_settings', () => {
+    test('Should edit an application ID template settings', {
+      tag: ['@regression'],
+    }, async ({ page }) => {
+      // Step 1: Login as admin
+      await page.goto('/');
+      await loginForm.fill(page, admin);
+      await loginForm.submit(page);
+      await expect(page.getByTestId('applicants-menu')).toBeVisible();
 
-    // Step 2: Open Applications from sidebar using robust selectors
-    await page.getByTestId('applications-menu').click();
-    await page.getByTestId('applications-submenu').click();
+      // Step 2: Open Applications from sidebar using robust selectors
+      await page.getByTestId('applications-menu').click();
+      await page.getByTestId('applications-submenu').click();
 
-    // Step 3: Search for the application by name
-    const appName = 'AutoTest Suite - ID Edit Only';
-    await searchApplication(page, appName);
+      // Step 3: Search for the application by name
+      const appName = 'AutoTest Suite - ID Edit Only';
+      await searchApplication(page, appName);
 
-    // Step 4: Click the edit icon for the application
-    // (Assume the edit icon is in the 8th column of the first row)
-    // await page.locator('table > tbody > tr > td:nth-child(8) > div > a').first().click();
-    // await page.waitForTimeout(2000);
+      // Step 4: Click the edit icon for the application
+      // (Assume the edit icon is in the 8th column of the first row)
+      // await page.locator('table > tbody > tr > td:nth-child(8) > div > a').first().click();
+      // await page.waitForTimeout(2000);
 
-    // Open edit modal and workflow identity setup
-    await openApplicationEditModal(page);
-    await page.getByTestId('submit-application-setup').click();
-    await openWorkflowIdentitySetup(page);
-    
-    // 1. Get current value
-    const templateInput = await page.getByTestId('persona-template-id-input');
-    
-    const templateValue = await templateInput.inputValue();
-    // await expectPersonaTemplateId(page, 'itmpl_tester_Verified');
+      // Open edit modal and workflow identity setup
+      await openApplicationEditModal(page);
+      await page.getByTestId('submit-application-setup').click();
+      await openWorkflowIdentitySetup(page);
 
-    // 2. Edit and save
-    await setPersonaTemplateId(page, 'itmpl_tester_Edited');
-    await page.waitForTimeout(5000);
-    // 3. Reopen and verify
-    await openWorkflowIdentitySetup(page);
-    await expectPersonaTemplateId(page, 'itmpl_tester_Edited');
+      // 1. Get current value
+      const templateInput = await page.getByTestId('persona-template-id-input');
 
-    // 4. Restore original value
-    await setPersonaTemplateId(page, templateValue);
-    await page.waitForTimeout(3000);
-  });
+      const templateValue = await templateInput.inputValue();
+      // await expectPersonaTemplateId(page, 'itmpl_tester_Verified');
+
+      // 2. Edit and save
+      await setPersonaTemplateId(page, 'itmpl_tester_Edited');
+      await page.waitForTimeout(5000);
+      // 3. Reopen and verify
+      await openWorkflowIdentitySetup(page);
+      await expectPersonaTemplateId(page, 'itmpl_tester_Edited');
+
+      // 4. Restore original value
+      await setPersonaTemplateId(page, templateValue);
+      await page.waitForTimeout(3000);
+    });
 }); 
