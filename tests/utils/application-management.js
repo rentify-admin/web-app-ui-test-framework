@@ -1,21 +1,12 @@
 import { expect } from '@playwright/test';
+import { searchAndEditApplication as searchAndEditApplicationUtil, searchAndVerifyApplication as searchAndVerifyApplicationUtil } from './applications-page';
 
 /**
  * Navigate to application creation page
  * @param {import('@playwright/test').Page} page
  */
 export const navigateToApplicationCreate = async page => {
-    const applicationMenu = await page.getByTestId('applications-menu');
-
-    // Checking sidebar menu is already open or not.
-    const applicationMenuClasses = await applicationMenu.getAttribute('class');
-    if (applicationMenuClasses && !applicationMenuClasses.includes('sidebar-item-open')) {
-        await page.getByTestId('applications-menu').click();
-    }
-    await page.getByTestId('applications-submenu').click();
-    await page.waitForTimeout(2000);
-
-    // Set up all response waiters BEFORE the action that triggers them
+    // Set up all response waiters BEFORE navigation
     const createResponsePromise = page.waitForResponse(resp => resp.url().includes('/organizations?fields[organization]=id,name')
         && resp.request().method() === 'GET'
         && resp.ok());
@@ -32,8 +23,8 @@ export const navigateToApplicationCreate = async page => {
         && resp.request().method() === 'GET'
         && resp.ok());
 
-    // Now perform the action that triggers the responses
-    await page.locator('a[href="/application/create"]').click();
+    // Navigate directly to the create application page (avoid clicks)
+    await page.goto('/application/create');
 
     // Wait for all responses to complete
     const [ createResponse, organizationsResponse, portfoliosResponse, settingsResponse ] = await Promise.all([
@@ -162,6 +153,7 @@ export const configureApplicationSettings = async (page, config) => {
  * @param {import('@playwright/test').Page} page
  */
 export const publishApplicationToLive = async page => {
+    // TODO: Request locator update: searching for h3 is no good.
     await page.locator('h3').filter({ hasText: 'Publish Live' }).waitFor({ state: 'visible', timeout: 10000 });
     await page.waitForSelector('[data-testid="app-publish-live-btn"]', { state: 'visible', timeout: 3000 });
     await page.getByTestId('app-publish-live-btn').click();
@@ -208,80 +200,17 @@ export const searchAndDeleteApplication = async (page, applicationName) => {
 };
 
 /**
- * Search and edit application
- * @param {import('@playwright/test').Page} page
- * @param {string} applicationName
- * @param {Object} options
- * @param {string} options.removeApplicantType - Applicant type to remove
+ * Search and edit application (delegates to applications-page util)
  */
 export const searchAndEditApplication = async (page, applicationName, options = {}) => {
-    await page.locator('input[data-testid="application-search"]').fill(applicationName);
-    await page.waitForTimeout(2000);
-
-    // Click edit button
-    await page.locator('a[title="Edit"]').click();
-    await page.waitForTimeout(2000);
-
-    if (options.removeApplicantType) {
-
-        // Remove specific applicant type
-        await page.locator(`//span[@class="multiselect__tag"][span[text()="${options.removeApplicantType}"]]/i`).click();
-
-        // Submit the edit
-        const [ editResponse ] = await Promise.all([
-            page.waitForResponse(resp => resp.url().includes('/applications')
-                && resp.request().method() === 'PATCH'
-                && resp.ok()),
-            page.getByTestId('submit-application-setup').click()
-        ]);
-
-        await page.waitForTimeout(1000);
-
-        // Handle workflow edit if present (just navigation)
-        const workflowEditBtn = page.getByTestId('submit-app-workflow-edit-form');
-        if (await workflowEditBtn.isVisible()) {
-            await workflowEditBtn.click();
-            await page.waitForTimeout(2000); //Wait for UI animation
-        }
-
-        // Handle settings modal if present (just navigation)
-        const settingsBtn = page.getByTestId('submit-application-setting-modal');
-        if (await settingsBtn.isVisible()) {
-            await settingsBtn.click();
-            await page.waitForTimeout(2000); //Wait for UI animation
-        }
-
-        // Publish changes using existing utility
-        const publishResponse = await publishApplicationToLive(page);
-
-        return editResponse;
-    }
-
-    // Default: just cancel
-    await page.getByTestId('cancel-application-setup').click();
-    await page.waitForTimeout(2000);
+    return await searchAndEditApplicationUtil(page, applicationName, options);
 };
 
 /**
- * Search and verify application (count applicant types)
- * @param {import('@playwright/test').Page} page
- * @param {string} applicationName
- * @returns {Promise<number>} Number of applicant types
+ * Search and verify application (delegates to applications-page util)
  */
 export const searchAndVerifyApplication = async (page, applicationName) => {
-    await page.locator('input[data-testid="application-search"]').fill(applicationName);
-    await page.waitForTimeout(2000);
-
-    // Click edit button
-    await page.locator('a[title="Edit"]').click();
-    await page.waitForTimeout(2000);
-
-    // Count applicant types and cancel
-    const applicantTypeCount = await page.locator('span.multiselect__tag').count();
-    await page.getByTestId('cancel-application-setup').click();
-    await page.waitForTimeout(2000);
-
-    return applicantTypeCount;
+    return await searchAndVerifyApplicationUtil(page, applicationName);
 };
 
 /**

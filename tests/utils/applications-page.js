@@ -67,15 +67,8 @@ const searchAppsWithOrganizations = async (page, organization) => {
 };
 
 const gotoApplicationsPage = async page => {
-    await expect(page.getByTestId('applications-menu')).toBeVisible();
-    await page.getByTestId('applications-menu').click();
-    await expect(page.getByTestId('applications-submenu')).toBeVisible();
-
-    return waitForApplicationsResponse(
-        page,
-        () => true, // Accept any applications URL
-        () => page.getByTestId('applications-submenu').click()
-    );
+    // Wait for applications load triggered by navigation
+    await page.goto('/applications/all');
 };
 
 const searchApplication = async (page, search) => {
@@ -87,6 +80,91 @@ const searchApplication = async (page, search) => {
         resp => appUrlRegex.test(decodeURI(resp.url().replaceAll('+', ' '))),
         () => searchInput.fill(search)
     );
+};
+
+/**
+ * Search and edit application (optionally remove applicant type and publish)
+ * @param {import('@playwright/test').Page} page
+ * @param {string} applicationName
+ * @param {{removeApplicantType?: string}} options
+ */
+const searchAndEditApplication = async (page, applicationName, options = {}) => {
+    await page.getByTestId('application-search').fill(applicationName);
+    await page.waitForTimeout(2000);
+
+    // Click edit button
+    await page.locator('a[title="Edit"]').click();
+    await page.waitForTimeout(2000);
+
+    if (options.removeApplicantType) {
+        // Remove specific applicant type
+        // TODO: Request locator update: multiselect__tag is not a good locator.
+        await page.locator(`//span[@class="multiselect__tag"][span[text()="${options.removeApplicantType}"]]/i`).click();
+
+        // Submit the edit
+        const [ editResponse ] = await Promise.all([
+            page.waitForResponse(resp => resp.url().includes('/applications')
+                && resp.request().method() === 'PATCH'
+                && resp.ok()),
+            page.getByTestId('submit-application-setup').click()
+        ]);
+
+        await page.waitForTimeout(1000);
+
+        // Handle workflow edit if present (just navigation)
+        const workflowEditBtn = page.getByTestId('submit-app-workflow-edit-form');
+        if (await workflowEditBtn.isVisible()) {
+            await workflowEditBtn.click();
+            await page.waitForTimeout(2000); //Wait for UI animation
+        }
+
+        // Handle settings modal if present (just navigation)
+        const settingsBtn = page.getByTestId('submit-application-setting-modal');
+        if (await settingsBtn.isVisible()) {
+            await settingsBtn.click();
+            await page.waitForTimeout(2000); //Wait for UI animation
+        }
+
+        // Inline publish (duplicate minimal logic to avoid dependency)
+        await page.locator('h3').filter({ hasText: 'Publish Live' }).waitFor({ state: 'visible', timeout: 10000 });
+        await page.waitForSelector('[data-testid="app-publish-live-btn"]', { state: 'visible', timeout: 3000 });
+        await page.getByTestId('app-publish-live-btn').click();
+        await page.waitForTimeout(2000);
+        const publishResponsePromise = page.waitForResponse(resp => resp.url().includes('/applications')
+            && resp.request().method() === 'PATCH'
+            && resp.ok());
+        await page.getByTestId('confirm-btn').click();
+        await publishResponsePromise;
+
+        return editResponse;
+    }
+
+    // Default: just cancel
+    await page.getByTestId('cancel-application-setup').click();
+    await page.waitForTimeout(2000);
+};
+
+/**
+ * Search and verify application (count applicant types)
+ * @param {import('@playwright/test').Page} page
+ * @param {string} applicationName
+ * @returns {Promise<number>}
+ */
+const searchAndVerifyApplication = async (page, applicationName) => {
+    await page.getByTestId('application-search').fill(applicationName);
+    await page.waitForTimeout(2000);
+
+    // Click edit button
+    await page.locator('a[title="Edit"]').click();
+    await page.waitForTimeout(2000);
+
+    // Count applicant types and cancel
+    // TODO: Request locator update: multiselect__tag is not a good locator.
+    const applicantTypeCount = await page.locator('span.multiselect__tag').count();
+    await page.getByTestId('cancel-application-setup').click();
+    await page.waitForTimeout(2000);
+
+    return applicantTypeCount;
 };
 
 /**
@@ -339,6 +417,8 @@ export {
     searchAppsWithOrganizations,
     gotoApplicationsPage,
     searchApplication,
+    searchAndEditApplication,
+    searchAndVerifyApplication,
     findAndInviteApplication,
     findApplicationByNameAndInvite,
     findAndCopyApplication,

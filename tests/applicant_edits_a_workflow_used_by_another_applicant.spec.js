@@ -3,7 +3,7 @@ import loginForm from '~/tests/utils/login-form';
 import { admin } from '~/tests/test_config';
 import app from '~/tests/test_config/app';
 import { createApplicationFlow, searchAndEditApplication, searchAndVerifyApplication, searchAndDeleteApplication } from '~/tests/utils/application-management';
-import { getRandomNumber } from './utils/helper';
+import { generateUniqueName } from '~/tests/utils/common';
 
 test.describe('applicant_edits_a_workflow_used_by_another_applicant', () => {
     let app1Name, app2Name;
@@ -21,17 +21,13 @@ test.describe('applicant_edits_a_workflow_used_by_another_applicant', () => {
 
     test('Should edit a workflow used by another applicant and only reflects changes to current', { 
         tag: ['@core', '@regression'],
-    }, async ({ page, browserName }) => {
-        // Step 1-5: Login as admin (using admin instead of craig as requested)
-        await page.goto(app.urls.app);
-        await loginForm.fill(page, admin);
-        await loginForm.submit(page);
-        await expect(page.getByTestId('applicants-menu')).toBeVisible();
+    }, async ({ page }) => {
+        // Step 1-5: Login as admin and navigate to applications
+        await loginForm.adminLoginAndNavigate(page, admin);
 
-        // Generate browser-specific application names to avoid conflicts when running in parallel
-        const browserPrefix = browserName.charAt(0).toUpperCase() + browserName.slice(1);
-        app1Name = `AutoTest Edit_1_${browserPrefix}_${getRandomNumber()}`;
-        app2Name = `AutoTest Edit_2_${browserPrefix}_${getRandomNumber()}`;
+        // Generate unique application names to avoid conflicts when running in parallel
+        app1Name = generateUniqueName('AutoTest Edit_1');
+        app2Name = generateUniqueName('AutoTest Edit_2');
 
         // Application configurations
         const app1Config = {

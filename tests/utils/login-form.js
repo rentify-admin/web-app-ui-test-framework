@@ -35,7 +35,6 @@ const adminLoginAndNavigate = async (page, adminCredentials) => {
     await submit(page);
     await expect(page).toHaveTitle(/Applicants/, { timeout: 10_000 });
     await expect(page.getByTestId('household-status-alert')).toBeVisible({ timeout: 100_000 }); //Wait for all page loaded
-    await gotoApplicationsPage(page);
 };
 
 export default {
