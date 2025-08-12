@@ -103,38 +103,6 @@ const checkSessionApproveReject = async page => {
  * @param {import('@playwright/test').BrowserContext} context
  * @param {string} sessionId
  */
-const checkExportPdf = async (page, context, sessionId) => {
-    console.log('🚀 Should Allow User to Export Report');
-
-    const exportBtn = await page.getByTestId('export-session-btn');
-    await page.waitForTimeout(700);
-    if (!await exportBtn.isVisible()) {
-        await page.getByTestId('session-action-btn').click();
-    }
-
-    const [ pdfResponse, newPage ] = await Promise.all([
-        page.waitForResponse(resp => resp.url().includes(`/sessions/${sessionId}`)
-            && resp.request().method() === 'GET'
-            && resp.headers()['content-type'] === 'application/pdf'
-            && resp.ok()),
-        context.waitForEvent('page'),
-        exportBtn.click()
-    ]);
-
-    const pdfResponseContentType = pdfResponse.headers()['content-type'];
-
-    // Verify the PDF content type immediately after response
-    await expect(pdfResponseContentType).toBe('application/pdf');
-
-    // Wait a short time for the page to stabilize, then close it
-    const browserName = page.context().browser()
-        .browserType()
-        .name();
-    if (browserName === 'chromium') {
-        await newPage.waitForTimeout(1000);
-        await newPage.close();
-    }
-};
 
 /**
  * Can Request additional information
@@ -300,7 +268,6 @@ export {
     checkFlagsAreLoaded,
     checkRentBudgetEdit,
     checkSessionApproveReject,
-    checkExportPdf,
     canRequestAdditionalDocuments,
     canInviteApplicant,
     canUploadBankStatementAndPaystub,

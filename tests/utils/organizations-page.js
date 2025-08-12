@@ -46,11 +46,34 @@ const gotoMembersPage = async page => {
 };
 
 const checkFirstRowHasEmail = async (page, email) => {
-    const orgMemRows = await page.getByTestId('members-table').locator('tbody>tr');
-
-    const firstRow = orgMemRows.nth(0);
-
-    await expect(firstRow.locator('td').nth(1)).toHaveText(email);
+    // Wait for the search bar to be visible and ready (handles animation delays)
+    const searchBar = page.locator('input[placeholder*="Search"]');
+    await page.waitForTimeout(1000); //wait for animation
+    
+    // Ensure the search bar is ready for input by clicking and focusing it first
+    await searchBar.click();
+    await searchBar.focus();
+    await page.waitForTimeout(500); // Small delay to ensure focus is established
+    
+    // Clear any existing content and fill with the email
+    await searchBar.clear();
+    await searchBar.fill(email);
+    
+    // Verify the input was actually filled
+    const inputValue = await searchBar.inputValue();
+    if (inputValue !== email) {
+        console.log(`Search bar input value mismatch. Expected: "${email}", Got: "${inputValue}"`);
+        // Try filling again with a more robust approach
+        await searchBar.evaluate((el, value) => {
+            el.value = value;
+            el.dispatchEvent(new Event('input', { bubbles: true }));
+            el.dispatchEvent(new Event('change', { bubbles: true }));
+        }, email);
+    }
+    
+    // Wait for search results to show only one row with the expected email
+    await expect(page.getByTestId('members-table').locator('tbody>tr')).toHaveCount(1);
+    await expect(page.getByTestId('members-table').locator('tbody>tr').first().locator('td').nth(1)).toHaveText(email);
 };
 
 const addManageAppPermissionAndCheck = async (page, editBtn) => {

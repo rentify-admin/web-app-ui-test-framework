@@ -10,13 +10,13 @@ import {
     checkFlagsAreLoaded,
     checkRentBudgetEdit,
     checkSessionApproveReject,
-    checkExportPdf,
     canRequestAdditionalDocuments,
     canInviteApplicant,
     canUploadBankStatementAndPaystub,
     canMergeSession,
     canDeleteApplicant
 } from './utils/permission-checks';
+import { checkExportPdf } from './utils/report-page';
 import {
     checkIncomeSourceSection,
     checkEmploymentSectionData,

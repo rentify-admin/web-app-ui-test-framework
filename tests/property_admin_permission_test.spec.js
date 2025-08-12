@@ -156,10 +156,8 @@ test.describe('property_admin_permission_test', () => {
         await orgUtils.deleteMember(page, await page.getByTestId('members-table').locator('tbody>tr')
             .nth(0)
             .locator('[data-testid^=delete-]'));
-        await expect(await page.getByTestId('members-table').locator('tbody>tr')
-            .nth(0)
-            .locator('td')
-            .nth(1)).not.toContainText(userData.email);
+        // Check that "No Record Found" message is displayed after member deletion
+        await expect(page.locator('span:has-text("No Record Found")')).toBeVisible();
 
         // Alternative member modal: add, check, give permission, and delete
         await gotoPage(page, 'organization-menu', 'members-submenu', new RegExp('.+organizations/.{36}/members.+'), true);
@@ -174,10 +172,8 @@ test.describe('property_admin_permission_test', () => {
         await orgUtils.deleteMember(page, await page.getByTestId('members-table').locator('tbody>tr')
             .nth(0)
             .locator('[data-testid^=delete-]'));
-        await expect(await page.getByTestId('members-table').locator('tbody>tr')
-            .nth(0)
-            .locator('td')
-            .nth(1)).not.toContainText(userData.email);
+        // Check that "No Record Found" message is displayed after member deletion
+        await expect(page.locator('span:has-text("No Record Found")')).toBeVisible();
 
         // Check roles table is visible
         const roles = await gotoPage(page, 'users-menu', 'roles-submenu', joinUrl(app.urls.api, 'roles?'));
@@ -287,13 +283,6 @@ test.describe('property_admin_permission_test', () => {
         await reportUtils.checkEmploymentSectionData(page, employments);
         await reportUtils.checkFilesSectionData(page, session, sessionTileEl, filesData);
         await reportUtils.checkFinancialSectionData(page, session, sessionTileEl, financialData);
-
-
-        await gotoPage(page, 'organization-menu', 'organization-self-submenu', '/organizations/self');
-        await orgUtils.gotoMembersPage(page);
-        await orgUtils.deleteMember(page, await page.getByTestId('members-table').locator('tbody>tr')
-            .nth(0)
-            .locator('[data-testid^=delete-]'));
     });
 });
 

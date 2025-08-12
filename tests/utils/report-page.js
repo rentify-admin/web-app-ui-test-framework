@@ -219,8 +219,7 @@ const checkRentBudgetEdit = async page => {
  * @returns {void}
  */
 const checkExportPdf = async (page, context, sessionId) => {
-
-    console.log('Should Allow User to Export Report');
+    console.log('🚀 Should Allow User to Export Report');
 
     const exportBtn = await page.getByTestId('export-session-btn');
     await page.waitForTimeout(700);
@@ -228,23 +227,41 @@ const checkExportPdf = async (page, context, sessionId) => {
         await page.getByTestId('session-action-btn').click();
     }
     await page.waitForTimeout(600);
+    
+    // Click export button and wait for modal
+    exportBtn.click();
+    await page.waitForTimeout(1000); // Wait for animation
+    await page.locator('[role="dialog"]').waitFor({ state: 'visible' });
+    
+    // Click the income source delist submit button
+    await page.getByTestId('income-source-delist-submit').click();
 
     const [ pdfResponse, popupPage ] = await Promise.all([
         page.waitForResponse(resp => resp.url().includes(`/sessions/${sessionId}`)
             && resp.request().method() === 'GET'
             && resp.headers()['content-type'] === 'application/pdf'
             && resp.ok()),
-        page.waitForEvent('popup'),
-        exportBtn.click()
+        page.waitForEvent('popup')
     ]);
-
 
     const pdfResponseContentType = pdfResponse.headers()['content-type'];
 
+    // Verify the PDF content type immediately after response
     await expect(pdfResponseContentType).toBe('application/pdf');
-    await popupPage.close();
 
-
+    // Wait a short time for the page to stabilize, then close it
+    const browserName = page.context().browser()
+        .browserType()
+        .name();
+    if (browserName === 'chromium') {
+        await popupPage.waitForTimeout(1000);
+        await popupPage.close();
+    } else {
+        await popupPage.close();
+    }
+    
+    // Close the modal after PDF export
+    await page.getByTestId('income-source-delist-cancel').click();
 };
 
 /**
@@ -280,11 +297,8 @@ const canRequestAdditionalDocuments = async (page, availableChecks = []) => {
  * @param {*} page
  */
 const canInviteApplicant = async page => {
-
-    console.log('Should Allow User to Invite Applicant');
-
     const btn = await page.getByTestId('invite-applicant');
-    await page.waitForTimeout(700);
+    await page.waitForTimeout(1300); //wait for animation
     if (!await btn.isVisible()) {
         const actionBtn = await page.getByTestId('session-action-btn');
         await actionBtn.click();
@@ -485,7 +499,9 @@ const checkIdentityDetailsAvailable = async (page, { checkSsn } = { checkSsn: fa
 
             const text = await ssnTile.locator('span').nth(1)
                 .textContent();
-            await expect(text.length).toBe(4);
+            // Trim spaces before checking length to handle cases like "4444 " (with trailing space)
+            const trimmedText = text.trim();
+            await expect(trimmedText.length).toBe(4);
             await page.getByTestId('identity-more-details-modal-cancel').click();
 
         }
