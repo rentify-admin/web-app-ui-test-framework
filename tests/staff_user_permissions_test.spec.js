@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import { admin } from '~/tests/test_config';
 import loginForm from '~/tests/utils/login-form';
 import userCreateForm from '~/tests/utils/user-create-form';
-import { checkAllFlagsSection } from '~/tests/utils/report-page';
+import { checkAllFlagsSection, checkExportPdf } from '~/tests/utils/report-page';
 
 // import { joinUrl } from './utils/helper';
 import { waitForJsonResponse } from './utils/wait-response';
@@ -62,7 +62,7 @@ test.describe('staff_user_permissions_test', () => {
         expect(userData?.data?.id).toBeDefined();
     });
 
-    test('Verify permission of Staff role', { tag: [ '@regression' ] }, async ({ page }) => {
+    test('Verify permission of Staff role', { tag: [ '@regression' ] }, async ({ page, context }) => {
 
         // Login
         await loginWith(page, staffUser);
@@ -175,16 +175,8 @@ test.describe('staff_user_permissions_test', () => {
 
         await page.waitForTimeout(500);
 
-        // Click on Session Action Button
-        await page.getByTestId('session-action-btn').click();
-
-        // Click On Export Report Button and Wait for popup to open
-        const popupPromise = page.waitForEvent('popup');
-        await page.getByTestId('export-session-btn').click();
-
-        const popupPage = await popupPromise;
-
-        await popupPage.close();
+        // Export PDF using the updated function that handles the new modal workflow
+        await checkExportPdf(page, context, sessionID);
 
         // Open Identity Section
         await page.getByTestId('identity-section-header').click();
