@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 import loginForm from '~/tests/utils/login-form';
-import { admin, app } from '~/tests/test_config';
+import { app, test_org_admin } from '~/tests/test_config';
 
 import { joinUrl } from './utils/helper';
 
@@ -12,7 +12,7 @@ test.describe('check_org_member_application_permission_update', () => {
         await page.goto('/');
 
         console.log('🚀 Login with the admin credentials...');
-        await loginForm.fill(page, admin);
+        await loginForm.fill(page, test_org_admin);
         await loginForm.submit(page);
 
         console.log('🚀 Wait for session page to load...');
@@ -38,43 +38,43 @@ test.describe('check_org_member_application_permission_update', () => {
 
         const memberTable = await page.getByTestId('members-table');
 
-        const maxAttempts = 20;
-        let attempts = 0;
-        let foundRow = false;
         const targetText = 'Reviewer';
 
-        console.log('🚀 Starting infinite scroll search for the target member with role:', targetText);
-        while (attempts < maxAttempts && !foundRow) {
-            console.log(`🚀 Attempt ${attempts + 1} of ${maxAttempts}...`);
+        console.log('🚀 Searching for the target member with role:', targetText);
+        
+        // Use the search bar to find the member by role
+        const searchBar = page.locator('input[placeholder*="Search"]');
+        await page.waitForTimeout(1000); // Wait for animation
+        await expect(searchBar).toBeVisible({ timeout: 10000 });
+        
+        // Ensure the search bar is ready for input
+        await searchBar.click();
+        await searchBar.focus();
+        await page.waitForTimeout(500);
+        
+        // Clear any existing content and search for the role
+        await searchBar.clear();
+        await searchBar.fill(targetText);
+        
+        // Wait for search results and find the target member
+        await page.waitForTimeout(1000); // Wait for search results to load
+        
+        // Find the row that contains the target text
+        const targetTdLocator = memberTable
+            .locator(`td[data-testid="members-table-role-col"]`, { hasText: targetText }).first();
+        
+        await expect(targetTdLocator).toBeVisible({ timeout: 10000 });
+        console.log('✅ Target member found! Getting the parent row.');
+        
+        const targetRow = targetTdLocator.locator('xpath=..');
+        const editButton = targetRow.locator('[data-testid^="edit"]');
 
-            // Find the row that contains the target text
-            const targetTdLocator = memberTable
-                .locator(`td[data-testid="members-table-role-col"]`, { hasText: targetText }).first();
-
-            if (await targetTdLocator.isVisible()) {
-                console.log('✅ Target member found! Getting the parent row.');
-                const targetRow = targetTdLocator.locator('xpath=..');
-                const editButton = targetRow.locator('[data-testid^="edit"]');
-
-                console.log('🚀 Clicking the edit button and waiting for the API response.');
-                await Promise.all([
-                    page.waitForResponse(resp => resp.url().includes(joinUrl(app.urls.api, 'applications?fields[application]='))),
-                    editButton.click()
-                ]);
-                foundRow = true;
-                console.log('✅ Edit button clicked and API response received.');
-            } else {
-                console.log('⏳ Target member not visible. Scrolling down...');
-                await page.mouse.wheel(0, 1000);
-                await page.waitForTimeout(1000);
-                console.log('✅ Scrolled and waiting for new data.');
-            }
-            attempts++;
-        }
-
-        console.log('🚀 Final check on the search loop outcome...');
-        await expect(foundRow).toBe(true);
-        console.log('✅ Search loop completed successfully, row was found.');
+        console.log('🚀 Clicking the edit button and waiting for the API response.');
+        await Promise.all([
+            page.waitForResponse(resp => resp.url().includes(joinUrl(app.urls.api, 'applications?fields[application]='))),
+            editButton.click()
+        ]);
+        console.log('✅ Edit button clicked and API response received.');
 
         console.log('🚀 Expect member role modal to be visible.');
         await expect(page.getByTestId('member-role-modal')).toBeVisible();
