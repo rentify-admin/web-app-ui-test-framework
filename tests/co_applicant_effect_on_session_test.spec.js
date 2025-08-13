@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import {
     findAndInviteApplication,
-    searchApplication
+    gotoApplicationsPage
 } from '~/tests/utils/applications-page';
 import { joinUrl } from '~/tests/utils/helper';
 import { admin, app } from '~/tests/test_config';
@@ -48,6 +48,7 @@ test.describe('co_applicant_effect_on_session_test', () => {
         await loginForm.adminLoginAndNavigate(page, admin);
         
         // Step 2: Find and Invite Application
+        await gotoApplicationsPage(page);
         await findAndInviteApplication(page, applicationName);
         
         // Step 3: Generate Session and Extract Link

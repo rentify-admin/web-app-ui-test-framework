@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import loginForm from '~/tests/utils/login-form';
 import { admin, app } from '~/tests/test_config';
-import { findAndInviteApplication } from '~/tests/utils/applications-page';
+import { findAndInviteApplication, gotoApplicationsPage } from '~/tests/utils/applications-page';
 import generateSessionForm from '~/tests/utils/generate-session-form';
 import { getCentsToDollarsSafe, joinUrl } from '~/tests/utils/helper';
 import { completePaystubConnection, fillhouseholdForm, selectApplicantType, updateRentBudget, updateStateModal } from '~/tests/utils/session-flow';
@@ -112,16 +112,19 @@ test.describe('check_coapp_income_ratio_exceede_flag', () => {
         
         // Step 1: Admin Login and Navigate to Applications
         await loginForm.adminLoginAndNavigate(page, admin);
-        
-        // Step 2: Find and Invite Application
+
+        // Step 2: Navigate to Applications Page
+        await gotoApplicationsPage(page);
+
+        // Step 3: Find and Invite Application
         await findAndInviteApplication(page, applicationName);
         
-        // Step 3: Generate Session and Extract Link
+        // Step 4: Generate Session and Extract Link
         const { sessionId, sessionUrl, link } = await generateSessionForm.generateSessionAndExtractLink(page, user);
         
         const linkUrl = new URL(link);
         
-        // Step 4: Open Invite link
+        // Step 5: Open Invite link
         const context = await browser.newContext({ permissions: [ 'camera' ] });
         
         const applicantPage = await context.newPage();
@@ -138,7 +141,7 @@ test.describe('check_coapp_income_ratio_exceede_flag', () => {
             }
         });
     
-        // Step 5: Select Applicant Type on Page
+        // Step 6: Select Applicant Type on Page
         await selectApplicantType(applicantPage, sessionUrl, '#employed');
     
         await updateStateModal(applicantPage, 'ALABAMA');

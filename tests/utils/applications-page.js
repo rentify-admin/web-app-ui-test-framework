@@ -68,7 +68,7 @@ const searchAppsWithOrganizations = async (page, organization) => {
 
 const gotoApplicationsPage = async page => {
     // Wait for applications load triggered by navigation
-    await page.goto('/applications/all');
+    await page.goto('/application/all');
 };
 
 const searchApplication = async (page, search) => {
