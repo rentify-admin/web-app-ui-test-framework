@@ -221,38 +221,54 @@ test.describe('co_applicant_effect_on_session_test', () => {
         ]);
     
         await coAppPage.close();
-    
+        
         const allSessionWithChildren = [ session.data, ...session.data.children ];
-    
+        
         const [ sessionResponse1, financialResponse ] = await Promise.all([
             page.waitForResponse(
-                resp => resp.url().includes(`/sessions/${sessionId}?fields[session]`)
-                    && resp.ok()
-                    && resp.request().method() === 'GET'
+                resp => {
+                    const url = resp.url();
+                    // More specific: must be exactly the session endpoint with fields[session]
+                    const isSessionResponse = url.includes(`/sessions/${sessionId}?fields[session]`) && 
+                                           !url.includes('/accounts') && 
+                                           !url.includes('/identities') && 
+                                           !url.includes('/employments') && 
+                                           !url.includes('/files') &&
+                                           resp.ok() &&
+                                           resp.request().method() === 'GET';
+                    
+                    return isSessionResponse;
+                },
+                { timeout: 30000 }
             ),
             Promise.all([
                 ...allSessionWithChildren.map(sess => {
-                    const regex = new RegExp(
-                        `.+/financial-verifications?.+filters=.+{"session_id":{"\\$in":\\["${sess.id}"\\].+`,
-                        'i'
-                    );
                     return page.waitForResponse(
-                        resp => regex.test(decodeURI(resp.url()))
-                            && resp.request().method() === 'GET'
-                            && resp.ok()
+                        resp => {
+                            const url = resp.url();
+                            // Only capture actual financial verification responses, not other session endpoints
+                            const isFinancialResponse = url.includes('/financial-verifications') &&
+                                                      url.includes('session_id') &&
+                                                      url.includes(sess.id) &&
+                                                      resp.request().method() === 'GET' &&
+                                                      resp.ok();
+                            
+                            return isFinancialResponse;
+                        },
+                        { timeout: 30000 }
                     );
                 })
             ]),
             page.reload()
         ]);
-    
+        
         await searchSessionWithText(page, sessionId);
-    
+        
         const sessionLocator1 = await findSessionLocator(
             page,
             `.application-card[data-session="${sessionId}"]`
         );
-    
+        
         const newSession = await waitForJsonResponse(sessionResponse1);
         const financialData = await Promise.all(
             financialResponse.map(item => waitForJsonResponse(item))
@@ -269,8 +285,8 @@ test.describe('co_applicant_effect_on_session_test', () => {
         // expect(rentBudgetRatio).not.toBe(rentBudgetRatio1);
     
         await page.getByTestId('income-source-section-header').click();
-    
-        // Check All applicant Income Sources Awailable
+        
+        // Check All applicant Income Sources Available
         await Promise.all([
             Promise.all([
                 ...allSessions.map(sess => page.waitForResponse(
@@ -283,7 +299,7 @@ test.describe('co_applicant_effect_on_session_test', () => {
             ]),
             page.getByTestId('income-source-section-header').click()
         ]);
-    
+        
         await page.waitForTimeout(500);
     
         const applicantIncomeSources = await page.locator(
