@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import loginForm from '~/tests/utils/login-form';
 import { admin } from '~/tests/test_config';
-import { searchApplication } from './utils/applications-page';
+import { searchApplication, gotoApplicationsPage } from './utils/applications-page';
 import { openApplicationEditModal, openWorkflowIdentitySetup, setPersonaTemplateId, expectPersonaTemplateId } from './utils/workflow-identity-utils';
 
 test.describe('application_edit_id_template_settings', () => {
@@ -18,7 +18,10 @@ test.describe('application_edit_id_template_settings', () => {
       await page.getByTestId('applications-menu').click();
       await page.getByTestId('applications-submenu').click();
 
-      // Step 3: Search for the application by name
+      // Step 3: Navigate to Applications Page
+      await gotoApplicationsPage(page);
+
+      // Step 4: Search for the application by name
       const appName = 'AutoTest Suite - ID Edit Only';
       await searchApplication(page, appName);
 

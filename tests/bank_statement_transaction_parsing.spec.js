@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import loginForm from '~/tests/utils/login-form';
 import { admin } from '~/tests/test_config';
-import { findAndInviteApplication } from '~/tests/utils/applications-page';
+import { findAndInviteApplication, gotoApplicationsPage } from '~/tests/utils/applications-page';
 import generateSessionForm from './utils/generate-session-form';
 import { 
     uploadStatementFinancialStep, 
@@ -30,34 +30,37 @@ test.describe('bank_statement_transaction_parsing', () => {
         // Step 1: Admin Login and Navigate to Applications
         await loginForm.adminLoginAndNavigate(page, admin);
 
-        // Step 2: Find and Invite Application
+        // Step 2: Navigate to Applications Page
+        await gotoApplicationsPage(page);
+
+        // Step 3: Find and Invite Application
         await findAndInviteApplication(page, 'AutoTest - Playwright Fin Doc Upload Test');
 
-        // Step 3: Generate Session and Extract Link
+        // Step 4: Generate Session and Extract Link
         const { sessionId, sessionUrl, link } = await generateSessionForm.generateSessionAndExtractLink(page, user);
 
-        // Step 4: Applicant View — New Context
+        // Step 5: Applicant View — New Context
         const context = await browser.newContext();
         const applicantPage = await context.newPage();
         await applicantPage.goto(link);
 
-        // Step 5: Complete Applicant Form
+        // Step 6: Complete Applicant Form
         await completeApplicantForm(applicantPage, '500', sessionUrl);
 
-        // Step 6: Upload and Process Bank Statement
+        // Step 7: Upload and Process Bank Statement
         await uploadStatementFinancialStep(applicantPage);
         await applicantPage.waitForTimeout(1000);
         
-        // Step 7: Wait for Connection Completion
+        // Step 8: Wait for Connection Completion
         await waitForConnectionCompletion(applicantPage);
 
-        // Step 8: Continue Financial Verification
+        // Step 9: Continue Financial Verification
         await continueFinancialVerification(applicantPage);
 
-        // Step 9: Close Applicant Context
+        // Step 10: Close Applicant Context
         await applicantPage.close();
 
-        // Step 10: Navigate to Admin Panel and Validate Financial Data
+        // Step 11: Navigate to Admin Panel and Validate Financial Data
         await navigateAndValidateFinancialData(page, sessionId);
     });
 });

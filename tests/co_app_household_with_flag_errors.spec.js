@@ -43,6 +43,7 @@ test.describe('co_app_household_with_flag_errors', () => {
         // Step 1: Admin Login and Navigate to Applications
         await loginForm.adminLoginAndNavigate(page, admin);
 
+        await gotoApplicationsPage(page);
         // Step 2: Find and Invite Application
         await findAndInviteApplication(page, applicationName);
 

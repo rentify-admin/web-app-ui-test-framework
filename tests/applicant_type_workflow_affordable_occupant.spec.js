@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import loginForm from '~/tests/utils/login-form';
 import { admin } from '~/tests/test_config';
 import app from '~/tests/test_config/app';
-import { findAndInviteApplication } from '~/tests/utils/applications-page';
+import { findAndInviteApplication, gotoApplicationsPage } from '~/tests/utils/applications-page';
 import generateSessionForm from '~/tests/utils/generate-session-form';
 import { handleOptionalStateModal, selectApplicantType, completeApplicantForm, completeIdVerification } from '~/tests/utils/session-flow';
 
@@ -20,6 +20,11 @@ test.describe('applicant_type_workflow_affordable_occupant', () => {
         await page.getByTestId('applications-menu').click();
         await page.getByTestId('applications-submenu').click();
         await page.waitForTimeout(700);
+        
+        // Step 3: Navigate to Applications Page
+        await gotoApplicationsPage(page);
+        
+        // Step 4: Find and Invite Application
         const appName = 'AutoTest - Applicant Flow';
         await findAndInviteApplication(page, appName);
 

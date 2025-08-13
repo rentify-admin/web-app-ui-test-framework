@@ -12,7 +12,7 @@ import {
     skipApplicants,
     completeApplicantRegistrationForm
 } from '~/tests/utils/session-flow';
-import { findAndCopyApplication } from '~/tests/utils/applications-page';
+import { findAndCopyApplication, gotoApplicationsPage } from '~/tests/utils/applications-page';
 
 const applicationName = 'AutoTest Suite Hshld-ID-Emp-Fin with skips';
 
@@ -32,6 +32,7 @@ test.describe('hosted_app_copy_verify_flow_plaid_id_emp_skip', () => {
         await loginForm.adminLoginAndNavigate(page, admin);
 
         // Step 2: Find application and copy link
+        await gotoApplicationsPage(page);
         const applicationUrl = await findAndCopyApplication(page, applicationName);
         console.log('📋 Application URL:', applicationUrl);
 
