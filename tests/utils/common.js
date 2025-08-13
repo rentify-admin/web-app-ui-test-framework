@@ -1,5 +1,5 @@
 import { waitForJsonResponse } from './wait-response';
-import { expect } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 
 /**
  * Goto sidebar menu page
@@ -312,4 +312,20 @@ const checkSidebarMenusAndTitles = async page => {
     }
 };
 
-export { gotoPage, fillMultiselect, dragAndDrop, checkHeaderAndProfileMenu, checkSidebarMenusAndTitles };
+/**
+ * Generate a unique name with browser prefix and random number
+ * Useful for creating unique test data across different browser instances
+ *
+ * @param {string} baseName - The base name to append to
+ * @returns {string} Unique name in format: "baseName_Browser_RandomNumber"
+ */
+const generateUniqueName = (baseName) => {
+    // Infer browser name from Playwright test info
+    const info = test.info?.();
+    const browserName = info?.project?.use?.browserName || info?.project?.name || 'Browser';
+    const browserPrefix = browserName.charAt(0).toUpperCase() + browserName.slice(1);
+    const randomNumber = Math.floor(Math.random() * 10000);
+    return `${baseName}_${browserPrefix}_${randomNumber}`;
+};
+
+export { gotoPage, fillMultiselect, dragAndDrop, checkHeaderAndProfileMenu, checkSidebarMenusAndTitles, generateUniqueName };
