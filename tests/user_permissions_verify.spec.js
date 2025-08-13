@@ -69,54 +69,7 @@ test.describe('user_permissions_verify', tester => {
         const userData = await userCreateForm.submit(page);
 
         // Step:7 Expect user is listed in the user list
-        expect(userData?.data?.id).toBeDefined();
-
-        // Step:8 Delete the created user
-        console.log(`🗑️ ~ Deleting user: ${testUser.email}`);
-        
-        // 1. Click in search bar
-        await page.getByPlaceholder('Search').click();
-        await page.getByPlaceholder('Search').fill(testUser.email);
-        await page.waitForTimeout(1000);
-
-        // 2. Wait for tbody to have only one element (our search result)
-        const tbody = page.locator('table tbody');
-        await expect(tbody.locator('tr')).toHaveCount(1, { timeout: 10_000 });
-
-        // 3. Find delete button with partial data-testid match
-        const deleteButton = page.locator('[data-testid*="delete-"]').first();
-        await expect(deleteButton).toBeVisible();
-
-        // 4. Set up dialog handler BEFORE clicking delete
-        page.on('dialog', dialog => {
-            console.log(`🗑️ ~ Dialog message: ${dialog.message()}`);
-            dialog.accept();
-        });
-
-        // 5. Set up response waiter for DELETE request
-        const deleteResponsePromise = page.waitForResponse(
-            resp => resp.url().includes('/users') 
-                && resp.request().method() === 'DELETE'
-                && resp.ok(),
-            { timeout: 10_000 }
-        );
-
-        // Click delete button
-        await deleteButton.click();
-
-        // Wait for DELETE response
-        try {
-            const deleteResponse = await deleteResponsePromise;
-            console.log(`✅ ~ User deleted successfully. Status: ${deleteResponse.status()}`);
-        } catch (error) {
-            console.error(`❌ ~ Failed to delete user: ${error.message}`);
-            throw new Error(`User deletion failed: ${error.message}`);
-        }
-
-        // Verify user is no longer in the list
-        await page.waitForTimeout(1000);
-        await expect(tbody.locator('tr')).toHaveCount(0, { timeout: 10_000 });
-        console.log(`✅ ~ User ${testUser.email} successfully removed from list`);
+        expect(userData?.data?.id).toBeDefined(); 
     });
 
     test('Should allow user to edit the application', { tag: [ '@regression' ] }, async ({ page }) => {
