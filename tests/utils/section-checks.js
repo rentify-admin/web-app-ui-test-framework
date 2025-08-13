@@ -43,7 +43,8 @@ const checkIncomeSourceSection = async (page, sessionId) => {
     const transactionRows = detailModal.locator('tbody>tr');
 
     await expect(await transactionRows.count()).toBeGreaterThan(0);
-    await page.waitForTimeout(2000);
+    // Wait for transactions to be fully loaded and visible
+    await expect(transactionRows.first()).toBeVisible();
 
     await page.getByTestId('income-source-details-cancel').click();
 
@@ -67,7 +68,8 @@ const checkIncomeSourceSection = async (page, sessionId) => {
                 .getByTestId('income-source-relist-submit')
                 .click()
         ]);
-        page.waitForTimeout(1000);
+        // Wait for the relist operation to complete and data to refresh
+        await expect(page.getByTestId(`income-source-${deIncomeSourceId}`).getByTestId('income-source-delist-btn')).toBeVisible();
         incomeSourceId = incomeSources.data.find(inc => inc.state === 'LISTED')?.id;
     }
 
@@ -119,7 +121,8 @@ const checkIncomeSourceSection = async (page, sessionId) => {
     incomeSources = await waitForJsonResponse(incomeSourceResponse2);
 
     await expect(incomeSources.data.some(incomeSource => incomeSource.state === 'LISTED')).toBeTruthy();
-    await page.waitForTimeout(3000);
+    // Wait for the income source to be fully visible after relist
+    await expect(page.getByTestId(`income-source-${incomeSourceId}`)).toBeVisible();
 };
 
 /**
@@ -130,7 +133,8 @@ const checkIncomeSourceSection = async (page, sessionId) => {
 const checkEmploymentSectionData = async (page, employments) => {
     console.log('Should Allow User to View Employment Section');
 
-    await page.waitForTimeout(700);
+    // Wait for the page to be ready for interaction
+    await expect(page.getByTestId('employment-section-header')).toBeVisible();
 
     await page.getByTestId('employment-section-header').click();
 
@@ -178,8 +182,10 @@ const checkFilesSectionData = async (page, files) => {
 const checkFinancialSectionData = async (session, page, sessionLocator) => {
     console.log('Should Allow User to View Financial Section');
 
-    await page.locator('.application-card').first()
-        .click();
+    // Wait for application card to be ready and click it
+    const applicationCard = page.locator('.application-card').first();
+    await expect(applicationCard).toBeVisible();
+    await applicationCard.click();
 
     const allSessionWithChildren = [ session, ...session.children ].filter(Boolean);
 
@@ -193,8 +199,14 @@ const checkFinancialSectionData = async (session, page, sessionLocator) => {
         sessionLocator.click()
     ]);
 
-    await page.getByTestId('financial-section-header')
-        .click();
+    // Wait for financial section header to be ready and click it
+    const financialHeader = page.getByTestId('financial-section-header');
+    await expect(financialHeader).toBeVisible();
+    await financialHeader.click();
+    
+    // Wait for the financial section to load
+    await expect(page.getByTestId('financial-section-financials-radio')).toBeVisible();
+    
     financialResponses.pop();
 
     const financialDataResponses = financialResponses;
@@ -206,7 +218,10 @@ const checkFinancialSectionData = async (session, page, sessionLocator) => {
         financialVerifications.push(await waitForJsonResponse(element));
     }
 
-    await page.getByTestId('financial-section-financials-radio').click();
+    // Wait for financials radio to be ready and click it
+    const financialsRadio = page.getByTestId('financial-section-financials-radio');
+    await expect(financialsRadio).toBeVisible();
+    await financialsRadio.click();
 
     for (let sIndex = 0;sIndex < allSessionWithChildren.length;sIndex++) {
         const session = allSessionWithChildren[sIndex];
@@ -249,21 +264,30 @@ const checkFinancialSectionData = async (session, page, sessionLocator) => {
             }
         }
     }
-    await page.getByTestId('financial-section-transactions-radio').click();
+    
+    // Wait for transactions radio to be ready and click it
+    const transactionsRadio = page.getByTestId('financial-section-transactions-radio');
+    await expect(transactionsRadio).toBeVisible();
+    await transactionsRadio.click();
 
     const transactionWrapper = await page.getByTestId('financial-section-transactios-list');
 
-    const selector = await page.getByTestId('financial-section-applicant-filter');
-    await selector.click();
-    await selector.locator(`#financial-section-applicant-filter-0`).click();
-    await page.waitForTimeout(1000);
+    // Wait for the transactions section to be ready
+    await expect(transactionWrapper).toBeVisible();
+
     for (let sIndex = 0;sIndex < allSessionWithChildren.length;sIndex++) {
         const transactionRaws = transactionWrapper.locator('tbody tr');
 
         const selector = await page.getByTestId('financial-section-applicant-filter');
 
+        // Ensure the filter is ready before interaction
+        await expect(selector).toBeVisible();
+        
+        // Click the filter and wait for it to be fully open
         await selector.click();
-        await page.waitForTimeout(1000);
+        await expect(selector.locator(`#financial-section-applicant-filter-${sIndex}`)).toBeVisible();
+        
+        // Wait for response and click the option simultaneously
         const [ response ] = await Promise.all([
             page.waitForResponse(resp => {
                 const urlMatches = resp.url().includes(`/sessions/${allSessionWithChildren[sIndex].id}/transactions`);
@@ -283,6 +307,7 @@ const checkFinancialSectionData = async (session, page, sessionLocator) => {
             }, { timeout: 60_000 }),
             selector.locator(`#financial-section-applicant-filter-${sIndex}`).click()
         ]);
+        
         const { data: transactions } = await waitForJsonResponse(response);
 
         const transactionRawCount = await transactionRaws.count();

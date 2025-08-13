@@ -17,9 +17,13 @@ const fill = async (page, formData) => {
 
     await page.locator('div[aria-owns="listbox-organization"]').click();
 
+    await page.waitForTimeout(500); // wait for the listbox to open
+
     await page.locator('li[id^=organization-]', { hasText: formData.organization }).click();
 
     await page.locator('div[aria-owns="listbox-role"]').click();
+
+    await page.waitForTimeout(500); // wait for the listbox to open
 
     await page.getByRole('option', { name: formData.role, exact: true })
         .click();
