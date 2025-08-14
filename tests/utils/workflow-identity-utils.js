@@ -33,7 +33,7 @@ export const openApplicationEditModal = async (page, rowIndex = 0) => {
  * @param {import('@playwright/test').Page} page
  */
 export const openWorkflowIdentitySetup = async page => {
-    await page.locator('[data-testid="workflow-identity-verification"] svg').click();
+    await page.getByTestId('workflow-identity-verification').locator('svg').click();
     await expect(page.locator('h3', { hasText: 'Workflow Setup' })).toBeVisible();
 };
 

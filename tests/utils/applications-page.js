@@ -277,7 +277,7 @@ const findAndCopyApplication = async (page, applicationName) => {
     console.log('🔗 Constructed application URL:', applicationUrl);
     
     // Close the modal
-    const closeBtn = page.locator('[data-testid="generate-session-modal-cancel"]');
+    const closeBtn = page.getByTestId('generate-session-modal-cancel');
     if (await closeBtn.isVisible()) {
         await closeBtn.click();
     }
@@ -286,10 +286,10 @@ const findAndCopyApplication = async (page, applicationName) => {
 };
 
 const checkApplicationEditable = async page => {
-    await expect(page.locator('[data-testid^="edit-"]').first()).toBeVisible();
+    await expect(page.getByTestId('edit-button').first()).toBeVisible();
 
     // Click of Edit button of the first application button
-    await page.locator('[data-testid^="edit-"]').first().click();
+    await page.getByTestId('edit-button').first().click();
 
     // Check URL change to edit url
     await expect(page).toHaveURL(/application\/.+\/edit/);
@@ -310,7 +310,7 @@ const checkApplicationDeletable = async page => {
     };
     page.on('dialog', onDialog);
 
-    await page.locator('[data-testid^=delete-]').first().click();
+    await page.getByTestId('delete-button').first().click();
 };
 
 // Opens the application edit modal for the first row (or by name if needed)
@@ -321,7 +321,7 @@ export async function openApplicationEditModal(page, rowIndex = 0) {
 
 // Opens the workflow identity setup modal
 export async function openWorkflowIdentitySetup(page) {
-    await page.locator('[data-testid="workflow-identity-verification"] svg').click();
+    await page.getByTestId('workflow-identity-verification').locator('svg').click();
     await expect(page.locator('h3', { hasText: 'Workflow Setup' })).toBeVisible();
 }
 

@@ -103,13 +103,13 @@ const checkHeaderAndProfileMenu = async page => {
     await expect(header).toBeVisible();
 
     // 2. Check and click data-testid="-btn" inside header
-    const menuBtn = header.locator('[data-testid="user-dropdown-toggle-btn"]');
+    const menuBtn = header.getByTestId('user-dropdown-toggle-btn');
     await expect(menuBtn).toBeVisible();
     await menuBtn.click();
 
     // 3. Verify Profile and Logout links are visible (scoped to header)
-    const profileLink = header.locator('[data-testid="user-profile-dropdown-item"]');
-    const logoutLink = header.locator('[data-testid="user-logout-dropdown-item"]');
+    const profileLink = header.getByTestId('user-profile-dropdown-item');
+    const logoutLink = header.getByTestId('user-logout-dropdown-item');
     await expect(profileLink).toBeVisible();
     await expect(logoutLink).toBeVisible();
 

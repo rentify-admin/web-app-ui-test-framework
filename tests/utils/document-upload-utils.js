@@ -97,7 +97,7 @@ export const verifySummaryScreen = async (page, options = {}) => {
 export const verifyEmploymentSection = async (page, expectedData) => {
     const { cadence = 'BIWEEKLY', employer = 'PERSIMMON TECHNOLOGIES CORPORATION', count = '1' } = expectedData;
     
-    await page.locator('[data-testid="employment-section-header"]').click();
+    await page.getByTestId('employment-section-header').click();
     const employmentSection = page.getByTestId('employment-raw');
     
     await expect(employmentSection.locator(`td:has-text("${cadence}")`)).toBeVisible();
