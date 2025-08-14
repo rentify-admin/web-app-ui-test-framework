@@ -46,6 +46,7 @@ const checkRentBudgetEdit = async page => {
 
     const rentBudgetSubmitBtn = page.getByTestId('submit-rent-budget');
 
+    // Set up response listener and immediately trigger the action
     const [ rentUpdateResponse ] = await Promise.all([
         page.waitForResponse(resp => /\/sessions\/.{36}/.test(resp.url())
             && resp.request().method() === 'PATCH'
@@ -74,23 +75,43 @@ const checkSessionApproveReject = async page => {
 
     const confirmBtn = page.getByTestId('confirm-btn');
 
-    const [ approveResponse ] = await Promise.all([
-        page.waitForResponse(resp => /\/sessions\/.{36}/.test(resp.url())
-            && resp.request().method() === 'PATCH'
-            && resp.ok()),
+    console.log('🔍 Setting up confirm approve response listener...');
+    // Set up response listener and immediately trigger the action
+    const [ confirmApproveResponse ] = await Promise.all([
+        page.waitForResponse(resp => {
+            const url = resp.url();
+            const method = resp.request().method();
+            const status = resp.status();
+            console.log(`📡 Confirm approve response: ${method} ${url} - Status: ${status}`);
+            return /\/sessions\/.{36}/.test(url)
+                && method === 'PATCH'
+                && resp.ok();
+        }),
         confirmBtn.click()
     ]);
 
-    await waitForJsonResponse(approveResponse);
+    await waitForJsonResponse(confirmApproveResponse);
 
-    await page.getByTestId('reject-session-btn').click();
+    const rejectBtn = await page.getByTestId('reject-session-btn');
+    if (!await rejectBtn.isVisible()) {
+        await page.getByTestId('session-action-btn').click();
+    }
+    await rejectBtn.click();
 
     const confirmBtn2 = page.getByTestId('confirm-btn');
 
+    console.log('🔍 Setting up confirm reject response listener...');
+    // Set up response listener and immediately trigger the action
     const [ rejectResponse ] = await Promise.all([
-        page.waitForResponse(resp => /\/sessions\/.{36}/.test(resp.url())
-            && resp.request().method() === 'PATCH'
-            && resp.ok()),
+        page.waitForResponse(resp => {
+            const url = resp.url();
+            const method = resp.request().method();
+            const status = resp.status();
+            console.log(`📡 Confirm reject response: ${method} ${url} - Status: ${status}`);
+            return /\/sessions\/.{36}/.test(url)
+                && method === 'PATCH'
+                && resp.ok();
+        }),
         confirmBtn2.click()
     ]);
 

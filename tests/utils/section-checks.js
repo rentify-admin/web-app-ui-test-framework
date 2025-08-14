@@ -278,45 +278,88 @@ const checkFinancialSectionData = async (session, page, sessionLocator) => {
     for (let sIndex = 0;sIndex < allSessionWithChildren.length;sIndex++) {
         const transactionRaws = transactionWrapper.locator('tbody tr');
 
-        const selector = await page.getByTestId('financial-section-applicant-filter');
+        const container = await page.getByTestId('financial-section-applicant-filter');
+        const input = await page.getByTestId('financial-section-applicant-filter-search');
 
-        // Ensure the filter is ready before interaction
-        await expect(selector).toBeVisible();
+        // Ensure the container is ready before interaction
+        await expect(container).toBeVisible();
         
-        // Click the filter and wait for it to be fully open
-        await selector.click();
-        await expect(selector.locator(`#financial-section-applicant-filter-${sIndex}`)).toBeVisible();
+        // Click the container to make the input visible/active
+        console.log(`🖱️ Clicking container to activate input for session ${allSessionWithChildren[sIndex].id}`);
+        await container.click();
+        await page.waitForTimeout(500);
         
-        // Wait for response and click the option simultaneously
-        const [ response ] = await Promise.all([
-            page.waitForResponse(resp => {
-                const urlMatches = resp.url().includes(`/sessions/${allSessionWithChildren[sIndex].id}/transactions`);
-                const methodMatches = resp.request().method() === 'GET';
-                const isOk = resp.ok();
-                
-                console.log(`Response check for session ${allSessionWithChildren[sIndex].id}:`, {
-                    url: resp.url(),
-                    urlMatches,
-                    method: resp.request().method(),
-                    methodMatches,
-                    status: resp.status(),
-                    isOk
-                });
-                
-                return urlMatches && methodMatches && isOk;
-            }, { timeout: 60_000 }),
-            selector.locator(`#financial-section-applicant-filter-${sIndex}`).click()
-        ]);
+        // Try to select the option first - if no response, click again to ensure selection
+        console.log(`🔍 Attempting to select filter option for session ${allSessionWithChildren[sIndex].id}`);
         
-        const { data: transactions } = await waitForJsonResponse(response);
-
-        const transactionRawCount = await transactionRaws.count();
-        for (let trIndex = 0;trIndex < transactionRawCount;trIndex++) {
-            const element = transactionRaws.nth(trIndex);
-            const firstTd = element.locator('td').first();
-            const colspan = await firstTd.getAttribute('colspan');
-            if (!colspan) {
-                await expect(element.locator('td:nth-child(3)')).toHaveText(transactions?.[trIndex].description);
+        try {
+            // First attempt: set up response listener and click
+            const [ response ] = await Promise.all([
+                page.waitForResponse(resp => {
+                    const url = resp.url();
+                    const urlMatches = url.includes(`/sessions/${allSessionWithChildren[sIndex].id}/transactions`);
+                    const methodMatches = resp.request().method() === 'GET';
+                    const isOk = resp.ok();
+                    
+                    // Only log and capture the specific transactions endpoint, exclude static assets and other API calls
+                    if (urlMatches && methodMatches && isOk) {
+                        console.log(`📡 Transactions response captured: ${url}`);
+                        return true;
+                    }
+                    
+                    return false;
+                }, { timeout: 5000 }), // Shorter timeout for first attempt
+                page.locator(`#financial-section-applicant-filter-${sIndex}`).click()
+            ]);
+            
+            console.log(`✅ Filter option selected successfully for session ${allSessionWithChildren[sIndex].id}`);
+            
+            const { data: transactions } = await waitForJsonResponse(response);
+            
+            const transactionRawCount = await transactionRaws.count();
+            for (let trIndex = 0;trIndex < transactionRawCount;trIndex++) {
+                const element = transactionRaws.nth(trIndex);
+                const firstTd = element.locator('td').first();
+                const colspan = await firstTd.getAttribute('colspan');
+                if (!colspan) {
+                    await expect(element.locator('td:nth-child(3)')).toHaveText(transactions?.[trIndex].description);
+                }
+            }
+            
+        } catch (timeoutError) {
+            console.log(`⚠️ First attempt failed (timeout), trying again for session ${allSessionWithChildren[sIndex].id}`);
+            await container.click();
+            await page.waitForTimeout(500);
+            // Second attempt: click again to ensure selection
+            const [ response ] = await Promise.all([
+                page.waitForResponse(resp => {
+                    const url = resp.url();
+                    const urlMatches = url.includes(`/sessions/${allSessionWithChildren[sIndex].id}/transactions`);
+                    const methodMatches = resp.request().method() === 'GET';
+                    const isOk = resp.ok();
+                    
+                    if (urlMatches && methodMatches && isOk) {
+                        console.log(`📡 Transactions response captured on second attempt: ${url}`);
+                        return true;
+                    }
+                    
+                    return false;
+                }, { timeout: 60_000 }),
+                page.locator(`#financial-section-applicant-filter-${sIndex}`).click()
+            ]);
+            
+            console.log(`✅ Filter option selected on second attempt for session ${allSessionWithChildren[sIndex].id}`);
+            
+            const { data: transactions } = await waitForJsonResponse(response);
+            
+            const transactionRawCount = await transactionRaws.count();
+            for (let trIndex = 0;trIndex < transactionRawCount;trIndex++) {
+                const element = transactionRaws.nth(trIndex);
+                const firstTd = element.locator('td').first();
+                const colspan = await firstTd.getAttribute('colspan');
+                if (!colspan) {
+                    await expect(element.locator('td:nth-child(3)')).toHaveText(transactions?.[trIndex].description);
+                }
             }
         }
     }
