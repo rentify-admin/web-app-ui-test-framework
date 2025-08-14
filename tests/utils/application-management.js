@@ -1,4 +1,5 @@
 import { expect } from '@playwright/test';
+import { selectApplicantType, completeIdVerification, plaidFinancialConnect } from './session-flow.js';
 import { searchAndEditApplication as searchAndEditApplicationUtil, searchAndVerifyApplication as searchAndVerifyApplicationUtil } from './applications-page';
 
 /**
@@ -247,4 +248,65 @@ export const createApplicationFlow = async (page, config) => {
     responses.publish = await publishApplicationToLive(page);
 
     return responses;
+};
+
+/**
+ * Ensure we move past applicant-type page into budget step
+ * @param {import('@playwright/test').Page} page
+ */
+export const ensureAtBudgetStep = async page => {
+    const typeHeading = page.getByText('Tell Us What Best Describes You as an Applicant?', { exact: false });
+    if (await typeHeading.isVisible().catch(() => false)) {
+        const nextBtn = page.getByRole('button', { name: /^next$/i }).first();
+        await nextBtn.click();
+        await page.waitForTimeout(800);
+    }
+};
+
+/**
+ * Select employed applicant type and advance to budget
+ * @param {import('@playwright/test').Page} page
+ * @param {string} sessionUrl full API session URL for PATCH wait
+ */
+export const advanceFromApplicantTypeToBudget = async (page, sessionUrl) => {
+    await selectApplicantType(page, sessionUrl, '#employed');
+};
+
+/**
+ * Complete Identity (Persona) then Financial (Plaid) steps
+ * @param {import('@playwright/test').Page} page
+ */
+export const completeIdentityAndFinancial = async page => {
+    const openIdentityUI = async () => {
+        const idCard = page.getByRole('button', { name: /Identity Verification/i });
+        if (await idCard.isVisible().catch(() => false)) {
+            await idCard.click();
+        }
+        const startIdBtnByTestId = page.locator('[data-testid="start-id-verification"]');
+        const startIdBtnByText = page.locator('button:has-text("Start Id Verification")');
+        const startManualUpload = page.locator('[data-testid="start-manual-upload-id-verification"]');
+        const appeared = await Promise.race([
+            startIdBtnByTestId.waitFor({ state: 'visible', timeout: 4000 }).then(() => true).catch(() => false),
+            startIdBtnByText.waitFor({ state: 'visible', timeout: 4000 }).then(() => true).catch(() => false),
+            startManualUpload.waitFor({ state: 'visible', timeout: 4000 }).then(() => true).catch(() => false)
+        ]);
+        return appeared;
+    };
+
+    let identityReady = await openIdentityUI();
+    if (identityReady) {
+        await completeIdVerification(page, true);
+    } else {
+        const finCard = page.getByRole('button', { name: /Financial Verification/i });
+        if (await finCard.isVisible().catch(() => false)) {
+            await finCard.click();
+        }
+        await expect(page.getByTestId('financial-verification-step')).toBeVisible({ timeout: 15000 });
+        await plaidFinancialConnect(page);
+
+        identityReady = await openIdentityUI();
+        if (identityReady) {
+            await completeIdVerification(page, true);
+        }
+    }
 };

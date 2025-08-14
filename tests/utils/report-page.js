@@ -1144,3 +1144,13 @@ export {
     validateFlagSections,
     verifyTransactionErrorAndDeclineFlag
 };
+
+/**
+ * Open report page for a given session id and wait for content
+ * @param {import('@playwright/test').Page} page
+ * @param {string} sessionId
+ */
+export const openReportForSession = async (page, sessionId) => {
+    await page.goto(`/report/${sessionId}`);
+    await expect(page.getByText('Report', { exact: false })).toBeVisible({ timeout: 20000 });
+};
