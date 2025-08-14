@@ -29,7 +29,7 @@ const applicantStep = async applicantPage => {
 
     await fillhouseholdForm(applicantPage, coapplicant);
 
-    await applicantPage.locator('[data-testid="applicant-invite-continue-btn"]:visible').click({ timeout: 20_000 });
+    await applicantPage.getByTestId('applicant-invite-continue-btn').click({ timeout: 20_000 });
 };
 
 const identityStep = async applicantPage => {

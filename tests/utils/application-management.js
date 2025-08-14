@@ -179,7 +179,7 @@ export const publishApplicationToLive = async page => {
  * @param {string} applicationName
  */
 export const searchAndDeleteApplication = async (page, applicationName) => {
-    await page.locator('input[data-testid="application-search"]').fill(applicationName);
+    await page.getByTestId('application-search').fill(applicationName);
     await page.waitForTimeout(1500);
 
     // Add dialog handler only if none exists

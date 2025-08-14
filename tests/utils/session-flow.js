@@ -203,7 +203,7 @@ const uploadStatementFinancialStep = async (
     });
 
     // Wait for processing to start
-    await expect(page.locator('[data-testid="connection-row"]:has-text("Processing")')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByTestId('connection-row').filter({ hasText: "Processing" })).toBeVisible({ timeout: 10000 });
     
     // Wait for completion
     await waitForConnectionCompletion(page);
@@ -411,11 +411,11 @@ const plaidFinancialConnect = async (
 
     // Wait for connection status to change from "Processing" to "Complete"
     await expect(
-        page.locator('[data-testid="connection-row"]:has-text("Complete")')
+        page.getByTestId('connection-row').filter({ hasText: "Complete" })
     ).toBeVisible({ timeout: 100_000 });
 
     await page
-        .locator('[data-testid="financial-verification-continue-btn"]')
+        .getByTestId('financial-verification-continue-btn')
         .click();
 };
 
@@ -477,7 +477,7 @@ const completeIdVerification = async (page, shouldUpload = true) => {
 
     // Wait for ID verification step to be visible
     await expect(
-        page.locator('[data-testid="start-id-verification"]')
+        page.getByTestId('start-id-verification')
     ).toBeVisible({ timeout: 20000 });
 
     // Start ID verification and wait for API response
@@ -487,7 +487,7 @@ const completeIdVerification = async (page, shouldUpload = true) => {
                 && resp.request().method() === 'POST'
                 && resp.ok()
         ),
-        page.locator('[data-testid="start-id-verification"]').click()
+        page.getByTestId('start-id-verification').click()
     ]);
 
     // Wait for Persona iframe to load

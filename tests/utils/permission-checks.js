@@ -170,7 +170,7 @@ const canInviteApplicant = async page => {
         console.log('🚀 Modal detected, closing it first...');
 
         // Try to find and click a close button or escape key
-        const closeBtn = page.locator('[data-testid="close"], .modal-close, .btn-close, .close-btn');
+        const closeBtn = page.getByTestId('close').or(page.locator('.modal-close, .btn-close, .close-btn'));
         if (await closeBtn.isVisible()) {
             await closeBtn.click();
         } else {

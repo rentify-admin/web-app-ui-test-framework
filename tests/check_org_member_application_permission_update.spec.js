@@ -61,7 +61,7 @@ test.describe('check_org_member_application_permission_update', () => {
         
         // Find the row that contains the target text
         const targetTdLocator = memberTable
-            .locator(`td[data-testid="members-table-role-col"]`, { hasText: targetText }).first();
+            .getByTestId('members-table-role-col').filter({ hasText: targetText }).first();
         
         await expect(targetTdLocator).toBeVisible({ timeout: 10000 });
         console.log('✅ Target member found! Getting the parent row.');
