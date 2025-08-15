@@ -288,8 +288,6 @@ test.describe('co_applicant_effect_on_session_test', () => {
     
         // expect(monthlyIncome).not.toBe(monthlyIncome1);
         // expect(rentBudgetRatio).not.toBe(rentBudgetRatio1);
-    
-        await page.getByTestId('income-source-section-header').click();
         
         // Check All applicant Income Sources Available
         await Promise.all([

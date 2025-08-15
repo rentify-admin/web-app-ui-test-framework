@@ -1091,6 +1091,50 @@ const updateRentBudget = async (applicantPage, sessionId, amount = '2500') => {
     ]);
 };
 
+/**
+ * Complete identity verification step with camera-based verification
+ * @param {import('@playwright/test').Page} applicantPage
+ */
+const identityStep = async applicantPage => {
+    await applicantPage.getByTestId('start-id-verification').click({ timeout: 20_000 });
+
+    const personaIFrame = applicantPage.frameLocator('iframe[src*="withpersona.com"]');
+
+    await personaIFrame.locator('[data-test="button__basic"]').click({ timeout: 20_000 });
+
+    await personaIFrame.locator('[data-test="button__primary"]').click({ timeout: 20_000 });
+
+    await personaIFrame.locator('[data-test="button__primary"]').click({ timeout: 20_000 });
+
+    await personaIFrame.locator('#select__option--dl').click({ timeout: 20_000 });
+
+    await personaIFrame.locator('#government-id-prompt__button--web-camera:not(disabled)').click({ timeout: 20_000 });
+
+    await personaIFrame.locator('#scanner__button--capture:not(disabled)')
+        .click({ timeout: 30_000 });
+    await personaIFrame.locator('#government_id__use-image:not(disabled)')
+        .click({ timeout: 30_000 });
+    await personaIFrame.locator('#government-id-prompt__button--web-camera:not(disabled)')
+        .click({ timeout: 20_000 });
+    await personaIFrame.locator('#scanner__button--capture:not(disabled)')
+        .click({ timeout: 30_000 });
+    await personaIFrame.locator('#government_id__use-image:not(disabled)')
+        .click({ timeout: 30_000 });
+    await personaIFrame.locator('#selfie-prompt__button--camera:not(disabled)')
+        .click({ timeout: 30_000 });
+    await applicantPage.waitForTimeout(2000); //wait for the animation
+    await personaIFrame.locator('#selfie-scanner__capture--manual:not(disabled)')
+        .click({ timeout: 30_000 });
+    await personaIFrame.locator('#selfie-scanner__capture--manual:not(disabled)')
+        .click({ timeout: 30_000 });
+    await applicantPage.waitForTimeout(2000);
+    await personaIFrame.locator('#selfie-scanner__capture--manual:not(disabled)')
+        .click({ timeout: 30_000 });
+    await applicantPage.waitForTimeout(200);
+    await personaIFrame.locator('#complete__button:not(disabled)')
+        .click({ timeout: 30_000 });
+};
+
 export {
     uploadStatementFinancialStep,
     completeApplicantForm,
@@ -1112,6 +1156,7 @@ export {
     completePaystubConnection,
     completePlaidFinancialStep,
     updateRentBudget,
-    connectBankOAuthFlow
+    connectBankOAuthFlow,
+    identityStep
 };
 
