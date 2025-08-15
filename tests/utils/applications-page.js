@@ -286,10 +286,10 @@ const findAndCopyApplication = async (page, applicationName) => {
 };
 
 const checkApplicationEditable = async page => {
-    await expect(page.getByTestId('edit-button').first()).toBeVisible();
+    await expect(page.locator('[data-testid^="edit-"]').first()).toBeVisible();
 
     // Click of Edit button of the first application button
-    await page.getByTestId('edit-button').first().click();
+    await page.locator('[data-testid^="edit-"]').first().click();
 
     // Check URL change to edit url
     await expect(page).toHaveURL(/application\/.+\/edit/);
@@ -310,7 +310,7 @@ const checkApplicationDeletable = async page => {
     };
     page.on('dialog', onDialog);
 
-    await page.getByTestId('delete-button').first().click();
+    await page.locator('[data-testid^="delete-"]').first().click();
 };
 
 // Opens the application edit modal for the first row (or by name if needed)
