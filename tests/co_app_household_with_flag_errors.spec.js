@@ -6,7 +6,14 @@ import generateSessionForm from '~/tests/utils/generate-session-form';
 import loginForm from '~/tests/utils/login-form';
 import { waitForJsonResponse } from '~/tests/utils/wait-response';
 import { gotoPage } from '~/tests/utils/common';
-import { completePaystubConnection, completePlaidFinancialStep, fillhouseholdForm, handleOptionalStateModal, selectApplicantType, updateStateModal } from '~/tests/utils/session-flow';
+import { completePaystubConnection, 
+        completePlaidFinancialStep, 
+        fillhouseholdForm, 
+        handleOptionalStateModal, 
+        selectApplicantType, 
+        updateStateModal, 
+        waitForPlaidConnectionCompletion, 
+        waitForPaystubConnectionCompletion } from '~/tests/utils/session-flow';
 import { findSessionLocator, searchSessionWithText } from '~/tests/utils/report-page';
 
 
@@ -84,7 +91,11 @@ test.describe('co_app_household_with_flag_errors', () => {
 
         await completePlaidFinancialStep(applicantPage);
 
+        await waitForPlaidConnectionCompletion(applicantPage);
+
         await completePaystubConnection(applicantPage);
+
+        await waitForPaystubConnectionCompletion(applicantPage);
 
         await Promise.all([
             applicantPage.waitForResponse(resp => resp.url().includes(`/sessions/${sessionId}/steps/`)
@@ -164,7 +175,11 @@ test.describe('co_app_household_with_flag_errors', () => {
 
         await completePlaidFinancialStep(coAppPage);
 
-        await completePaystubConnection(coAppPage, true);
+        await waitForPlaidConnectionCompletion(coAppPage);
+
+        await completePaystubConnection(coAppPage);
+        
+        await waitForPaystubConnectionCompletion(coAppPage);
 
         await Promise.all([
             coAppPage.waitForResponse(resp => resp.url().includes(`/sessions/${coAppSession.data.id}/steps/`)

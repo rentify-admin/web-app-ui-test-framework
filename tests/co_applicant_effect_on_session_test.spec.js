@@ -15,7 +15,8 @@ import {
     fillhouseholdForm,
     handleOptionalStateModal,
     selectApplicantType,
-    updateRentBudget
+    updateRentBudget,
+    waitForPlaidConnectionCompletion
 } from '~/tests/utils/session-flow';
 import {
     checkFinancialSectionData,
@@ -93,6 +94,8 @@ test.describe('co_applicant_effect_on_session_test', () => {
             .click({ timeout: 20_000 });
     
         await completePlaidFinancialStep(applicantPage);
+
+        await waitForPlaidConnectionCompletion(applicantPage);
     
         await completePaystubConnection(applicantPage);
     
@@ -207,6 +210,8 @@ test.describe('co_applicant_effect_on_session_test', () => {
     
         await completePlaidFinancialStep(coAppPage);
     
+        await waitForPlaidConnectionCompletion(coAppPage);
+
         await completePaystubConnection(coAppPage);
     
         await Promise.all([

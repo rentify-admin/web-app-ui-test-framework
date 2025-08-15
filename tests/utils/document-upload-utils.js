@@ -53,7 +53,10 @@ export const uploadPaystubDocuments = async (page, filePaths, options = {}) => {
     const payStubConnectionRow = page.locator('span:has-text("Pay Stub")').first().locator('xpath=../..');
     
     // Wait for completion
-    await waitForConnectionCompletion(page, 130, payStubConnectionRow);
+    await waitForConnectionCompletion(page, {
+        maxIterations: 130,
+        customLocator: payStubConnectionRow
+    });
     
     // Verify employment verification API response
     const employmentData = await employmentResponse.json();
