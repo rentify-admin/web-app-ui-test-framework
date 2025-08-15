@@ -4,7 +4,7 @@ import { admin, app } from '~/tests/test_config';
 import { findAndInviteApplication, gotoApplicationsPage } from '~/tests/utils/applications-page';
 import generateSessionForm from '~/tests/utils/generate-session-form';
 import { getCentsToDollarsSafe, joinUrl } from '~/tests/utils/helper';
-import { completePaystubConnection, fillhouseholdForm, selectApplicantType, updateRentBudget, updateStateModal } from '~/tests/utils/session-flow';
+import { completePaystubConnection, fillhouseholdForm, selectApplicantType, updateRentBudget, updateStateModal, identityStep } from '~/tests/utils/session-flow';
 import { gotoPage } from '~/tests/utils/common';
 import { findSessionLocator, searchSessionWithText } from '~/tests/utils/report-page';
 import { waitForJsonResponse } from '~/tests/utils/wait-response';
@@ -32,44 +32,7 @@ const applicantStep = async applicantPage => {
     await applicantPage.getByTestId('applicant-invite-continue-btn').click({ timeout: 20_000 });
 };
 
-const identityStep = async applicantPage => {
-    await applicantPage.getByTestId('start-id-verification').click({ timeout: 20_000 });
 
-    const personaIFrame = applicantPage.frameLocator('iframe[src*="withpersona.com"]');
-
-    await personaIFrame.locator('[data-test="button__basic"]').click({ timeout: 20_000 });
-
-    await personaIFrame.locator('[data-test="button__primary"]').click({ timeout: 20_000 });
-
-    await personaIFrame.locator('[data-test="button__primary"]').click({ timeout: 20_000 });
-
-    await personaIFrame.locator('#select__option--dl').click({ timeout: 20_000 });
-
-    await personaIFrame.locator('#government-id-prompt__button--web-camera:not(disabled)').click({ timeout: 20_000 });
-
-    await personaIFrame.locator('#scanner__button--capture:not(disabled)')
-        .click({ timeout: 30_000 });
-    await personaIFrame.locator('#government_id__use-image:not(disabled)')
-        .click({ timeout: 30_000 });
-    await personaIFrame.locator('#government-id-prompt__button--web-camera:not(disabled)')
-        .click({ timeout: 30_000 });
-    await personaIFrame.locator('#scanner__button--capture:not(disabled)')
-        .click({ timeout: 30_000 });
-    await personaIFrame.locator('#government_id__use-image:not(disabled)')
-        .click({ timeout: 30_000 });
-    await personaIFrame.locator('#selfie-prompt__button--camera:not(disabled)')
-        .click({ timeout: 30_000 });
-    await personaIFrame.locator('#selfie-scanner__capture--manual:not(disabled)')
-        .click({ timeout: 30_000 });
-    await personaIFrame.locator('#selfie-scanner__capture--manual:not(disabled)')
-        .click({ timeout: 30_000 });
-    await applicantPage.waitForTimeout(2000);
-    await personaIFrame.locator('#selfie-scanner__capture--manual:not(disabled)')
-        .click({ timeout: 30_000 });
-    await applicantPage.waitForTimeout(200);
-    await personaIFrame.locator('#complete__button:not(disabled)')
-        .click({ timeout: 30_000 });
-};
 
 const completePlaidConnection = async (applicantPage, username = 'custom_gig') => {
     await applicantPage.getByTestId('financial-secondary-connect-btn').click({ timeout: 20_000 });
