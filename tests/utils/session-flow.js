@@ -35,15 +35,43 @@ const completeApplicantForm = async (page, rentBudget = '500', sessionUrl) => {
 };
 
 /**
- * Wait for connection status to show completed
+ * Unified connection completion function with configurable options
  * @param {import('@playwright/test').Page} page
- * @param {Number} maxIterations
- * @param {import('@playwright/test').Locator} customLocator - Optional custom locator to use instead of default 'connection-row'
+ * @param {Object|Number} options - Configuration options or maxIterations for backward compatibility
+ * @param {Number} options.maxIterations - Maximum retry iterations (default: 130)
+ * @param {import('@playwright/test').Locator} options.customLocator - Optional custom locator
+ * @param {string} options.selector - CSS selector for connection rows (default: '[data-testid="connection-row"]')
+ * @param {string} options.successText - Text to look for indicating completion (default: 'completed')
+ * @param {Number} options.timeoutInterval - Time between retries in ms (default: 2000)
+ * @param {Function} options.onSuccess - Optional callback when connection completes
+ * @param {Function} options.onFailure - Optional callback when connection fails
  * @returns {Boolean} true if completed, false if timeout
  */
-const waitForConnectionCompletion = async (page, maxIterations = 130, customLocator = null) => {
-    // Use custom locator if provided, otherwise use default connection-row
-    const connectionRows = customLocator || page.getByTestId('connection-row');
+const waitForConnectionCompletion = async (page, options = {}) => {
+    // Handle backward compatibility: if options is a number, treat it as maxIterations
+    if (typeof options === 'number') {
+        options = { maxIterations: options };
+    }
+    
+    const {
+        maxIterations = 130,
+        customLocator = null,
+        selector = '[data-testid="connection-row"]',
+        successText = 'completed',
+        timeoutInterval = 2000,
+        onSuccess = null,
+        onFailure = null
+    } = options;
+
+    // Use custom locator if provided, otherwise wait for element and get locator
+    let connectionRows;
+    if (customLocator) {
+        connectionRows = customLocator;
+    } else {
+        await page.waitForSelector(selector, { timeout: 20000 });
+        connectionRows = page.locator(selector);
+    }
+
     const connectionCount = await connectionRows.count();
     await expect(connectionCount).toBeGreaterThan(0);
 
@@ -51,21 +79,79 @@ const waitForConnectionCompletion = async (page, maxIterations = 130, customLoca
     let found = false;
 
     do {
-        for (let index = 0;index < await connectionRows.count();index++) {
+        for (let index = 0; index < await connectionRows.count(); index++) {
             const element = connectionRows.nth(index);
             const connectionText = await element.innerText();
-            if (connectionText.toLowerCase().includes('completed')) {
+            if (connectionText.toLowerCase().includes(successText.toLowerCase())) {
                 found = true;
                 break;
             }
         }
         if (!found) {
-            await page.waitForTimeout(2000);
+            await page.waitForTimeout(timeoutInterval);
         }
         rotation++;
     } while (!found && rotation < maxIterations);
 
+    if (found && onSuccess) {
+        await onSuccess(page);
+    } else if (!found && onFailure) {
+        await onFailure(page);
+    }
+
     return found;
+};
+
+/**
+ * Wait for Plaid connection completion using unified function
+ * @param {import('@playwright/test').Page} page
+ * @param {Number} maxIterations - Maximum number of retry iterations (default: 65, total timeout: ~130 seconds)
+ * @param {import('@playwright/test').Locator} customLocator - Optional custom locator to use instead of default connection-row
+ * @returns {Boolean} true if completed, false if timeout
+ */
+const waitForPlaidConnectionCompletion = async (page, maxIterations = 65, customLocator = null) => {
+    return await waitForConnectionCompletion(page, {
+        maxIterations,
+        customLocator,
+        selector: '[data-testid="connection-row"]',
+        successText: 'completed',
+        timeoutInterval: 1500,
+        onSuccess: async (page) => {
+            console.log('✅ Plaid connection completed successfully');
+            await page
+                .getByTestId('financial-verification-continue-btn')
+                .click({ timeout: 20000 });
+        },
+        onFailure: async (page) => {
+            console.log('❌ Plaid connection did not complete within timeout period');
+        }
+    });
+};
+
+/**
+ * Wait for paystub connection completion using unified function
+ * @param {import('@playwright/test').Page} page
+ * @param {Number} timeout - Timeout in milliseconds (default: 20000)
+ * @param {import('@playwright/test').Locator} customLocator - Optional custom locator to use instead of default paystub connection row
+ * @returns {Boolean} true if completed, false if timeout
+ */
+const waitForPaystubConnectionCompletion = async (page, timeout = 100_000, customLocator = null) => {
+    // Convert timeout to maxIterations (timeout / 2000ms interval)
+    const maxIterations = Math.ceil(timeout / 2000);
+    
+    return await waitForConnectionCompletion(page, {
+        maxIterations,
+        customLocator,
+        selector: '[data-testid="-row-status"]',
+        successText: 'Completed',
+        timeoutInterval: 2000,
+        onSuccess: async (page) => {
+            console.log('✅ Paystub connection completed successfully');
+        },
+        onFailure: async (page) => {
+            console.log('❌ Paystub connection did not complete within timeout period');
+        }
+    });
 };
 
 /**
@@ -870,12 +956,17 @@ const completePaystubConnection = async applicantPage => {
     await empIFrame
         .locator('[data-test-id="continue"]')
         .click({ timeout: 20000 });
-    await applicantPage.waitForTimeout(1000);
+
+    await empIFrame.locator('[data-test-id="finish-button"]')
+        .click({ timeout: 100_000 });
 
     await applicantPage.waitForSelector('#atomic-transact-iframe', {
         state: 'detached',
         timeout: 50000
     });
+
+    // Wait for paystub connection to complete
+    await waitForPaystubConnectionCompletion(applicantPage);
 };
 
 /**
@@ -916,6 +1007,12 @@ const failPaystubConnection = async applicantPage => {
     await empIFrame
         .locator('[data-test-id="finish-button"]')
         .click({ timeout: 20000 });
+
+    // Wait for iframe to close after finish
+    await applicantPage.waitForSelector('#atomic-transact-iframe', {
+        state: 'detached',
+        timeout: 50000
+    });
 };
 
 /**
@@ -979,10 +1076,6 @@ const completePlaidFinancialStep = async applicantPage => {
         .locator('#aut-button:not([disabled])')
         .click({ timeout: 20000 });
     await plaidFrame.locator('#aut-secondary-button').click({ timeout: 20000 });
-
-    await applicantPage
-        .getByTestId('financial-verification-continue-btn')
-        .click({ timeout: 20000 });
 };
 
 const updateRentBudget = async (applicantPage, sessionId, amount = '2500') => {
@@ -1002,6 +1095,8 @@ export {
     uploadStatementFinancialStep,
     completeApplicantForm,
     waitForConnectionCompletion,
+    waitForPlaidConnectionCompletion,
+    waitForPaystubConnectionCompletion,
     continueFinancialVerification,
     createSessionForUser,
     handleOptionalStateModal,
