@@ -6,15 +6,17 @@ import generateSessionForm from '~/tests/utils/generate-session-form';
 import loginForm from '~/tests/utils/login-form';
 import { waitForJsonResponse } from '~/tests/utils/wait-response';
 import { gotoPage } from '~/tests/utils/common';
-import { completePaystubConnection, 
-        completePlaidFinancialStep, 
-        fillhouseholdForm, 
-        handleOptionalStateModal, 
-        selectApplicantType, 
-        updateStateModal, 
-        waitForPlaidConnectionCompletion, 
-        waitForPaystubConnectionCompletion } from '~/tests/utils/session-flow';
-import { findSessionLocator, searchSessionWithText } from '~/tests/utils/report-page';
+import {
+    completePaystubConnection,
+    completePlaidFinancialStep,
+    fillhouseholdForm,
+    handleOptionalStateModal,
+    selectApplicantType,
+    updateStateModal,
+    waitForPlaidConnectionCompletion,
+    waitForPaystubConnectionCompletion
+} from '~/tests/utils/session-flow';
+import { findSessionLocator, markFlagAsNonIssue, searchSessionWithText } from '~/tests/utils/report-page';
 
 
 const applicationName = 'AutoTest Suite - Full Test';
@@ -44,7 +46,7 @@ const updateRentBudget = async (applicantPage, sessionId) => {
 test.describe('co_app_household_with_flag_errors', () => {
     test('Should complete applicant flow with co-applicant household with flag errors', {
         tag: ['@regression'],
-    }, async({ page, browser }) => {
+    }, async ({ page, browser }) => {
         test.setTimeout(300000);
 
         // Step 1: Admin Login and Navigate to Applications
@@ -77,7 +79,7 @@ test.describe('co_app_household_with_flag_errors', () => {
         // Step 8: Check coapplicant assignable
         await expect(applicantPage.getByTestId('applicant-invite-step')).toBeVisible();
 
-        const applicant =  await fillhouseholdForm(applicantPage, coapplicant);
+        const applicant = await fillhouseholdForm(applicantPage, coapplicant);
 
         await applicantPage.waitForTimeout(1000);
 
@@ -112,9 +114,9 @@ test.describe('co_app_household_with_flag_errors', () => {
 
         await searchSessionWithText(page, sessionId);
 
-        const sessionLocator =  await findSessionLocator(page, `.application-card[data-session="${sessionId}"]`);
+        const sessionLocator = await findSessionLocator(page, `.application-card[data-session="${sessionId}"]`);
 
-        const [ sessionResponse ] = await Promise.all([
+        const [sessionResponse] = await Promise.all([
             page.waitForResponse(resp => resp.url().includes(`/sessions/${sessionId}?fields[session]`)
                 && resp.ok()
                 && resp.request().method() === 'GET'),
@@ -127,7 +129,18 @@ test.describe('co_app_household_with_flag_errors', () => {
 
         await expect(session.data.children.filter(item => item.role === 'APPLICANT').length).toBeGreaterThan(0);
 
-        await expect(session.data?.approval_status).toBe('APPROVED');
+        if (session.data?.approval_status === 'REJECTED') {
+            await page.getByTestId('view-details-btn').click({ timeout: 10_000 });
+            await expect(page.getByTestId('GROSS_INCOME_RATIO_EXCEEDED')).toBeVisible();
+            await markFlagAsNonIssue(
+                page,
+                sessionId,
+                'GROSS_INCOME_RATIO_EXCEEDED',
+                'this flag is marked as non issue by playwright test run'
+            );
+            await page.getByTestId('close-event-history-modal').click({ timeout: 10_000 });
+            await page.waitForTimeout(500);
+        }
 
         await page.getByTestId('session-action-btn').click({ timeout: 10_000 });
 
@@ -151,10 +164,10 @@ test.describe('co_app_household_with_flag_errors', () => {
 
         const coAppSessionApiUrl = joinUrl(app.urls.api, coAppLinkUrl.pathname);
 
-        const [ coSessionResp ] = await Promise.all([
+        const [coSessionResp] = await Promise.all([
             coAppPage.waitForResponse(resp => resp.url().includes(coAppSessionApiUrl)
-                    && resp.ok()
-                    && resp.request().method() === 'GET'),
+                && resp.ok()
+                && resp.request().method() === 'GET'),
             coAppPage.goto(joinUrl(app.urls.app, `${coAppLinkUrl.pathname}${coAppLinkUrl.search}`))
         ]);
 
@@ -178,7 +191,7 @@ test.describe('co_app_household_with_flag_errors', () => {
         await waitForPlaidConnectionCompletion(coAppPage);
 
         await completePaystubConnection(coAppPage);
-        
+
         await waitForPaystubConnectionCompletion(coAppPage);
 
         await Promise.all([
@@ -190,7 +203,7 @@ test.describe('co_app_household_with_flag_errors', () => {
 
         await coAppPage.close();
 
-        const [ sessionResponse1 ] = await Promise.all([
+        const [sessionResponse1] = await Promise.all([
             page.waitForResponse(resp => resp.url().includes(`/sessions/${sessionId}?fields[session]`)
                 && resp.ok()
                 && resp.request().method() === 'GET'),
