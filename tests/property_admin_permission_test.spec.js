@@ -79,19 +79,19 @@ test.describe('property_admin_permission_test', () => {
         await expect(page.getByTestId('error-page')).toContainText('403');
         await page.goBack();
 
-        // Try to delete a workflow in DRAFT status
+        // Try to delete a workflow in READY status
         const workflowRows = await workflowTable.locator('tbody>tr');
         page.once('dialog', dialog => dialog.accept());
         for (let i = 0;i < await workflowRows.count();i++) {
             const element = workflowRows.nth(i);
             if ((await element.locator('td').nth(3)
-                .textContent()).includes('DRAFT')) {
+                .textContent()).includes('READY')) {
                 await element.locator('td').locator('[data-testid^="delete-"]')
                     .click();
                 break;
             }
         }
-        await expect(page.locator('[role=alert]')).toContainText('Forbidden');
+        await expect(page.locator('[role=alert]').first()).toContainText('Forbidden');
 
         // Approval conditions: try to view and open a "high risk" condition
         await gotoPage(page, 'applications-menu', 'approval-conditions-submenu', '/flag-collections?');
