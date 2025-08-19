@@ -38,7 +38,7 @@ test.describe('user_permissions_verify', tester => {
     const testUser = {
         first_name: 'User',
         last_name: 'Playwright',
-        email: 'playwright+80395@verifast.com',
+        email: '',
         password: 'Playwright@123',
         organization: 'Permissions Test Org',
         role: 'Centralized Leasing'

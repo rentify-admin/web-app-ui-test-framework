@@ -15,11 +15,11 @@ const fill = async (page, formData) => {
 
     await page.locator('#password_confirmation').fill(formData.password);
 
-    await page.locator('div[aria-owns="listbox-organization"]').click();
+    await page.locator('[aria-owns="listbox-organization"]').click();
 
     await page.waitForTimeout(500); // wait for the listbox to open
 
-    await page.locator('li[id^=organization-]', { hasText: formData.organization }).click();
+    await page.locator('li[id^=organization]', { hasText: formData.organization }).click();
 
     await page.locator('div[aria-owns="listbox-role"]').click();
 
