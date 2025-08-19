@@ -7,15 +7,18 @@ import { checkAllFlagsSection, checkExportPdf } from '~/tests/utils/report-page'
 // import { joinUrl } from './utils/helper';
 import { waitForJsonResponse } from './utils/wait-response';
 
-// Create local staff user object to avoid sharing with other tests
-const staffUser = {
+// Create staff user template
+const createStaffUser = () => ({
     first_name: 'Staff',
     last_name: 'Playwright',
-    email: 'playwright+75482@verifast.com',
+    email: '',
     password: 'Playwright@123',
     organization: 'Permissions Test Org',
     role: 'Staff'
-};
+});
+
+// Store the created user data to share between tests
+let createdStaffUser = null;
 
 test.beforeEach(async ({ page }) => {
     await page.goto('/');
@@ -36,9 +39,9 @@ test.describe('staff_user_permissions_test', () => {
     test.describe.configure({ mode: 'default' });
 
     test('Should create member record and assign it to the Staff role', { tag: [ '@regression' ] }, async ({ page }) => {
+        const staffUser = createStaffUser();
         const randomNumber = Math.floor(Math.random() * 100000);
-        const userToCreate = { ...staffUser };
-        userToCreate.email = `playwright+${randomNumber}@verifast.com`;
+        staffUser.email = `playwright+${randomNumber}@verifast.com`;
 
         // Step:1 Login the the admin panel
         await loginWith(page, admin);
@@ -53,19 +56,26 @@ test.describe('staff_user_permissions_test', () => {
         await page.getByTestId('add-user-btn').click();
 
         // Step:5 Fill user form
-        await userCreateForm.fill(page, userToCreate);
+        await userCreateForm.fill(page, staffUser);
 
         // Step:6 Submit User form
         const userData = await userCreateForm.submit(page);
 
         // Step:7 Expect user is listed in the user list
         expect(userData?.data?.id).toBeDefined();
+
+        // Store the created user data for the second test
+        createdStaffUser = { ...staffUser, id: userData?.data?.id };
     });
 
     test('Verify permission of Staff role', { tag: [ '@regression' ] }, async ({ page, context }) => {
+        // Use the user created in the first test
+        if (!createdStaffUser) {
+            throw new Error('Staff user must be created in the first test before running this test');
+        }
 
-        // Login
-        await loginWith(page, staffUser);
+        // Login as the created staff user to verify permissions
+        await loginWith(page, createdStaffUser);
 
         // Verify that these elements are shown in the left hand menu
         expect(page.getByTestId('applicants-menu')).toBeVisible();
