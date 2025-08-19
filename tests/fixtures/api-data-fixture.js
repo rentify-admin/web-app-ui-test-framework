@@ -3,15 +3,14 @@ import { ApiDataManager } from '../utils/api-data-manager';
 
 // Extend the base test with our custom fixtures
 export const test = base.extend({
-  // API Data Manager fixture that automatically handles cleanup
+  // API Data Manager fixture that provides the manager without auto-cleanup
   dataManager: async ({ request }, use) => {
     const manager = new ApiDataManager(request);
     
     // Use the manager in the test
     await use(manager);
     
-    // Automatically cleanup after the test
-    await manager.cleanupAll();
+    // NO automatic cleanup - let tests control when cleanup happens
   },
 
   // Pre-created test data that tests can populate
