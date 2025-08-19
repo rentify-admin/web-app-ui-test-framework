@@ -1,24 +1,23 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures/api-data-fixture';
+import { ApiDataManager } from './utils/api-data-manager';
 import { admin } from '~/tests/test_config';
 import loginForm from '~/tests/utils/login-form';
-import userCreateForm from '~/tests/utils/user-create-form';
 import { checkAllFlagsSection, checkExportPdf } from '~/tests/utils/report-page';
 
 // import { joinUrl } from './utils/helper';
 import { waitForJsonResponse } from './utils/wait-response';
 
-// Create staff user template
-const createStaffUser = () => ({
+// Staff user template (now used with API)
+const staffUserTemplate = {
     first_name: 'Staff',
     last_name: 'Playwright',
-    email: '',
     password: 'Playwright@123',
-    organization: 'Permissions Test Org',
-    role: 'Staff'
-});
+    role: '0196f6c9-da51-7337-bbde-ca7d0efd7f84'
+};
 
 // Store the created user data to share between tests
 let createdStaffUser = null;
+let errorMessage = null;
 
 test.beforeEach(async ({ page }) => {
     await page.goto('/');
@@ -37,45 +36,79 @@ const sessionID = '01971d4f-2f5e-7151-88d5-d038c044d13b';
 
 test.describe('staff_user_permissions_test', () => {
     test.describe.configure({ mode: 'default' });
+    
+    // We'll use the fixture dataManager but need to track it for afterAll cleanup
+    let dataManagerInstance; // Track the fixture instance for cleanup
 
-    test('Should create member record and assign it to the Staff role', { tag: [ '@regression' ] }, async ({ page }) => {
-        const staffUser = createStaffUser();
-        const randomNumber = Math.floor(Math.random() * 100000);
-        staffUser.email = `playwright+${randomNumber}@verifast.com`;
+    test('Should create member record and assign it to the Staff role', { tag: [ '@regression' ] }, async ({ page, dataManager }) => {
+        // Store the dataManager instance for afterAll cleanup
+        dataManagerInstance = dataManager;
+        
+        // First authenticate with admin user to get API access
+        // API calls require authentication - we need a Bearer token to create users
+        const isAuthenticated = await dataManager.authenticate(admin.email, admin.password);
+        
+        if (!isAuthenticated) {
+            throw new Error('Authentication failed - cannot create users without API access');
+        }
 
-        // Step:1 Login the the admin panel
-        await loginWith(page, admin);
+        // Create staff user via API instead of UI
+        const prefix = ApiDataManager.uniquePrefix();
+        const staffUserData = ApiDataManager.createUserData(prefix, {
+            ...staffUserTemplate,
+            email: `${prefix}@verifast.com`,
+            password_confirmation: staffUserTemplate.password
+        });
 
-        // Step:2 Goto users menu
-        await page.getByTestId('users-menu').click();
+        // Create the user via API (now authenticated)
+        await dataManager.createEntities({
+            users: [staffUserData]
+        });
 
-        // Step:3 select Users menu
-        await page.getByTestId('users-submenu').click();
+        // Get the created user data
+        const { users } = dataManager.getCreated();
+        const createdUser = users[0];
 
-        // Step:4 Click on Add User menu
-        await page.getByTestId('add-user-btn').click();
-
-        // Step:5 Fill user form
-        await userCreateForm.fill(page, staffUser);
-
-        // Step:6 Submit User form
-        const userData = await userCreateForm.submit(page);
-
-        // Step:7 Expect user is listed in the user list
-        expect(userData?.data?.id).toBeDefined();
+        // Verify user was created successfully
+        expect(createdUser.id).toBeDefined();
+        expect(createdUser.email).toBe(staffUserData.email);
 
         // Store the created user data for the second test
-        createdStaffUser = { ...staffUser, id: userData?.data?.id };
+        createdStaffUser = { 
+            ...staffUserData, 
+            id: createdUser.id 
+        };
+
+        console.log('✅ Staff user created successfully via API:', createdUser.email);
     });
 
-    test('Verify permission of Staff role', { tag: [ '@regression' ] }, async ({ page, context }) => {
+    test('Verify permission of Staff role', { tag: [ '@regression' ] }, async ({ page, context, dataManager }) => {
         // Use the user created in the first test
         if (!createdStaffUser) {
             throw new Error('Staff user must be created in the first test before running this test');
         }
 
+        // We need to transfer the created entities to THIS test's dataManager
+        // so cleanup can use the current request context, not the old one
+        if (dataManagerInstance && dataManagerInstance.getCreated().users.length > 0) {
+            // Transfer created entities to current test's dataManager
+            const createdEntities = dataManagerInstance.getCreated();
+            dataManager.created = { ...createdEntities };
+            
+            // Also authenticate this dataManager for cleanup
+            const isAuthenticated = await dataManager.authenticate(admin.email, admin.password);
+            if (!isAuthenticated) {
+                console.warn('⚠️ Could not authenticate current dataManager for cleanup');
+            }
+        }
+
+        try {
+
         // Login as the created staff user to verify permissions
-        await loginWith(page, createdStaffUser);
+        await loginWith(page, {
+            email: createdStaffUser.email,
+            password: createdStaffUser.password
+        });
 
         // Verify that these elements are shown in the left hand menu
         expect(page.getByTestId('applicants-menu')).toBeVisible();
@@ -302,5 +335,26 @@ test.describe('staff_user_permissions_test', () => {
 
             await expect(page.getByTestId('view-document-modal')).toBeVisible();
         }
+    } catch (error) {
+        console.error('❌ Error in test:', error.message);
+        errorMessage = error.message;
+    }
+
+    // Cleanup: ALWAYS delete the test user, even if test fails
+    // Use the CURRENT test's dataManager (with valid request context) for cleanup
+    if (dataManager && dataManager.getCreated().users.length > 0) {
+        console.log('🧹 Cleaning up test user after test logic...');
+        console.log('🔍 User to cleanup:', createdStaffUser?.email);
+        try {
+            await dataManager.cleanupAll();
+            console.log('🧹 Test user cleanup completed successfully');
+        } catch (cleanupError) {
+            console.error('❌ Cleanup failed but continuing:', cleanupError.message);
+        }
+    }
+
+    if (errorMessage) {
+        throw new Error(errorMessage);
+    }
     });
 });

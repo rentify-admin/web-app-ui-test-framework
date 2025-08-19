@@ -158,7 +158,7 @@ export class ApiDataManager {
 
   // Generate a unique prefix for names/emails
   static uniquePrefix() {
-    return `AUTOTEST-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+    return `autotest-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
   }
 
   async createEntities(data) {
@@ -269,7 +269,7 @@ export class ApiDataManager {
           headers: this.getHeaders()
         });
       } catch (e) {
-        console.warn(`Cleanup failed for ${fullUrl}`, e);
+        console.warn(`Cleanup failed for ${endpoint}/${id}`, e);
       }
     };
 
