@@ -83,6 +83,8 @@ test.describe('staff_user_permissions_test', () => {
     });
 
     test('Verify permission of Staff role', { tag: [ '@regression' ] }, async ({ page, context, dataManager }) => {
+        
+        try {
         // Use the user created in the first test
         if (!createdStaffUser) {
             throw new Error('Staff user must be created in the first test before running this test');
@@ -102,7 +104,7 @@ test.describe('staff_user_permissions_test', () => {
             }
         }
 
-        try {
+        
 
         // Login as the created staff user to verify permissions
         await loginWith(page, {

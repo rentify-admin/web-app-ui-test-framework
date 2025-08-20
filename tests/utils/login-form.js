@@ -21,6 +21,7 @@ const submit = async page => {
     await page.locator('button[type="submit"]').click();
     // Waiting for the login api response
     await page.waitForResponse(LOGIN_API);
+    await page.waitForSelector('[data-testid=household-status-alert]', { timeout: 100_000 });
     await expect(page.getByTestId('household-status-alert')).toBeVisible({ timeout: 100_000 });
 };
 
