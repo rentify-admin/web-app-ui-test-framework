@@ -38,7 +38,7 @@ const completeApplicantForm = async (page, rentBudget = '500', sessionUrl) => {
  * Unified connection completion function with configurable options
  * @param {import('@playwright/test').Page} page
  * @param {Object|Number} options - Configuration options or maxIterations for backward compatibility
- * @param {Number} options.maxIterations - Maximum retry iterations (default: 300 for longer timeout)
+ * @param {Number} options.maxIterations - Maximum retry iterations (default: 130 for longer timeout)
  * @param {import('@playwright/test').Locator} options.customLocator - Optional custom locator
  * @param {string} options.selector - CSS selector for connection rows (default: '[data-testid="connection-row"]')
  * @param {string} options.successText - Text to look for indicating completion (default: 'completed')
@@ -54,7 +54,7 @@ const waitForConnectionCompletion = async (page, options = {}) => {
     }
     
     const {
-        maxIterations = 170, // Increased default from 130 to 170 for longer timeout
+        maxIterations = 130, 
         customLocator = null,
         selector = '[data-testid="connection-row"]',
         successText = 'completed',
@@ -90,7 +90,7 @@ const waitForConnectionCompletion = async (page, options = {}) => {
             if (connectionText.toLowerCase().includes('processing')) {
                 foundProcessing = true;
                 console.log('✅ "Processing" state detected, waiting for it to stabilize...');
-                await page.waitForTimeout(3000); // Wait for state to stabilize
+                await page.waitForTimeout(2000); // Wait for state to stabilize
                 break;
             }
         }
