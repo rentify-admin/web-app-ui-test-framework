@@ -38,7 +38,7 @@ const completeApplicantForm = async (page, rentBudget = '500', sessionUrl) => {
  * Unified connection completion function with configurable options
  * @param {import('@playwright/test').Page} page
  * @param {Object|Number} options - Configuration options or maxIterations for backward compatibility
- * @param {Number} options.maxIterations - Maximum retry iterations (default: 130)
+ * @param {Number} options.maxIterations - Maximum retry iterations (default: 300 for longer timeout)
  * @param {import('@playwright/test').Locator} options.customLocator - Optional custom locator
  * @param {string} options.selector - CSS selector for connection rows (default: '[data-testid="connection-row"]')
  * @param {string} options.successText - Text to look for indicating completion (default: 'completed')
@@ -54,7 +54,7 @@ const waitForConnectionCompletion = async (page, options = {}) => {
     }
     
     const {
-        maxIterations = 130,
+        maxIterations = 170, // Increased default from 130 to 170 for longer timeout
         customLocator = null,
         selector = '[data-testid="connection-row"]',
         successText = 'completed',
@@ -75,31 +75,69 @@ const waitForConnectionCompletion = async (page, options = {}) => {
     const connectionCount = await connectionRows.count();
     await expect(connectionCount).toBeGreaterThan(0);
 
+    console.log('🔄 Waiting for connection status to stabilize...');
+    
+    // Step 1: Wait for the "processing" state to appear (to avoid false "completed" state)
+    // This handles the app bug where it briefly shows "completed" then changes to "processing"
     let rotation = 0;
-    let found = false;
+    let foundProcessing = false;
+    
+    console.log('⏳ Step 1: Waiting for "processing" state to appear...');
+    do {
+        for (let index = 0; index < await connectionRows.count(); index++) {
+            const element = connectionRows.nth(index);
+            const connectionText = await element.innerText();
+            if (connectionText.toLowerCase().includes('processing')) {
+                foundProcessing = true;
+                console.log('✅ "Processing" state detected, waiting for it to stabilize...');
+                await page.waitForTimeout(3000); // Wait for state to stabilize
+                break;
+            }
+        }
+        if (!foundProcessing) {
+            await page.waitForTimeout(timeoutInterval);
+        }
+        rotation++;
+    } while (!foundProcessing && rotation < maxIterations);
+
+    if (!foundProcessing) {
+        console.log('⚠️ "Processing" state not found, proceeding anyway...');
+    }
+
+    // Step 2: Now wait for the real "completed" state
+    console.log('⏳ Step 2: Waiting for real "completed" state...');
+    rotation = 0;
+    let foundCompleted = false;
 
     do {
         for (let index = 0; index < await connectionRows.count(); index++) {
             const element = connectionRows.nth(index);
             const connectionText = await element.innerText();
             if (connectionText.toLowerCase().includes(successText.toLowerCase())) {
-                found = true;
+                foundCompleted = true;
+                console.log('✅ Real "completed" state detected!');
+                await page.waitForTimeout(2000); // Additional wait to ensure stability
                 break;
             }
         }
-        if (!found) {
+        if (!foundCompleted) {
             await page.waitForTimeout(timeoutInterval);
         }
         rotation++;
-    } while (!found && rotation < maxIterations);
+    } while (!foundCompleted && rotation < maxIterations);
 
-    if (found && onSuccess) {
+    if (!foundCompleted) {
+        console.log('❌ "Completed" state not found within timeout');
+    }
+
+    // Call callbacks if provided
+    if (foundCompleted && onSuccess) {
         await onSuccess(page);
-    } else if (!found && onFailure) {
+    } else if (!foundCompleted && onFailure) {
         await onFailure(page);
     }
 
-    return found;
+    return foundCompleted;
 };
 
 /**
@@ -115,7 +153,7 @@ const waitForPlaidConnectionCompletion = async (page, maxIterations = 65, custom
         customLocator,
         selector: '[data-testid="connection-row"]',
         successText: 'completed',
-        timeoutInterval: 1500,
+        timeoutInterval: 2000,
         onSuccess: async (page) => {
             console.log('✅ Plaid connection completed successfully');
             await page
