@@ -4,7 +4,7 @@ import { admin, app } from '~/tests/test_config';
 import { findAndInviteApplication, gotoApplicationsPage } from '~/tests/utils/applications-page';
 import generateSessionForm from '~/tests/utils/generate-session-form';
 import { getCentsToDollarsSafe, joinUrl } from '~/tests/utils/helper';
-import { completePaystubConnection, fillhouseholdForm, selectApplicantType, updateRentBudget, updateStateModal, identityStep } from '~/tests/utils/session-flow';
+import { completePaystubConnection, fillhouseholdForm, selectApplicantType, updateRentBudget, updateStateModal, identityStep, waitForPlaidConnectionCompletion } from '~/tests/utils/session-flow';
 import { gotoPage } from '~/tests/utils/common';
 import { findSessionLocator, searchSessionWithText } from '~/tests/utils/report-page';
 import { waitForJsonResponse } from '~/tests/utils/wait-response';
@@ -29,13 +29,19 @@ const applicantStep = async applicantPage => {
 
     await fillhouseholdForm(applicantPage, coapplicant);
 
-    await applicantPage.getByTestId('applicant-invite-continue-btn').click({ timeout: 20_000 });
+    // Click the continue button (not the skip button)
+    await applicantPage.getByRole('button', { name: 'Continue' }).first().click({ timeout: 20_000 });
 };
 
 
 
-const completePlaidConnection = async (applicantPage, username = 'custom_gig') => {
-    await applicantPage.getByTestId('financial-secondary-connect-btn').click({ timeout: 20_000 });
+const completePlaidConnection = async (applicantPage, username = 'custom_gig', password = 'password') => {
+    // Wait for element to be present first, then get the locator
+    await applicantPage.waitForSelector('[data-testid="financial-secondary-connect-btn"]', { timeout: 100_000 });
+    await applicantPage.waitForTimeout(2000);
+    const financialSecondaryConnectBtn = applicantPage.getByTestId('financial-secondary-connect-btn');
+    await expect(financialSecondaryConnectBtn).toBeVisible({ timeout: 20_000 });
+    await financialSecondaryConnectBtn.click({ timeout: 20_000 });
 
     const pFrame = await applicantPage.frameLocator('#plaid-link-iframe-1');
 
@@ -47,7 +53,7 @@ const completePlaidConnection = async (applicantPage, username = 'custom_gig') =
 
     await plaidFrame.locator('#aut-input-0-input').fill(username);
 
-    await plaidFrame.locator('#aut-input-1-input').fill('custom_gig');
+    await plaidFrame.locator('#aut-input-1-input').fill(password);
 
     await plaidFrame.locator('#aut-button').click({ timeout: 20_000 });
 
@@ -55,7 +61,7 @@ const completePlaidConnection = async (applicantPage, username = 'custom_gig') =
 
     await plaidFrame.locator('#aut-secondary-button').click({ timeout: 20_000 });
 
-    await applicantPage.getByTestId('financial-verification-continue-btn').click({ timeout: 20_000 });
+    //await applicantPage.getByTestId('financial-verification-continue-btn').click({ timeout: 20_000 });
 };
 
 const checkDollarText = async (rentBudget, rentLocator) => {
@@ -68,7 +74,7 @@ const checkDollarText = async (rentBudget, rentLocator) => {
 };
 
 test.describe('check_coapp_income_ratio_exceede_flag', () => {
-    test.skip('Should confirm co-applicant income is considered when generating/removing Gross Income Ratio Exceeded flag', { 
+    test('Should confirm co-applicant income is considered when generating/removing Gross Income Ratio Exceeded flag', { 
         tag: ['@smoke'],
     }, async ({ page, browser }) => {
         test.setTimeout(360000);
@@ -88,7 +94,16 @@ test.describe('check_coapp_income_ratio_exceede_flag', () => {
         const linkUrl = new URL(link);
         
         // Step 5: Open Invite link
-        const context = await browser.newContext({ permissions: [ 'camera' ] });
+        const context = await browser.newContext({ 
+            permissions: ['camera', 'microphone'],
+            // Use the same camera setup as e2e-ui config
+            launchOptions: {
+                args: [
+                    '--use-fake-ui-for-media-stream',
+                    '--use-fake-device-for-media-stream'
+                ]
+            }
+        });
         
         const applicantPage = await context.newPage();
         await applicantPage.goto(joinUrl(`${app.urls.app}`, `${linkUrl.pathname}${linkUrl.search}`));
@@ -109,7 +124,7 @@ test.describe('check_coapp_income_ratio_exceede_flag', () => {
     
         await updateStateModal(applicantPage, 'ALABAMA');
     
-        await updateRentBudget(applicantPage, sessionId, '2100');
+        await updateRentBudget(applicantPage, sessionId, '2500');
     
         await applicantStep(applicantPage);
     
@@ -118,6 +133,8 @@ test.describe('check_coapp_income_ratio_exceede_flag', () => {
     
         // Complete Plaid Connection
         await completePlaidConnection(applicantPage);
+
+        await waitForPlaidConnectionCompletion(applicantPage);
     
         // Complete Paystub Connection
         await completePaystubConnection(applicantPage);
@@ -160,20 +177,23 @@ test.describe('check_coapp_income_ratio_exceede_flag', () => {
         const monthlyIncomeLocator = await page.getByTestId('report-monthly-income-card');
         let monthlyIncome = session.data.state?.summary?.total_income;
         await checkDollarText(monthlyIncome, monthlyIncomeLocator);
-    
+        
+        // Log initial values for debugging
+        console.log('🚀 ~ Initial Rent Budget:', rentBudget);
+        console.log('🚀 ~ Initial Monthly Income:', monthlyIncome);
     
         const rentRatioLocator = await page.getByTestId('report-rent-income-ratio-card');
         const rentBudgetRatio = session.data.state?.summary?.total_target_to_income_ratio;
         if (rentBudgetRatio) {
             await expect(rentRatioLocator).toContainText(String(rentBudgetRatio));
         }
-        console.log('🚀 ~ rentBudgetRatio:', rentBudgetRatio);
-    
-        if (monthlyIncome !== 0 && rentBudget === 0) {
-            rentBudget = session.data?.target ?? 0;
-            monthlyIncome = session.data.state?.summary?.total_income;
-            const calulatedRatio = Math.round(rentBudget * 100 / monthlyIncome);
-            await expect(String(calulatedRatio)).toBe(String(session.data.state?.summary?.total_target_to_income_ratio ?? 'N/A'));
+        console.log('🚀 ~ Initial Rent/Income Ratio:', rentBudgetRatio);
+        
+        // Validate that initial ratio exceeds threshold (flag should be present)
+        if (monthlyIncome > 0 && rentBudget > 0) {
+            const calculatedRatio = Math.round((rentBudget / monthlyIncome) * 100);
+            console.log('🚀 ~ Calculated Ratio:', calculatedRatio);
+            await expect(calculatedRatio).toBeGreaterThan(30); // Assuming 30% threshold
         }
     
         await page.getByTestId('view-details-btn').click({ timeout: 10_000 });
@@ -201,8 +221,17 @@ test.describe('check_coapp_income_ratio_exceede_flag', () => {
     
         const coAppLinkUrl = new URL(copiedLink);
     
-        const newPageContext = await browser.newContext();
-    
+                const newPageContext = await browser.newContext({ 
+            permissions: ['camera', 'microphone'],
+            // Use the same camera setup as e2e-ui config
+            launchOptions: {
+                args: [
+                    '--use-fake-ui-for-media-stream',
+                    '--use-fake-device-for-media-stream'
+                ]
+            }
+        });
+        
         const coAppPage = await newPageContext.newPage();
     
         const coAppSessionApiUrl = joinUrl(app.urls.api, coAppLinkUrl.pathname);
@@ -221,8 +250,10 @@ test.describe('check_coapp_income_ratio_exceede_flag', () => {
         await identityStep(coAppPage);
     
         // Complete Plaid Connection
-        await completePlaidConnection(coAppPage, 'custom_coffee');
+        await completePlaidConnection(coAppPage, 'user_bank_income', '{}');
     
+        await waitForPlaidConnectionCompletion(coAppPage);
+
         // Complete Paystub Connection
         await completePaystubConnection(coAppPage);
     
@@ -255,15 +286,23 @@ test.describe('check_coapp_income_ratio_exceede_flag', () => {
         const monthlyIncomeNew = newSession.data.state?.summary?.total_income;
         const monthlyIncomeLocatorNew = await page.getByTestId('report-monthly-income-card');
         await checkDollarText(monthlyIncomeNew, monthlyIncomeLocatorNew);
-    
+        
+        // Validate that monthly income has increased after co-applicant completion
+        await expect(monthlyIncomeNew).toBeGreaterThan(monthlyIncome);
+        console.log('🚀 ~ Monthly Income Before:', monthlyIncome);
+        console.log('🚀 ~ Monthly Income After:', monthlyIncomeNew);
+        console.log('🚀 ~ Income Increase:', monthlyIncomeNew - monthlyIncome);
+        
         const rentBudgetRatioNew = newSession.data.state?.summary?.total_target_to_income_ratio;
         const rentRatioLocatorNew = await page.getByTestId('report-rent-income-ratio-card');
         await expect(rentRatioLocatorNew).toContainText(String(rentBudgetRatioNew));
-        console.log('🚀 ~ rentBudgetRatio:', rentBudgetRatioNew);
-    
-        if (monthlyIncomeNew !== 0 && rentBudgetNew === 0) {
-            const calulatedRatio = Math.round(rentBudgetNew * 100 / monthlyIncomeNew);
-            await expect(String(calulatedRatio)).toBe(String(rentBudgetRatioNew));
+        console.log('🚀 ~ New Rent/Income Ratio:', rentBudgetRatioNew);
+        
+        // Validate that the new ratio is below threshold (flag should be removed)
+        if (monthlyIncomeNew > 0 && rentBudgetNew > 0) {
+            const calculatedRatioNew = Math.round((rentBudgetNew / monthlyIncomeNew) * 100);
+            console.log('🚀 ~ Calculated New Ratio:', calculatedRatioNew);
+            await expect(calculatedRatioNew).toBeLessThanOrEqual(30); // Should be below 30% threshold
         }
         await page.getByTestId('view-details-btn').click({ timeout: 20_000 });
     
