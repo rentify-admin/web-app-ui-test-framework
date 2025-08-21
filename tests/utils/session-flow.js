@@ -52,9 +52,9 @@ const waitForConnectionCompletion = async (page, options = {}) => {
     if (typeof options === 'number') {
         options = { maxIterations: options };
     }
-    
+
     const {
-        maxIterations = 130, 
+        maxIterations = 130,
         customLocator = null,
         selector = '[data-testid="connection-row"]',
         successText = 'completed',
@@ -76,12 +76,12 @@ const waitForConnectionCompletion = async (page, options = {}) => {
     await expect(connectionCount).toBeGreaterThan(0);
 
     console.log('🔄 Waiting for connection status to stabilize...');
-    
+
     // Step 1: Wait for the "processing" state to appear (to avoid false "completed" state)
     // This handles the app bug where it briefly shows "completed" then changes to "processing"
     let rotation = 0;
     let foundProcessing = false;
-    
+
     console.log('⏳ Step 1: Waiting for "processing" state to appear...');
     do {
         for (let index = 0; index < await connectionRows.count(); index++) {
@@ -176,7 +176,7 @@ const waitForPlaidConnectionCompletion = async (page, maxIterations = 65, custom
 const waitForPaystubConnectionCompletion = async (page, timeout = 100_000, customLocator = null) => {
     // Convert timeout to maxIterations (timeout / 2000ms interval)
     const maxIterations = Math.ceil(timeout / 2000);
-    
+
     return await waitForConnectionCompletion(page, {
         maxIterations,
         customLocator,
@@ -206,7 +206,7 @@ const continueFinancialVerification = async page => {
     // Scroll to make the button visible in viewport
     await financialContinueBtn.scrollIntoViewIfNeeded();
 
-    const [ response ] = await Promise.all([
+    const [response] = await Promise.all([
         page.waitForResponse(
             resp => resp.url().includes('/financial-verifications')
                 && resp.request().method() === 'GET'
@@ -285,7 +285,7 @@ const uploadStatementFinancialStep = async (
     await expect(manualUploadSubmitBtn).toBeEnabled();
 
     console.log('🚀 ~ Submitting manual upload...');
-    const [ connectionResponse, verificationResponse ] = await Promise.all([
+    const [connectionResponse, verificationResponse] = await Promise.all([
         page.waitForResponse(resp => {
             const isMatch
                 = resp.url().endsWith('/financial-verifications')
@@ -328,7 +328,7 @@ const uploadStatementFinancialStep = async (
 
     // Wait for processing to start
     await expect(page.getByTestId('connection-row').filter({ hasText: "Processing" })).toBeVisible({ timeout: 10000 });
-    
+
     // Wait for completion
     await waitForConnectionCompletion(page);
 
@@ -349,9 +349,9 @@ const handleOptionalStateModal = async page => {
     // Wait for page to be fully loaded before checking for modal
     await page.waitForLoadState('domcontentloaded');
     await page.waitForTimeout(1000); // Additional wait for dynamic content
-    
+
     const stateModal = page.getByTestId('state-modal');
-    
+
     // Check if state modal is visible for up to 6 seconds
     let isModalVisible = false;
     try {
@@ -362,7 +362,7 @@ const handleOptionalStateModal = async page => {
         console.log('⏭️ State modal not visible, continuing...');
         return;
     }
-    
+
     if (isModalVisible) {
 
         // Check if first state is already "US"
@@ -605,7 +605,7 @@ const completeIdVerification = async (page, shouldUpload = true) => {
     ).toBeVisible({ timeout: 20000 });
 
     // Start ID verification and wait for API response
-    const [ identityVerificationResponse ] = await Promise.all([
+    const [identityVerificationResponse] = await Promise.all([
         page.waitForResponse(
             resp => resp.url().includes('/identity-verifications')
                 && resp.request().method() === 'POST'
@@ -707,7 +707,7 @@ const connectBankOAuthFlow = async (applicantPage, context, options = {}) => {
     const continueBtn = mxIframe.locator('[data-test="continue-button"]');
 
     // Step 2: Handle OAuth authorization in new tab
-    const [ oauthPage ] = await Promise.all([
+    const [oauthPage] = await Promise.all([
         context.waitForEvent('page'),
         continueBtn.click()
     ]);
@@ -754,7 +754,7 @@ const connectBankOAuthFlow = async (applicantPage, context, options = {}) => {
             const mxIframe = applicantPage.frameLocator('iframe[src*="int-widgets.moneydesktop.com"]');
             const doneBtn = mxIframe.locator('[data-test="done-button"]');
             const sessionExpiredMsg = mxIframe.locator('text="Session expired"').or(mxIframe.locator('text*="session expired"'));
-            const [ doneBtnVisible, sessionExpiredVisible ] = await Promise.all([
+            const [doneBtnVisible, sessionExpiredVisible] = await Promise.all([
                 doneBtn.isVisible({ timeout: pollingInterval }).catch(() => false),
                 sessionExpiredMsg.isVisible({ timeout: pollingInterval }).catch(() => false)
             ]);
@@ -895,7 +895,7 @@ const updateStateModal = async (page, session) => {
             await page.locator(
                 '[aria-owns="listbox-state-modal-state-select"]'
             ),
-            [ 'FLORIDA' ]
+            ['FLORIDA']
         );
 
         await Promise.all([
@@ -918,7 +918,7 @@ const fillhouseholdForm = async (page, user) => {
     await step.locator('#last_name').fill(user.last_name);
     await step.locator('#email_address').fill(user.email);
 
-    const [ response ] = await Promise.all([
+    const [response] = await Promise.all([
         page.waitForResponse(
             resp => resp.url().includes('/applicants')
                 && resp.ok()
@@ -950,7 +950,7 @@ const selectApplicantType = async (applicantPage, sessionUrl, selectorKey = '#af
 
     await applicantPage.locator(selectorKey).click();
 
-    const [ sessionResp ] = await Promise.all([
+    const [sessionResp] = await Promise.all([
         applicantPage.waitForResponse(
             resp => resp.url().includes(sessionUrl)
                 && resp.ok()
@@ -995,8 +995,12 @@ const completePaystubConnection = async applicantPage => {
         .locator('[data-test-id="continue"]')
         .click({ timeout: 20000 });
 
-    await empIFrame.locator('[data-test-id="finish-button"]')
-        .click({ timeout: 100_000 });
+    try {
+        await empIFrame.locator('[data-test-id="finish-button"]')
+            .click({ timeout: 100_000 });
+    } catch (er) {
+        console.log('popup autoclosed')
+    }
 
     await applicantPage.waitForSelector('#atomic-transact-iframe', {
         state: 'detached',
@@ -1073,7 +1077,7 @@ const completePlaidFinancialStep = async applicantPage => {
         .locator('[aria-label="Bank of America"]')
         .click({ timeout: 20000 });
 
-    const [ popup ] = await Promise.all([
+    const [popup] = await Promise.all([
         applicantPage.waitForEvent('popup'),
         plaidFrame.locator('#aut-button').click({ timeout: 20000 })
     ]);

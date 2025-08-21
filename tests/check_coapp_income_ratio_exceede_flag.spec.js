@@ -29,12 +29,12 @@ const applicantStep = async applicantPage => {
 
     await fillhouseholdForm(applicantPage, coapplicant);
 
-    await applicantPage.getByTestId('applicant-invite-continue-btn').click({ timeout: 20_000 });
+    await applicantPage.getByTestId('applicant-invite-continue-btn').filter({ visible: true }).click({ timeout: 20_000 });
 };
 
 
 
-const completePlaidConnection = async (applicantPage, username = 'custom_gig') => {
+const completePlaidConnection = async (applicantPage, username = 'custom_gig', password = 'test') => {
     await applicantPage.getByTestId('financial-secondary-connect-btn').click({ timeout: 20_000 });
 
     const pFrame = await applicantPage.frameLocator('#plaid-link-iframe-1');
@@ -47,7 +47,7 @@ const completePlaidConnection = async (applicantPage, username = 'custom_gig') =
 
     await plaidFrame.locator('#aut-input-0-input').fill(username);
 
-    await plaidFrame.locator('#aut-input-1-input').fill('custom_gig');
+    await plaidFrame.locator('#aut-input-1-input').fill(password);
 
     await plaidFrame.locator('#aut-button').click({ timeout: 20_000 });
 
@@ -68,10 +68,10 @@ const checkDollarText = async (rentBudget, rentLocator) => {
 };
 
 test.describe('check_coapp_income_ratio_exceede_flag', () => {
-    test.skip('Should confirm co-applicant income is considered when generating/removing Gross Income Ratio Exceeded flag', { 
+    test('Should confirm co-applicant income is considered when generating/removing Gross Income Ratio Exceeded flag', { 
         tag: ['@smoke'],
     }, async ({ page, browser }) => {
-        test.setTimeout(360000);
+        test.setTimeout(380000);
         
         // Step 1: Admin Login and Navigate to Applications
         await loginForm.adminLoginAndNavigate(page, admin);
@@ -95,21 +95,23 @@ test.describe('check_coapp_income_ratio_exceede_flag', () => {
         
         let session;
         
-        page.on('response', async response => {
+        const responseSession = async response => {
             if (response.url().includes(`/sessions/${sessionId}?fields[session]`)
                     && response.ok()
                     && response.request().method() === 'GET') {
                 session = await waitForJsonResponse(response);
                 await page.waitForTimeout(1000);
             }
-        });
+        }
+
+        page.on('response', responseSession);
     
         // Step 6: Select Applicant Type on Page
         await selectApplicantType(applicantPage, sessionUrl, '#employed');
     
         await updateStateModal(applicantPage, 'ALABAMA');
     
-        await updateRentBudget(applicantPage, sessionId, '2100');
+        await updateRentBudget(applicantPage, sessionId, '2500');
     
         await applicantStep(applicantPage);
     
@@ -221,7 +223,7 @@ test.describe('check_coapp_income_ratio_exceede_flag', () => {
         await identityStep(coAppPage);
     
         // Complete Plaid Connection
-        await completePlaidConnection(coAppPage, 'custom_coffee');
+        await completePlaidConnection(coAppPage, 'user_bank_income', '{}');
     
         // Complete Paystub Connection
         await completePaystubConnection(coAppPage);
@@ -234,7 +236,7 @@ test.describe('check_coapp_income_ratio_exceede_flag', () => {
         ]);
     
         await coAppPage.close();
-    
+        page.off('response', responseSession);
         const [ sessionResponse1 ] = await Promise.all([
             page.waitForResponse(resp => resp.url().includes(`/sessions/${sessionId}?fields[session]`)
                 && resp.ok()
@@ -242,6 +244,7 @@ test.describe('check_coapp_income_ratio_exceede_flag', () => {
             page.reload()
         
         ]);
+        page.on('response', responseSession);
     
         await searchSessionWithText(page, sessionId);
     
@@ -270,6 +273,7 @@ test.describe('check_coapp_income_ratio_exceede_flag', () => {
         await expect(page.getByTestId('GROSS_INCOME_RATIO_EXCEEDED')).toHaveCount(0, { timeout: 20_000 });
     
         await page.getByTestId('close-event-history-modal').click({ timeout: 20_000 });
-            await page.waitForTimeout(2000);
+        page.off('response', responseSession);
+        await page.waitForTimeout(1000);
     });
 });
