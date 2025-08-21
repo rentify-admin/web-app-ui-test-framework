@@ -147,7 +147,7 @@ const waitForConnectionCompletion = async (page, options = {}) => {
  * @param {import('@playwright/test').Locator} customLocator - Optional custom locator to use instead of default connection-row
  * @returns {Boolean} true if completed, false if timeout
  */
-const waitForPlaidConnectionCompletion = async (page, maxIterations = 65, customLocator = null) => {
+const waitForPlaidConnectionCompletion = async (page, maxIterations = 100, customLocator = null) => {
     return await waitForConnectionCompletion(page, {
         maxIterations,
         customLocator,
@@ -996,8 +996,7 @@ const completePaystubConnection = async applicantPage => {
         .click({ timeout: 20000 });
 
     try {
-        await empIFrame.locator('[data-test-id="finish-button"]')
-            .click({ timeout: 100_000 });
+        await empIFrame.locator('[data-test-id="finish-button"]').click({ timeout: 100_000 });
     } catch (er) {
         console.log('popup autoclosed')
     }
@@ -1167,6 +1166,7 @@ const identityStep = async applicantPage => {
     await applicantPage.waitForTimeout(2000); //wait for the animation
     await personaIFrame.locator('#selfie-scanner__capture--manual:not(disabled)')
         .click({ timeout: 30_000 });
+        await applicantPage.waitForTimeout(2000);
     await personaIFrame.locator('#selfie-scanner__capture--manual:not(disabled)')
         .click({ timeout: 30_000 });
     await applicantPage.waitForTimeout(2000);
