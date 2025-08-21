@@ -43,7 +43,10 @@ const getRandomNumber = () => Math.floor(Math.random() * 100000);
  *
  * @returns string
  */
-const getRandomEmail = () => `playwright+${getRandomNumber()}@verifast.com`;
+const getRandomEmail = () => {
+    const timestamp = Date.now();
+    return `playwright-${timestamp}+${getRandomNumber()}@verifast.com`;
+}
 
 /**
  * Decode URL where '+' used instead of %20
