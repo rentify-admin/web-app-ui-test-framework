@@ -76,7 +76,7 @@ test('Check Application step skip works propertly', async ({ page, browser }) =>
     // await page.waitForTimeout(6_000)
 
     console.log('🚀 Filing state modal')
-    await updateStateModal(page, sessionId, sessionId, 'ALABAMA');
+    await updateStateModal(page, 'ALABAMA');
     console.log('✅ Done Filing state modal')
 
     console.log('🚀 Filing rent budget')
