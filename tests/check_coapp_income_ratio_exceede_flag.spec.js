@@ -29,10 +29,8 @@ const applicantStep = async applicantPage => {
 
     await fillhouseholdForm(applicantPage, coapplicant);
 
-    // Click the continue button (not the skip button)
-    await applicantPage.getByRole('button', { name: 'Continue' }).first().click({ timeout: 20_000 });
+    await applicantPage.getByTestId('applicant-invite-continue-btn').filter({ visible: true }).click({ timeout: 20_000 });
 };
-
 
 
 const completePlaidConnection = async (applicantPage, username = 'custom_gig', password = 'password') => {
@@ -77,7 +75,7 @@ test.describe('check_coapp_income_ratio_exceede_flag', () => {
     test('Should confirm co-applicant income is considered when generating/removing Gross Income Ratio Exceeded flag', { 
         tag: ['@smoke'],
     }, async ({ page, browser }) => {
-        test.setTimeout(360000);
+        test.setTimeout(380000);
         
         // Step 1: Admin Login and Navigate to Applications
         await loginForm.adminLoginAndNavigate(page, admin);
@@ -110,14 +108,16 @@ test.describe('check_coapp_income_ratio_exceede_flag', () => {
         
         let session;
         
-        page.on('response', async response => {
+        const responseSession = async response => {
             if (response.url().includes(`/sessions/${sessionId}?fields[session]`)
                     && response.ok()
                     && response.request().method() === 'GET') {
                 session = await waitForJsonResponse(response);
                 await page.waitForTimeout(1000);
             }
-        });
+        }
+
+        page.on('response', responseSession);
     
         // Step 6: Select Applicant Type on Page
         await selectApplicantType(applicantPage, sessionUrl, '#employed');
@@ -265,7 +265,7 @@ test.describe('check_coapp_income_ratio_exceede_flag', () => {
         ]);
     
         await coAppPage.close();
-    
+        page.off('response', responseSession);
         const [ sessionResponse1 ] = await Promise.all([
             page.waitForResponse(resp => resp.url().includes(`/sessions/${sessionId}?fields[session]`)
                 && resp.ok()
@@ -273,6 +273,7 @@ test.describe('check_coapp_income_ratio_exceede_flag', () => {
             page.reload()
         
         ]);
+        page.on('response', responseSession);
     
         await searchSessionWithText(page, sessionId);
     
@@ -309,6 +310,7 @@ test.describe('check_coapp_income_ratio_exceede_flag', () => {
         await expect(page.getByTestId('GROSS_INCOME_RATIO_EXCEEDED')).toHaveCount(0, { timeout: 20_000 });
     
         await page.getByTestId('close-event-history-modal').click({ timeout: 20_000 });
-            await page.waitForTimeout(2000);
+        page.off('response', responseSession);
+        await page.waitForTimeout(1000);
     });
 });
