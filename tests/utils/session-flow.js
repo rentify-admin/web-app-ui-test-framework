@@ -886,8 +886,15 @@ const createSessionForUser = async (
     return { sessionId, sessionUrl, link };
 };
 
-const updateStateModal = async (page, session) => {
-    const isStateVisible = await page.isVisible('[data-testid=state-modal]');
+const updateStateModal = async (page, state = 'FLORIDA') => {
+
+    let isStateVisible = false;
+    try{
+        await page.getByTestId('state-modal').waitFor({ state: 'visible', timeout: 5000 })
+        isStateVisible = true;
+    }catch(err){
+        isStateVisible = false;
+    }
 
     if (isStateVisible) {
         await fillMultiselect(
@@ -895,19 +902,15 @@ const updateStateModal = async (page, session) => {
             await page.locator(
                 '[aria-owns="listbox-state-modal-state-select"]'
             ),
-            [ 'FLORIDA' ]
+            [ state ]
         );
 
-        await Promise.all([
-            page.waitForSelector(
-                resp => resp
-                    .url()
-                    .includes(`/guests/${session?.applicant?.guest.id}`)
-                    && resp.ok()
-                    && resp.request().method() === 'PATCH'
-            ),
-            page.getByTestId('submit-state-modal').click()
-        ]);
+        await page.getByTestId('submit-state-modal').click();
+        await page.waitForSelector('[data-testid=state-modal]', {
+            state: 'detached',
+            timeout: 10_000
+        })
+
     }
 };
 

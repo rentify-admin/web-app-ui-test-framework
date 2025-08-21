@@ -178,7 +178,7 @@ test.describe('co_app_household_with_flag_errors', () => {
         await selectApplicantType(coAppPage, coAppSessionApiUrl);
 
         // Step 6: Select state in the state modal
-        await updateStateModal(coAppPage, coAppSession.data);
+        await updateStateModal(coAppPage);
 
         await coAppPage.waitForTimeout(1000);
 
