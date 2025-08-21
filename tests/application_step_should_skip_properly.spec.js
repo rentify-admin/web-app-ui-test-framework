@@ -1,10 +1,10 @@
 import { test, expect } from '@playwright/test';
 import { adminLoginAndNavigateToApplications } from '~/tests/utils/session-utils';
 import { admin } from '~/tests/test_config';
-import { findAndInviteApplication } from './utils/applications-page';
-import { getRandomEmail } from './utils/helper';
-import { completePaystubConnection, fillhouseholdForm, identityStep, updateRentBudget, updateStateModal } from './utils/session-flow';
-import generateSessionForm from './utils/generate-session-form';
+import { findAndInviteApplication } from '~/tests/utils/applications-page';
+import { getRandomEmail } from '~/tests/utils/helper';
+import { completePaystubConnection, fillhouseholdForm, identityStep, selectApplicantType, updateRentBudget, updateStateModal } from '~/tests/utils/session-flow';
+import generateSessionForm from '~/tests/utils/generate-session-form';
 
 
 
@@ -48,7 +48,7 @@ test('Check Application step skip works propertly', async ({ page, browser }) =>
         last_name: 'Skip Coapp'
     };
 
-    const appName = 'Skipping steps';
+    const appName = 'AutoTest Suite - Full Test';
 
     console.log('🚀 Login and go to application page')
     await adminLoginAndNavigateToApplications(page, admin);
@@ -59,7 +59,7 @@ test('Check Application step skip works propertly', async ({ page, browser }) =>
     console.log('✅ Done Find application and click invite')
 
     console.log('🚀 Invite Applicant')
-    const { sessionId, link } = await generateSessionForm.generateSessionAndExtractLink(page, user);
+    const { sessionId, sessionUrl, link } = await generateSessionForm.generateSessionAndExtractLink(page, user);
     console.log('✅ Done Invite Applicant')
 
     await page.getByTestId('user-dropdown-toggle-btn').click();
@@ -73,7 +73,9 @@ test('Check Application step skip works propertly', async ({ page, browser }) =>
     await page.goto(link);
     console.log('✅ Done Open invite URL')
 
-    // await page.waitForTimeout(6_000)
+    console.log('🚀 Seleting Applicant type employed')
+    await selectApplicantType(page, sessionUrl, '#employed');
+    console.log('✅ Selected Applicant type employed')
 
     console.log('🚀 Filing state modal')
     await updateStateModal(page, 'ALABAMA');
