@@ -1,5 +1,5 @@
 import { expect } from '@playwright/test';
-import { joinUrl } from '~/tests/utils/helper';
+import { customUrlDecode, joinUrl } from '~/tests/utils/helper';
 import { app } from '~/tests/test_config';
 import { waitForJsonResponse } from '~/tests/utils/wait-response';
 import generateSessionForm from '~/tests/utils/generate-session-form';
@@ -73,11 +73,14 @@ const gotoApplicationsPage = async page => {
 
 const searchApplication = async (page, search) => {
     const searchInput = await page.getByTestId('application-search');
-    const appUrlRegex = new RegExp(`${applicationUrl}.+${search}.+`, 'i');
+
+    const searchText = search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+    const appUrlRegex = new RegExp(`${applicationUrl}.+${searchText}.+`, 'i');
 
     return waitForApplicationsResponse(
         page,
-        resp => appUrlRegex.test(decodeURI(resp.url().replaceAll('+', ' '))),
+        resp => appUrlRegex.test(customUrlDecode(resp.url().replaceAll('+', ' '))),
         () => searchInput.fill(search)
     );
 };
