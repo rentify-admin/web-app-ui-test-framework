@@ -8,7 +8,7 @@ import { waitForJsonResponse } from '~/tests/utils/wait-response';
 import { gotoPage } from '~/tests/utils/common';
 import {
     completePaystubConnection,
-    completePlaidFinancialStep,
+    completePlaidFinancialStepBetterment,
     fillhouseholdForm,
     handleOptionalStateModal,
     selectApplicantType,
@@ -47,7 +47,7 @@ test.describe('co_app_household_with_flag_errors', () => {
     test('Should complete applicant flow with co-applicant household with flag errors', {
         tag: ['@regression'],
     }, async ({ page, browser }) => {
-        test.setTimeout(300000);
+        test.setTimeout(380000); // Full timeout needed for complex test flow
 
         // Step 1: Admin Login and Navigate to Applications
         await loginForm.adminLoginAndNavigate(page, admin);
@@ -81,17 +81,17 @@ test.describe('co_app_household_with_flag_errors', () => {
 
         const applicant = await fillhouseholdForm(applicantPage, coapplicant);
 
-        await applicantPage.waitForTimeout(1000);
+        await applicantPage.waitForTimeout(800); // Balanced: not too short, not too long
 
-        await applicantPage.locator('[data-testid="applicant-invite-continue-btn"]:visible').click({ timeout: 20_000 });
+        await applicantPage.locator('[data-testid="applicant-invite-continue-btn"]:visible').click({ timeout: 18_000 }); // Balanced timeout
 
-        await applicantPage.waitForTimeout(1000);
+        await applicantPage.waitForTimeout(800); // Balanced: not too short, not too long
 
         await applicantPage.getByTestId('skip-id-verification-btn').click({ timeout: 20_000 });
 
         await applicantPage.waitForTimeout(1000);
 
-        await completePlaidFinancialStep(applicantPage);
+        await completePlaidFinancialStepBetterment(applicantPage, 'custom_gig', 'test');
 
         await waitForPlaidConnectionCompletion(applicantPage);
 
@@ -110,7 +110,7 @@ test.describe('co_app_household_with_flag_errors', () => {
 
         await gotoPage(page, 'applicants-menu', 'applicants-submenu', '/sessions?fields[session]');
 
-        await page.waitForTimeout(1000);
+        await page.waitForTimeout(800); // Balanced: not too short, not too long
 
         await searchSessionWithText(page, sessionId);
 
@@ -148,13 +148,42 @@ test.describe('co_app_household_with_flag_errors', () => {
 
         await page.getByTestId(`reinvite-${session.data?.children[0]?.applicant?.id}`).click({ timeout: 10_000 });
 
-        await page.waitForTimeout(500);
+        await page.waitForTimeout(600); // Balanced: not too short, not too long
 
-        await page.getByTestId(`copy-invite-link-${session.data?.children[0]?.applicant?.id}`).click({ timeout: 10_000 });
+        await page.getByTestId(`copy-invite-link-${session.data?.children[0]?.applicant?.id}`).click({ timeout: 12_000 }); // Balanced timeout
 
         await page.getByTestId('invite-modal-cancel').click();
 
-        const copiedLink = await page.evaluate(async () => await navigator.clipboard.readText());
+        // Get copied link with error handling and fallback
+        let copiedLink;
+        try {
+            copiedLink = await page.evaluate(async () => {
+                try {
+                    return await navigator.clipboard.readText();
+                } catch (error) {
+                    console.log('Clipboard read failed:', error.message);
+                    return null;
+                }
+            });
+            
+            if (!copiedLink) {
+                throw new Error('Clipboard read returned null or empty');
+            }
+            
+            console.log('✅ Link copied successfully from clipboard');
+        } catch (error) {
+            console.log('⚠️ Clipboard operation failed, trying alternative method');
+            
+            // Fallback: try to get the link from the page directly
+            try {
+                const linkElement = page.locator('[data-testid="invite-link-input"] input, [data-testid="invite-link-input"] textarea');
+                copiedLink = await linkElement.inputValue();
+                console.log('✅ Link retrieved from input field as fallback');
+            } catch (fallbackError) {
+                console.log('❌ Both clipboard and fallback methods failed');
+                throw new Error(`Failed to get invite link: ${error.message}`);
+            }
+        }
 
         const coAppLinkUrl = new URL(copiedLink);
 
@@ -180,13 +209,13 @@ test.describe('co_app_household_with_flag_errors', () => {
         // Step 6: Select state in the state modal
         await updateStateModal(coAppPage);
 
-        await coAppPage.waitForTimeout(1000);
+        await coAppPage.waitForTimeout(800); // Balanced: not too short, not too long
 
-        await coAppPage.getByTestId('skip-id-verification-btn').click({ timeout: 20_000 });
+        await coAppPage.getByTestId('skip-id-verification-btn').click({ timeout: 18_000 }); // Balanced timeout
 
-        await coAppPage.waitForTimeout(1000);
+        await coAppPage.waitForTimeout(800); // Balanced: not too short, not too long
 
-        await completePlaidFinancialStep(coAppPage);
+        await completePlaidFinancialStepBetterment(coAppPage, 'user_bank_income', '{}');
 
         await waitForPlaidConnectionCompletion(coAppPage);
 

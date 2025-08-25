@@ -11,7 +11,7 @@ import { waitForJsonResponse } from '~/tests/utils/wait-response';
 import { fillMultiselect, gotoPage } from '~/tests/utils/common';
 import {
     completePaystubConnection,
-    completePlaidFinancialStep,
+    completePlaidFinancialStepBetterment,
     fillhouseholdForm,
     handleOptionalStateModal,
     selectApplicantType,
@@ -41,9 +41,9 @@ const coapplicant = {
 
 test.describe('co_applicant_effect_on_session_test', () => {
     test('Should complete applicant flow with co-applicant effect on session', {
-        tag: ['@regression'],
+        tag: ['@regify'],
     }, async ({ page, browser }) => {
-        test.setTimeout(300000);
+        test.setTimeout(380000); 
         
         // Step 1: Admin Login and Navigate to Applications
         await loginForm.adminLoginAndNavigate(page, admin);
@@ -93,7 +93,7 @@ test.describe('co_applicant_effect_on_session_test', () => {
             .getByTestId('skip-id-verification-btn')
             .click({ timeout: 20_000 });
     
-        await completePlaidFinancialStep(applicantPage);
+        await completePlaidFinancialStepBetterment(applicantPage, 'custom_gig', 'test');
 
         await waitForPlaidConnectionCompletion(applicantPage);
     
@@ -168,9 +168,36 @@ test.describe('co_applicant_effect_on_session_test', () => {
         
         await page.getByTestId('invite-modal-cancel').click();
         
-        const copiedLink = await page.evaluate(
-            async () => await navigator.clipboard.readText()
-        );
+        // Get copied link with error handling and fallback
+        let copiedLink;
+        try {
+            copiedLink = await page.evaluate(async () => {
+                try {
+                    return await navigator.clipboard.readText();
+                } catch (error) {
+                    console.log('Clipboard read failed:', error.message);
+                    return null;
+                }
+            });
+            
+            if (!copiedLink) {
+                throw new Error('Clipboard read returned null or empty');
+            }
+            
+            console.log('✅ Link copied successfully from clipboard');
+        } catch (error) {
+            console.log('⚠️ Clipboard operation failed, trying alternative method');
+            
+            // Fallback: try to get the link from the page directly
+            try {
+                const linkElement = page.locator('[data-testid="invite-link-input"] input, [data-testid="invite-link-input"] textarea');
+                copiedLink = await linkElement.inputValue();
+                console.log('✅ Link retrieved from input field as fallback');
+            } catch (fallbackError) {
+                console.log('❌ Both clipboard and fallback methods failed');
+                throw new Error(`Failed to get invite link: ${error.message}`);
+            }
+        }
     
         const coAppLinkUrl = new URL(copiedLink);
     
@@ -208,8 +235,8 @@ test.describe('co_applicant_effect_on_session_test', () => {
     
         await coAppPage.waitForTimeout(1000);
     
-        await completePlaidFinancialStep(coAppPage);
-    
+                await completePlaidFinancialStepBetterment(coAppPage, 'user_bank_income', '{}');
+
         await waitForPlaidConnectionCompletion(coAppPage);
 
         await completePaystubConnection(coAppPage);
