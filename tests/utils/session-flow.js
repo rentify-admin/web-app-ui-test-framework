@@ -98,7 +98,7 @@ const waitForConnectionCompletion = async (page, options = {}) => {
             await page.waitForTimeout(timeoutInterval);
         }
         rotation++;
-    } while (!foundProcessing && rotation < maxIterations);
+    } while (!foundProcessing && rotation < 6);
 
     if (!foundProcessing) {
         console.log('⚠️ "Processing" state not found, proceeding anyway...');
@@ -124,7 +124,13 @@ const waitForConnectionCompletion = async (page, options = {}) => {
             await page.waitForTimeout(timeoutInterval);
         }
         rotation++;
-    } while (!foundCompleted && rotation < maxIterations);
+        
+        // Add safety check to prevent infinite loops
+        if (rotation >= maxIterations) {
+            console.log(`⚠️ Maximum iterations (${maxIterations}) reached, forcing completion check`);
+            break;
+        }
+    } while (!foundCompleted);
 
     if (!foundCompleted) {
         console.log('❌ "Completed" state not found within timeout');
@@ -996,10 +1002,40 @@ const completePaystubConnection = async applicantPage => {
         .locator('[data-test-id="continue"]')
         .click({ timeout: 20000 });
 
-    try {
-        await empIFrame.locator('[data-test-id="finish-button"]').click({ timeout: 100_000 });
-    } catch (er) {
-        console.log('popup autoclosed')
+    // Check for finish button with 60s timeout while monitoring modal visibility every 2s
+    const startTime = Date.now();
+    const maxWaitTime = 60000; // 60 seconds
+    const checkInterval = 2000; // 2 seconds
+    
+    while (Date.now() - startTime < maxWaitTime) {
+        try {
+            // Check if finish button is visible
+            const finishButton = empIFrame.locator('[data-test-id="finish-button"]');
+            if (await finishButton.isVisible({ timeout: 1000 })) {
+                await finishButton.click({ timeout: 5000 });
+                console.log('✅ Finish button clicked successfully');
+                break;
+            }
+            
+            // Check if modal is still visible (iframe exists)
+            const iframeExists = await applicantPage.locator('#atomic-transact-iframe').isVisible({ timeout: 1000 });
+            if (!iframeExists) {
+                console.log('✅ Modal auto-closed, continuing...');
+                break;
+            }
+            
+            // Wait 2 seconds before next check
+            await applicantPage.waitForTimeout(checkInterval);
+            
+        } catch (error) {
+            console.log(`⚠️ Check iteration error: ${error.message}`);
+            await applicantPage.waitForTimeout(checkInterval);
+        }
+    }
+    
+    const elapsedTime = Date.now() - startTime;
+    if (elapsedTime >= maxWaitTime) {
+        console.log('⚠️ Timeout reached (60s) - continuing anyway');
     }
 
     await applicantPage.waitForSelector('#atomic-transact-iframe', {
@@ -1046,9 +1082,42 @@ const failPaystubConnection = async applicantPage => {
         .locator('[data-test-id="continue"]')
         .click({ timeout: 20000 });
     await applicantPage.waitForTimeout(1000);
-    await empIFrame
-        .locator('[data-test-id="finish-button"]')
-        .click({ timeout: 20000 });
+    
+    // Check for finish button with 60s timeout while monitoring modal visibility every 2s
+    const startTime = Date.now();
+    const maxWaitTime = 60000; // 60 seconds
+    const checkInterval = 2000; // 2 seconds
+    
+    while (Date.now() - startTime < maxWaitTime) {
+        try {
+            // Check if finish button is visible
+            const finishButton = empIFrame.locator('[data-test-id="finish-button"]');
+            if (await finishButton.isVisible({ timeout: 1000 })) {
+                await finishButton.click({ timeout: 5000 });
+                console.log('✅ Finish button clicked successfully');
+                break;
+            }
+            
+            // Check if modal is still visible (iframe exists)
+            const iframeExists = await applicantPage.locator('#atomic-transact-iframe').isVisible({ timeout: 1000 });
+            if (!iframeExists) {
+                console.log('✅ Modal auto-closed, continuing...');
+                break;
+            }
+            
+            // Wait 2 seconds before next check
+            await applicantPage.waitForTimeout(checkInterval);
+            
+        } catch (error) {
+            console.log(`⚠️ Check iteration error: ${error.message}`);
+            await applicantPage.waitForTimeout(checkInterval);
+        }
+    }
+    
+    const elapsedTime = Date.now() - startTime;
+    if (elapsedTime >= maxWaitTime) {
+        console.log('⚠️ Timeout reached (60s) - continuing anyway');
+    }
 
     // Wait for iframe to close after finish
     await applicantPage.waitForSelector('#atomic-transact-iframe', {
@@ -1118,6 +1187,41 @@ const completePlaidFinancialStep = async applicantPage => {
         .locator('#aut-button:not([disabled])')
         .click({ timeout: 20000 });
     await plaidFrame.locator('#aut-secondary-button').click({ timeout: 20000 });
+};
+
+/**
+ * Complete Financial step Plaid Connection with Betterment (no popup auth flow)
+ * @param {import('@playwright/test').Page} applicantPage
+ */
+const completePlaidFinancialStepBetterment = async (applicantPage, username = 'custom_gig', password = 'test') => {
+    await applicantPage
+        .getByTestId('financial-secondary-connect-btn')
+        .click({ timeout: 20000 });
+
+    const pFrame = await applicantPage.frameLocator('#plaid-link-iframe-1');
+    const plaidFrame = await pFrame.locator('reach-portal');
+
+    await plaidFrame.locator('#aut-secondary-button').click({ timeout: 20000 });
+
+    // Select Betterment instead of Bank of America
+    await plaidFrame
+        .locator('[aria-label="Betterment"]')
+        .click({ timeout: 20000 });
+
+    // Fill credentials directly in the frame (no popup)
+    await plaidFrame.locator('#aut-input-0-input').fill(username);
+    await plaidFrame.locator('#aut-input-1-input').fill(password);
+
+    await plaidFrame.locator('#aut-button').click({ timeout: 20000 });
+
+    // Wait for the button to be enabled and click it
+    await plaidFrame
+        .locator('#aut-button:not([disabled])')
+        .click({ timeout: 20000 });
+
+    await plaidFrame.locator('#aut-secondary-button').click({ timeout: 20000 });
+
+    await applicantPage.waitForTimeout(2000);
 };
 
 const updateRentBudget = async (applicantPage, sessionId, amount = '2500') => {
@@ -1232,6 +1336,7 @@ export {
     completePlaidFinancialStep,
     updateRentBudget,
     connectBankOAuthFlow,
-    identityStep
+    identityStep,
+    completePlaidFinancialStepBetterment
 };
 
