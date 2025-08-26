@@ -33,7 +33,7 @@ const coapplicant = {
 };
 
 const updateRentBudget = async (applicantPage, sessionId) => {
-    await applicantPage.locator('input#rent_budget').fill('500');
+    await applicantPage.locator('input#rent_budget').fill('2200');
 
     await Promise.all([
         applicantPage.waitForResponse(resp => resp.url() === joinUrl(app.urls.api, `sessions/${sessionId}`)
@@ -215,7 +215,7 @@ test.describe('co_app_household_with_flag_errors', () => {
 
         await coAppPage.waitForTimeout(800); // Balanced: not too short, not too long
 
-        await completePlaidFinancialStepBetterment(coAppPage, 'user_bank_income', '{}');
+        await completePlaidFinancialStepBetterment(coAppPage, 'custom_noincome', 'password');
 
         await waitForPlaidConnectionCompletion(coAppPage);
 
@@ -232,15 +232,20 @@ test.describe('co_app_household_with_flag_errors', () => {
 
         await coAppPage.close();
 
+        // Reload the page and wait for it to load
+        await page.reload();
+        await page.waitForLoadState('networkidle');
+
+        // Search for the session after reload
+        await searchSessionWithText(page, sessionId);
+
+        // Wait for the session data to load after search
         const [sessionResponse1] = await Promise.all([
             page.waitForResponse(resp => resp.url().includes(`/sessions/${sessionId}?fields[session]`)
                 && resp.ok()
                 && resp.request().method() === 'GET'),
-            page.reload()
-
+            page.locator('.application-card').first().click()
         ]);
-
-        await searchSessionWithText(page, sessionId);
 
         const newSession = await waitForJsonResponse(sessionResponse1);
         await expect(newSession.data?.approval_status).toBe('AWAITING_REVIEW');
