@@ -1233,7 +1233,7 @@ const updateRentBudget = async (applicantPage, sessionId, amount = '2500') => {
                 && resp.request().method() === 'PATCH'
                 && resp.ok()
         ),
-        applicantPage.locator('button[type="submit"]').click()
+        applicantPage.getByTestId('rent-budget-step-continue').click()
     ]);
 };
 
