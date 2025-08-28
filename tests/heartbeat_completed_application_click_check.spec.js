@@ -75,9 +75,7 @@ test.describe('heartbeat_completed_application_click_check', () => {
 
         await expect(newPage.getByTestId('identify-step')).toBeVisible({ timeout: 10_000 })
 
-        await expect(newPage.locator('[data-testid^="identity-status-"]').filter({
-            visible: true
-        })).toBeVisible({timeout:10_000});
+        await expect(newPage.getByTestId('identify-step').getByText('Completed').first()).toBeVisible({timeout:10_000});
 
         console.log('✅ On Id verification page')
 
