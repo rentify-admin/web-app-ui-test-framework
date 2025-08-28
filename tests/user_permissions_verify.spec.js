@@ -25,9 +25,9 @@ import {
 } from './utils/section-checks';
 import { ApiDataManager } from './utils/api-data-manager';
 
-// Create local user object to avoid sharing with other tests
-let createdTestUser = null;
-let dataManagerInstance = null;
+// Global state management for test isolation
+let globalTestUser = null;
+let globalDataManager = null;
 
 test.beforeEach(async ({ page }) => {
     await page.goto('/');
@@ -35,12 +35,15 @@ test.beforeEach(async ({ page }) => {
 
 const sessionId = '01971d54-6284-70c4-8180-4eee1abd955a';
 
-test.describe('user_permissions_verify', tester => {
-    test.describe.configure({ mode: 'default', timeout: 180000 }); 
+test.describe('user_permissions_verify', () => {
+    test.describe.configure({ 
+        mode: 'serial', // Ensure tests run in order
+        timeout: 180000 
+    }); 
 
     test('Should allow admin to create user via API', { tag: [ '@regression' ] }, async ({ page, dataManager }) => {
-        // Store the dataManager instance for afterAll cleanup
-        dataManagerInstance = dataManager;
+        // Store global references for other tests
+        globalDataManager = dataManager;
         
         // First authenticate with admin user to get API access
         const isAuthenticated = await dataManager.authenticate(admin.email, admin.password);
@@ -57,7 +60,6 @@ test.describe('user_permissions_verify', tester => {
             password: 'Playwright@123',
             password_confirmation: 'Playwright@123',
             role: '0196f6c9-da5e-7074-9e6e-c35ac8f1818e' // Centralized Leasing role UUID
-            // Use default organization UUID from ApiDataManager
         });
 
         // Create the user via API
@@ -73,8 +75,8 @@ test.describe('user_permissions_verify', tester => {
         expect(createdUser.id).toBeDefined();
         expect(createdUser.email).toBe(testUserData.email);
 
-        // Store the created user data for other tests
-        createdTestUser = { 
+        // Store the created user data globally for other tests
+        globalTestUser = { 
             ...testUserData, 
             id: createdUser.id 
         };
@@ -83,14 +85,14 @@ test.describe('user_permissions_verify', tester => {
     });
 
     test('Should allow user to edit the application', { tag: [ '@regression' ] }, async ({ page, dataManager }) => {
-        // Use the user created in the first test
-        if (!createdTestUser) {
+        // Use the globally created user
+        if (!globalTestUser) {
             throw new Error('Test user must be created in the first test before running this test');
         }
 
-        // Transfer created entities to current test's dataManager for cleanup
-        if (dataManagerInstance && dataManagerInstance.getCreated().users.length > 0) {
-            const createdEntities = dataManagerInstance.getCreated();
+        // Transfer global data to current test's dataManager for cleanup
+        if (globalDataManager && globalDataManager.getCreated().users.length > 0) {
+            const createdEntities = globalDataManager.getCreated();
             dataManager.created = { ...createdEntities };
             
             // Also authenticate this dataManager for cleanup
@@ -98,18 +100,18 @@ test.describe('user_permissions_verify', tester => {
             if (!isAuthenticated) {
                 console.warn('⚠️ Could not authenticate current dataManager for cleanup');
             }
-            dataManagerInstance = dataManager; // Update for subsequent tests/cleanup
+            globalDataManager = dataManager; // Update global reference
         }
 
         // Step:1 Login with newly created user and wait for sessions to load
-        console.log(`🚀 ~ Login with newly created user: ${createdTestUser.email}`);
+        console.log(`🚀 ~ Login with newly created user: ${globalTestUser.email}`);
         await Promise.all([
             page.waitForResponse(
                 resp => resp.url().includes('/sessions?fields[session]=')
                     && resp.request().method() === 'GET'
                     && resp.ok()
             ),
-            loginWith(page, createdTestUser)
+            loginWith(page, globalTestUser)
         ]);
 
         // Step:2 Check on application menu visible
@@ -183,16 +185,17 @@ test.describe('user_permissions_verify', tester => {
         context,
         dataManager
     }) => {
-        let errorMessage = null;
+        let testFailed = false;
+        
         try {
-            // Use the user created in the first test
-            if (!createdTestUser) {
+            // Use the globally created user
+            if (!globalTestUser) {
                 throw new Error('Test user must be created in the first test before running this test');
             }
 
-            // Transfer created entities to current test's dataManager for cleanup
-            if (dataManagerInstance && dataManagerInstance.getCreated().users.length > 0) {
-                const createdEntities = dataManagerInstance.getCreated();
+            // Transfer global data to current test's dataManager for cleanup
+            if (globalDataManager && globalDataManager.getCreated().users.length > 0) {
+                const createdEntities = globalDataManager.getCreated();
                 dataManager.created = { ...createdEntities };
                 
                 // Also authenticate this dataManager for cleanup
@@ -200,7 +203,7 @@ test.describe('user_permissions_verify', tester => {
                 if (!isAuthenticated) {
                     console.warn('⚠️ Could not authenticate current dataManager for cleanup');
                 }
-                dataManagerInstance = dataManager; // Update for subsequent tests/cleanup
+                globalDataManager = dataManager; // Update global reference
             }
 
             const [ sessionsResponse ] = await Promise.all([
@@ -209,7 +212,7 @@ test.describe('user_permissions_verify', tester => {
                         && resp.request().method() === 'GET'
                         && resp.ok()
                 ),
-                loginWith(page, createdTestUser)
+                loginWith(page, globalTestUser)
             ]);
 
             expect(page.getByTestId('applicants-menu')).toBeVisible();
@@ -304,26 +307,28 @@ test.describe('user_permissions_verify', tester => {
 
             // ! Financial section should load properly
             await checkFinancialSectionData(session, page, sessionLocator);
+            
+            console.log('✅ All permission checks passed successfully');
+            
         } catch (error) {
             console.error('❌ Error in test:', error.message);
-            errorMessage = error.message;
-        }
-
-        // Cleanup: ALWAYS delete the test user, even if test fails
-        // Use the CURRENT test's dataManager (with valid request context) for cleanup
-        if (dataManager && dataManager.getCreated().users.length > 0) {
-            console.log('🧹 Cleaning up test user after test logic...');
-            console.log('🔍 User to cleanup:', createdTestUser?.email);
-            try {
-                await dataManager.cleanupAll();
-                console.log('🧹 Test user cleanup completed successfully');
-            } catch (cleanupError) {
-                console.error('❌ Cleanup failed but continuing:', cleanupError.message);
+            testFailed = true;
+            throw error; // Re-throw immediately to fail the test
+        } finally {
+            // Only cleanup if test PASSED (not on failure)
+            if (!testFailed && dataManager && dataManager.getCreated().users.length > 0) {
+                console.log('🧹 Test passed - cleaning up test user');
+                console.log('🔍 User to cleanup:', globalTestUser?.email);
+                try {
+                    await dataManager.cleanupAll();
+                    console.log('🧹 Test user cleanup completed successfully');
+                } catch (cleanupError) {
+                    console.error('❌ Cleanup failed but continuing:', cleanupError.message);
+                }
+            } else if (testFailed) {
+                console.log('⚠️ Test failed - keeping user for debugging');
+                console.log('🔍 User email for debugging:', globalTestUser?.email);
             }
-        }
-
-        if (errorMessage) {
-            throw new Error(errorMessage);
         }
     });
 });

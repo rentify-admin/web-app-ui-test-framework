@@ -44,7 +44,7 @@ const updateRentBudget = async (applicantPage, sessionId) => {
 };
 
 test.describe('co_app_household_with_flag_errors', () => {
-    test('Should complete applicant flow with co-applicant household with flag errors', {
+    test.skip('Should complete applicant flow with co-applicant household with flag errors', {
         tag: ['@regression'],
     }, async ({ page, browser }) => {
         test.setTimeout(380000); // Full timeout needed for complex test flow

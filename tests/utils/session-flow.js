@@ -1341,7 +1341,7 @@ const waitForButtonOrAutoAdvance = async (
         
         try {
             // Check 1: Is the continue button visible and enabled?
-            const continueButton = page.getByTestId(buttonTestId);
+            const continueButton = page.getByTestId(buttonTestId).first(); // Use .first() to avoid strict mode violation
             const isButtonVisible = await continueButton.isVisible({ timeout: 1000 });
             
             if (isButtonVisible) {
@@ -1359,7 +1359,29 @@ const waitForButtonOrAutoAdvance = async (
                 }
             }
             
-            // Check 2: Has the system automatically advanced to the next step?
+            // Check 2: Alternative button detection - look for role='button' with name='Continue'
+            try {
+                const continueButtonByRole = page.getByRole('button', { name: 'Continue' }).first(); // Use .first() to avoid strict mode violation
+                const isRoleButtonVisible = await continueButtonByRole.isVisible({ timeout: 1000 });
+                
+                if (isRoleButtonVisible) {
+                    const isRoleButtonEnabled = await continueButtonByRole.isEnabled();
+                    
+                    if (isRoleButtonEnabled) {
+                        console.log(`✅ ${stepName} continue button (by role) is visible and enabled, clicking it...`);
+                        await continueButtonByRole.click();
+                        buttonClicked = true;
+                        console.log(`✅ ${stepName} continue button (by role) clicked successfully`);
+                        break;
+                    } else {
+                        console.log(`⏳ ${stepName} continue button (by role) visible but still disabled, waiting...`);
+                    }
+                }
+            } catch (err) {
+                // Role button not visible yet, continue checking
+            }
+            
+            // Check 3: Has the system automatically advanced to the next step?
             try {
                 const nextStepElement = page.getByTestId(nextStepTestId);
                 const isNextStepVisible = await nextStepElement.isVisible({ timeout: 1000 });
