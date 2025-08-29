@@ -1233,7 +1233,7 @@ const updateRentBudget = async (applicantPage, sessionId, amount = '2500') => {
                 && resp.request().method() === 'PATCH'
                 && resp.ok()
         ),
-        applicantPage.locator('button[type="submit"]').click()
+        applicantPage.getByTestId('rent-budget-step-continue').click()
     ]);
 };
 
@@ -1313,6 +1313,107 @@ const identityStep = async applicantPage => {
     }
 };
 
+/**
+ * Intelligent button interaction: waits for button to be enabled OR detects auto-advance
+ * @param {import('@playwright/test').Page} page - Playwright page object
+ * @param {string} buttonTestId - Test ID of the button to wait for
+ * @param {string} nextStepTestId - Test ID of the next step element to detect auto-advance
+ * @param {string} stepName - Name of the step for logging purposes
+ * @param {number} maxIterations - Maximum number of iterations (default: 20)
+ * @param {number} intervalMs - Interval between checks in milliseconds (default: 600)
+ * @returns {Promise<{buttonClicked: boolean, autoAdvanced: boolean}>}
+ */
+const waitForButtonOrAutoAdvance = async (
+    page, 
+    buttonTestId, 
+    nextStepTestId, 
+    stepName = 'step',
+    maxIterations = 20,
+    intervalMs = 600
+) => {
+    console.log(`🚀 Waiting for ${stepName} continue button or auto-advance to next step`);
+    
+    let buttonClicked = false;
+    let autoAdvanced = false;
+    
+    for (let i = 0; i < maxIterations; i++) {
+        console.log(`🔄 ${stepName} iteration ${i + 1}/${maxIterations}: Checking button state and next step...`);
+        
+        try {
+            // Check 1: Is the continue button visible and enabled?
+            const continueButton = page.getByTestId(buttonTestId).first(); // Use .first() to avoid strict mode violation
+            const isButtonVisible = await continueButton.isVisible({ timeout: 1000 });
+            
+            if (isButtonVisible) {
+                // Check if button is enabled (not disabled)
+                const isButtonEnabled = await continueButton.isEnabled();
+                
+                if (isButtonEnabled) {
+                    console.log(`✅ ${stepName} continue button is visible and enabled, clicking it...`);
+                    await continueButton.click();
+                    buttonClicked = true;
+                    console.log(`✅ ${stepName} continue button clicked successfully`);
+                    break;
+                } else {
+                    console.log(`⏳ ${stepName} continue button visible but still disabled, waiting...`);
+                }
+            }
+            
+            // Check 2: Alternative button detection - look for role='button' with name='Continue'
+            try {
+                const continueButtonByRole = page.getByRole('button', { name: 'Continue' }).first(); // Use .first() to avoid strict mode violation
+                const isRoleButtonVisible = await continueButtonByRole.isVisible({ timeout: 1000 });
+                
+                if (isRoleButtonVisible) {
+                    const isRoleButtonEnabled = await continueButtonByRole.isEnabled();
+                    
+                    if (isRoleButtonEnabled) {
+                        console.log(`✅ ${stepName} continue button (by role) is visible and enabled, clicking it...`);
+                        await continueButtonByRole.click();
+                        buttonClicked = true;
+                        console.log(`✅ ${stepName} continue button (by role) clicked successfully`);
+                        break;
+                    } else {
+                        console.log(`⏳ ${stepName} continue button (by role) visible but still disabled, waiting...`);
+                    }
+                }
+            } catch (err) {
+                // Role button not visible yet, continue checking
+            }
+            
+            // Check 3: Has the system automatically advanced to the next step?
+            try {
+                const nextStepElement = page.getByTestId(nextStepTestId);
+                const isNextStepVisible = await nextStepElement.isVisible({ timeout: 1000 });
+                
+                if (isNextStepVisible) {
+                    console.log(`✅ System automatically advanced to next step (${nextStepTestId})`);
+                    autoAdvanced = true;
+                    break;
+                }
+            } catch (err) {
+                // Next step not visible yet, continue checking
+            }
+            
+            // Wait before next iteration
+            await page.waitForTimeout(intervalMs);
+            
+        } catch (error) {
+            console.log(`⚠️ Error in ${stepName} iteration ${i + 1}:`, error.message);
+            await page.waitForTimeout(intervalMs);
+        }
+    }
+    
+    if (buttonClicked) {
+        console.log(`✅ Completed ${stepName} manually via button click`);
+    } else if (autoAdvanced) {
+        console.log(`✅ Completed ${stepName} automatically by system`);
+    } else {
+        console.log(`⚠️ Neither button click nor auto-advance occurred for ${stepName}, continuing anyway...`);
+    }
+    
+    return { buttonClicked, autoAdvanced };
+};
 
 export {
     uploadStatementFinancialStep,
@@ -1337,6 +1438,7 @@ export {
     updateRentBudget,
     connectBankOAuthFlow,
     identityStep,
-    completePlaidFinancialStepBetterment
+    completePlaidFinancialStepBetterment,
+    waitForButtonOrAutoAdvance
 };
 

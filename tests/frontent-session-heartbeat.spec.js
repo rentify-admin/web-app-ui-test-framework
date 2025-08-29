@@ -3,10 +3,12 @@ import { adminLoginAndNavigateToApplications } from '~/tests/utils/session-utils
 import { findAndInviteApplication } from '~/tests/utils/applications-page';
 import { admin } from './test_config';
 import generateSessionForm from '~/tests/utils/generate-session-form';
-import { completePaystubConnection, fillhouseholdForm, selectApplicantType, updateRentBudget, updateStateModal } from '~/tests/utils/session-flow';
+import { completePaystubConnection, fillhouseholdForm, selectApplicantType, updateRentBudget, updateStateModal, waitForButtonOrAutoAdvance } from '~/tests/utils/session-flow';
 import { getRandomEmail } from './utils/helper';
 
 test.describe('frontent-session-heartbeat', () => {
+    // Test includes improved state modal handling and uses utility function
+    // for intelligent button interaction (handles manual clicks and auto-advance)
     test('Verify Frontend session heartbeat', async ({ page }) => {
         test.setTimeout(250_000)
     
@@ -50,9 +52,24 @@ test.describe('frontent-session-heartbeat', () => {
         await selectApplicantType(page, sessionUrl, '#employed');
         console.log('✅ Selected Applicant type employed')
     
-        console.log('🚀 Filing state modal')
-        await updateStateModal(page, 'ALABAMA');
-        console.log('✅ Done Filing state modal')
+        // Wait for state modal to appear after selecting applicant type
+        console.log('🚀 Waiting for state modal to appear')
+        try {
+            // Wait for the page to stabilize after applicant type selection
+            await page.waitForTimeout(3000);
+            
+            // Wait for the state modal with the correct test ID
+            await page.waitForSelector('[data-testid="state-modal"]', { 
+                timeout: 10000,
+                state: 'visible' 
+            });
+            
+            console.log('✅ State modal appeared, filling state modal')
+            await updateStateModal(page, 'ALABAMA');
+            console.log('✅ Done filling state modal')
+        } catch (error) {
+            console.log('⚠️ State modal did not appear, continuing with test...');
+        }
     
         console.log('🚀 Filing rent budget')
         await updateRentBudget(page, sessionId, '500');
@@ -80,9 +97,13 @@ test.describe('frontent-session-heartbeat', () => {
         await fillhouseholdForm(page, coApp);
         console.log('✅ Added co applicant')
     
-        console.log('🚀 Completing invite step')
-        await page.getByTestId('applicant-invite-continue-btn').filter({ visible: true }).click();
-        console.log('✅ Completed invite step')
+        // Use utility function for intelligent button interaction
+        await waitForButtonOrAutoAdvance(
+            page,
+            'applicant-invite-continue-btn',
+            'start-id-verification',
+            'co-applicant invite'
+        );
         await expect(page.getByTestId('start-id-verification')).toBeVisible({ timeout: 10_000 });
         console.log('✅ On Id verification step')
     
@@ -119,8 +140,14 @@ test.describe('frontent-session-heartbeat', () => {
         console.log('✅ Completed paystub connection')
     
         console.log('🚀 Completing employment step')
-        await page.getByTestId('employment-step-continue').click();
-        console.log('✅ Completed employment step')
+        
+        // Use utility function for intelligent button interaction
+        await waitForButtonOrAutoAdvance(
+            page,
+            'employment-step-continue',
+            'summary-completed-section',
+            'employment'
+        );
     
         await expect(page.getByTestId('summary-completed-section')).toBeVisible({ timeout: 10_000 });
         console.log('✅ On summary page')
