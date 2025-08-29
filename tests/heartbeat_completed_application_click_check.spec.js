@@ -62,7 +62,7 @@ test.describe('heartbeat_completed_application_click_check', () => {
         console.log('✅ On Rent budget page')
 
         console.log('🚀 Filing rent budget')
-        await updateRentBudget(newPage, sessionId, '500');
+        await updateRentBudget(newPage, sessionId, '600');
         console.log('✅ Filing rent budget')
 
         console.log('✅ On Summary page')
