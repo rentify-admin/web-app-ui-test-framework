@@ -46,6 +46,7 @@
 | `frontent-session-heartbeat.spec.js` | ✅ Working | `@core` | Session heartbeat |
 | `heartbeat_completed_application_click_check.spec.js` | ✅ Working | `@core` | Application status check |
 | `user_flags_approve_reject_test.spec.js` | ✅ Working | `@regression` | Flag approval/rejection |
+| `skip_button_visibility_logic.spec.js` | ✅ Working | `@regression` | Skip button logic testing |
 
 ---
 
@@ -68,15 +69,6 @@
 **⚠️ CRITICAL DECISION NEEDED:**
 - **Paystub Upload Method**: Should use PNG/PDF files or new Simulation Employer system?
 - **Provider Configuration**: All document upload tests need correct provider setup
-
----
-
-## 🔧 **SETUP & CONFIG TESTS**
-
-### **Test Configuration**
-| Test File | Status | Purpose |
-|-----------|--------|---------|
-| `skip_button_visibility_logic.spec.js` | ✅ Working | Skip button logic testing |
 
 ---
 
@@ -126,9 +118,8 @@
 | **Core UI** | 7 | 7 | 0 | 0 | 100% |
 | **Workflow & Flow** | 6 | 5 | 0 | 1 | 83% |
 | **Financial & Plaid** | 4 | 4 | 0 | 0 | 100% |
-| **System & Monitoring** | 4 | 4 | 0 | 0 | 100% |
+| **System & Monitoring** | 5 | 5 | 0 | 0 | 100% |
 | **Document Upload** | 4 | 0 | 4 | 0 | 0% |
-| **Setup & Config** | 1 | 1 | 0 | 0 | 100% |
 | **TOTAL** | **26** | **21** | **4** | **1** | **81%** |
 
 ---
