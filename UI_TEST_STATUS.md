@@ -27,7 +27,7 @@
 | `application_step_should_skip_properly.spec.js` | ✅ Working | `@core` | Step skipping functionality |
 | `co_applicant_effect_on_session_test.spec.js` | ✅ Working | `@regify` | Co-applicant workflow |
 | `check_coapp_income_ratio_exceede_flag.spec.js` | ✅ Working | `@smoke` | Income ratio flags |
-| `co_app_household_with_flag_errors.spec.js` | ✅ Working | `@regression` | Household flag testing |
+| `co_app_household_with_flag_errors.spec.js` | ⚠️ **SKIPPED** | `@regression` | Household flag testing - **NEEDS STEPS CLARIFICATION** |
 | `applicant_edits_a_workflow_used_by_another_applicant.spec.js` | ✅ Working | `@regression` | Workflow editing |
 | `applicant_type_workflow_affordable_occupant.spec.js` | ✅ Working | `@core` | Applicant type workflows |
 
@@ -58,20 +58,16 @@
 | `bank_statement_transaction_parsing.spec.js` | ⚠️ **NEEDS UPDATE** | `test_bank_statement.pdf` | **Update to correct provider** |
 | `report_update_bank_statement_test.spec.js` | ⚠️ **SKIPPED** | `test_bank_statement.pdf` | **Update to correct provider** |
 | `employment_skip_household_not_hidden_employment_connect.spec.js` | ⚠️ **NEEDS UPDATE** | Paystub uploads | **Update to correct provider** |
-| `application_flow_with_id_only.spec.js` | ⚠️ **NEEDS UPDATE** | `passport.jpg` | **Update to correct provider** |
-| `pdf_download_test.spec.js` | ⚠️ **NEEDS UPDATE** | PDF generation | **Update to correct provider** |
 
 ### **File Upload Details**
 **Files Used:**
 - `paystub_recent.png` - Paystub document (PNG format)
 - `paystub_recent.pdf` - Paystub document (PDF format)  
 - `test_bank_statement.pdf` - Bank statement document
-- `passport.jpg` - Identity document
 
 **⚠️ CRITICAL DECISION NEEDED:**
 - **Paystub Upload Method**: Should use PNG/PDF files or new Simulation Employer system?
 - **Provider Configuration**: All document upload tests need correct provider setup
-- **File Types**: Confirm which file types are supported for documents in production
 
 ---
 
@@ -93,25 +89,25 @@
 - ✅ All financial/Plaid tests
 - ✅ All permission tests
 
-### **Local Development Only** (Need provider setup)
-- ⚠️ Document upload tests
-- ⚠️ PDF download tests
-- ⚠️ File upload verification tests
-
----
 
 ## 🚨 **IMMEDIATE ACTIONS NEEDED**
 
-### **1. Document Upload Provider Updates**
+### **1. Test Steps Clarification**
+- [ ] **`co_app_household_with_flag_errors.spec.js`** - **CRITICAL**: Currently SKIPPED, needs step clarification:
+  - [ ] **Clarify**: What specific household flag errors should be tested?
+  - [ ] **Clarify**: What are the expected flag behaviors for co-applicant scenarios?
+  - [ ] **Clarify**: What are the validation rules for household income ratios?
+  - [ ] **Clarify**: What are the expected flag resolution steps?
+  - [ ] **Clarify**: What are the expected UI states when flags are triggered?
+
+### **2. Document Upload Provider Updates**
 - [ ] **Update `document_upload_verifications_core_flow.spec.js`** - Fix paystub provider configuration
 - [ ] **Update `bank_statement_transaction_parsing.spec.js`** - Fix bank statement provider configuration
 - [ ] **Update `report_update_bank_statement_test.spec.js`** - Fix bank statement provider configuration
 - [ ] **Update `employment_skip_household_not_hidden_employment_connect.spec.js`** - Fix paystub provider configuration
-- [ ] **Update `application_flow_with_id_only.spec.js`** - Fix passport upload provider configuration
-- [ ] **Update `pdf_download_test.spec.js`** - Fix PDF generation provider configuration
 
 ### **2. Paystub Upload Method Decision**
-- [ ] **Decide**: PNG/PDF files vs Simulation Employer system for paystubs
+- [ ] **Decide**: PNG files vs Simulation Employer system for paystubs
 - [ ] **Update**: All paystub-related tests accordingly
 - [ ] **Test**: Verify paystub upload functionality works
 
@@ -119,40 +115,30 @@
 - [ ] **Verify**: Document upload provider is correctly configured
 - [ ] **Test**: Bank statement upload endpoints work with correct provider
 - [ ] **Test**: Paystub upload endpoints work with correct provider
-- [ ] **Test**: Identity document upload endpoints work with correct provider
 - [ ] **Document**: Provider setup requirements for document uploads
 
 ---
 
 ## 📈 **TEST COVERAGE SUMMARY**
 
-| Category | Total | Working | Needs Update | Coverage |
-|----------|-------|---------|--------------|----------|
-| **Core UI** | 7 | 7 | 0 | 100% |
-| **Workflow & Flow** | 6 | 6 | 0 | 100% |
-| **Financial & Plaid** | 4 | 4 | 0 | 100% |
-| **System & Monitoring** | 4 | 4 | 0 | 100% |
-| **Document Upload** | 6 | 0 | 6 | 0% |
-| **Setup & Config** | 1 | 1 | 0 | 100% |
-| **TOTAL** | **28** | **22** | **6** | **79%** |
+| Category | Total | Working | Needs Update | Skipped | Coverage |
+|----------|-------|---------|--------------|---------|----------|
+| **Core UI** | 7 | 7 | 0 | 0 | 100% |
+| **Workflow & Flow** | 6 | 5 | 0 | 1 | 83% |
+| **Financial & Plaid** | 4 | 4 | 0 | 0 | 100% |
+| **System & Monitoring** | 4 | 4 | 0 | 0 | 100% |
+| **Document Upload** | 4 | 0 | 4 | 0 | 0% |
+| **Setup & Config** | 1 | 1 | 0 | 0 | 100% |
+| **TOTAL** | **26** | **21** | **4** | **1** | **81%** |
 
 ---
 
 ## 🎯 **NEXT STEPS**
 
-1. **Fix document upload tests** (Priority 1)
-2. **Decide on paystub upload method** (Priority 1)  
-3. **Update provider configurations** (Priority 2)
-4. **Test all document upload scenarios** (Priority 2)
-5. **Document provider setup** (Priority 3)
+1. **Clarify household flag test steps** (Priority 1)
+2. **Fix document upload tests** (Priority 1)
+3. **Decide on paystub upload method** (Priority 1)  
+4. **Update provider configurations** (Priority 2)
+5. **Test all document upload scenarios** (Priority 2)
+6. **Document provider setup** (Priority 3)
 
----
-
-## 📝 **NOTES**
-
-- **File Upload Tests**: Currently using local test files, need provider integration
-- **Paystub Format**: Tests use both PNG and PDF formats - need to standardize
-- **Provider Setup**: All upload tests require correct provider configuration
-- **Test Coverage**: 79% of tests are working, 21% need provider updates
-
----
