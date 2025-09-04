@@ -77,20 +77,12 @@
 ### **Pipeline Ready Tests** (Can run in CI/CD)
 - ✅ All `@core` tests
 - ✅ All `@regression` tests  
-- ✅ All workflow tests
-- ✅ All financial/Plaid tests
-- ✅ All permission tests
 
 
 ## 🚨 **IMMEDIATE ACTIONS NEEDED**
 
 ### **1. Test Steps Clarification**
-- [ ] **`co_app_household_with_flag_errors.spec.js`** - **CRITICAL**: Currently SKIPPED, needs step clarification:
-  - [ ] **Clarify**: What specific household flag errors should be tested?
-  - [ ] **Clarify**: What are the expected flag behaviors for co-applicant scenarios?
-  - [ ] **Clarify**: What are the validation rules for household income ratios?
-  - [ ] **Clarify**: What are the expected flag resolution steps?
-  - [ ] **Clarify**: What are the expected UI states when flags are triggered?
+- [ ] **`co_app_household_with_flag_errors.spec.js`** - **CRITICAL**: Currently SKIPPED, needs steps
 
 ### **2. Document Upload Provider Updates**
 - [ ] **Update `document_upload_verifications_core_flow.spec.js`** - Fix paystub provider configuration
