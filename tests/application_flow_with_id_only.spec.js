@@ -19,7 +19,7 @@ test.beforeEach(async ({ page }) => {
 
 test.describe('application_flow_with_id_only', () => {
     test('ID only - 1 attempt - success', {
-      tag: ['@core', '@smoke', '@regression', '@document-upload'],
+      tag: ['@core', '@smoke', '@regression'],
     }, async ({ page, browser }) => {
 
         // Step 1: Admin Login and Navigate
