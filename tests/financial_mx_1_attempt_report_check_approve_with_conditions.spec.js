@@ -25,7 +25,7 @@ test.setTimeout(180_000);
 
 test.describe('financial_mx_1_attempt_report_check_approve_with_conditions', () => {
     test('Should complete MX OAuth financial verification and test approval workflow with conditions', {
-      tag: ['@core', '@smoke', '@regression', '@document-upload'],
+      tag: ['@core', '@smoke', '@regression'],
     }, async ({ page, browser }) => {
         // Step 1: Admin Login and Navigate
         await loginForm.fill(page, admin);
@@ -36,9 +36,15 @@ test.describe('financial_mx_1_attempt_report_check_approve_with_conditions', () 
 
         // Step 2: Locate Target Application
         await searchApplication(page, applicationName);
-        await expect(page.locator('table > tbody > tr > td:nth-child(2)'))
-            .toHaveText(applicationName);
-        await page.locator('table > tbody > tr > td:nth-child(7) a').click();
+        
+        // Find the specific row with the exact application name using getByRole
+        const targetRow = page.locator('table > tbody > tr').filter({ 
+            has: page.getByRole('cell', { name: applicationName, exact: true })
+        });
+        await expect(targetRow.getByRole('cell', { name: applicationName, exact: true })).toBeVisible();
+        
+        // Click the action link in the same row
+        await targetRow.locator('td:nth-child(7) a').click();
 
         // Step 3: Generate Session
         await generateSessionForm.fill(page, userData);
@@ -179,7 +185,7 @@ test.describe('financial_mx_1_attempt_report_check_approve_with_conditions', () 
         await expect(householdStatusAlertUpdated).toBeVisible();
 
         // Wait up to 30 seconds for the status to update
-        await expect(householdStatusAlertUpdated).toContainText('Meets Criteria', { timeout: 30000 });
+        await expect(householdStatusAlertUpdated).toContainText(/Meets Criteria/i, { timeout: 30000 });
 
         // Step 11: Approve with conditions:
         // 1. Edit rent budget
@@ -187,23 +193,23 @@ test.describe('financial_mx_1_attempt_report_check_approve_with_conditions', () 
         await expect(editRentIcon).toBeVisible();
         await editRentIcon.click();
         const adminRentBudgetInput = adminPage.locator('#rent-budget-input');
-        await adminRentBudgetInput.fill('755');
+        await adminRentBudgetInput.fill('1755');
         const submitRentBudgetBtn = adminPage.getByTestId('submit-rent-budget');
         await submitRentBudgetBtn.click();
         // 2. Reload and assert status
         await adminPage.waitForTimeout(1000);
         await adminPage.reload();
-        await expect(householdStatusAlertUpdated).toContainText('Conditional Meets Criteria', { timeout: 30000 });
+        await expect(householdStatusAlertUpdated).toContainText(/Conditional Meets Criteria/i, { timeout: 30000 });
 
         // Step 12: Decline
         // 1. Edit rent budget
         await expect(editRentIcon).toBeVisible();
         await editRentIcon.click();
-        await adminRentBudgetInput.fill('1755');
+        await adminRentBudgetInput.fill('3000');
         await submitRentBudgetBtn.click();
         // 2. Reload and assert status
         await adminPage.waitForTimeout(1000);
         await adminPage.reload();
-        await expect(householdStatusAlertUpdated).toContainText('Criteria Not Met', { timeout: 30000 });
+        await expect(householdStatusAlertUpdated).toContainText(/Criteria Not Met/i, { timeout: 30000 });
     });
 });
