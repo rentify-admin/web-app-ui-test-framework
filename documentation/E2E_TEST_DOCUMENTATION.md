@@ -1,6 +1,6 @@
 # E2E UI Test Documentation
 
-## Tests Requiring Manual Review
+## Tests Requiring Script fixs
 - `financial_plaid_one_transaction_error_decline.spec.js`
 - `financial_mx_2_attempts_success_and_failed_password.spec.js`
 - `employment_skip_household_not_hidden_employment_connect.spec.js`
