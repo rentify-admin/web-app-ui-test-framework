@@ -24,7 +24,7 @@ const generateRandomPhone = () => {
 
 test.describe('hosted_app_copy_verify_flow_plaid_id_emp_skip', () => {
     test('Should complete hosted application flow with id emp skips and Plaid integration', { 
-        tag: [ '@smoke', '@regression', '@document-upload' ],
+        tag: [ '@smoke', '@regression', '@needs-review' ],
         timeout: 180_000  // 5 minutes
     }, async ({ page, browser }) => {
 
