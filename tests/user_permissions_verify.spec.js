@@ -1,4 +1,4 @@
-import { test, expect } from './fixtures/api-data-fixture';
+import { testWithCleanup, test, expect } from './fixtures/enhanced-cleanup-fixture';
 import userCreateForm from '~/tests/utils/user-create-form';
 import { admin, app } from '~/tests/test_config';
 import { joinUrl } from './utils/helper';
@@ -24,10 +24,21 @@ import {
     checkFinancialSectionData
 } from './utils/section-checks';
 import { ApiDataManager } from './utils/api-data-manager';
+import globalCleanupManager from './utils/global-cleanup-manager';
+import testSuiteCleanupManager from './utils/test-suite-cleanup';
 
 // Global state management for test isolation
 let globalTestUser = null;
 let globalDataManager = null;
+
+// Suite configuration
+const SUITE_NAME = 'user_permissions_verify';
+const TOTAL_TESTS = 3;
+
+// Test registration function
+const registerTest = (suiteName, testName, totalTests) => {
+    testSuiteCleanupManager.registerTest(suiteName, testName, totalTests);
+};
 
 test.beforeEach(async ({ page }) => {
     await page.goto('/');
@@ -39,9 +50,23 @@ test.describe('user_permissions_verify', () => {
     test.describe.configure({ 
         mode: 'serial', // Ensure tests run in order
         timeout: 180000 
+    });
+
+    // Suite-level cleanup
+    test.afterAll(async () => {
+        console.log(`🧹 Suite Cleanup: Running afterAll cleanup for suite ${SUITE_NAME}`);
+        try {
+            await globalCleanupManager.cleanupTest(`suite_${SUITE_NAME}`, globalDataManager);
+            console.log(`✅ Suite Cleanup: Completed afterAll cleanup for suite ${SUITE_NAME}`);
+        } catch (error) {
+            console.log(`ℹ️ Global Cleanup: Cleanup already completed for test suite_${SUITE_NAME}, skipping`);
+        }
     }); 
 
-    test('Should allow admin to create user via API', { tag: [ '@regression' ] }, async ({ page, dataManager }) => {
+    testWithCleanup('Should allow admin to create user via API @regression', async ({ page, dataManager, cleanupHelper }) => {
+        // Register this test in the suite
+        registerTest(SUITE_NAME, 'Should allow admin to create user via API', TOTAL_TESTS);
+        
         // Store global references for other tests
         globalDataManager = dataManager;
         
@@ -81,10 +106,18 @@ test.describe('user_permissions_verify', () => {
             id: createdUser.id 
         };
 
+        // Track user for enhanced cleanup (will only be cleaned up on last test)
+        const suiteId = `suite_${SUITE_NAME}`;
+        cleanupHelper.trackUser(createdUser, suiteId);
+
         console.log('✅ Test user created successfully via API:', createdUser.email);
+        console.log('📝 User tracked for enhanced cleanup (will be cleaned up on last test only)');
     });
 
-    test('Should allow user to edit the application', { tag: [ '@regression' ] }, async ({ page, dataManager }) => {
+    testWithCleanup('Should allow user to edit the application @regression', async ({ page, dataManager, cleanupHelper }) => {
+        // Register this test in the suite
+        registerTest(SUITE_NAME, 'Should allow user to edit the application', TOTAL_TESTS);
+        
         // Use the globally created user
         if (!globalTestUser) {
             throw new Error('Test user must be created in the first test before running this test');
@@ -180,32 +213,29 @@ test.describe('user_permissions_verify', () => {
         await page.getByTestId('cancel-application-setup').click();
     });
 
-    test('Should allow user to perform permited actions', { tag: [ '@regression' ] }, async ({
-        page,
-        context,
-        dataManager
-    }) => {
-        let testFailed = false;
+    testWithCleanup('Should allow user to perform permited actions @regression', async ({ page, context, dataManager, cleanupHelper }) => {
+        // Register this test in the suite (LAST TEST)
+        registerTest(SUITE_NAME, 'Should allow user to perform permited actions', TOTAL_TESTS);
         
+        // Use the globally created user
+        if (!globalTestUser) {
+            throw new Error('Test user must be created in the first test before running this test');
+        }
+
+        // Transfer global data to current test's dataManager for cleanup
+        if (globalDataManager && globalDataManager.getCreated().users.length > 0) {
+            const createdEntities = globalDataManager.getCreated();
+            dataManager.created = { ...createdEntities };
+            
+            // Also authenticate this dataManager for cleanup
+            const isAuthenticated = await dataManager.authenticate(admin.email, admin.password);
+            if (!isAuthenticated) {
+                console.warn('⚠️ Could not authenticate current dataManager for cleanup');
+            }
+            globalDataManager = dataManager; // Update global reference
+        }
+
         try {
-            // Use the globally created user
-            if (!globalTestUser) {
-                throw new Error('Test user must be created in the first test before running this test');
-            }
-
-            // Transfer global data to current test's dataManager for cleanup
-            if (globalDataManager && globalDataManager.getCreated().users.length > 0) {
-                const createdEntities = globalDataManager.getCreated();
-                dataManager.created = { ...createdEntities };
-                
-                // Also authenticate this dataManager for cleanup
-                const isAuthenticated = await dataManager.authenticate(admin.email, admin.password);
-                if (!isAuthenticated) {
-                    console.warn('⚠️ Could not authenticate current dataManager for cleanup');
-                }
-                globalDataManager = dataManager; // Update global reference
-            }
-
             const [ sessionsResponse ] = await Promise.all([
                 page.waitForResponse(
                     resp => resp.url().includes('/sessions?fields[session]=')
@@ -312,23 +342,10 @@ test.describe('user_permissions_verify', () => {
             
         } catch (error) {
             console.error('❌ Error in test:', error.message);
-            testFailed = true;
             throw error; // Re-throw immediately to fail the test
-        } finally {
-            // Only cleanup if test PASSED (not on failure)
-            if (!testFailed && dataManager && dataManager.getCreated().users.length > 0) {
-                console.log('🧹 Test passed - cleaning up test user');
-                console.log('🔍 User to cleanup:', globalTestUser?.email);
-                try {
-                    await dataManager.cleanupAll();
-                    console.log('🧹 Test user cleanup completed successfully');
-                } catch (cleanupError) {
-                    console.error('❌ Cleanup failed but continuing:', cleanupError.message);
-                }
-            } else if (testFailed) {
-                console.log('⚠️ Test failed - keeping user for debugging');
-                console.log('🔍 User email for debugging:', globalTestUser?.email);
-            }
         }
+        
+        // Note: Cleanup is handled automatically by testWithCleanup wrapper
+        // It will only run on the last test of the suite
     });
 });

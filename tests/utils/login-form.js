@@ -7,11 +7,11 @@ const LOGIN_API = joinUrl(config.app.urls.api, 'auth');
 
 const fill = async (page, formData) => {
 
-    // Filling email field
-    await page.getByLabel('email', { name: /Email Address/ }).fill(formData.email);
+    // Filling email field - using getByRole for more robust selection
+    await page.getByRole('textbox', { name: /email/i }).fill(formData.email);
 
-    // Filling password field
-    await page.getByLabel('password', { name: /Password/ }).fill(formData.password);
+    // Filling password field - using getByRole for more robust selection  
+    await page.getByRole('textbox', { name: /password/i }).fill(formData.password);
 
 };
 
