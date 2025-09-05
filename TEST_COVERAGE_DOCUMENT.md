@@ -122,7 +122,7 @@ This document provides a comprehensive overview of the test coverage for the Ver
 - Document upload system
 - External service integration
 
-**Test tags:** `@core`, `@smoke`, `@regression`, `@document-upload`
+**Test tags:** `@core`, `@smoke`, `@regression`
 
 ---
 
