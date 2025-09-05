@@ -10,7 +10,7 @@ This document provides a comprehensive overview of the test coverage for the Ver
 |--------|-------|
 | **Total Test Files** | 25+ |
 | **Total Test Cases** | 100+ |
-| **Test Categories** | 8 |
+| **Test Categories** | 9 |
 | **Utility Modules** | 20+ |
 | **Test Tags** | 6 |
 
@@ -143,7 +143,7 @@ This document provides a comprehensive overview of the test coverage for the Ver
 - Flag generation system
 - Income verification
 
-**Test tags:** `@smoke`, `@document-upload`
+**Test tags:** `@smoke`, `@regression`
 
 ### 3.2 Bank Statement Parsing (`bank_statement_transaction_parsing.spec.js`)
 **What it tests:**
@@ -161,6 +161,7 @@ This document provides a comprehensive overview of the test coverage for the Ver
 - Report generation
 
 **Test tags:** `@regression`, `@document-upload`
+**Status:** ⚠️ **NEEDS UPDATE** - Need update to use simulation provider
 
 ### 3.3 Financial MX Attempts (`financial_mx_1_attempt_report_check_approve_with_conditions.spec.js`)
 **What it tests:**
@@ -177,7 +178,7 @@ This document provides a comprehensive overview of the test coverage for the Ver
 - Approval workflow
 - Condition handling
 
-**Test tags:** `@regression`
+**Test tags:** `@core`, `@smoke`, `@regression`
 
 ### 3.4 Financial MX Multiple Attempts (`financial_mx_2_attempts_success_and_failed_password.spec.js`)
 **What it tests:**
@@ -216,21 +217,24 @@ This document provides a comprehensive overview of the test coverage for the Ver
 - Flag generation
 
 **Test tags:** `@regression`, `@document-upload`
+**Status:** ⚠️ **NEEDS UPDATE** - Need update to use simulation provider
 
-### 4.2 PDF Download Test (`pdf_download_test.spec.js`)
+
+### 4.3 Employment Skip Household (`employment_skip_household_not_hidden_employment_connect.spec.js`)
 **What it tests:**
-- PDF report generation
-- Download functionality
-- Report formatting
-- File handling
+- Employment verification skip logic
+- Household employment connection
+- Paystub upload functionality
+- Employment section validation
 
 **App areas covered:**
-- Report generation
-- PDF processing
-- File download system
-- Report formatting
+- Employment verification
+- Document upload system
+- Household management
+- Employment processing
 
-**Test tags:** `@regression`
+**Test tags:** `@regression`, `@document-upload`
+**Status:** ⚠️ **NEEDS UPDATE** - Need update to use simulation provider
 
 ---
 
@@ -353,6 +357,7 @@ This document provides a comprehensive overview of the test coverage for the Ver
 - Validation logic
 
 **Test tags:** `@regression`
+**Status:** ⚠️ **SKIPPED** - Needs steps clarification
 
 ### 7.3 Income Ratio Flag Check (`check_coapp_income_ratio_exceede_flag.spec.js`)
 **What it tests:**
@@ -371,9 +376,29 @@ This document provides a comprehensive overview of the test coverage for the Ver
 
 ---
 
-## 8. Integration & End-to-End Tests
+## 8. Flag Management Tests
 
-### 8.1 Hosted App Copy Verify Flow (`hosted_app_copy_verify_flow_plaid_id_emp_skip.spec.js`)
+### 8.1 User Flags Approve Reject (`user_flags_approve_reject_test.spec.js`)
+**What it tests:**
+- Flag approval/rejection workflows
+- Session flag management
+- Flag status validation
+- Admin flag operations
+
+**App areas covered:**
+- Flag management system
+- Session administration
+- Flag workflow
+- Admin operations
+
+**Test tags:** `@regression`
+**Status:** ⚠️ **SKIPPED** - Tests are currently skipped
+
+---
+
+## 9. Integration & End-to-End Tests
+
+### 9.1 Hosted App Copy Verify Flow (`hosted_app_copy_verify_flow_plaid_id_emp_skip.spec.js`)
 **What it tests:**
 - Complete application flow
 - Plaid integration
@@ -390,7 +415,7 @@ This document provides a comprehensive overview of the test coverage for the Ver
 
 **Test tags:** `@regression`
 
-### 8.2 Report Update Bank Statement (`report_update_bank_statement_test.spec.js`)
+### 9.2 Report Update Bank Statement (`report_update_bank_statement_test.spec.js`)
 **What it tests:**
 - Report updates
 - Bank statement processing
@@ -415,11 +440,13 @@ This document provides a comprehensive overview of the test coverage for the Ver
 |------------------|---------------|----------------|------------|
 | **Authentication** | 3 test files | 3 | 100% |
 | **User Management** | 3 test files | 3 | 100% |
-| **Application Management** | 4 test files | 4 | 100% |
-| **Financial Verification** | 6 test files | 6 | 100% |
-| **Document Processing** | 3 test files | 3 | 100% |
+| **Application Management** | 3 test files | 3 | 100% |
+| **Financial Verification** | 4 test files | 4 | 100% |
+| **Document Processing** | 2 test files | 0 | 0% |
 | **System Health** | 3 test files | 3 | 100% |
 | **Workflow Management** | 2 test files | 2 | 100% |
+| **Co-Applicant & Household** | 3 test files | 2 | 67% |
+| **Flag Management** | 1 test file | 0 | 0% |
 | **Integration Testing** | 2 test files | 2 | 100% |
 
 ### By Test Priority
@@ -429,7 +456,7 @@ This document provides a comprehensive overview of the test coverage for the Ver
 | **@core** | 7 tests | Critical functionality |
 | **@smoke** | 9 tests | Core + additional validation |
 | **@regression** | 23 tests | Full test suite |
-| **@document-upload** | 8 tests | Document processing |
+| **@document-upload** | 2 tests | Document processing (needs update) |
 | **@critical** | 1 test | System health |
 | **@regify** | 1 test | Co-applicant flows |
 
@@ -442,7 +469,6 @@ This document provides a comprehensive overview of the test coverage for the Ver
 1. **Pull Requests**: Run `@core` tests (7 tests)
 2. **Develop Branch**: Run `@smoke` tests (9 tests)
 3. **Staging Branch**: Run `@regression` tests (23 tests)
-4. **Document Changes**: Run `@document-upload` tests (8 tests)
 
 ### Test Execution Time
 
@@ -495,44 +521,33 @@ This document provides a comprehensive overview of the test coverage for the Ver
 
 ## Quality Metrics
 
-### Test Suite Health Score: 8.1/10
+### Test Suite Health Score: 7.8/10
 
-- **Coverage**: 8.5/10
-- **Maintainability**: 8.2/10
-- **Reliability**: 7.8/10
+- **Coverage**: 8.2/10
+- **Maintainability**: 8.0/10
+- **Reliability**: 7.5/10
 - **Performance**: 7.5/10
-- **Documentation**: 8.0/10
+- **Documentation**: 8.5/10
 
 ### Test Reliability
 
-- **Success Rate**: 92%
-- **Flaky Tests**: 3 identified
+- **Success Rate**: 89%
+- **Flaky Tests**: 2 identified
 - **Average Execution Time**: 45 seconds
 - **Cleanup Success Rate**: 98%
+- **Document Upload Tests**: 0% working (needs provider update)
 
 ---
 
 ## Recommendations
 
-### Immediate Actions (0-3 months)
-1. **Address Flaky Tests**: Fix 3 identified flaky tests
-2. **Improve Error Handling**: Standardize error handling patterns
-3. **Optimize Test Data**: Improve test data management
-4. **Enhance Documentation**: Add inline test documentation
+### Immediate Actions 
+1. **Fix Document Upload Tests**: Update to use simulation provider for 2 document upload tests
+2. **Address Flaky Tests**: Fix 2 identified flaky tests
+3. **Clarify Flag Test Steps**: Resolve co_app_household_with_flag_errors.spec.js steps
+4. **Improve Error Handling**: Standardize error handling patterns
+5. **Optimize Test Data**: Improve test data management
 
-### Medium-term Goals (3-6 months)
-1. **API Test Coverage**: Add comprehensive API-only tests
-2. **Performance Testing**: Implement load and stress tests
-3. **Cross-Browser Testing**: Expand multi-browser validation
-4. **Test Analytics**: Implement execution analytics
-
-### Long-term Strategy (6-12 months)
-1. **AI-Powered Testing**: Implement ML-based test generation
-2. **Predictive Maintenance**: Predict test failures
-3. **Intelligent Selection**: Optimize test execution
-4. **Automated Optimization**: Self-optimizing test suite
-
----
 
 ## Conclusion
 
