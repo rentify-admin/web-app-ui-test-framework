@@ -39,7 +39,7 @@ test.describe('user_flags_approve_reject_test', () => {
 
         let flagIssueSession = '01985a2c-c3f3-71fa-bc3d-f5a11279d36a';
 
-        test.skip('Should create applicant session for flag issue', { tag: [ '@core', '@smoke', '@regression', '@document-upload' ] }, async ({
+        test.skip('Should create applicant session for flag issue', { tag: [ '@core', '@smoke', '@regression' ] }, async ({
         page,
         browser
     }) => {
@@ -136,7 +136,7 @@ test.describe('user_flags_approve_reject_test', () => {
 
         let approveRejectSession = '01976921-a4d1-729f-9212-6f88ac9a189c';
 
-        test.skip('Should create applicant session for approve reject', { tag: [ '@core', '@smoke', '@regression', '@document-upload' ] }, async ({
+        test.skip('Should create applicant session for approve reject', { tag: [ '@core', '@smoke', '@regression' ] }, async ({
         page,
         browser
     }) => {
