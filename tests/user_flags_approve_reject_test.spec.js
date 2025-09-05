@@ -59,7 +59,7 @@ test.describe('user_flags_approve_reject_test', () => {
         flagIssueSession = sessionId;
         });
 
-        test.skip('Check Session Flag', { tag: [ '@core', '@smoke', '@regression', '@document-upload' ] }, async ({ page }) => {
+        test.skip('Check Session Flag', { tag: [ '@core', '@smoke', '@regression', '@needs-review' ] }, async ({ page }) => {
         const sessionId = flagIssueSession;
 
         // Step 1: Login and navigate to session
@@ -156,7 +156,7 @@ test.describe('user_flags_approve_reject_test', () => {
         approveRejectSession = sessionId;
         });
 
-        test.skip('Check session by Approving and Rejecting', { tag: [ '@core', '@smoke', '@regression', '@document-upload' ] }, async ({ page }) => {
+        test.skip('Check session by Approving and Rejecting', { tag: [ '@core', '@smoke', '@regression', '@needs-review' ] }, async ({ page }) => {
         const sessionId = approveRejectSession;
 
         // Login and navigate to session

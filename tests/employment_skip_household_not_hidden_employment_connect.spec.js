@@ -19,7 +19,7 @@ const API_URL = app.urls.api;
 
 test.describe('employment_skip_household_not_hidden_employment_connect', () => {
     test('Should skip household setup and connect to employment', {
-      tag: ['@smoke', '@regression', '@document-upload'],
+      tag: ['@smoke', '@regression', '@needs-review'],
     }, async ({ page, browser }) => {
         // Step 1: Admin login and navigate to applications
         await loginForm.adminLoginAndNavigate(page, admin);
