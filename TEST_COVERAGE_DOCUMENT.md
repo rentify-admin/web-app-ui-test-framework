@@ -462,14 +462,6 @@ This document provides a comprehensive overview of the test coverage for the Ver
 
 ---
 
-## Test Execution Strategy
-
-### CI/CD Pipeline Integration
-
-1. **Pull Requests**: Run `@core` tests (7 tests)
-2. **Develop Branch**: Run `@smoke` tests (9 tests)
-3. **Staging Branch**: Run `@regression` tests (23 tests)
-
 ### Test Execution Time
 
 - **Fast Tests** (< 30s): 35% of tests
