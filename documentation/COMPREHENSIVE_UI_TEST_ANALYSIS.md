@@ -48,6 +48,12 @@ Based on the test files in the framework, I've identified these categories:
 
 #### **Test 1: "Should allow admin to create user via API"**
 **Purpose**: Create a Centralized Leasing user via API
+**API Endpoints Checked**:
+- `POST /auth` - Admin authentication
+- `POST /users` - User creation via API
+- `GET /roles` - Get role by name (Centralized Leasing)
+- `GET /organizations` - Get organization by name
+
 **Steps**:
 1. Authenticate admin user for API access
 2. Create user with role `0196f6c9-da5e-7074-9e6e-c35ac8f1818e` (Centralized Leasing)
@@ -57,6 +63,12 @@ Based on the test files in the framework, I've identified these categories:
 
 #### **Test 2: "Should allow user to edit the application"**
 **Purpose**: Test Centralized Leasing user can edit applications
+**API Endpoints Checked**:
+- `POST /auth` - User login
+- `GET /sessions?fields[session]=` - Load sessions for user
+- `GET /applications` - Load applications list
+- `GET /applications/{id}/edit` - Navigate to edit page
+
 **Steps**:
 1. Login with created user
 2. Navigate to applications menu
@@ -68,6 +80,24 @@ Based on the test files in the framework, I've identified these categories:
 
 #### **Test 3: "Should allow user to perform permited actions"**
 **Purpose**: Test comprehensive permissions for Centralized Leasing role
+**API Endpoints Checked**:
+- `POST /auth` - User login
+- `GET /sessions?fields[session]=` - Load sessions
+- `GET /sessions/{id}?fields[session]=` - Get specific session
+- `GET /sessions/{id}/employments` - Get employment data
+- `GET /sessions/{id}/files` - Get files data
+- `GET /sessions/{id}/flags` - Get session flags
+- `GET /sessions/{id}/events` - Get session events
+- `PATCH /sessions/{id}` - Update session (rent budget, approval status)
+- `GET /sessions/{id}/export-pdf` - Export PDF
+- `GET /identity-verifications` - Get identity verifications
+- `GET /sessions/{id}/identities` - Get session identities
+- `GET /sessions/{id}/income-sources` - Get income sources
+- `GET /financial-verifications` - Get financial verifications
+- `GET /employment-verifications` - Get employment verifications
+- `GET /sessions/{id}/files` - Get session files
+- `GET /sessions/{id}/transactions` - Get session transactions
+
 **Steps**:
 1. Login with created user
 2. Navigate to applicants menu
@@ -111,6 +141,11 @@ Based on the test files in the framework, I've identified these categories:
 
 #### **Test 1: "Should create member record and assign it to the Staff role"**
 **Purpose**: Create a Staff user via API
+**API Endpoints Checked**:
+- `POST /auth` - Admin authentication
+- `POST /users` - User creation via API
+- `GET /roles` - Get role by name (Staff)
+
 **Steps**:
 1. Authenticate admin user for API access
 2. Create user with role `0196f6c9-da51-7337-bbde-ca7d0efd7f84` (Staff)
@@ -120,6 +155,18 @@ Based on the test files in the framework, I've identified these categories:
 
 #### **Test 2: "Verify permission of Staff role"**
 **Purpose**: Test limited permissions for Staff role
+**API Endpoints Checked**:
+- `POST /auth` - Staff user login
+- `GET /applications` - Load applications list
+- `GET /sessions?fields[session]=` - Load sessions
+- `GET /sessions/{id}?fields[session]=` - Get specific session
+- `GET /sessions/{id}/employments` - Get employment data
+- `GET /sessions/{id}/files` - Get files data
+- `GET /sessions/{id}/flags` - Get session flags
+- `GET /sessions/{id}/events` - Get session events
+- `GET /sessions/{id}/export-pdf` - Export PDF
+- `GET /sessions/{id}/income-sources` - Get income sources
+
 **Steps**:
 1. Login with created staff user
 2. Verify menu visibility (applicants, applications)
@@ -156,6 +203,11 @@ Based on the test files in the framework, I've identified these categories:
 
 #### **Test 1: "Should create property admin role user via API"**
 **Purpose**: Create a Property Admin user via API
+**API Endpoints Checked**:
+- `POST /auth` - Admin authentication
+- `POST /users` - User creation via API
+- `GET /roles` - Get role by name (Property Admin)
+
 **Steps**:
 1. Authenticate admin user for API access
 2. Create user with role `0196f6c9-da56-7358-84bc-56f0f80b4c19` (Property Admin)
@@ -164,6 +216,19 @@ Based on the test files in the framework, I've identified these categories:
 
 #### **Test 2: "Verify property admin user permissions"**
 **Purpose**: Test Property Admin permissions for applications and organization
+**API Endpoints Checked**:
+- `POST /auth` - Property Admin user login
+- `GET /applications?fields[application]=` - Load applications
+- `GET /workflows?fields[workflow]=` - Load workflows
+- `GET /flag-collections?` - Load approval conditions
+- `GET /organizations/self` - Get organization info
+- `PATCH /organizations/{id}` - Update organization info
+- `GET /organizations/{id}/members` - Get organization members
+- `POST /organizations/{id}/members` - Add organization member
+- `PATCH /organizations/{id}/members/{id}` - Update member permissions
+- `DELETE /organizations/{id}/members/{id}` - Delete member
+- `GET /roles?` - Get roles list
+
 **Steps**:
 1. Login with created property admin user
 2. Verify menu visibility (applicants, applications, organization, users)
@@ -189,6 +254,19 @@ Based on the test files in the framework, I've identified these categories:
 
 #### **Test 3: "Check applicant inbox permissions"**
 **Purpose**: Test Property Admin permissions for applicant inbox
+**API Endpoints Checked**:
+- `POST /auth` - Property Admin user login
+- `GET /sessions?fields[session]=` - Search sessions
+- `GET /sessions/{id}?fields[session]=` - Get specific session
+- `GET /sessions/{id}/files` - Get files data
+- `GET /financial-verifications` - Get financial verifications
+- `GET /sessions/{id}/employments` - Get employment data
+- `GET /sessions/{id}/flags` - Get session flags
+- `GET /sessions/{id}/events` - Get session events
+- `PATCH /sessions/{id}` - Update session (rent budget, approval status)
+- `GET /sessions/{id}/export-pdf` - Export PDF
+- `GET /sessions/{id}/income-sources` - Get income sources
+
 **Steps**:
 1. Login with created property admin user
 2. Search for sessions
@@ -230,6 +308,13 @@ Based on the test files in the framework, I've identified these categories:
 
 #### **Test: "Admin should be able to update an organization member's application permissions"**
 **Purpose**: Test organization-level permission management
+**API Endpoints Checked**:
+- `POST /auth` - Admin login
+- `GET /organizations/self` - Get organization info
+- `GET /organizations/{id}/members` - Get organization members
+- `GET /applications?fields[application]=` - Load applications for permission table
+- `PATCH /organizations/{id}/members/{id}` - Update member permissions (2 calls - save and revert)
+
 **Steps**:
 1. Login with test_org_admin
 2. Navigate to organization menu
@@ -252,6 +337,52 @@ Based on the test files in the framework, I've identified these categories:
 ---
 
 ## **Category 1 Analysis Summary**
+
+### **API Endpoints Coverage Analysis:**
+
+#### **Authentication & User Management:**
+- `POST /auth` - User authentication (4 tests)
+- `POST /users` - User creation (3 tests)
+- `GET /roles` - Role management (3 tests)
+- `GET /organizations` - Organization lookup (1 test)
+
+#### **Application Management:**
+- `GET /applications` - Load applications (4 tests)
+- `GET /applications?fields[application]=` - Load applications with fields (2 tests)
+- `GET /applications/{id}/edit` - Navigate to edit page (1 test)
+
+#### **Session Management:**
+- `GET /sessions?fields[session]=` - Load sessions (4 tests)
+- `GET /sessions/{id}?fields[session]=` - Get specific session (3 tests)
+- `PATCH /sessions/{id}` - Update session (2 tests)
+- `GET /sessions/{id}/export-pdf` - Export PDF (3 tests)
+
+#### **Session Data Endpoints:**
+- `GET /sessions/{id}/employments` - Employment data (3 tests)
+- `GET /sessions/{id}/files` - Files data (3 tests)
+- `GET /sessions/{id}/flags` - Session flags (3 tests)
+- `GET /sessions/{id}/events` - Session events (3 tests)
+- `GET /sessions/{id}/identities` - Session identities (1 test)
+- `GET /sessions/{id}/income-sources` - Income sources (3 tests)
+- `GET /sessions/{id}/transactions` - Session transactions (1 test)
+
+#### **Verification Endpoints:**
+- `GET /identity-verifications` - Identity verifications (1 test)
+- `GET /financial-verifications` - Financial verifications (2 tests)
+- `GET /employment-verifications` - Employment verifications (1 test)
+
+#### **Organization Management:**
+- `GET /organizations/self` - Get organization info (2 tests)
+- `PATCH /organizations/{id}` - Update organization (1 test)
+- `GET /organizations/{id}/members` - Get members (2 tests)
+- `POST /organizations/{id}/members` - Add member (1 test)
+- `PATCH /organizations/{id}/members/{id}` - Update member permissions (2 tests)
+- `DELETE /organizations/{id}/members/{id}` - Delete member (1 test)
+
+#### **Workflow & Configuration:**
+- `GET /workflows?fields[workflow]=` - Load workflows (1 test)
+- `GET /flag-collections?` - Load approval conditions (1 test)
+- `GET /roles?` - Get roles list (1 test)
 
 ### **Business Purpose Analysis:**
 
@@ -315,6 +446,16 @@ Based on the test files in the framework, I've identified these categories:
 
 #### **Test: "Should handle Plaid Fin verification with insufficient transactions and decline flag"**
 **Purpose**: Test Plaid integration with insufficient transactions and decline flag generation
+**API Endpoints Checked**:
+- `POST /auth` - Admin login
+- `GET /applications` - Load applications
+- `POST /sessions` - Generate session
+- `PATCH /sessions/{id}/steps` - Update session steps
+- `POST /financial-verifications` - Create financial verification
+- `GET /sessions/{id}?fields[session]=` - Get session data
+- `GET /sessions/{id}/flags` - Get session flags
+- `GET /financial-verifications` - Get financial verifications
+
 **Steps**:
 1. Admin login and navigate to applications
 2. Generate session for 'AutoTest Suite - Fin only' application
@@ -503,3 +644,446 @@ Based on the test files in the framework, I've identified these categories:
 - Removing any test would lose important financial integration coverage
 
 **Optimization opportunity**: Create shared utilities for common setup steps (admin login, session generation, applicant setup) to reduce code duplication while maintaining all tests.
+
+---
+
+## Category 3: Application Management Tests - COMPLETE ANALYSIS
+
+### **Files Analyzed:**
+1. `frontent-session-heartbeat.spec.js` - **Complete E2E Session Flow**
+2. `co_applicant_effect_on_session_test.spec.js` - **Co-Applicant Income Aggregation**
+3. `hosted_app_copy_verify_flow_plaid_id_emp_skip.spec.js` - **Hosted App with Skips**
+4. `heartbeat_completed_application_click_check.spec.js` - **Completed Application Check**
+5. `pdf_download_test.spec.js` - **PDF Download Functionality**
+6. `application_flow_with_id_only.spec.js` - **ID Only Application Flow**
+7. `application_step_should_skip_properly.spec.js` - **Application Step Skip Logic**
+8. `application_edit_id_template_settings.spec.js` - **ID Template Settings Edit**
+9. `verify_application_edit_id_step_edit.spec.js` - **ID Step Edit Verification**
+10. `application_create_delete_test.spec.js` - **Application Create/Delete**
+
+---
+
+### **1. frontent-session-heartbeat.spec.js - Complete E2E Session Flow**
+
+#### **Complete Test Structure:**
+- **1 test** (250s timeout)
+- **Complete E2E session flow** with co-applicant workflow
+- **Tags**: None specified
+
+#### **Test: "Verify Frontend session heartbeat"**
+**Purpose**: Test complete end-to-end user journey with co-applicant workflow
+**Steps**:
+1. Admin login and navigate to applications
+2. Find and invite 'Autotest - Application Heartbeat (Frontend)' application
+3. Generate session and extract link
+4. **Complete applicant flow**:
+   - Select applicant type (employed)
+   - Handle optional state modal (ALABAMA)
+   - Set rent budget (500)
+   - Skip invite page
+   - **ID verification step**:
+     - Click manual upload
+     - Cancel manual upload
+     - Skip ID verification
+   - **Financial step**:
+     - Click manual upload button
+     - Cancel manual upload
+     - Skip financial step
+   - **Employment step**:
+     - Complete paystub connection
+     - Continue employment step
+5. **Co-applicant workflow**:
+   - Go to invite page
+   - Add co-applicant
+   - Use intelligent button interaction utility
+6. Verify summary page is displayed
+
+#### **Key Business Validations:**
+- **Complete E2E user journey** ✅
+- **Co-applicant workflow** ✅
+- **State modal handling** ✅
+- **Manual upload options** ✅
+- **Skip functionality** ✅
+- **Intelligent button interaction** ✅
+
+---
+
+### **2. co_applicant_effect_on_session_test.spec.js - Co-Applicant Income Aggregation**
+
+#### **Complete Test Structure:**
+- **1 test** (380s timeout)
+- **Co-applicant income aggregation** business logic
+- **Tags**: @regify
+
+#### **Test: "Should complete applicant flow with co-applicant effect on session"**
+**Purpose**: Test co-applicant income aggregation and financial impact
+**Steps**:
+1. Admin login and navigate to applications
+2. Find and invite 'AutoTest Suite - Full Test' application
+3. Generate session and extract link
+4. **Primary applicant flow**:
+   - Select applicant type
+   - Handle state modal
+   - Set rent budget
+   - Add co-applicant
+   - Skip ID verification
+   - Complete Plaid financial connection (Betterment)
+   - Complete paystub connection
+5. **Co-applicant flow**:
+   - Copy invite link
+   - Open co-applicant session
+   - Complete co-applicant registration
+   - Complete Plaid financial connection (user_bank_income)
+   - Complete paystub connection
+6. **Admin validation**:
+   - Check session has children
+   - Verify income aggregation
+   - Check income source sections
+   - Check employment sections
+   - Validate financial section data
+
+#### **Key Business Validations:**
+- **Co-applicant income aggregation** ✅
+- **Income ratio calculations** ✅
+- **Financial impact of multiple applicants** ✅
+- **Plaid integration with Betterment** ✅
+- **Session children validation** ✅
+
+---
+
+### **3. hosted_app_copy_verify_flow_plaid_id_emp_skip.spec.js - Hosted App with Skips**
+
+#### **Complete Test Structure:**
+- **1 test** (180s timeout)
+- **Hosted application flow** with skips
+- **Tags**: @smoke, @regression, @needs-review
+
+#### **Test: "Should complete hosted application flow with id emp skips and Plaid integration"**
+**Purpose**: Test hosted application flow with specific skip scenarios
+**Steps**:
+1. Admin login and navigate to applications
+2. Find and copy 'AutoTest Suite Hshld-ID-Emp-Fin with skips' application
+3. Logout and navigate to application URL
+4. **Phone login flow**:
+   - Enter random phone number
+   - Enter verification code (123456)
+5. **Complete applicant registration**:
+   - Fill registration form (teset, testrelogin, ALASKA)
+   - Set rent budget (500)
+6. **Application flow with skips**:
+   - Skip applicants
+   - Complete ID verification (Passport upload)
+   - Skip employment verification
+   - Complete Plaid financial connection
+7. **Verify summary screen and statuses**:
+   - Rent Budget: Complete
+   - Identity Verification: Complete
+   - Applicants: Skipped
+   - Employment Verification: Skipped
+   - Financial Verification: Missing Financial Transactions error
+
+#### **Key Business Validations:**
+- **Hosted application flow** ✅
+- **Phone login verification** ✅
+- **Skip functionality** ✅
+- **ID verification with upload** ✅
+- **Plaid integration** ✅
+- **Status verification** ✅
+- **Error handling** ✅
+
+---
+
+### **4. heartbeat_completed_application_click_check.spec.js - Completed Application Check**
+
+#### **Complete Test Structure:**
+- **1 test** (no timeout specified)
+- **Completed application navigation** and verification
+- **Tags**: None specified
+
+#### **Test: "Heartbeat Test: Completed Application Clicks (frontend)"**
+**Purpose**: Test navigation and verification of completed application
+**Steps**:
+1. Login with admin
+2. Search for specific session ID
+3. Click on session
+4. **Open session in new page**:
+   - Click overview applicant button
+   - Open in new page
+5. **Navigate through completed steps**:
+   - Summary page
+   - Rent budget page (update to 600)
+   - ID verification page (verify completed status)
+   - Financial verification page
+   - Employment verification page
+6. **Test additional functionality**:
+   - Click continue on employment verification
+   - Test additional bank connect MX modal
+   - Verify MX frame visibility
+   - Cancel modal
+
+#### **Key Business Validations:**
+- **Completed application navigation** ✅
+- **Step-by-step verification** ✅
+- **Status checking** ✅
+- **Rent budget updates** ✅
+- **Additional bank connection** ✅
+- **MX integration modal** ✅
+
+---
+
+### **5. pdf_download_test.spec.js - PDF Download Functionality**
+
+#### **Complete Test Structure:**
+- **1 test** (no timeout specified)
+- **PDF download** functionality
+- **Tags**: @core
+
+#### **Test: "Should successfully export PDF for an application"**
+**Purpose**: Test PDF export functionality for applications
+**Steps**:
+1. Login as staff user
+2. Search for 'autotest PDF Download' application
+3. Navigate to session
+4. Export PDF using utility function
+5. Verify PDF download
+
+#### **Key Business Validations:**
+- **PDF export functionality** ✅
+- **Staff user permissions** ✅
+- **Session navigation** ✅
+- **File download** ✅
+
+---
+
+### **6. application_flow_with_id_only.spec.js - ID Only Application Flow**
+
+#### **Complete Test Structure:**
+- **1 test** (no timeout specified)
+- **ID only application** flow
+- **Tags**: @core, @smoke, @regression
+
+#### **Test: "ID only - 1 attempt - success"**
+**Purpose**: Test ID verification only application flow
+**Steps**:
+1. Admin login and navigate to applications
+2. Find 'AutoTest Suite - ID Only' application
+3. Generate session
+4. **Applicant flow**:
+   - Set rent budget (500)
+   - Start ID verification
+   - Use Persona iframe for verification
+   - Select passport document type
+   - Upload passport image
+   - Complete verification
+5. Verify summary screen
+
+#### **Key Business Validations:**
+- **ID verification only flow** ✅
+- **Persona integration** ✅
+- **Passport upload** ✅
+- **Document type selection** ✅
+- **Verification completion** ✅
+
+---
+
+### **7. application_step_should_skip_properly.spec.js - Application Step Skip Logic**
+
+#### **Complete Test Structure:**
+- **1 test** (300s timeout)
+- **Application step skip** functionality
+- **Tags**: None specified
+
+#### **Test: "Check Application step skip works propertly"**
+**Purpose**: Test comprehensive step skipping functionality
+**Steps**:
+1. Admin login and navigate to applications
+2. Find and invite 'AutoTest Suite - Full Test' application
+3. Generate session
+4. **Complete applicant flow with skips**:
+   - Select applicant type (employed)
+   - Handle state modal (ALABAMA)
+   - Set rent budget (500)
+   - Skip invite page
+   - Complete ID verification
+   - Complete Plaid financial connection
+   - Skip employment step
+5. **Test step navigation and skipping**:
+   - Navigate to different steps
+   - Test skip functionality
+   - Add co-applicant
+   - Complete employment step
+   - Update rent budget
+6. Verify summary page
+
+#### **Key Business Validations:**
+- **Step skipping functionality** ✅
+- **Step navigation** ✅
+- **Co-applicant addition** ✅
+- **Rent budget updates** ✅
+- **Employment completion** ✅
+
+---
+
+### **8. application_edit_id_template_settings.spec.js - ID Template Settings Edit**
+
+#### **Complete Test Structure:**
+- **1 test** (no timeout specified)
+- **ID template settings** editing
+- **Tags**: @regression
+
+#### **Test: "Should edit an application ID template settings"**
+**Purpose**: Test ID template settings editing functionality
+**Steps**:
+1. Admin login and navigate to applications
+2. Find 'AutoTest Suite - ID Edit Only' application
+3. Open application edit modal
+4. Open workflow identity setup
+5. **Edit template settings**:
+   - Get current template value
+   - Edit to 'itmpl_tester_Edited'
+   - Save changes
+   - Reopen and verify
+   - Restore original value
+
+#### **Key Business Validations:**
+- **ID template editing** ✅
+- **Settings persistence** ✅
+- **Value verification** ✅
+- **Restore functionality** ✅
+
+---
+
+### **9. verify_application_edit_id_step_edit.spec.js - ID Step Edit Verification**
+
+#### **Complete Test Structure:**
+- **2 tests** (no timeout specified)
+- **ID step edit** verification
+- **Tags**: @regression
+
+#### **Test 1: "Should login user and edit ID only application"**
+**Purpose**: Test ID step editing with identity enabled
+**Steps**:
+1. Admin login
+2. Complete application edit workflow
+3. **Edit ID settings**:
+   - Verify identity checkbox is checked
+   - Change guarantor value from 1000 to 1500
+   - Set income budget to 1
+   - Set rent budget min to 500
+
+#### **Test 2: "Verify updates are there in application"**
+**Purpose**: Verify previous edits and revert changes
+**Steps**:
+1. Admin login
+2. Complete application edit workflow
+3. **Verify and revert**:
+   - Verify identity checkbox is unchecked (from previous test)
+   - Verify guarantor value is 1500 (from previous test)
+   - Revert guarantor value back to 1000
+   - Set income budget to 1
+   - Set rent budget min to 500
+
+#### **Key Business Validations:**
+- **ID step editing** ✅
+- **Identity checkbox state** ✅
+- **Guarantor value changes** ✅
+- **Settings persistence** ✅
+- **Value verification** ✅
+
+---
+
+### **10. application_create_delete_test.spec.js - Application Create/Delete**
+
+#### **Complete Test Structure:**
+- **1 test** (no timeout specified)
+- **Application creation and deletion**
+- **Tags**: @core
+
+#### **Test: "Should create and delete an application with multiple applicant types"**
+**Purpose**: Test application creation and deletion with multiple applicant types
+**Steps**:
+1. Admin login
+2. **Create application**:
+   - Organization: Verifast
+   - Application name: AutoTest Create_Delete_{random}
+   - Applicant types: Affordable Occupant, Affordable Primary, Employed, International, Self-Employed, Other
+   - Workflow template: Autotest-suite-fin-only
+   - Flag collection: High Risk
+   - Minimum amount: 500
+3. Complete application flow
+4. Delete application
+
+#### **Key Business Validations:**
+- **Application creation** ✅
+- **Multiple applicant types** ✅
+- **Workflow template assignment** ✅
+- **Flag collection assignment** ✅
+- **Application deletion** ✅
+
+---
+
+## **Category 3 Analysis Summary**
+
+### **Business Purpose Analysis:**
+
+| Test File | Primary Business Purpose | Unique Validations | Overlap Assessment |
+|-----------|-------------------------|-------------------|-------------------|
+| `frontent-session-heartbeat.spec.js` | **Complete E2E Session Flow** | • Complete user journey<br>• Co-applicant workflow<br>• State modal handling<br>• Manual upload options<br>• Skip functionality | **NO OVERLAP** - Complete E2E flow, different from specific scenarios |
+| `co_applicant_effect_on_session_test.spec.js` | **Co-Applicant Income Aggregation** | • **Income aggregation logic**<br>• **Income ratio calculations**<br>• **Financial impact of multiple applicants**<br>• **Plaid integration with Betterment** | **NO OVERLAP** - Specific business logic for co-applicant income |
+| `hosted_app_copy_verify_flow_plaid_id_emp_skip.spec.js` | **Hosted App with Skips** | • **Hosted application flow**<br>• **Phone login verification**<br>• **Skip functionality**<br>• **ID verification with upload** | **NO OVERLAP** - Different application type, different flow |
+| `heartbeat_completed_application_click_check.spec.js` | **Completed Application Check** | • **Completed application navigation**<br>• **Step-by-step verification**<br>• **Status checking**<br>• **Additional bank connection** | **NO OVERLAP** - Different purpose, different validation |
+| `pdf_download_test.spec.js` | **PDF Download Functionality** | • **PDF export functionality**<br>• **Staff user permissions**<br>• **File download** | **NO OVERLAP** - Different functionality, different user type |
+| `application_flow_with_id_only.spec.js` | **ID Only Application Flow** | • **ID verification only flow**<br>• **Persona integration**<br>• **Passport upload**<br>• **Document type selection** | **NO OVERLAP** - Different application type, different verification |
+| `application_step_should_skip_properly.spec.js` | **Application Step Skip Logic** | • **Step skipping functionality**<br>• **Step navigation**<br>• **Co-applicant addition**<br>• **Rent budget updates** | **NO OVERLAP** - Different purpose, different skip logic |
+| `application_edit_id_template_settings.spec.js` | **ID Template Settings Edit** | • **ID template editing**<br>• **Settings persistence**<br>• **Value verification**<br>• **Restore functionality** | **NO OVERLAP** - Different functionality, different settings |
+| `verify_application_edit_id_step_edit.spec.js` | **ID Step Edit Verification** | • **ID step editing**<br>• **Identity checkbox state**<br>• **Guarantor value changes**<br>• **Settings persistence** | **NO OVERLAP** - Different purpose, different editing |
+| `application_create_delete_test.spec.js` | **Application Create/Delete** | • **Application creation**<br>• **Multiple applicant types**<br>• **Workflow template assignment**<br>• **Application deletion** | **NO OVERLAP** - Different functionality, different management |
+
+### **Key Insights:**
+
+1. **Different application types** - Each test validates different application configurations
+2. **Different user flows** - Complete E2E vs specific scenarios vs hosted apps
+3. **Different business logic** - Income aggregation vs step skipping vs template editing
+4. **Different functionalities** - PDF download vs ID verification vs application management
+5. **Different validation purposes** - Each test serves a distinct business purpose
+
+### **Technical Setup Analysis:**
+
+#### **Common Setup Steps (Necessary for Each Test):**
+1. **Admin login** - Needed to access applications and manage sessions
+2. **Application navigation** - Each test needs to find its specific application
+3. **Session generation** - Each test needs to create a session for testing
+4. **Applicant setup** - Each test needs to set up the applicant flow
+5. **Specific workflow** - Each test needs to test its specific business scenario
+
+#### **These are NOT "extra steps" - they are essential setup for each test's unique business validation**
+
+### **Conclusion for Category 3: NO MEANINGFUL OVERLAP**
+
+**All 10 tests should be kept** because:
+- Each tests different application types and configurations
+- Each validates different business workflows and scenarios
+- Each serves different business purposes (E2E flow, income aggregation, hosted apps, etc.)
+- The "overlap" in setup steps is necessary for each test to validate its unique business logic
+- Removing any test would lose important application management coverage
+
+**Optimization opportunity**: Create shared utilities for common setup steps (admin login, session generation, applicant setup) to reduce code duplication while maintaining all tests.
+
+---
+
+## Category 3: Application Management Tests - COMPLETE ANALYSIS
+
+### **Files Analyzed:**
+1. `frontent-session-heartbeat.spec.js` - **Complete E2E Session Flow**
+2. `co_applicant_effect_on_session_test.spec.js` - **Co-Applicant Income Aggregation**
+3. `hosted_app_copy_verify_flow_plaid_id_emp_skip.spec.js` - **Hosted App with Skips**
+4. `heartbeat_completed_application_click_check.spec.js` - **Completed Application Check**
+5. `pdf_download_test.spec.js` - **PDF Download Functionality**
+6. `application_workflow_management.spec.js` - **Workflow Management**
+7. `application_creation_flow.spec.js` - **Application Creation**
+
+---
+
+### **1. frontent-session-heartbeat.spec.js - Complete E2E Session Flow**
+
+Let me read this file completely:
