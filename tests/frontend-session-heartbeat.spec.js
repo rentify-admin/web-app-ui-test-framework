@@ -6,7 +6,7 @@ import generateSessionForm from '~/tests/utils/generate-session-form';
 import { completePaystubConnection, fillhouseholdForm, selectApplicantType, updateRentBudget, updateStateModal, waitForButtonOrAutoAdvance } from '~/tests/utils/session-flow';
 import { getRandomEmail } from './utils/helper';
 
-test.describe('frontent-session-heartbeat', () => {
+test.describe('frontend-session-heartbeat', () => {
     // Test includes improved state modal handling and uses utility function
     // for intelligent button interaction (handles manual clicks and auto-advance)
     test('Verify Frontend session heartbeat', async ({ page }) => {
