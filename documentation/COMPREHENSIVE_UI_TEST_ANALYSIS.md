@@ -49,10 +49,8 @@ Based on the test files in the framework, I've identified these categories:
 #### **Test 1: "Should allow admin to create user via API"**
 **Purpose**: Create a Centralized Leasing user via API
 **API Endpoints Checked**:
-- `POST /auth` - Admin authentication
-- `POST /users` - User creation via API
-- `GET /roles` - Get role by name (Centralized Leasing)
-- `GET /organizations` - Get organization by name
+- `POST /auth` - Admin authentication (via dataManager.authenticate)
+- `POST /users` - User creation via API (via dataManager.createEntities)
 
 **Steps**:
 1. Authenticate admin user for API access
@@ -64,10 +62,8 @@ Based on the test files in the framework, I've identified these categories:
 #### **Test 2: "Should allow user to edit the application"**
 **Purpose**: Test Centralized Leasing user can edit applications
 **API Endpoints Checked**:
-- `POST /auth` - User login
-- `GET /sessions?fields[session]=` - Load sessions for user
-- `GET /applications` - Load applications list
-- `GET /applications/{id}/edit` - Navigate to edit page
+- `GET /sessions?fields[session]=` - Load sessions for user (waitForResponse)
+- `GET /applications` - Load applications list (waitForResponse)
 
 **Steps**:
 1. Login with created user
@@ -81,22 +77,10 @@ Based on the test files in the framework, I've identified these categories:
 #### **Test 3: "Should allow user to perform permited actions"**
 **Purpose**: Test comprehensive permissions for Centralized Leasing role
 **API Endpoints Checked**:
-- `POST /auth` - User login
-- `GET /sessions?fields[session]=` - Load sessions
-- `GET /sessions/{id}?fields[session]=` - Get specific session
-- `GET /sessions/{id}/employments` - Get employment data
-- `GET /sessions/{id}/files` - Get files data
-- `GET /sessions/{id}/flags` - Get session flags
-- `GET /sessions/{id}/events` - Get session events
-- `PATCH /sessions/{id}` - Update session (rent budget, approval status)
-- `GET /sessions/{id}/export-pdf` - Export PDF
-- `GET /identity-verifications` - Get identity verifications
-- `GET /sessions/{id}/identities` - Get session identities
-- `GET /sessions/{id}/income-sources` - Get income sources
-- `GET /financial-verifications` - Get financial verifications
-- `GET /employment-verifications` - Get employment verifications
-- `GET /sessions/{id}/files` - Get session files
-- `GET /sessions/{id}/transactions` - Get session transactions
+- `GET /sessions?fields[session]=` - Load sessions (waitForResponse)
+- `GET /sessions/{id}/employments` - Get employment data (waitForResponse)
+- `GET /sessions/{id}/files` - Get files data (waitForResponse)
+- `GET /sessions/{id}?fields[session]=` - Get specific session (waitForResponse)
 
 **Steps**:
 1. Login with created user
@@ -142,9 +126,8 @@ Based on the test files in the framework, I've identified these categories:
 #### **Test 1: "Should create member record and assign it to the Staff role"**
 **Purpose**: Create a Staff user via API
 **API Endpoints Checked**:
-- `POST /auth` - Admin authentication
-- `POST /users` - User creation via API
-- `GET /roles` - Get role by name (Staff)
+- `POST /auth` - Admin authentication (via dataManager.authenticate)
+- `POST /users` - User creation via API (via dataManager.createEntities)
 
 **Steps**:
 1. Authenticate admin user for API access
@@ -156,16 +139,13 @@ Based on the test files in the framework, I've identified these categories:
 #### **Test 2: "Verify permission of Staff role"**
 **Purpose**: Test limited permissions for Staff role
 **API Endpoints Checked**:
-- `POST /auth` - Staff user login
-- `GET /applications` - Load applications list
-- `GET /sessions?fields[session]=` - Load sessions
-- `GET /sessions/{id}?fields[session]=` - Get specific session
-- `GET /sessions/{id}/employments` - Get employment data
-- `GET /sessions/{id}/files` - Get files data
-- `GET /sessions/{id}/flags` - Get session flags
-- `GET /sessions/{id}/events` - Get session events
-- `GET /sessions/{id}/export-pdf` - Export PDF
-- `GET /sessions/{id}/income-sources` - Get income sources
+- `GET /applications` - Load applications list (waitForResponse)
+- `GET /sessions?.*${sessionID}` - Search sessions by ID (waitForResponse with regex)
+- `GET /sessions/${sessionID}/employments` - Get employment data (waitForResponse)
+- `GET /sessions/${sessionID}/files` - Get files data (waitForResponse)
+- `GET /sessions/${sessionID}/flags` - Get session flags (waitForResponse)
+- `GET /sessions/${sessionID}/events` - Get session events (waitForResponse)
+- `GET /sessions/${sessionID}/income-sources` - Get income sources (waitForResponse)
 
 **Steps**:
 1. Login with created staff user
@@ -204,9 +184,8 @@ Based on the test files in the framework, I've identified these categories:
 #### **Test 1: "Should create property admin role user via API"**
 **Purpose**: Create a Property Admin user via API
 **API Endpoints Checked**:
-- `POST /auth` - Admin authentication
-- `POST /users` - User creation via API
-- `GET /roles` - Get role by name (Property Admin)
+- `POST /auth` - Admin authentication (via dataManager.authenticate)
+- `POST /users` - User creation via API (via dataManager.createEntities)
 
 **Steps**:
 1. Authenticate admin user for API access
@@ -217,17 +196,17 @@ Based on the test files in the framework, I've identified these categories:
 #### **Test 2: "Verify property admin user permissions"**
 **Purpose**: Test Property Admin permissions for applications and organization
 **API Endpoints Checked**:
-- `POST /auth` - Property Admin user login
-- `GET /applications?fields[application]=` - Load applications
-- `GET /workflows?fields[workflow]=` - Load workflows
-- `GET /flag-collections?` - Load approval conditions
-- `GET /organizations/self` - Get organization info
-- `PATCH /organizations/{id}` - Update organization info
-- `GET /organizations/{id}/members` - Get organization members
-- `POST /organizations/{id}/members` - Add organization member
-- `PATCH /organizations/{id}/members/{id}` - Update member permissions
-- `DELETE /organizations/{id}/members/{id}` - Delete member
-- `GET /roles?` - Get roles list
+- `GET /applications?fields[application]` - Load applications (gotoPage)
+- `GET /workflows?fields[workflow]` - Load workflows (gotoPage)
+- `GET /flag-collections?` - Load approval conditions (gotoPage)
+- `GET /flag-collections/{id}` - Get specific approval condition (waitForResponse with regex)
+- `GET /organizations/self` - Get organization info (gotoPage)
+- `PATCH /organizations/{id}` - Update organization info (waitForResponse with regex)
+- `GET /organizations/{id}/members` - Get organization members (gotoPage)
+- `GET /roles` - Get roles list (waitForResponse)
+- `POST /organizations/{id}/members` - Add organization member (via orgUtils.addOrganizationMember)
+- `PATCH /organizations/{id}/members/{id}` - Update member permissions (via orgUtils.addManageAppPermissionAndCheck)
+- `DELETE /organizations/{id}/members/{id}` - Delete member (via orgUtils.deleteMember)
 
 **Steps**:
 1. Login with created property admin user
@@ -255,17 +234,11 @@ Based on the test files in the framework, I've identified these categories:
 #### **Test 3: "Check applicant inbox permissions"**
 **Purpose**: Test Property Admin permissions for applicant inbox
 **API Endpoints Checked**:
-- `POST /auth` - Property Admin user login
-- `GET /sessions?fields[session]=` - Search sessions
-- `GET /sessions/{id}?fields[session]=` - Get specific session
-- `GET /sessions/{id}/files` - Get files data
-- `GET /financial-verifications` - Get financial verifications
-- `GET /sessions/{id}/employments` - Get employment data
-- `GET /sessions/{id}/flags` - Get session flags
-- `GET /sessions/{id}/events` - Get session events
-- `PATCH /sessions/{id}` - Update session (rent budget, approval status)
-- `GET /sessions/{id}/export-pdf` - Export PDF
-- `GET /sessions/{id}/income-sources` - Get income sources
+- `GET /sessions/{id}/files` - Get files data for multiple sessions (waitForResponse)
+- `GET /financial-verifications` - Get financial verifications with session filters (waitForResponse with regex)
+- `GET /sessions/{id}/employments` - Get employment data (waitForResponse)
+- `GET /sessions/{id}/flags` - Get session flags (waitForResponse)
+- `GET /sessions/{id}/events` - Get session events (waitForResponse)
 
 **Steps**:
 1. Login with created property admin user
@@ -309,11 +282,8 @@ Based on the test files in the framework, I've identified these categories:
 #### **Test: "Admin should be able to update an organization member's application permissions"**
 **Purpose**: Test organization-level permission management
 **API Endpoints Checked**:
-- `POST /auth` - Admin login
-- `GET /organizations/self` - Get organization info
-- `GET /organizations/{id}/members` - Get organization members
-- `GET /applications?fields[application]=` - Load applications for permission table
-- `PATCH /organizations/{id}/members/{id}` - Update member permissions (2 calls - save and revert)
+- `GET /applications?fields[application]=` - Load applications for permission table (waitForResponse)
+- `PATCH /organizations/{id}/members/{id}` - Update member permissions (waitForResponse with regex, 2 calls - save and revert)
 
 **Steps**:
 1. Login with test_org_admin
@@ -341,48 +311,41 @@ Based on the test files in the framework, I've identified these categories:
 ### **API Endpoints Coverage Analysis:**
 
 #### **Authentication & User Management:**
-- `POST /auth` - User authentication (4 tests)
-- `POST /users` - User creation (3 tests)
-- `GET /roles` - Role management (3 tests)
-- `GET /organizations` - Organization lookup (1 test)
+- `POST /auth` - User authentication (via dataManager.authenticate in 3 tests)
+- `POST /users` - User creation (via dataManager.createEntities in 3 tests)
 
 #### **Application Management:**
-- `GET /applications` - Load applications (4 tests)
-- `GET /applications?fields[application]=` - Load applications with fields (2 tests)
-- `GET /applications/{id}/edit` - Navigate to edit page (1 test)
+- `GET /applications` - Load applications (waitForResponse in 1 test)
+- `GET /applications?fields[application]=` - Load applications with fields (waitForResponse in 2 tests)
 
 #### **Session Management:**
-- `GET /sessions?fields[session]=` - Load sessions (4 tests)
-- `GET /sessions/{id}?fields[session]=` - Get specific session (3 tests)
-- `PATCH /sessions/{id}` - Update session (2 tests)
-- `GET /sessions/{id}/export-pdf` - Export PDF (3 tests)
+- `GET /sessions?fields[session]=` - Load sessions (waitForResponse in 2 tests)
+- `GET /sessions?.*${sessionID}` - Search sessions by ID (waitForResponse with regex in 1 test)
 
 #### **Session Data Endpoints:**
-- `GET /sessions/{id}/employments` - Employment data (3 tests)
-- `GET /sessions/{id}/files` - Files data (3 tests)
-- `GET /sessions/{id}/flags` - Session flags (3 tests)
-- `GET /sessions/{id}/events` - Session events (3 tests)
-- `GET /sessions/{id}/identities` - Session identities (1 test)
-- `GET /sessions/{id}/income-sources` - Income sources (3 tests)
-- `GET /sessions/{id}/transactions` - Session transactions (1 test)
+- `GET /sessions/{id}/employments` - Employment data (waitForResponse in 2 tests)
+- `GET /sessions/{id}/files` - Files data (waitForResponse in 2 tests)
+- `GET /sessions/{id}/flags` - Session flags (waitForResponse in 2 tests)
+- `GET /sessions/{id}/events` - Session events (waitForResponse in 2 tests)
+- `GET /sessions/{id}/income-sources` - Income sources (waitForResponse in 1 test)
+- `GET /sessions/{id}?fields[session]=` - Get specific session (waitForResponse in 1 test)
 
 #### **Verification Endpoints:**
-- `GET /identity-verifications` - Identity verifications (1 test)
-- `GET /financial-verifications` - Financial verifications (2 tests)
-- `GET /employment-verifications` - Employment verifications (1 test)
+- `GET /financial-verifications` - Financial verifications with session filters (waitForResponse with regex in 1 test)
 
 #### **Organization Management:**
-- `GET /organizations/self` - Get organization info (2 tests)
-- `PATCH /organizations/{id}` - Update organization (1 test)
-- `GET /organizations/{id}/members` - Get members (2 tests)
-- `POST /organizations/{id}/members` - Add member (1 test)
-- `PATCH /organizations/{id}/members/{id}` - Update member permissions (2 tests)
-- `DELETE /organizations/{id}/members/{id}` - Delete member (1 test)
+- `GET /organizations/self` - Get organization info (gotoPage in 1 test)
+- `PATCH /organizations/{id}` - Update organization (waitForResponse with regex in 1 test)
+- `GET /organizations/{id}/members` - Get members (gotoPage in 1 test)
+- `POST /organizations/{id}/members` - Add member (via orgUtils in 1 test)
+- `PATCH /organizations/{id}/members/{id}` - Update member permissions (waitForResponse with regex in 1 test, 2 calls)
+- `DELETE /organizations/{id}/members/{id}` - Delete member (via orgUtils in 1 test)
 
 #### **Workflow & Configuration:**
-- `GET /workflows?fields[workflow]=` - Load workflows (1 test)
-- `GET /flag-collections?` - Load approval conditions (1 test)
-- `GET /roles?` - Get roles list (1 test)
+- `GET /workflows?fields[workflow]` - Load workflows (gotoPage in 1 test)
+- `GET /flag-collections?` - Load approval conditions (gotoPage in 1 test)
+- `GET /flag-collections/{id}` - Get specific approval condition (waitForResponse with regex in 1 test)
+- `GET /roles` - Get roles list (waitForResponse in 1 test)
 
 ### **Business Purpose Analysis:**
 
@@ -447,14 +410,12 @@ Based on the test files in the framework, I've identified these categories:
 #### **Test: "Should handle Plaid Fin verification with insufficient transactions and decline flag"**
 **Purpose**: Test Plaid integration with insufficient transactions and decline flag generation
 **API Endpoints Checked**:
-- `POST /auth` - Admin login
-- `GET /applications` - Load applications
-- `POST /sessions` - Generate session
-- `PATCH /sessions/{id}/steps` - Update session steps
-- `POST /financial-verifications` - Create financial verification
-- `GET /sessions/{id}?fields[session]=` - Get session data
-- `GET /sessions/{id}/flags` - Get session flags
-- `GET /financial-verifications` - Get financial verifications
+- **No explicit waitForResponse calls** - This test uses utility functions that handle API calls internally
+- **Utility functions used**:
+  - `generateSessionForApplication()` - Generates session (likely calls `POST /sessions`)
+  - `completeApplicantInitialSetup()` - Completes setup (likely calls `PATCH /sessions/{id}`)
+  - `plaidFinancialConnect()` - Handles Plaid OAuth flow (likely calls `POST /financial-verifications`)
+  - `verifyTransactionErrorAndDeclineFlag()` - Verifies flags (likely calls `GET /sessions/{id}/flags`)
 
 **Steps**:
 1. Admin login and navigate to applications
@@ -482,6 +443,11 @@ Based on the test files in the framework, I've identified these categories:
 
 #### **Test: "Should complete MX OAuth financial verification and test approval workflow with conditions"**
 **Purpose**: Test MX integration with approval workflow and conditional logic
+**API Endpoints Checked**:
+- `GET /sessions/{sessionId}` - Wait for session response (waitForResponse)
+- `POST /sessions/{sessionId}/income-sources` - Create income source (waitForResponse)
+- `GET /sessions/{sessionId}/income-sources` - Get income sources (waitForResponse)
+
 **Steps**:
 1. Admin login and navigate to applications
 2. Locate 'AutoTest Suite - Fin only' application
@@ -519,6 +485,10 @@ Based on the test files in the framework, I've identified these categories:
 
 #### **Test: "Financial - mx - 2 attempts - success and failed password"**
 **Purpose**: Test MX retry mechanism and password failure handling
+**API Endpoints Checked**:
+- `GET /sessions/{sessionId}` - Wait for session response (waitForResponse)
+- `POST /financial-verifications` - Create financial verification (waitForResponse)
+
 **Steps**:
 1. Admin login and navigate to applications
 2. Locate 'AutoTest Suite - Fin' application
@@ -550,6 +520,14 @@ Based on the test files in the framework, I've identified these categories:
 
 #### **Test: "Should complete applicant flow and upload bank statement document"**
 **Purpose**: Test bank statement upload and transaction parsing
+**API Endpoints Checked**:
+- **No explicit waitForResponse calls** - This test uses utility functions that handle API calls internally
+- **Utility functions used**:
+  - `generateSessionAndExtractLink()` - Generates session (likely calls `POST /sessions`)
+  - `completeApplicantForm()` - Completes form (likely calls `PATCH /sessions/{id}`)
+  - `uploadStatementFinancialStep()` - Uploads bank statement (likely calls `POST /sessions/{id}/files`)
+  - `navigateAndValidateFinancialData()` - Validates data (likely calls `GET /sessions/{id}/files`)
+
 **Steps**:
 1. Admin login and navigate to applications
 2. Find and invite 'AutoTest - Playwright Fin Doc Upload Test' application
@@ -581,6 +559,16 @@ Based on the test files in the framework, I've identified these categories:
 
 #### **Test: "Should complete document upload verification flow" (SKIPPED)**
 **Purpose**: Test document upload with verification process
+**API Endpoints Checked**:
+- **No explicit waitForResponse calls** - This test uses utility functions that handle API calls internally
+- **Utility functions used**:
+  - `generateSessionAndExtractLink()` - Generates session (likely calls `POST /sessions`)
+  - `uploadStatementFinancialStep()` - Uploads bank statement (likely calls `POST /sessions/{id}/files`)
+  - `uploadPaystubDocuments()` - Uploads paystub (likely calls `POST /sessions/{id}/files`)
+  - `verifyEmploymentSection()` - Verifies employment (likely calls `GET /sessions/{id}/employments`)
+  - `verifyIncomeSourcesSection()` - Verifies income sources (likely calls `GET /sessions/{id}/income-sources`)
+  - `verifyReportFlags()` - Verifies flags (likely calls `GET /sessions/{id}/flags`)
+
 **Steps**:
 1. Admin setup and application invitation
 2. Generate session
@@ -604,6 +592,29 @@ Based on the test files in the framework, I've identified these categories:
 ---
 
 ## **Category 2 Analysis Summary**
+
+### **API Endpoints Coverage Analysis:**
+
+#### **Session Management:**
+- `GET /sessions/{sessionId}` - Wait for session response (waitForResponse in 2 tests)
+
+#### **Financial Verification:**
+- `POST /financial-verifications` - Create financial verification (waitForResponse in 1 test)
+
+#### **Income Sources:**
+- `POST /sessions/{sessionId}/income-sources` - Create income source (waitForResponse in 1 test)
+- `GET /sessions/{sessionId}/income-sources` - Get income sources (waitForResponse in 1 test)
+
+#### **Utility Functions (API calls handled internally):**
+- `generateSessionForApplication()` - Generates session (likely calls `POST /sessions`)
+- `completeApplicantInitialSetup()` - Completes setup (likely calls `PATCH /sessions/{id}`)
+- `plaidFinancialConnect()` - Handles Plaid OAuth (likely calls `POST /financial-verifications`)
+- `verifyTransactionErrorAndDeclineFlag()` - Verifies flags (likely calls `GET /sessions/{id}/flags`)
+- `uploadStatementFinancialStep()` - Uploads bank statement (likely calls `POST /sessions/{id}/files`)
+- `uploadPaystubDocuments()` - Uploads paystub (likely calls `POST /sessions/{id}/files`)
+- `verifyEmploymentSection()` - Verifies employment (likely calls `GET /sessions/{id}/employments`)
+- `verifyIncomeSourcesSection()` - Verifies income sources (likely calls `GET /sessions/{id}/income-sources`)
+- `verifyReportFlags()` - Verifies flags (likely calls `GET /sessions/{id}/flags`)
 
 ### **Business Purpose Analysis:**
 
