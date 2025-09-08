@@ -45,8 +45,8 @@ test.beforeEach(async ({ page }) => {
     await page.goto('/');
 });
 
-// Hardcoded for staging testing (temporary)
-const applicationName = 'Test Permission 1'; // Staging application name
+// Dynamic session will be fetched by application name (environment-dependent)
+const applicationName = process.env.APP_ENV === 'staging' ? 'Test Permissions 1' : 'AutoTest - Id Emp Fin';
 
 test.describe('user_permissions_verify', () => {
     test.describe.configure({ 
@@ -78,10 +78,10 @@ test.describe('user_permissions_verify', () => {
             throw new Error('Authentication failed - cannot create users without API access');
         }
 
-        // Hardcoded values for staging testing (temporary)
-        const isStaging = true; // Temporarily hardcoded to staging
-        const roleId = '0196c9cd-4cf9-7368-949c-a298396673d9'; // Centralized Leasing (staging)
-        const organizationId = '0196cb22-5da4-715a-a89d-3ad36eeacf7d'; // Test Org (staging)
+        // Hardcoded values based on environment for quick setup
+        const isStaging = process.env.APP_ENV === 'staging';
+        const roleId = isStaging ? '0196c9cd-4cf9-7368-949c-a298396673d9' : '0196f6c9-da5e-7074-9e6e-c35ac8f1818e'; // Centralized Leasing
+        const organizationId = isStaging ? '0196cb22-5da4-715a-a89d-3ad36eeacf7d' : '01971d42-96b6-7003-bcc9-e54006284a7e'; // Test Org / Permissions Test Org
 
         // Create user via API instead of UI
         const prefix = ApiDataManager.uniquePrefix();
@@ -264,8 +264,9 @@ test.describe('user_permissions_verify', () => {
 
             const { data: sessions } = await waitForJsonResponse(sessionsResponse);
 
-        // Hardcoded session ID for staging testing (temporary)
-        const sessionId = '01992a4a-825f-7242-bc27-65f120f3398b'; // Staging session ID
+        // Hardcoded session ID based on environment
+        const isStaging = process.env.APP_ENV === 'staging';
+        const sessionId = isStaging ? '01992a4a-825f-7242-bc27-65f120f3398b' : '01971d4f-2f5e-7151-88d5-d038c044d13b';
 
         const searchSessions = await searchSessionWithText(
             page,
