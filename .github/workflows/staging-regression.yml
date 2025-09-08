@@ -60,14 +60,14 @@ jobs:
         run: |
           echo "🧪 Starting regression tests..."
           echo "📊 Running 4 specific tests:"
-          echo "  - user-permission-verify.test.js"
+          echo "  - user_permissions_verify.spec.js"
           echo "  - skip_button_visibility_logic.spec.js" 
           echo "  - frontend_heartbeat.spec.js"
           echo "  - employment_skip_household_not_hidden_employment_connect.spec.js"
           echo "🌐 Environment: $APP_ENV"
           echo "🔗 Base URL: $APP_URL"
           echo ""
-          npx playwright test --project=chromium tests/user-permission-verify.test.js tests/skip_button_visibility_logic.spec.js tests/frontend_heartbeat.spec.js tests/employment_skip_household_not_hidden_employment_connect.spec.js
+          npx playwright test --project=chromium tests/user_permissions_verify.spec.js tests/skip_button_visibility_logic.spec.js tests/frontend_heartbeat.spec.js tests/employment_skip_household_not_hidden_employment_connect.spec.js
           
           echo "📁 Checking generated files:"
           ls -la playwright-report/ || echo "playwright-report/ directory not found"
