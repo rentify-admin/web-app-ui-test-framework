@@ -36,6 +36,14 @@ jobs:
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
 
+      - name: Install trcli
+        if: always()
+        run: |
+          echo "Installing trcli..."
+          pip install trcli
+          echo "✅ trcli installation completed"
+          which trcli || echo "❌ trcli not found in PATH"
+
       - name: Set environment variables
         run: |
           if [ "${{ github.event.inputs.environment }}" == "staging" ]; then
@@ -51,11 +59,11 @@ jobs:
       - name: Run regression tests
         run: |
           echo "🧪 Starting regression tests..."
-          echo "📊 Running only: Frontend Heartbeat test"
+          echo "📊 Running only: Verify Frontend session heartbeat test"
           echo "🌐 Environment: $APP_ENV"
           echo "🔗 Base URL: $APP_URL"
           echo ""
-          npx playwright test --project=chromium --grep "C40 - Frontend Heartbeat"
+          npx playwright test --project=chromium --grep "Verify Frontend session heartbeat"
           
           echo "📁 Checking generated files:"
           ls -la playwright-report/ || echo "playwright-report/ directory not found"
