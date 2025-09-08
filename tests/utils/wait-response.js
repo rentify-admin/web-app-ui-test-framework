@@ -4,9 +4,11 @@ import { test } from '@playwright/test';
 const waitForJsonResponse = async response => {
     const responseContentType = response.headers()['content-type'];
     let data = null;
+    
     if (responseContentType && responseContentType.includes('application/json')) {
         try {
             data = await response.json();
+            return data;
         } catch (err) {
             console.error('Error parsing JSON response:', err);
             data = JSON.parse(await response.text());

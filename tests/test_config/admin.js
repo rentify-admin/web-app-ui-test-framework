@@ -1,6 +1,6 @@
 export default {
 
-    email: 'dhaval.thankral@verifast.com',
+    email: 'ignacio.martinez@verifast.com',
 
-    password: 'password'
+    password: 'Verifast!23'
 };
