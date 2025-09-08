@@ -458,50 +458,34 @@ Based on the test files in the framework, I've identified these categories:
 
 ### **API Endpoints Coverage Analysis:**
 
-#### **Authentication & User Management:**
-- `POST /auth` - User authentication (via dataManager.authenticate in 3 tests, loginForm.submit in 1 test)
-- `POST /users` - User creation (via dataManager.createEntities in 3 tests)
-
-#### **Application Management:**
-- `GET /applications` - Load applications (waitForResponse in 1 test)
-- `GET /applications?fields[application]=` - Load applications with fields (waitForResponse in 2 tests)
-
-#### **Session Management:**
-- `GET /sessions?fields[session]=` - Load sessions (waitForResponse in 2 tests)
-- `GET /sessions?.*${sessionID}` - Search sessions by ID (waitForResponse with regex in 1 test)
-- `GET /sessions/{id}?fields[session]=` - Get specific session (waitForResponse in 1 test)
-
-#### **Session Data Endpoints:**
-- `GET /sessions/{id}/employments` - Employment data (waitForResponse in 2 tests)
-- `GET /sessions/{id}/files` - Files data (waitForResponse in 2 tests)
-- `GET /sessions/{id}/flags` - Session flags (waitForResponse in 2 tests)
-- `GET /sessions/{id}/events` - Session events (waitForResponse in 2 tests)
-- `GET /sessions/{id}/income-sources` - Income sources (waitForResponse in 1 test)
-
-#### **Session Actions (via utility functions):**
-- `PATCH /sessions/{id}` - Update session rent budget (via checkRentBudgetEdit in 2 tests)
-- `PATCH /sessions/{id}` - Approve session (via checkSessionApproveReject in 2 tests)
-- `PATCH /sessions/{id}` - Reject session (via checkSessionApproveReject in 2 tests)
-- `GET /sessions/{id}` - Export PDF (via checkExportPdf in 2 tests)
-- `PATCH /sessions/{id}/income-sources/{id}` - Delist income source (via checkIncomeSourceSection in 2 tests)
-- `PATCH /sessions/{id}/income-sources/{id}` - Relist income source (via checkIncomeSourceSection in 2 tests)
-
-#### **Verification Endpoints:**
-- `GET /financial-verifications` - Financial verifications (waitForResponse in 2 tests)
-
-#### **Organization Management:**
-- `GET /organizations/self` - Get organization info (gotoPage in 1 test)
-- `PATCH /organizations/{id}` - Update organization (waitForResponse with regex in 1 test)
-- `GET /organizations/{id}/members` - Get members (gotoPage in 1 test)
-- `POST /organizations/{id}/members` - Add member (via orgUtils in 1 test)
-- `PATCH /organizations/{id}/members/{id}` - Update member permissions (waitForResponse with regex in 1 test, 2 calls)
-- `DELETE /organizations/{id}/members/{id}` - Delete member (via orgUtils in 1 test)
-
-#### **Workflow & Configuration:**
-- `GET /workflows?fields[workflow]` - Load workflows (gotoPage in 1 test)
-- `GET /flag-collections?` - Load approval conditions (gotoPage in 1 test)
-- `GET /flag-collections/{id}` - Get specific approval condition (waitForResponse with regex in 1 test)
-- `GET /roles` - Get roles list (waitForResponse in 2 tests)
+| API Endpoint | Category | Tests Using It | What's Actually Checked |
+|--------------|----------|----------------|-------------------------|
+| `POST /auth` | Authentication | 4 tests | Response status is OK (200), user authentication successful |
+| `POST /users` | User Management | 3 tests | Response status is OK (200), user data is returned |
+| `GET /applications` | Application Management | 1 test | Response status is OK (200), applications data is returned |
+| `GET /applications?fields[application]=` | Application Management | 2 tests | Response status is OK (200), applications with fields data is returned |
+| `GET /sessions?fields[session]=` | Session Management | 2 tests | Response status is OK (200), sessions data is returned |
+| `GET /sessions?.*${sessionID}` | Session Management | 1 test | Response status is OK (200), session search by ID successful |
+| `GET /sessions/{id}?fields[session]=` | Session Management | 1 test | Response status is OK (200), specific session data is returned |
+| `GET /sessions/{id}/employments` | Session Data | 2 tests | Response status is OK (200), employment data is returned |
+| `GET /sessions/{id}/files` | Session Data | 2 tests | Response status is OK (200), files data is returned |
+| `GET /sessions/{id}/flags` | Session Data | 2 tests | Response status is OK (200), session flags data is returned |
+| `GET /sessions/{id}/events` | Session Data | 2 tests | Response status is OK (200), session events data is returned |
+| `GET /sessions/{id}/income-sources` | Session Data | 1 test | Response status is OK (200), income sources data is returned |
+| `PATCH /sessions/{id}` | Session Actions | 6 tests | Response status is OK (200), PATCH method (rent budget, approve, reject) |
+| `GET /sessions/{id}` | Session Actions | 2 tests | Response status is OK (200), PDF export successful |
+| `PATCH /sessions/{id}/income-sources/{id}` | Session Actions | 4 tests | Response status is OK (200), PATCH method (delist, relist) |
+| `GET /financial-verifications` | Verification | 2 tests | Response status is OK (200), financial verifications data is returned |
+| `GET /organizations/self` | Organization Management | 1 test | Response status is OK (200), organization info is returned |
+| `PATCH /organizations/{id}` | Organization Management | 1 test | Response status is OK (200), organization update successful |
+| `GET /organizations/{id}/members` | Organization Management | 1 test | Response status is OK (200), members data is returned |
+| `POST /organizations/{id}/members` | Organization Management | 1 test | Response status is OK (200), member added successfully |
+| `PATCH /organizations/{id}/members/{id}` | Organization Management | 2 tests | Response status is OK (200), member permissions updated |
+| `DELETE /organizations/{id}/members/{id}` | Organization Management | 1 test | Response status is OK (200), member deleted successfully |
+| `GET /workflows?fields[workflow]` | Workflow & Configuration | 1 test | Response status is OK (200), workflows data is returned |
+| `GET /flag-collections?` | Workflow & Configuration | 1 test | Response status is OK (200), approval conditions data is returned |
+| `GET /flag-collections/{id}` | Workflow & Configuration | 1 test | Response status is OK (200), specific approval condition data is returned |
+| `GET /roles` | Workflow & Configuration | 2 tests | Response status is OK (200), roles list data is returned |
 
 ### **Business Purpose Analysis:**
 
@@ -926,35 +910,18 @@ Based on the test files in the framework, I've identified these categories:
 
 ### **API Endpoints Coverage Analysis:**
 
-#### **Authentication & User Management:**
-- `POST /auth` - Admin login (used in all 5 tests)
-  - **What's Actually Checked**: Response status is OK (200), admin login successful
-- `GET /applications?` - Search applications (used in all 5 tests)
-  - **What's Actually Checked**: Response status is OK (200), applications array is returned
-
-#### **Session Management:**
-- `POST /sessions` - Create session (used in all 5 tests)
-  - **What's Actually Checked**: Response status is OK (200), session data is returned
-- `PATCH /sessions/{id}` - Update session rent budget (used in all 5 tests)
-  - **What's Actually Checked**: Response status is OK (200), PATCH method
-- `GET /sessions?fields[session]=` - Search sessions (used in 4 tests)
-  - **What's Actually Checked**: Response status is OK (200), sessions data array is returned
-
-#### **Financial Verification:**
-- `POST /financial-verifications` - Create financial verification (used in 4 tests)
-  - **What's Actually Checked**: Response status is OK (200), financial verification data is returned
-- `GET /financial-verifications` - Get financial verifications (used in 4 tests)
-  - **What's Actually Checked**: Response status is OK (200), financial verifications array is returned
-
-#### **Income Sources:**
-- `POST /sessions/{sessionId}/income-sources` - Create income source (used in 1 test)
-  - **What's Actually Checked**: Response status is OK (200), income source data is returned
-- `GET /sessions/{sessionId}/income-sources` - Get income sources (used in 1 test)
-  - **What's Actually Checked**: Response status is OK (200), income sources data is returned
-
-#### **Employment Verification:**
-- `POST /employment-verifications` - Create employment verification (used in 1 test)
-  - **What's Actually Checked**: Response status is OK (200), employment verification data is returned
+| API Endpoint | Category | Tests Using It | What's Actually Checked |
+|--------------|----------|----------------|-------------------------|
+| `POST /auth` | Authentication | All 5 tests | Response status is OK (200), admin login successful |
+| `GET /applications?` | Application Management | All 5 tests | Response status is OK (200), applications array is returned |
+| `POST /sessions` | Session Management | All 5 tests | Response status is OK (200), session data is returned |
+| `PATCH /sessions/{id}` | Session Management | All 5 tests | Response status is OK (200), PATCH method |
+| `GET /sessions?fields[session]=` | Session Management | 4 tests | Response status is OK (200), sessions data array is returned |
+| `POST /financial-verifications` | Financial Verification | 4 tests | Response status is OK (200), financial verification data is returned |
+| `GET /financial-verifications` | Financial Verification | 4 tests | Response status is OK (200), financial verifications array is returned |
+| `POST /sessions/{sessionId}/income-sources` | Income Sources | 1 test | Response status is OK (200), income source data is returned |
+| `GET /sessions/{sessionId}/income-sources` | Income Sources | 1 test | Response status is OK (200), income sources data is returned |
+| `POST /employment-verifications` | Employment Verification | 1 test | Response status is OK (200), employment verification data is returned |
 
 ### **Business Purpose Analysis:**
 
