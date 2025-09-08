@@ -962,16 +962,20 @@ Based on the test files in the framework, I've identified these categories:
 
 ---
 
-## Category 3: Application Management Tests - COMPLETE ANALYSIS (First 5 Files)
+## **Category 3: Application Management Tests**
 
-### **Files Analyzed (First 5):**
+### **Files to Analyze (7 total):**
 1. `frontent-session-heartbeat.spec.js` - **Complete E2E Session Flow**
 2. `co_applicant_effect_on_session_test.spec.js` - **Co-Applicant Income Aggregation**
 3. `hosted_app_copy_verify_flow_plaid_id_emp_skip.spec.js` - **Hosted App with Skips**
 4. `heartbeat_completed_application_click_check.spec.js` - **Completed Application Check**
 5. `pdf_download_test.spec.js` - **PDF Download Functionality**
+6. `application_create_delete_test.spec.js` - **Application CRUD Operations**
+7. `application_edit_id_template_settings.spec.js` - **Application Template Settings**
 
 ---
+
+## **Category 3: Detailed Test Analysis**
 
 ### **1. frontent-session-heartbeat.spec.js - Complete E2E Session Flow**
 
@@ -981,30 +985,42 @@ Based on the test files in the framework, I've identified these categories:
 - **Tags**: None specified
 
 #### **Test: "Verify Frontend session heartbeat"**
-**Purpose**: Test complete end-to-end user journey with co-applicant workflow
-**API Endpoints Checked**:
-- **No explicit waitForResponse calls** - This test uses utility functions that handle API calls internally
-- **Utility functions used**:
-  - `adminLoginAndNavigateToApplications()` - Admin login (likely calls `POST /auth`)
-  - `findAndInviteApplication()` - Find application (likely calls `GET /applications`)
-  - `generateSessionAndExtractLink()` - Generate session (likely calls `POST /sessions`)
-  - `selectApplicantType()` - Select type (likely calls `PATCH /sessions/{id}`)
-  - `updateStateModal()` - Update state (likely calls `PATCH /sessions/{id}`)
-  - `updateRentBudget()` - Update budget (likely calls `PATCH /sessions/{id}`)
-  - `fillhouseholdForm()` - Add co-applicant (likely calls `POST /sessions/{id}/applicants`)
-  - `completePaystubConnection()` - Complete paystub (likely calls `POST /sessions/{id}/employments`)
+**Purpose**: Test complete end-to-end user journey with co-applicant workflow, state modal handling, manual upload options, and skip functionality
+**API Endpoints Called**:
+- `POST /auth` - Admin login (via adminLoginAndNavigateToApplications, line 31)
+  - **Response Used For**: Authentication and session establishment
+  - **What's Actually Checked**: Response status is OK (200), page title changes to "Applicants", household-status-alert is visible
+- `GET /applications?` - Search applications (via findAndInviteApplication, line 35)
+  - **Response Used For**: Getting applications data for search
+  - **What's Actually Checked**: Response status is OK (200), applications array is returned
+- `POST /sessions` - Create session (via generateSessionForm.generateSessionAndExtractLink, line 39)
+  - **Response Used For**: Creating new session for applicant
+  - **What's Actually Checked**: Response status is OK (200), session data is returned with sessionId and sessionUrl
+- `PATCH /sessions/{id}` - Update session applicant type (via selectApplicantType, line 52)
+  - **Response Used For**: Updating session with selected applicant type (employed)
+  - **What's Actually Checked**: Response status is OK (200), PATCH method successful
+- `PATCH /sessions/{id}` - Update session rent budget (via updateRentBudget, line 75)
+  - **Response Used For**: Updating session with rent budget amount
+  - **What's Actually Checked**: Response status is OK (200), PATCH method successful
+- `POST /applicants` - Create co-applicant (via fillhouseholdForm, line 97)
+  - **Response Used For**: Creating co-applicant record
+  - **What's Actually Checked**: Response status is OK (200), applicant data is returned
+- **UI Interactions Only**:
+  - State modal handling (via updateStateModal, line 68) - No API call, UI state management only
+  - Employment verification iframe (via completePaystubConnection, line 139) - No API call, iframe interactions with Atomic Transact
 
 **Steps**:
-1. Admin login and navigate to applications
-2. Find and invite 'Autotest - Application Heartbeat (Frontend)' application
-3. Generate session and extract link
-4. **Complete applicant flow**:
-   - Select applicant type (employed)
-   - Handle optional state modal (ALABAMA)
-   - Set rent budget (500)
-   - Skip invite page
+1. **Admin login and navigate to applications** (via adminLoginAndNavigateToApplications utility)
+2. **Find and invite 'Autotest - Application Heartbeat (Frontend)' application** (via findAndInviteApplication utility)
+3. **Generate session and extract link** (via generateSessionForm.generateSessionAndExtractLink utility)
+4. **Admin logout and applicant login** (UI interactions only)
+5. **Complete applicant flow**:
+   - Select applicant type (employed) via selectApplicantType utility
+   - Handle optional state modal (ALABAMA) via updateStateModal utility
+   - Set rent budget (500) via updateRentBudget utility
+   - Skip invite page (UI interaction)
    - **ID verification step**:
-     - Click manual upload
+     - Click manual upload button
      - Cancel manual upload
      - Skip ID verification
    - **Financial step**:
@@ -1012,13 +1028,13 @@ Based on the test files in the framework, I've identified these categories:
      - Cancel manual upload
      - Skip financial step
    - **Employment step**:
-     - Complete paystub connection
-     - Continue employment step
-5. **Co-applicant workflow**:
-   - Go to invite page
-   - Add co-applicant
-   - Use intelligent button interaction utility
-6. Verify summary page is displayed
+     - Complete paystub connection via completePaystubConnection utility
+     - Use intelligent button interaction utility for employment step
+6. **Co-applicant workflow**:
+   - Navigate to invite page
+   - Add co-applicant via fillhouseholdForm utility
+   - Use intelligent button interaction utility for co-applicant invite
+7. **Verify summary page is displayed** (UI validation)
 
 #### **Key Business Validations:**
 - **Complete E2E user journey** ✅
@@ -1027,6 +1043,7 @@ Based on the test files in the framework, I've identified these categories:
 - **Manual upload options** ✅
 - **Skip functionality** ✅
 - **Intelligent button interaction** ✅
+- **Employment verification via iframe** ✅
 
 ---
 
@@ -1038,48 +1055,73 @@ Based on the test files in the framework, I've identified these categories:
 - **Tags**: @regify
 
 #### **Test: "Should complete applicant flow with co-applicant effect on session"**
-**Purpose**: Test co-applicant income aggregation and financial impact
-**API Endpoints Checked**:
-- `GET /sessions/{sessionId}/steps/` - Wait for step update (waitForResponse with PATCH method)
-  - **Response Checked**: Session steps array with updated step status
-  - **Fields Validated**: `steps[].id`, `steps[].step_type`, `steps[].status`, `steps[].completed_at`, `steps[].session_id`
-- `GET /sessions?fields[session]` - Load sessions (gotoPage)
-  - **Response Checked**: Sessions array with session children information
-  - **Fields Validated**: `sessions[].id`, `sessions[].status`, `sessions[].children`, `sessions[].parent_id`, `sessions[].co_applicant_count`
-- `GET /sessions/{sessionId}?fields[session]` - Get session details (waitForResponse)
-  - **Response Checked**: Complete session object with co-applicant data
-  - **Fields Validated**: `session.id`, `session.status`, `session.children`, `session.co_applicants`, `session.aggregated_income`, `session.income_ratio`
-- `GET /financial-verifications` - Get financial verifications (waitForResponse with regex)
-  - **Response Checked**: Financial verifications array with aggregated income data
-  - **Fields Validated**: `financial_verifications[].id`, `financial_verifications[].session_id`, `financial_verifications[].aggregated_income`, `financial_verifications[].co_applicant_income`, `financial_verifications[].total_income`
-- `GET /sessions/{sessionId}/income-sources` - Get income sources (waitForResponse)
-  - **Response Checked**: Income sources array with aggregated co-applicant income
-  - **Fields Validated**: `income_sources[].id`, `income_sources[].source_type`, `income_sources[].amount`, `income_sources[].applicant_id`, `income_sources[].aggregated_total`, `income_sources[].co_applicant_contribution`
+**Purpose**: Test co-applicant income aggregation and financial impact on session data
+**API Endpoints Called**:
+- `POST /auth` - Admin login (via loginForm.adminLoginAndNavigate, line 49)
+  - **Response Used For**: Authentication and session establishment
+  - **What's Actually Checked**: Response status is OK (200), admin login successful
+- `GET /applications?` - Search applications (via findAndInviteApplication, line 53)
+  - **Response Used For**: Getting applications data for search
+  - **What's Actually Checked**: Response status is OK (200), applications array is returned
+- `POST /sessions` - Create session (via generateSessionForm.generateSessionAndExtractLink, line 57)
+  - **Response Used For**: Creating new session for applicant
+  - **What's Actually Checked**: Response status is OK (200), session data is returned with sessionId and sessionUrl
+- `PATCH /sessions/{id}` - Update session applicant type (via selectApplicantType, line 70)
+  - **Response Used For**: Updating session with selected applicant type
+  - **What's Actually Checked**: Response status is OK (200), PATCH method successful
+- `PATCH /sessions/{id}` - Update session rent budget (via updateRentBudget, line 77)
+  - **Response Used For**: Updating session with rent budget amount
+  - **What's Actually Checked**: Response status is OK (200), PATCH method successful
+- `POST /applicants` - Create co-applicant (via fillhouseholdForm, line 84)
+  - **Response Used For**: Creating co-applicant record
+  - **What's Actually Checked**: Response status is OK (200), applicant data is returned
+- `PATCH /sessions/{id}/steps/` - Update session steps (via waitForResponse, line 105-108)
+  - **Response Used For**: Updating session step completion status
+  - **What's Actually Checked**: Response status is OK (200), PATCH method successful
+- `GET /sessions?fields[session]` - Load sessions (via gotoPage, line 115-120)
+  - **Response Used For**: Getting sessions with children information
+  - **What's Actually Checked**: Response status is OK (200), sessions array is returned
+- `GET /sessions/{id}?fields[session]` - Get session details (via waitForResponse, line 131-138)
+  - **Response Used For**: Getting complete session object with co-applicant data
+  - **What's Actually Checked**: Response status is OK (200), session data with children array is returned
+- `GET /sessions/{id}?fields[session]` - Get updated session (via waitForResponse, line 259-275)
+  - **Response Used For**: Getting session data after co-applicant completion
+  - **What's Actually Checked**: Response status is OK (200), updated session data is returned
+- `GET /financial-verifications` - Get financial verifications (via waitForResponse, line 276-293)
+  - **Response Used For**: Getting financial verifications for all sessions
+  - **What's Actually Checked**: Response status is OK (200), financial verifications array is returned
+- `GET /sessions/{id}/income-sources` - Get income sources (via waitForResponse, line 321-331)
+  - **Response Used For**: Getting income sources for all sessions
+  - **What's Actually Checked**: Response status is OK (200), income sources array is returned
 
 **Steps**:
-1. Admin login and navigate to applications
-2. Find and invite 'AutoTest Suite - Full Test' application
-3. Generate session and extract link
-4. **Primary applicant flow**:
-   - Select applicant type
-   - Handle state modal
-   - Set rent budget
-   - Add co-applicant
-   - Skip ID verification
-   - Complete Plaid financial connection (Betterment)
-   - Complete paystub connection
-5. **Co-applicant flow**:
-   - Copy invite link
+1. **Admin login and navigate to applications** (via loginForm.adminLoginAndNavigate utility)
+2. **Find and invite 'AutoTest Suite - Full Test' application** (via findAndInviteApplication utility)
+3. **Generate session and extract link** (via generateSessionForm.generateSessionAndExtractLink utility)
+4. **Primary applicant flow** (in new browser context):
+   - Select applicant type via selectApplicantType utility
+   - Handle optional state modal via handleOptionalStateModal utility
+   - Set rent budget via updateRentBudget utility
+   - Add co-applicant via fillhouseholdForm utility
+   - Skip ID verification (UI interaction)
+   - Complete Plaid financial connection via completePlaidFinancialStepBetterment utility
+   - Complete paystub connection via completePaystubConnection utility
+   - Update session steps via waitForResponse
+5. **Co-applicant flow** (in new browser context):
+   - Copy invite link from admin panel
    - Open co-applicant session
-   - Complete co-applicant registration
-   - Complete Plaid financial connection (user_bank_income)
+   - Complete co-applicant registration (same steps as primary)
+   - Complete Plaid financial connection with different parameters
    - Complete paystub connection
+   - Update co-applicant session steps
 6. **Admin validation**:
-   - Check session has children
-   - Verify income aggregation
-   - Check income source sections
-   - Check employment sections
-   - Validate financial section data
+   - Navigate to sessions page via gotoPage utility
+   - Search for session by ID via searchSessionWithText utility
+   - Get session details and verify children array
+   - Verify income aggregation and ratio calculations
+   - Check income source sections for all applicants
+   - Check employment sections for all applicants
+   - Validate financial section data via checkFinancialSectionData utility
 
 #### **Key Business Validations:**
 - **Co-applicant income aggregation** ✅
@@ -1087,6 +1129,9 @@ Based on the test files in the framework, I've identified these categories:
 - **Financial impact of multiple applicants** ✅
 - **Plaid integration with Betterment** ✅
 - **Session children validation** ✅
+- **Income source aggregation** ✅
+- **Employment data aggregation** ✅
+- **Financial verification aggregation** ✅
 
 ---
 
@@ -1094,41 +1139,60 @@ Based on the test files in the framework, I've identified these categories:
 
 #### **Complete Test Structure:**
 - **1 test** (180s timeout)
-- **Hosted application flow** with skips
+- **Hosted application flow** with specific skip scenarios
 - **Tags**: @smoke, @regression, @needs-review
 
 #### **Test: "Should complete hosted application flow with id emp skips and Plaid integration"**
-**Purpose**: Test hosted application flow with specific skip scenarios
-**API Endpoints Checked**:
-- **No explicit waitForResponse calls** - This test uses utility functions that handle API calls internally
-- **Utility functions used**:
-  - `adminLoginAndNavigate()` - Admin login (likely calls `POST /auth`)
-  - `findAndCopyApplication()` - Find application (likely calls `GET /applications`)
-  - `completeApplicantRegistrationForm()` - Complete registration (likely calls `POST /sessions`)
-  - `completeIdVerification()` - Complete ID verification (likely calls `POST /sessions/{id}/identities`)
-  - `plaidFinancialConnect()` - Plaid connection (likely calls `POST /financial-verifications`)
+**Purpose**: Test hosted application flow with phone login, skip functionality, and Plaid integration
+**API Endpoints Called**:
+- `POST /auth` - Admin login (via loginForm.adminLoginAndNavigate, line 32)
+  - **Response Used For**: Authentication and session establishment
+  - **What's Actually Checked**: Response status is OK (200), household-status-alert is visible
+- `GET /applications?` - Search applications (via findAndCopyApplication, line 36)
+  - **Response Used For**: Getting applications data for search
+  - **What's Actually Checked**: Response status is OK (200), applications array is returned
+- `POST /identity-verifications` - Create identity verification (via completeIdVerification, line 77)
+  - **Response Used For**: Creating identity verification for ID upload
+  - **What's Actually Checked**: Response status is OK (200), identity verification data is returned
+- **UI Interactions Only**:
+  - Phone login flow (lines 49-59) - No API call, UI form interactions
+  - Applicant registration form (via completeApplicantRegistrationForm, line 62) - No API call, UI form filling
+  - Rent budget form (lines 69-71) - No API call, UI form filling
+  - Skip applicants (via skipApplicants, line 74) - No API call, UI button click
+  - Skip employment verification (via skipEmploymentVerification, line 80) - No API call, UI button click
+  - Plaid financial connection (via plaidFinancialConnect, line 83) - No API call, iframe interactions with Plaid
 
 **Steps**:
-1. Admin login and navigate to applications
-2. Find and copy 'AutoTest Suite Hshld-ID-Emp-Fin with skips' application
-3. Logout and navigate to application URL
-4. **Phone login flow**:
-   - Enter random phone number
+1. **Admin login and navigate to applications** (via loginForm.adminLoginAndNavigate utility)
+2. **Find and copy 'AutoTest Suite Hshld-ID-Emp-Fin with skips' application** (via findAndCopyApplication utility)
+3. **Admin logout** (UI interactions only)
+4. **Navigate to hosted application URL** (UI navigation only)
+5. **Phone login flow**:
+   - Enter random phone number (generated via generateRandomPhone function)
    - Enter verification code (123456)
-5. **Complete applicant registration**:
-   - Fill registration form (teset, testrelogin, ALASKA)
-   - Set rent budget (500)
-6. **Application flow with skips**:
-   - Skip applicants
-   - Complete ID verification (Passport upload)
-   - Skip employment verification
-   - Complete Plaid financial connection
-7. **Verify summary screen and statuses**:
-   - Rent Budget: Complete
-   - Identity Verification: Complete
-   - Applicants: Skipped
-   - Employment Verification: Skipped
-   - Financial Verification: Missing Financial Transactions error
+6. **Complete applicant registration form** (via completeApplicantRegistrationForm utility):
+   - Fill first name: 'teset'
+   - Fill last name: 'testrelogin'
+   - Select state: 'ALASKA'
+   - Accept terms
+7. **Complete rent budget step** (UI interaction):
+   - Fill rent budget: '500'
+   - Submit form
+8. **Skip applicants step** (via skipApplicants utility)
+9. **Complete ID verification** (via completeIdVerification utility):
+   - Upload passport document
+   - Complete Persona verification flow
+10. **Skip employment verification** (via skipEmploymentVerification utility)
+11. **Complete Plaid financial connection** (via plaidFinancialConnect utility):
+    - Use 'custom_onetxn' username
+    - Use 'test' password
+    - Connect to 'Regions Bank'
+12. **Verify summary screen and statuses**:
+    - Rent Budget: Complete
+    - Identity Verification: Complete
+    - Applicants: Skipped
+    - Employment Verification: Skipped
+    - Financial Verification: Missing Financial Transactions error
 
 #### **Key Business Validations:**
 - **Hosted application flow** ✅
@@ -1138,6 +1202,7 @@ Based on the test files in the framework, I've identified these categories:
 - **Plaid integration** ✅
 - **Status verification** ✅
 - **Error handling** ✅
+- **Form validation** ✅
 
 ---
 
@@ -1149,28 +1214,37 @@ Based on the test files in the framework, I've identified these categories:
 - **Tags**: None specified
 
 #### **Test: "Heartbeat Test: Completed Application Clicks (frontend)"**
-**Purpose**: Test navigation and verification of completed application
-**API Endpoints Checked**:
-- `GET /sessions/{sessionId}?fields[session]` - Get session details (waitForResponse)
-  - **Response Checked**: Complete session object with all completed steps and status
-  - **Fields Validated**: `session.id`, `session.status`, `session.rent_budget`, `session.steps`, `session.completed_steps`, `session.identity_verification_status`, `session.financial_verification_status`, `session.employment_verification_status`
+**Purpose**: Test navigation and verification of completed application with step-by-step validation
+**API Endpoints Called**:
+- `POST /auth` - Admin login (via loginWith → loginForm.submit, line 17)
+  - **Response Used For**: Authentication and session establishment
+  - **What's Actually Checked**: Response status is OK (200), page title contains "Applicants", household-status-alert is visible
+- `GET /sessions?fields[session]` - Search sessions (via searchSessionWithText, line 21)
+  - **Response Used For**: Getting sessions data for search by session ID
+  - **What's Actually Checked**: Response status is OK (200), sessions array is returned
+- `GET /sessions/{id}?fields[session]` - Get session details (via waitForResponse, line 28-33)
+  - **Response Used For**: Getting complete session object with all completed steps and status
+  - **What's Actually Checked**: Response status is OK (200), session data with all step information is returned
+- `PATCH /sessions/{id}` - Update session rent budget (via updateRentBudget, line 65)
+  - **Response Used For**: Updating session with new rent budget amount
+  - **What's Actually Checked**: Response status is OK (200), PATCH method successful
 
 **Steps**:
-1. Login with admin
-2. Search for specific session ID
-3. Click on session
+1. **Admin login** (via loginWith utility)
+2. **Search for specific session ID** (via searchSessionWithText utility)
+3. **Click on session** (via findSessionLocator utility)
 4. **Open session in new page**:
    - Click overview applicant button
-   - Open in new page
+   - Open in new page via popup
 5. **Navigate through completed steps**:
-   - Summary page
-   - Rent budget page (update to 600)
-   - ID verification page (verify completed status)
-   - Financial verification page
-   - Employment verification page
+   - **Summary page**: Verify summary step is visible
+   - **Rent budget page**: Navigate to rent budget step, update to 600, verify summary page returns
+   - **ID verification page**: Navigate to identity verification step, verify "Completed" status
+   - **Financial verification page**: Navigate to financial verification step, verify connect bank is visible
+   - **Employment verification page**: Navigate to employment verification step, click continue, verify summary page returns
 6. **Test additional functionality**:
-   - Click continue on employment verification
-   - Test additional bank connect MX modal
+   - Expand financial verification row
+   - Click additional bank connect button
    - Verify MX frame visibility
    - Cancel modal
 
@@ -1181,6 +1255,8 @@ Based on the test files in the framework, I've identified these categories:
 - **Rent budget updates** ✅
 - **Additional bank connection** ✅
 - **MX integration modal** ✅
+- **Popup window handling** ✅
+- **UI element visibility** ✅
 
 ---
 
@@ -1192,96 +1268,274 @@ Based on the test files in the framework, I've identified these categories:
 - **Tags**: @core
 
 #### **Test: "Should successfully export PDF for an application"**
-**Purpose**: Test PDF export functionality for applications
-**API Endpoints Checked**:
-- **No explicit waitForResponse calls** - This test uses utility functions that handle API calls internally
-- **Utility functions used**:
-  - `loginForm.fill()` and `loginForm.submit()` - Staff login (likely calls `POST /auth`)
-  - `searchSessionWithText()` - Search sessions (likely calls `GET /sessions`)
-  - `navigateToSessionById()` - Navigate to session (likely calls `GET /sessions/{id}`)
-  - `checkExportPdf()` - Export PDF (likely calls `GET /sessions/{id}/export`)
+**Purpose**: Test PDF export functionality for applications with staff user permissions
+**API Endpoints Called**:
+- `POST /auth` - Staff login (via loginForm.submit, line 16)
+  - **Response Used For**: Authentication and session establishment
+  - **What's Actually Checked**: Response status is OK (200), applicants-menu is visible
+- `GET /sessions?fields[session]` - Search sessions (via searchSessionWithText, line 20)
+  - **Response Used For**: Getting sessions data for search by application name
+  - **What's Actually Checked**: Response status is OK (200), sessions array is returned
+- `GET /sessions/{id}` - Get session PDF (via checkExportPdf, line 34)
+  - **Response Used For**: Downloading PDF export for the session
+  - **What's Actually Checked**: Response status is OK (200), content-type is 'application/pdf'
 
 **Steps**:
-1. Login as staff user
-2. Search for 'autotest PDF Download' application
-3. Navigate to session
-4. Export PDF using utility function
-5. Verify PDF download
+1. **Staff login** (via loginForm.fill and loginForm.submit utilities)
+2. **Search for 'autotest PDF Download' application** (via searchSessionWithText utility)
+3. **Navigate to session** (via navigateToSessionById utility)
+4. **Export PDF** (via checkExportPdf utility):
+   - Click export session button
+   - Wait for export modal to appear
+   - Click income source delist submit button
+   - Wait for PDF response with correct content-type
+   - Verify PDF download in popup window
 
 #### **Key Business Validations:**
 - **PDF export functionality** ✅
 - **Staff user permissions** ✅
 - **Session navigation** ✅
 - **File download** ✅
+- **Content-type validation** ✅
+- **Popup window handling** ✅
+- **Modal interactions** ✅
+- **Export button functionality** ✅
 
 ---
 
-## **Category 3 Analysis Summary (First 5 Files)**
+### **6. application_create_delete_test.spec.js - Application Lifecycle Management**
+
+#### **Complete Test Structure:**
+- **1 test** (no timeout specified)
+- **Application creation and deletion** functionality
+- **Tags**: @core
+
+#### **Test: "Should create and delete an application with multiple applicant types"**
+**Purpose**: Test complete application lifecycle from creation to deletion with multiple applicant types
+**API Endpoints Called**:
+- `POST /auth` - Admin login (via loginForm.submit, line 17)
+  - **Response Used For**: Authentication and session establishment
+  - **What's Actually Checked**: Response status is OK (200), applicants-menu is visible
+- `GET /organizations?fields[organization]=id,name` - Get organizations (via navigateToApplicationCreate, line 10)
+  - **Response Used For**: Loading organization options for application creation
+  - **What's Actually Checked**: Response status is OK (200), organizations data returned
+- `GET /portfolios?fields[portfolio]=id,name` - Get portfolios (via navigateToApplicationCreate, line 14)
+  - **Response Used For**: Loading portfolio options for application creation
+  - **What's Actually Checked**: Response status is OK (200), portfolios data returned
+- `GET /settings?fields[setting]=options,key&fields[options]=label,value` - Get settings (via navigateToApplicationCreate, line 18)
+  - **Response Used For**: Loading application settings and options
+  - **What's Actually Checked**: Response status is OK (200), settings data returned
+- `GET /organizations` - Get organizations list (via navigateToApplicationCreate, line 22)
+  - **Response Used For**: Loading additional organization data
+  - **What's Actually Checked**: Response status is OK (200), organizations list returned
+- `POST /applications` - Create application (via submitApplicationSetup, line 81)
+  - **Response Used For**: Creating new application with basic setup
+  - **What's Actually Checked**: Response status is OK (200), application created successfully
+- `PATCH /applications` - Update workflow (via submitApplicationSetup, line 103)
+  - **Response Used For**: Updating application workflow template
+  - **What's Actually Checked**: Response status is OK (200), workflow updated successfully
+- `PATCH /applications` - Update settings (via configureApplicationSettings, line 137)
+  - **Response Used For**: Updating application flag collection and minimum amount
+  - **What's Actually Checked**: Response status is OK (200), settings updated successfully
+- `PATCH /applications` - Publish application (via publishApplicationToLive, line 163)
+  - **Response Used For**: Publishing application to live status
+  - **What's Actually Checked**: Response status is OK (200), application published successfully
+- `DELETE /applications/{id}` - Delete application (via searchAndDeleteApplication, line 192)
+  - **Response Used For**: Deleting the created application
+  - **What's Actually Checked**: Response status is OK (200), application deleted successfully
+
+**Steps**:
+1. **Admin login** (via loginForm.fill and loginForm.submit utilities)
+2. **Navigate to application creation** (via navigateToApplicationCreate utility)
+3. **Fill application setup** (via fillApplicationSetup utility):
+   - Select organization
+   - Set application name with random number
+   - Add multiple applicant types (Affordable Occupant, Affordable Primary, Employed, International, Self-Employed, Other)
+4. **Submit application setup** (via submitApplicationSetup utility):
+   - Create application with POST request
+   - Update workflow template with PATCH request
+5. **Configure application settings** (via configureApplicationSettings utility):
+   - Set flag collection to 'High Risk'
+   - Set minimum amount to '500'
+   - Update settings with PATCH request
+6. **Publish application to live** (via publishApplicationToLive utility):
+   - Publish application with PATCH request
+7. **Search and delete application** (via searchAndDeleteApplication utility):
+   - Search for created application
+   - Delete application with DELETE request
+   - Verify deletion success message
+
+#### **Key Business Validations:**
+- **Application creation** ✅
+- **Multiple applicant types support** ✅
+- **Workflow template configuration** ✅
+- **Flag collection settings** ✅
+- **Minimum amount configuration** ✅
+- **Application publishing** ✅
+- **Application deletion** ✅
+- **Admin user permissions** ✅
+- **Organization selection** ✅
+- **Portfolio management** ✅
+- **Settings configuration** ✅
+- **Success message validation** ✅
+- **Dialog handling** ✅
+- **Search functionality** ✅
+
+---
+
+### **7. application_edit_id_template_settings.spec.js - Application ID Template Configuration**
+
+#### **Complete Test Structure:**
+- **1 test** (no timeout specified)
+- **Application ID template settings** functionality
+- **Tags**: @regression
+
+#### **Test: "Should edit an application ID template settings"**
+**Purpose**: Test editing and updating application ID template settings with Persona integration
+**API Endpoints Called**:
+- `POST /auth` - Admin login (via loginForm.submit, line 14)
+  - **Response Used For**: Authentication and session establishment
+  - **What's Actually Checked**: Response status is OK (200), applicants-menu is visible
+- `GET /applications` - Search applications (via searchApplication, line 26)
+  - **Response Used For**: Searching for specific application by name
+  - **What's Actually Checked**: Response status is OK (200), applications data returned
+- `GET /organizations?fields[organization]=` - Get organizations (via openApplicationEditModal, line 11)
+  - **Response Used For**: Loading organization data for edit modal
+  - **What's Actually Checked**: Response status is OK (200), organizations data returned
+- `GET /portfolios?fields[portfolio]=` - Get portfolios (via openApplicationEditModal, line 14)
+  - **Response Used For**: Loading portfolio data for edit modal
+  - **What's Actually Checked**: Response status is OK (200), portfolios data returned
+- `GET /settings?fields[setting]=` - Get settings (via openApplicationEditModal, line 17)
+  - **Response Used For**: Loading settings data for edit modal
+  - **What's Actually Checked**: Response status is OK (200), settings data returned
+- `GET /applications/{id}` - Get application details (via openApplicationEditModal, line 20)
+  - **Response Used For**: Loading application details for editing
+  - **What's Actually Checked**: Response status is OK (200), application data returned
+- `PATCH /applications/{id}` - Update application (via setPersonaTemplateId, line 50)
+  - **Response Used For**: Updating application with new Persona template ID
+  - **What's Actually Checked**: Response status is OK (200), application updated successfully
+- `GET /applications/{id}` - Get updated application (via setPersonaTemplateId, line 53)
+  - **Response Used For**: Verifying application update was successful
+  - **What's Actually Checked**: Response status is OK (200), updated application data returned
+
+**Steps**:
+1. **Admin login** (via loginForm.fill and loginForm.submit utilities)
+2. **Navigate to applications page** (via gotoApplicationsPage utility)
+3. **Search for application** (via searchApplication utility):
+   - Search for 'AutoTest Suite - ID Edit Only'
+4. **Open application edit modal** (via openApplicationEditModal utility):
+   - Click edit icon in 8th column
+   - Wait for organizations, portfolios, settings, and application data to load
+5. **Submit application setup** (via submit-application-setup button)
+6. **Open workflow identity setup** (via openWorkflowIdentitySetup utility):
+   - Click workflow identity verification button
+   - Wait for Workflow Setup modal
+7. **Get current template value** (via persona-template-id-input):
+   - Read current Persona template ID value
+8. **Edit and save template** (via setPersonaTemplateId utility):
+   - Set new template ID to 'itmpl_tester_Edited'
+   - Submit identity setup form
+   - Wait for PATCH and GET responses
+9. **Reopen and verify** (via openWorkflowIdentitySetup and expectPersonaTemplateId utilities):
+   - Reopen workflow identity setup
+   - Verify template ID is 'itmpl_tester_Edited'
+10. **Restore original value** (via setPersonaTemplateId utility):
+    - Set template ID back to original value
+    - Submit identity setup form
+
+#### **Key Business Validations:**
+- **Application editing** ✅
+- **ID template configuration** ✅
+- **Persona integration** ✅
+- **Workflow identity setup** ✅
+- **Template ID updates** ✅
+- **Value persistence** ✅
+- **Admin user permissions** ✅
+- **Modal interactions** ✅
+- **Form submissions** ✅
+- **Data validation** ✅
+- **Settings management** ✅
+- **Workflow configuration** ✅
+- **Template restoration** ✅
+- **UI element visibility** ✅
+
+---
+
+## **Category 3 Analysis Summary**
 
 ### **API Endpoints Coverage Analysis:**
 
-#### **Session Management:**
-- `GET /sessions?fields[session]` - Load sessions (gotoPage in 1 test)
-- `GET /sessions/{sessionId}?fields[session]` - Get session details (waitForResponse in 2 tests)
-- `GET /sessions/{sessionId}/steps/` - Wait for step update (waitForResponse with PATCH method in 1 test)
-
-#### **Financial Verification:**
-- `GET /financial-verifications` - Get financial verifications (waitForResponse with regex in 1 test)
-
-#### **Income Sources:**
-- `GET /sessions/{sessionId}/income-sources` - Get income sources (waitForResponse in 1 test)
-
-#### **Utility Functions (API calls handled internally):**
-- `adminLoginAndNavigateToApplications()` - Admin login (likely calls `POST /auth`)
-- `findAndInviteApplication()` - Find application (likely calls `GET /applications`)
-- `generateSessionAndExtractLink()` - Generate session (likely calls `POST /sessions`)
-- `selectApplicantType()` - Select type (likely calls `PATCH /sessions/{id}`)
-- `updateStateModal()` - Update state (likely calls `PATCH /sessions/{id}`)
-- `updateRentBudget()` - Update budget (likely calls `PATCH /sessions/{id}`)
-- `fillhouseholdForm()` - Add co-applicant (likely calls `POST /sessions/{id}/applicants`)
-- `completePaystubConnection()` - Complete paystub (likely calls `POST /sessions/{id}/employments`)
-- `completeIdVerification()` - Complete ID verification (likely calls `POST /sessions/{id}/identities`)
-- `plaidFinancialConnect()` - Plaid connection (likely calls `POST /financial-verifications`)
-- `checkExportPdf()` - Export PDF (likely calls `GET /sessions/{id}/export`)
+| API Endpoint | Category | Tests Using It | What's Actually Checked |
+|--------------|----------|----------------|-------------------------|
+| `POST /auth` | Authentication | All 7 tests | Response status is OK (200), admin/staff login successful |
+| `GET /applications?` | Application Management | 6 tests | Response status is OK (200), applications array is returned |
+| `POST /sessions` | Session Management | 3 tests | Response status is OK (200), session data is returned |
+| `PATCH /sessions/{id}` | Session Management | 4 tests | Response status is OK (200), PATCH method successful |
+| `GET /sessions?fields[session]=` | Session Management | 4 tests | Response status is OK (200), sessions data array is returned |
+| `GET /sessions/{id}?fields[session]` | Session Management | 3 tests | Response status is OK (200), session details returned |
+| `GET /organizations?fields[organization]=` | Organization Management | 2 tests | Response status is OK (200), organizations data returned |
+| `GET /portfolios?fields[portfolio]=` | Portfolio Management | 2 tests | Response status is OK (200), portfolios data returned |
+| `GET /settings?fields[setting]=` | Settings Management | 2 tests | Response status is OK (200), settings data returned |
+| `POST /applications` | Application Management | 1 test | Response status is OK (200), application created successfully |
+| `PATCH /applications` | Application Management | 2 tests | Response status is OK (200), application updated successfully |
+| `DELETE /applications/{id}` | Application Management | 1 test | Response status is OK (200), application deleted successfully |
+| `GET /sessions/{id}` | Session Management | 1 test | Response status is OK (200), content-type is 'application/pdf' |
+| `POST /applicants` | Applicant Management | 2 tests | Response status is OK (200), applicant data is returned |
+| `PATCH /sessions/{id}/steps/` | Session Management | 1 test | Response status is OK (200), PATCH method successful |
+| `GET /financial-verifications` | Financial Verification | 1 test | Response status is OK (200), financial verifications array is returned |
+| `GET /sessions/{id}/income-sources` | Income Sources | 1 test | Response status is OK (200), income sources array is returned |
+| `POST /identity-verifications` | Identity Verification | 1 test | Response status is OK (200), identity verification data is returned |
 
 ### **Business Purpose Analysis:**
 
 | Test File | Primary Business Purpose | Unique Validations | Overlap Assessment |
 |-----------|-------------------------|-------------------|-------------------|
-| `frontent-session-heartbeat.spec.js` | **Complete E2E Session Flow** | • Complete user journey<br>• Co-applicant workflow<br>• State modal handling<br>• Manual upload options<br>• Skip functionality | **NO OVERLAP** - Complete E2E flow, different from specific scenarios |
-| `co_applicant_effect_on_session_test.spec.js` | **Co-Applicant Income Aggregation** | • **Income aggregation logic**<br>• **Income ratio calculations**<br>• **Financial impact of multiple applicants**<br>• **Plaid integration with Betterment** | **NO OVERLAP** - Specific business logic for co-applicant income |
-| `hosted_app_copy_verify_flow_plaid_id_emp_skip.spec.js` | **Hosted App with Skips** | • **Hosted application flow**<br>• **Phone login verification**<br>• **Skip functionality**<br>• **ID verification with upload** | **NO OVERLAP** - Different application type, different flow |
-| `heartbeat_completed_application_click_check.spec.js` | **Completed Application Check** | • **Completed application navigation**<br>• **Step-by-step verification**<br>• **Status checking**<br>• **Additional bank connection** | **NO OVERLAP** - Different purpose, different validation |
-| `pdf_download_test.spec.js` | **PDF Download Functionality** | • **PDF export functionality**<br>• **Staff user permissions**<br>• **File download** | **NO OVERLAP** - Different functionality, different user type |
+| `frontent-session-heartbeat.spec.js` | **Complete E2E Session Flow** | • Complete E2E user journey<br>• Co-applicant workflow<br>• State modal handling<br>• Manual upload options<br>• Skip functionality<br>• **Intelligent button interaction**<br>• **Employment verification via iframe** | **NO OVERLAP** - Different business flow, different validation approach |
+| `co_applicant_effect_on_session_test.spec.js` | **Co-Applicant Income Aggregation** | • **Co-applicant income aggregation**<br>• **Income ratio calculations**<br>• **Financial impact of multiple applicants**<br>• **Plaid integration with Betterment**<br>• **Session children validation**<br>• **Income source aggregation**<br>• **Employment data aggregation** | **NO OVERLAP** - Different business logic, different data aggregation |
+| `hosted_app_copy_verify_flow_plaid_id_emp_skip.spec.js` | **Hosted App with Skips** | • **Hosted application flow**<br>• **Phone login verification**<br>• **Skip functionality**<br>• **ID verification with upload**<br>• **Plaid integration**<br>• **Status verification**<br>• **Error handling** | **NO OVERLAP** - Different application type, different user flow |
+| `heartbeat_completed_application_click_check.spec.js` | **Completed Application Check** | • **Completed application navigation**<br>• **Step-by-step verification**<br>• **Status checking**<br>• **Rent budget updates**<br>• **Additional bank connection**<br>• **MX integration modal**<br>• **Popup window handling** | **NO OVERLAP** - Different validation approach, different UI interactions |
+| `pdf_download_test.spec.js` | **PDF Download Functionality** | • **PDF export functionality**<br>• **Staff user permissions**<br>• **File download**<br>• **Content-type validation**<br>• **Popup window handling**<br>• **Modal interactions**<br>• **Export button functionality** | **NO OVERLAP** - Different functionality, different user type |
+| `application_create_delete_test.spec.js` | **Application Lifecycle Management** | • **Application creation**<br>• **Multiple applicant types support**<br>• **Workflow template configuration**<br>• **Flag collection settings**<br>• **Minimum amount configuration**<br>• **Application publishing**<br>• **Application deletion** | **NO OVERLAP** - Different business process, different admin functionality |
+| `application_edit_id_template_settings.spec.js` | **Application ID Template Configuration** | • **Application editing**<br>• **ID template configuration**<br>• **Persona integration**<br>• **Workflow identity setup**<br>• **Template ID updates**<br>• **Value persistence**<br>• **Template restoration** | **NO OVERLAP** - Different configuration aspect, different integration |
 
 ### **Key Insights:**
 
-1. **Different application types** - Each test validates different application configurations
-2. **Different user flows** - Complete E2E vs specific scenarios vs hosted apps
-3. **Different business logic** - Income aggregation vs step skipping vs template editing
-4. **Different functionalities** - PDF download vs ID verification vs application management
-5. **Different validation purposes** - Each test serves a distinct business purpose
+1. **Different user types** - Admin vs Staff vs Applicant flows have different permissions and capabilities
+2. **Different business processes** - Application management vs session flow vs document processing
+3. **Different integration scenarios** - Plaid vs MX vs Persona vs document upload
+4. **Different validation approaches** - E2E flow vs specific functionality vs configuration management
+5. **Different business rules** - Each test validates specific application management scenarios
 
 ### **Technical Setup Analysis:**
 
 #### **Common Setup Steps (Necessary for Each Test):**
-1. **Admin login** - Needed to access applications and manage sessions
-2. **Application navigation** - Each test needs to find its specific application
-3. **Session generation** - Each test needs to create a session for testing
-4. **Applicant setup** - Each test needs to set up the applicant flow
-5. **Specific workflow** - Each test needs to test its specific business scenario
+1. **User login** (`POST /auth`) - Needed to access appropriate functionality based on user type
+2. **Application/Session navigation** - Each test needs to find its specific target
+3. **Specific business validation** - Each test validates its unique business scenario
+4. **Cleanup/Verification** - Each test ensures proper completion of its specific process
 
 #### **These are NOT "extra steps" - they are essential setup for each test's unique business validation**
 
-### **Conclusion for Category 3 (First 5 Files): NO MEANINGFUL OVERLAP**
+### **Conclusion for Category 3: NO MEANINGFUL OVERLAP**
 
-**All 5 tests should be kept** because:
-- Each tests different application types and configurations
-- Each validates different business workflows and scenarios
-- Each serves different business purposes (E2E flow, income aggregation, hosted apps, etc.)
-- The "overlap" in setup steps is necessary for each test to validate its unique business logic
-- Removing any test would lose important application management coverage
-
-**Optimization opportunity**: Create shared utilities for common setup steps (admin login, session generation, applicant setup) to reduce code duplication while maintaining all tests.
+**All 7 tests should be kept** because:
+- Each tests different application management scenarios
+- Each validates different user types and permissions
+- Each covers different business processes and workflows
+- Each tests different integrations and configurations
+- Each validates different UI interactions and user flows
 
 ---
+
+## **📝 Note: Remaining Categories in Progress**
+
+The remaining categories are currently being analyzed and will be completed following the same detailed methodology:
+
+- **Category 4**: Session Flow Tests (3 files)
+- **Category 5**: Document Processing Tests (3 files)  
+- **Category 6**: System Health Tests (2 files)
+- **Category 7**: Workflow Management Tests (2 files)
+- **Category 8**: Integration Tests (2 files)
+
+Each category will receive the same comprehensive line-by-line analysis, API endpoint documentation, business purpose evaluation, and overlap assessment to ensure complete test coverage understanding.
+
