@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 import loginForm from '~/tests/utils/login-form';
-import { app, test_org_admin } from '~/tests/test_config';
+import { app, admin } from '~/tests/test_config';
 
 import { joinUrl } from './utils/helper';
 
@@ -12,7 +12,7 @@ test.describe('check_org_member_application_permission_update', () => {
         await page.goto('/');
 
         console.log('🚀 Login with the admin credentials...');
-        await loginForm.fill(page, test_org_admin);
+        await loginForm.fill(page, admin);
         await loginForm.submit(page);
 
         console.log('🚀 Wait for session page to load...');

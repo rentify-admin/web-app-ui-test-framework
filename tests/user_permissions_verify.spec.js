@@ -26,6 +26,7 @@ import {
 import { ApiDataManager } from './utils/api-data-manager';
 import globalCleanupManager from './utils/global-cleanup-manager';
 import testSuiteCleanupManager from './utils/test-suite-cleanup';
+// No helper imports needed - using hardcoded values based on environment
 
 // Global state management for test isolation
 let globalTestUser = null;
@@ -44,7 +45,8 @@ test.beforeEach(async ({ page }) => {
     await page.goto('/');
 });
 
-const sessionId = '01971d54-6284-70c4-8180-4eee1abd955a';
+// Hardcoded for staging testing (temporary)
+const applicationName = 'Test Permission 1'; // Staging application name
 
 test.describe('user_permissions_verify', () => {
     test.describe.configure({ 
@@ -63,7 +65,7 @@ test.describe('user_permissions_verify', () => {
         }
     }); 
 
-    testWithCleanup('Should allow admin to create user via API @regression', async ({ page, dataManager, cleanupHelper }) => {
+    testWithCleanup('Should allow admin to create user via API @regression @staging-correct', async ({ page, dataManager, cleanupHelper }) => {
         // Register this test in the suite
         registerTest(SUITE_NAME, 'Should allow admin to create user via API', TOTAL_TESTS);
         
@@ -76,6 +78,11 @@ test.describe('user_permissions_verify', () => {
             throw new Error('Authentication failed - cannot create users without API access');
         }
 
+        // Hardcoded values for staging testing (temporary)
+        const isStaging = true; // Temporarily hardcoded to staging
+        const roleId = '0196c9cd-4cf9-7368-949c-a298396673d9'; // Centralized Leasing (staging)
+        const organizationId = '0196cb22-5da4-715a-a89d-3ad36eeacf7d'; // Test Org (staging)
+
         // Create user via API instead of UI
         const prefix = ApiDataManager.uniquePrefix();
         const testUserData = ApiDataManager.createUserData(prefix, {
@@ -84,7 +91,8 @@ test.describe('user_permissions_verify', () => {
             email: `${prefix}@verifast.com`,
             password: 'Playwright@123',
             password_confirmation: 'Playwright@123',
-            role: '0196f6c9-da5e-7074-9e6e-c35ac8f1818e' // Centralized Leasing role UUID
+            role: roleId, // Hardcoded role ID based on environment
+            organization: organizationId // Hardcoded organization ID based on environment
         });
 
         // Create the user via API
@@ -114,7 +122,7 @@ test.describe('user_permissions_verify', () => {
         console.log('📝 User tracked for enhanced cleanup (will be cleaned up on last test only)');
     });
 
-    testWithCleanup('Should allow user to edit the application @regression', async ({ page, dataManager, cleanupHelper }) => {
+    testWithCleanup('Should allow user to edit the application @regression @staging-correct', async ({ page, dataManager, cleanupHelper }) => {
         // Register this test in the suite
         registerTest(SUITE_NAME, 'Should allow user to edit the application', TOTAL_TESTS);
         
@@ -213,7 +221,7 @@ test.describe('user_permissions_verify', () => {
         await page.getByTestId('cancel-application-setup').click();
     });
 
-    testWithCleanup('Should allow user to perform permited actions @regression', async ({ page, context, dataManager, cleanupHelper }) => {
+    testWithCleanup('Should allow user to perform permited actions @regression @staging-correct', async ({ page, context, dataManager, cleanupHelper }) => {
         // Register this test in the suite (LAST TEST)
         registerTest(SUITE_NAME, 'Should allow user to perform permited actions', TOTAL_TESTS);
         
@@ -256,15 +264,21 @@ test.describe('user_permissions_verify', () => {
 
             const { data: sessions } = await waitForJsonResponse(sessionsResponse);
 
-            const searchSessions = await searchSessionWithText(
-                page,
-                'AutoTest - Id Emp Fin'
-            );
+        // Hardcoded session ID for staging testing (temporary)
+        const sessionId = '01992a4a-825f-7242-bc27-65f120f3398b'; // Staging session ID
 
-            const sessionLocator = await findSessionLocator(
-                page,
-                `.application-card[data-session="${sessionId}"]`
-            );
+        const searchSessions = await searchSessionWithText(
+            page,
+            applicationName
+        );
+
+        const sessionLocator = await findSessionLocator(
+            page,
+            `.application-card[data-session="${sessionId}"]`
+        );
+
+            // Debug: Log session ID
+            console.log('🔍 Session ID:', sessionId);
 
             const [ employmentResponse, filesResponse, sessionResponse ]
                 = await Promise.all([
@@ -290,7 +304,7 @@ test.describe('user_permissions_verify', () => {
                 employmentResponse
             );
             const { data: files } = await waitForJsonResponse(filesResponse);
-            const { data: session } = await waitForJsonResponse(sessionResponse);
+            const { data: sessionDetails } = await waitForJsonResponse(sessionResponse);
 
             const viewDetailBtn = page.getByTestId('view-details-btn');
 
@@ -321,7 +335,7 @@ test.describe('user_permissions_verify', () => {
             await canMergeSession(searchSessions, page);
 
             // ! Should allow user to delete applicant
-            await canDeleteApplicant(page, session);
+            await canDeleteApplicant(page, sessionDetails);
 
             // ! Check identity details available in report
             await reportUtils.checkIdentityDetailsAvailable(page);

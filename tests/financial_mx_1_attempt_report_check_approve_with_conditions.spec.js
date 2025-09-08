@@ -36,9 +36,15 @@ test.describe('financial_mx_1_attempt_report_check_approve_with_conditions', () 
 
         // Step 2: Locate Target Application
         await searchApplication(page, applicationName);
-        await expect(page.locator('table > tbody > tr > td:nth-child(2)'))
-            .toHaveText(applicationName);
-        await page.locator('table > tbody > tr > td:nth-child(7) a').click();
+        
+        // Find the specific row with the exact application name using getByRole
+        const targetRow = page.locator('table > tbody > tr').filter({ 
+            has: page.getByRole('cell', { name: applicationName, exact: true })
+        });
+        await expect(targetRow.getByRole('cell', { name: applicationName, exact: true })).toBeVisible();
+        
+        // Click the action link in the same row
+        await targetRow.locator('td:nth-child(7) a').click();
 
         // Step 3: Generate Session
         await generateSessionForm.fill(page, userData);
