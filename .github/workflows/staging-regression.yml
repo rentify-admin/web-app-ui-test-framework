@@ -59,11 +59,11 @@ jobs:
       - name: Run regression tests
         run: |
           echo "🧪 Starting regression tests..."
-          echo "📊 Running only: Verify Frontend session heartbeat test"
+          echo "📊 Running only: frontend_heartbeat.spec.js test"
           echo "🌐 Environment: $APP_ENV"
           echo "🔗 Base URL: $APP_URL"
           echo ""
-          npx playwright test --project=chromium --grep "Verify Frontend session heartbeat"
+          npx playwright test --project=chromium tests/frontend_heartbeat.spec.js
           
           echo "📁 Checking generated files:"
           ls -la playwright-report/ || echo "playwright-report/ directory not found"
