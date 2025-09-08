@@ -50,53 +50,78 @@ function parseTestResults(filePath) {
             passed: 0,
             failed: 0,
             flaky: 0,
-            skipped: 0
+            skipped: 0,
+            duration: 0
         };
     }
 
-    // Use the FlakyTestAnalyzer for proper analysis
-    const analyzer = new FlakyTestAnalyzer();
-    const analysis = analyzer.analyzeTestResults(filePath);
-    
-    // Calculate totals from all tests (including stable ones)
-    let totalTests = 0;
-    let totalPassed = 0;
-    let totalFailed = 0;
-    let totalSkipped = 0;
-    
-    // Count from flaky tests
-    analysis.flakyTests.forEach(test => {
-        totalTests++;
-        totalPassed += test.passes;
-        totalFailed += test.fails;
-        totalSkipped += test.skipped;
-    });
-    
-    // Count from stable tests (we need to get this from the analyzer)
-    const content = fs.readFileSync(filePath, 'utf8');
-    const allTestCases = analyzer.extractTestCases(content);
-    const testGroups = analyzer.groupTestCases(allTestCases);
-    
-    for (const [testName, cases] of testGroups) {
-        // Skip if already counted in flaky tests
-        if (analysis.flakyTests.find(t => t.name === testName)) {
-            continue;
+    try {
+        const content = fs.readFileSync(filePath, 'utf8');
+        
+        // Parse JUnit XML directly for single run
+        const testsuitesMatch = content.match(/<testsuites[^>]*tests="(\d+)"[^>]*failures="(\d+)"[^>]*skipped="(\d+)"[^>]*time="([\d.]+)"/);
+        const testsuiteMatch = content.match(/<testsuite[^>]*tests="(\d+)"[^>]*failures="(\d+)"[^>]*skipped="(\d+)"[^>]*time="([\d.]+)"/);
+        
+        let totalTests = 0;
+        let totalFailed = 0;
+        let totalSkipped = 0;
+        let totalDuration = 0;
+        
+        if (testsuitesMatch) {
+            // Use testsuites data if available
+            totalTests = parseInt(testsuitesMatch[1]);
+            totalFailed = parseInt(testsuitesMatch[2]);
+            totalSkipped = parseInt(testsuitesMatch[3]);
+            totalDuration = parseFloat(testsuitesMatch[4]);
+        } else if (testsuiteMatch) {
+            // Fallback to testsuite data
+            totalTests = parseInt(testsuiteMatch[1]);
+            totalFailed = parseInt(testsuiteMatch[2]);
+            totalSkipped = parseInt(testsuiteMatch[3]);
+            totalDuration = parseFloat(testsuiteMatch[4]);
+        } else {
+            // Manual parsing as fallback
+            const testcaseMatches = content.match(/<testcase/g);
+            const failureMatches = content.match(/<failure/g);
+            const skippedMatches = content.match(/<skipped/g);
+            
+            totalTests = testcaseMatches ? testcaseMatches.length : 0;
+            totalFailed = failureMatches ? failureMatches.length : 0;
+            totalSkipped = skippedMatches ? skippedMatches.length : 0;
+            
+            // Extract duration from individual test cases
+            const timeMatches = content.match(/time="([\d.]+)"/g);
+            if (timeMatches) {
+                totalDuration = timeMatches.reduce((sum, match) => {
+                    const time = parseFloat(match.match(/time="([\d.]+)"/)[1]);
+                    return sum + time;
+                }, 0);
+            }
         }
         
-        const testAnalysis = analyzer.analyzeTestGroup(testName, cases);
-        totalTests++;
-        totalPassed += testAnalysis.passes;
-        totalFailed += testAnalysis.fails;
-        totalSkipped += testAnalysis.skipped;
+        const totalPassed = totalTests - totalFailed - totalSkipped;
+        
+        console.log(`📊 Parsed JUnit XML - Total: ${totalTests}, Passed: ${totalPassed}, Failed: ${totalFailed}, Skipped: ${totalSkipped}, Duration: ${totalDuration}s`);
+        
+        return {
+            total: totalTests,
+            passed: totalPassed,
+            failed: totalFailed,
+            flaky: 0, // No flaky analysis for single run
+            skipped: totalSkipped,
+            duration: totalDuration
+        };
+    } catch (error) {
+        console.error(`Error parsing test results: ${error.message}`);
+        return {
+            total: 0,
+            passed: 0,
+            failed: 0,
+            flaky: 0,
+            skipped: 0,
+            duration: 0
+        };
     }
-    
-    return {
-        total: totalTests,
-        passed: totalPassed,
-        failed: totalFailed,
-        flaky: analysis.flakyTests.length, // Number of flaky tests, not retries
-        skipped: totalSkipped
-    };
 }
 
 function generateVisualDots(results) {
@@ -164,7 +189,20 @@ function determineStatus(results) {
 }
 
 function calculateDuration(results) {
-    // Simple duration calculation - in a real scenario you might want to parse actual timing
+    // Use actual duration from JUnit XML if available
+    if (results.duration && results.duration > 0) {
+        if (results.duration < 1) {
+            return '< 1s';
+        } else if (results.duration < 60) {
+            return `${Math.round(results.duration)}s`;
+        } else {
+            const minutes = Math.floor(results.duration / 60);
+            const seconds = Math.round(results.duration % 60);
+            return `${minutes}m ${seconds}s`;
+        }
+    }
+    
+    // Fallback calculation if no duration available
     if (results.total === 0) return '< 1s';
     if (results.total <= 5) return '~5s';
     if (results.total <= 10) return '~10s';
