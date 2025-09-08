@@ -37,12 +37,20 @@ test.describe('financial_mx_2_attempts_success_and_failed_password', () => {
         await gotoApplicationsPage(page);
 
         // Step 2: Locate Target Application
-        await searchApplication(page, 'AutoTest Suite - Fin');
+        const applicationName = 'AutoTest Suite - Fin only'
+        await searchApplication(page, applicationName);
 
-        await expect(page.locator('table > tbody > tr > td:nth-child(2)'))
-            .toHaveText(/AutoTest Suite - Fin/);
+        const appNameCol = page.getByTestId('application-table-name-col').filter({
+          hasText: applicationName,
+        }).first();
 
-        await page.locator('table > tbody > tr > td:nth-child(7) a').click();
+        await expect(appNameCol).toHaveText(applicationName);
+
+        const appRow =  await appNameCol.locator('xpath=..')
+          .getByTestId('application-table-invite-col')
+          .locator('a')
+
+        await appRow.click();
 
         // Step 3: Generate Session
         await generateSessionForm.fill(page, userData);
