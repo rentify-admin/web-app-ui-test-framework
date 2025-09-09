@@ -17,6 +17,10 @@ const completePlaidConnection = async (applicantPage, username = 'custom_gig') =
 
     await plaidFrame.locator('#aut-secondary-button').click({ timeout: 20_000 });
 
+    // Wait for element to be visible and attached before clicking
+    await expect(plaidFrame.locator('[aria-label="Betterment"]')).toBeVisible({ timeout: 20_000 });
+    await plaidFrame.locator('[aria-label="Betterment"]').waitFor({ state: 'attached' });
+    await applicantPage.waitForTimeout(2000);
     await plaidFrame.locator('[aria-label="Betterment"]').click({ timeout: 20_000 });
 
     await plaidFrame.locator('#aut-input-0-input').fill(username);
