@@ -1204,6 +1204,10 @@ const completePlaidFinancialStepBetterment = async (applicantPage, username = 'c
     await plaidFrame.locator('#aut-secondary-button').click({ timeout: 20000 });
 
     // Select Betterment instead of Bank of America
+    // Wait for element to be visible and attached before clicking
+    await expect(plaidFrame.locator('[aria-label="Betterment"]')).toBeVisible({ timeout: 20000 });
+    await plaidFrame.locator('[aria-label="Betterment"]').waitFor({ state: 'attached' });
+    await applicantPage.waitForTimeout(2000);
     await plaidFrame
         .locator('[aria-label="Betterment"]')
         .click({ timeout: 20000 });
