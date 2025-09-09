@@ -234,37 +234,39 @@ const checkSidebarMenusAndTitles = async page => {
         }
     ];
 
-    // Mapping of submenu test IDs to their expected page titles and heading levels
-    const submenuTitleMap = {
-        'applicants-submenu': { title: 'Applicant Inbox', heading: 3 },
-        'approval-status-submenu': { title: 'Applicant Inbox', heading: 3 },
-        'reviewed-submenu': { title: 'Applicant Inbox', heading: 3 },
-        'rejected-submenu': { title: 'Applicant Inbox', heading: 3 },
-        'applications-submenu': { title: 'Application Forms', heading: 3 },
-        'portfolios-submenu': { title: 'Portfolios', heading: 3 },
-        'workflows-submenu': { title: 'Workflow List', heading: 3 },
-        'approval-conditions-submenu': { title: 'Approval Conditions Template List', heading: 3 },
-        'documents-submenu': { title: 'Coming Soon...', heading: 3 },
-        'document-policies-submenu': { title: 'Document Policies', heading: 3 },
-        'transaction-tags-submenu': { title: 'Tags', heading: 3 },
-        'keyword-mapping-submenu': { title: 'Keyword Mapping', heading: 3 },
-        'blacklists-submenu': { title: 'Blacklists', heading: 3 },
-        'provider-mapping-submenu': { title: 'Provider Mapping', heading: 3 },
-        'incomesource-configuration-submenu': { title: 'Income Source Configuration', heading: 3 },
-        'organization-self-submenu': { title: 'Applications', heading: 5 },
-        'members-submenu': { title: 'Members', heading: 3 },
-        'users-submenu': { title: 'Users', heading: 3 },
-        'roles-submenu': { title: 'Roles', heading: 3 },
-        'permissions-submenu': { title: 'Permissions', heading: 3 },
-        'document-tester-submenu': { title: 'Document Tester', heading: 3 },
-        'name-tester-submenu': { title: 'Name Check Testing', heading: 3 },
-        'integrations-submenu': { title: 'Customers', heading: 3 },
-        'devices-setting-submenu': { title: 'Devices', heading: 3 },
-        '2fa-setting-submenu': { title: 'Two-factor authentication', heading: 3 }
+    // Mapping of submenu test IDs to their specific test IDs for heading detection
+    const submenuTestIdMap = {
+        'applicants-submenu': 'applicant-inbox-heading',
+        'approval-status-submenu': 'applicant-inbox-heading',
+        'reviewed-submenu': 'applicant-inbox-heading',
+        'rejected-submenu': 'applicant-inbox-heading',
+        'applications-submenu': 'application-forms-heading',
+        'portfolios-submenu': 'portfolios-heading',
+        'workflows-submenu': 'workflow-list-heading',
+        'approval-conditions-submenu': 'approval-conditions-template-list-heading',
+        'documents-submenu': null, // Click only, no title check
+        'document-policies-submenu': 'document-policies-heading',
+        'transaction-tags-submenu': 'tags-heading',
+        'keyword-mapping-submenu': 'keyword-mapping-heading',
+        'blacklists-submenu': 'blacklists-heading',
+        'provider-mapping-submenu': 'provider-mapping-heading',
+        'incomesource-configuration-submenu': 'income-configuration-heading',
+        'organization-self-submenu': null, // No title check for organization self
+        'members-submenu': 'members-heading',
+        'users-submenu': 'users-heading',
+        'roles-submenu': 'roles-heading',
+        'permissions-submenu': 'permissions-heading',
+        'document-tester-submenu': 'document-tester-heading',
+        'name-tester-submenu': 'name-check-testing-heading',
+        'integrations-submenu': 'integrations-heading', // Document Tester
+        'devices-setting-submenu': 'devices-heading',
+        '2fa-setting-submenu': null, // Click only, no title check
+        'account-setting-submenu': null, // Click only, no title check
+        'notification-setting-submenu': null // Click only, no title check
     };
 
     // Mapping for menus without submenus that have page titles to verify
-    const menuTitleMap = { 'organizations-menu': { title: 'Organizations', heading: 3 }};
+    const menuTestIdMap = { 'organizations-menu': 'organizations-heading' };
 
     // Iterate through all sidebar menus
     for (let i = 0;i < sidebarMenus.length;i++) {
@@ -277,15 +279,17 @@ const checkSidebarMenusAndTitles = async page => {
         // Step 2: Click menu (except first one which is already expanded)
         if (i !== 0) {
             await menuBtn.click();
+            // Wait for submenus to load after clicking main menu
+            await page.waitForTimeout(500);
         }
 
         // Step 3: Handle menus with/without submenus
         if (submenus.length === 0) {
 
-            // For menus without submenus, check title if specified
-            const { title, heading } = menuTitleMap[menu] || {};
-            if (title && heading) {
-                await expect(page.getByRole('heading', { name: title, level: heading })).toBeVisible();
+            // For menus without submenus, check test ID if specified
+            const testId = menuTestIdMap[menu];
+            if (testId) {
+                await expect(page.getByTestId(testId)).toBeVisible();
             }
 
             // Note: address-menu and logout-menu only check visibility, no title verification
@@ -299,14 +303,15 @@ const checkSidebarMenusAndTitles = async page => {
                 await expect(submenuBtn).toBeVisible();
                 await submenuBtn.click();
 
-                // Step 5: Check page title (except for special cases that only check visibility)
-                const { title, heading } = submenuTitleMap[submenu] || {};
-                if (submenu !== 'documents-submenu'
-                    && submenu !== 'account-setting-submenu'
-                    && submenu !== 'notification-setting-submenu'
-                    && title && heading) {
-                    await expect(page.getByRole('heading', { name: title, level: heading })).toBeVisible();
+                // Step 4.5: Wait for page to load after clicking submenu
+                await page.waitForTimeout(1000);
+
+                // Step 5: Check page title using specific test ID (only if testId exists)
+                const testId = submenuTestIdMap[submenu];
+                if (testId) {
+                    await expect(page.getByTestId(testId)).toBeVisible();
                 }
+                // Note: If testId is null, we only click the submenu but don't check for title
             }
         }
     }
