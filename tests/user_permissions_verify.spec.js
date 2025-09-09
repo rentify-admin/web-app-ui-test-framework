@@ -266,11 +266,11 @@ test.describe('user_permissions_verify', () => {
 
         // Hardcoded session ID based on environment
         const isStaging = process.env.APP_ENV === 'staging';
-        const sessionId = isStaging ? '01992a4a-825f-7242-bc27-65f120f3398b' : '01971d4f-2f5e-7151-88d5-d038c044d13b';
+        const sessionId = isStaging ? '01992a4a-825f-7242-bc27-65f120f3398b' : '01971d54-6284-70c4-8180-4eee1abd955a';
 
         const searchSessions = await searchSessionWithText(
             page,
-            applicationName
+            sessionId
         );
 
         const sessionLocator = await findSessionLocator(

@@ -2,7 +2,7 @@ import { test, expect, registerTest, testWithCleanup } from './fixtures/enhanced
 import { ApiDataManager } from './utils/api-data-manager';
 import { admin } from '~/tests/test_config';
 import loginForm from '~/tests/utils/login-form';
-import { checkAllFlagsSection, checkExportPdf } from '~/tests/utils/report-page';
+import { checkAllFlagsSection, checkExportPdf, searchSessionWithText } from '~/tests/utils/report-page';
 import { loginWith } from './utils/session-utils';
 import globalCleanupManager from './utils/global-cleanup-manager';
 
@@ -12,19 +12,24 @@ import { waitForJsonResponse } from './utils/wait-response';
 // Global state management for test isolation
 let globalStaffUser = null;
 
-// Staff user template (now used with API)
+// Staff user template (now used with API) - environment-dependent
+const isStaging = process.env.APP_ENV === 'staging';
 const staffUserTemplate = {
     first_name: 'Staff',
     last_name: 'Playwright',
     password: 'Playwright@123',
-    role: '0196f6c9-da51-7337-bbde-ca7d0efd7f84'
+    role: isStaging ? '0196c9cd-4cf9-7368-949c-a298396673d9' : '0196f6c9-da51-7337-bbde-ca7d0efd7f84', // Centralized Leasing role
+    organization: isStaging ? '0196cb22-5da4-715a-a89d-3ad36eeacf7d' : '01971d42-96b6-7003-bcc9-e54006284a7e' // Test Org / Permissions Test Org
 };
 
 test.beforeEach(async ({ page }) => {
     await page.goto('/');
 });
 
-const sessionID = '01971d4f-2e5e-7151-88d5-d038c044d13b';
+// Environment-dependent session ID (same as admin test)
+const sessionID = isStaging 
+    ? '01992a4a-825f-7242-bc27-65f120f3398b'  // Staging session
+    : '01971d54-6284-70c4-8180-4eee1abd955a'; // Dev session
 
 test.describe('staff_user_permissions_test', () => {
     test.describe.configure({ 
@@ -48,7 +53,7 @@ test.describe('staff_user_permissions_test', () => {
         }
     });
     
-    testWithCleanup('Should create member record and assign it to the Staff role @regression', async ({ page, dataManager, cleanupHelper }) => {
+    testWithCleanup('Should create member record and assign it to the Staff role @regression @staging-correct', async ({ page, dataManager, cleanupHelper }) => {
         // Register this test in the suite
         registerTest(SUITE_NAME, 'Should create member record and assign it to the Staff role', TOTAL_TESTS);
         
@@ -94,7 +99,7 @@ test.describe('staff_user_permissions_test', () => {
         console.log('📝 User tracked for enhanced cleanup (will be cleaned up on last test only)');
     });
 
-    testWithCleanup('Verify permission of Staff role @regression', async ({ page, context, dataManager, cleanupHelper }) => {
+    testWithCleanup('Verify permission of Staff role @regression @staging-correct', async ({ page, context, dataManager, cleanupHelper }) => {
         // Register this test in the suite (LAST TEST)
         registerTest(SUITE_NAME, 'Verify permission of Staff role', TOTAL_TESTS);
         
@@ -151,22 +156,11 @@ test.describe('staff_user_permissions_test', () => {
         await page.getByTestId('applicants-menu').click();
         await page.getByTestId('applicants-submenu').click();
 
-        // Search the sessionid
-        const searchEle = await page.locator('#search_sessions');
-        await Promise.all([
-            page.waitForResponse(resp => {
-                const regEx = new RegExp(`/sessions?.*${sessionID}`);
-                return (
-                    regEx.test(resp.url())
-                    && resp.request().method() === 'GET'
-                    && resp.ok()
-                );
-            }),
-            searchEle.fill(sessionID)
-        ]);
+        // Search for session using session UUID (same as admin test)
+        const searchSessions = await searchSessionWithText(page, sessionID);
 
-        // Search the top session from the side panel
-        const topSessionLocator = page.locator('div.application-card').nth(0);
+        // Find the session locator using the dynamic session ID
+        const topSessionLocator = page.locator(`.application-card[data-session="${sessionID}"]`);
         const [ empResponse, fileResponse, flagsResponse ] = await Promise.all([
             page.waitForResponse(
                 resp => resp.url().includes(`/sessions/${sessionID}/employments`)

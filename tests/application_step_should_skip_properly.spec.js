@@ -175,10 +175,14 @@ test.describe('application_step_should_skip_properly', () => {
         console.log('🚀 Completing invite step')
         await page.getByTestId('applicant-invite-continue-btn').filter({ visible: true }).click();
         console.log('✅ Completed invite step')
+
+        await page.waitForTimeout(3000);
     
         await expect(page.getByTestId('summary-completed-section')).toBeVisible({ timeout: 10_000 });
         console.log('✅ On Summary step')
     
+        await page.waitForTimeout(6000);
+        
         console.log('🚀 Going to employment step')
         await page.locator('div[role=button]').filter({
             hasText: 'Employment Verification',
