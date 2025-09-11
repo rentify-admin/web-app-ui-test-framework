@@ -84,6 +84,7 @@ test.describe('frontend-session-heartbeat', () => {
         console.log('🚀 Id verification step')
         await expect(page.getByTestId('start-id-verification')).toBeVisible({ timeout: 10_000 });
 
+        await page.waitForTimeout(4000);
         console.log('🚀 Going to Invite Page')
         await page.locator('div[role=button]').filter({
             hasText: 'Applicants',
@@ -184,11 +185,56 @@ test.describe('frontend-session-heartbeat', () => {
         ]);
 
         await waitForJsonResponse(sessionResponse);
+        await page.waitForTimeout(3000);
         console.log('✅ Session data loaded')
 
-        const incomeSourceHeader = await page.getByTestId('income-source-section-header');
+        // ADD: Wait for income sources counter > 0, then make API call
+        let attempts = 0;
+        const maxAttempts = 5; // 5 attempts total
+        let incomeSourcesCount = 0;
 
-        console.log('🚀 Clicking on income source header')
+        do {
+            // Check income sources counter in the header SVG
+            console.log(`🚀 ~ Attempt ${attempts + 1}: Checking income sources counter...`);
+            try {
+                // Look for the counter text inside the SVG in the income source section header
+                const incomeSourceHeader = page.getByTestId('income-source-section-header');
+                const counterText = incomeSourceHeader.locator('svg text');
+                const counterValue = await counterText.textContent();
+                incomeSourcesCount = parseInt(counterValue) || 0;
+                console.log(`🚀 ~ Attempt ${attempts + 1}: Income sources counter:`, incomeSourcesCount);
+            } catch (error) {
+                console.log(`🚀 ~ Attempt ${attempts + 1}: No income sources counter found yet`);
+                incomeSourcesCount = 0;
+            }
+
+            // If counter is 0 and we haven't reached max attempts, reload and try again
+            if (incomeSourcesCount === 0 && attempts < maxAttempts - 1) {
+                console.log(`🚀 ~ Attempt ${attempts + 1}: Income sources counter is 0, reloading page...`);
+                await page.reload();
+                await page.waitForTimeout(2000); // Wait for page to load
+                
+                // Re-search for session after reload
+                await searchSessionWithText(page, sessionId);
+                const sessionLocator = await findSessionLocator(page, `.application-card[data-session="${sessionId}"]`);
+                
+                // Re-click session after reload
+                const [sessionResponse] = await Promise.all([
+                    page.waitForResponse(resp => resp.url().includes(`/sessions/${sessionId}?fields[session]`)
+                        && resp.ok()
+                        && resp.request().method() === 'GET'),
+                    sessionLocator.click()
+                ]);
+                await waitForJsonResponse(sessionResponse);
+            }
+            
+            attempts++;
+        } while (incomeSourcesCount === 0 && attempts < maxAttempts);
+
+        // Now that we have income sources, make the API call
+        console.log('🚀 ~ Income sources counter > 0, making API call...');
+        const incomeSourceHeader = await page.getByTestId('income-source-section-header');
+        
         const [incomeSourceResponse] = await Promise.all([
             page.waitForResponse((resp) => {
                 return resp.url().includes(`/sessions/${sessionId}/income-sources?fields[income_source]`)
@@ -196,17 +242,15 @@ test.describe('frontend-session-heartbeat', () => {
                     && resp.request().method() === 'GET';
             }),
             incomeSourceHeader.click()
-        ])
+        ]);
 
         const incomeSources = await waitForJsonResponse(incomeSourceResponse);
-
         console.log('✅ Income Source loaded')
         await expect(incomeSources.data.length).toBeGreaterThan(0)
 
         console.log('🚀 Checking Income source visible')
         for (let index = 0; index < incomeSources.data.length; index++) {
             const element = incomeSources.data[index];
-
             await expect(page.getByTestId(`income-source-${element.id}`)).toBeVisible()
         }
         console.log('✅ Income Source visible')
