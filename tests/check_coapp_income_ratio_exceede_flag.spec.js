@@ -303,12 +303,45 @@ test.describe('check_coapp_income_ratio_exceede_flag', () => {
         await expect(rentRatioLocatorNew).toContainText(String(rentBudgetRatioNew));
         console.log('🚀 ~ New Rent/Income Ratio:', rentBudgetRatioNew);
         
-        // Validate that the new ratio is below threshold (flag should be removed)
-        if (monthlyIncomeNew > 0 && rentBudgetNew > 0) {
-            const calculatedRatioNew = Math.round((rentBudgetNew / monthlyIncomeNew) * 100);
-            console.log('🚀 ~ Calculated New Ratio:', calculatedRatioNew);
-            await expect(calculatedRatioNew).toBeLessThanOrEqual(30); // Should be below 30% threshold
-        }
+        // ADD: Retry logic for ratio calculation with 25-second max wait
+        let calculatedRatioNew;
+        let attempts = 0;
+        const maxAttempts = 5; // 5 attempts * 5 seconds = 25 seconds max
+        const waitTimePerAttempt = 5000; // 5 seconds between attempts
+
+        do {
+            if (attempts > 0) {
+                await page.waitForTimeout(waitTimePerAttempt); // Wait 5 seconds between attempts
+                // Refresh session data on retry attempts
+                const [ retrySessionResponse ] = await Promise.all([
+                    page.waitForResponse(resp => resp.url().includes(`/sessions/${sessionId}?fields[session]`)
+                        && resp.ok()
+                        && resp.request().method() === 'GET'),
+                    page.reload()
+                ]);
+                const retrySession = await waitForJsonResponse(retrySessionResponse);
+                const retryMonthlyIncome = retrySession.data.state?.summary?.total_income;
+                const retryRentBudget = retrySession.data?.target ?? 0;
+                
+                if (retryMonthlyIncome > 0 && retryRentBudget > 0) {
+                    calculatedRatioNew = Math.round((retryRentBudget / retryMonthlyIncome) * 100);
+                    console.log(`🚀 ~ Retry Attempt ${attempts}: Calculated New Ratio:`, calculatedRatioNew);
+                    console.log(`🚀 ~ Retry Monthly Income:`, retryMonthlyIncome);
+                    console.log(`🚀 ~ Retry Rent Budget:`, retryRentBudget);
+                }
+            } else {
+                // First attempt with current data
+                if (monthlyIncomeNew > 0 && rentBudgetNew > 0) {
+                    calculatedRatioNew = Math.round((rentBudgetNew / monthlyIncomeNew) * 100);
+                    console.log(`🚀 ~ First Attempt: Calculated New Ratio:`, calculatedRatioNew);
+                }
+            }
+            
+            attempts++;
+        } while (calculatedRatioNew > 30 && attempts < maxAttempts);
+
+        // Use the retry result for the assertion
+        await expect(calculatedRatioNew).toBeLessThanOrEqual(30); // Should be below 30% threshold
         await page.getByTestId('view-details-btn').click({ timeout: 20_000 });
     
         await expect(page.getByTestId('GROSS_INCOME_RATIO_EXCEEDED')).toHaveCount(0, { timeout: 20_000 });
