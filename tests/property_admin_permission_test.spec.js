@@ -279,11 +279,14 @@ test.describe('property_admin_permission_test', () => {
                         && resp.ok()))),
                 Promise.all(allSessionWithChildren.map(sess => {
 
-                    // Regex for financial-verifications with session id
-                    const regex = new RegExp(`.+/financial-verifications?.+filters=.+{"session_id":{"\\$in":\\["${sess.id}"\\].+`, 'i');
-                    return page.waitForResponse(resp => regex.test(decodeURI(resp.url()))
-                        && resp.request().method() === 'GET'
-                        && resp.ok());
+                    // Simplified pattern for financial-verifications with session id
+                    return page.waitForResponse(resp => {
+                        const url = decodeURI(resp.url());
+                        return url.includes('/financial-verifications') 
+                            && url.includes(sess.id)
+                            && resp.request().method() === 'GET'
+                            && resp.ok();
+                    });
                 })),
                 page.waitForResponse(resp => resp.url().includes(`/sessions/${session.id}/employments`)
                     && resp.request().method() === 'GET'

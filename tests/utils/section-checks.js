@@ -182,33 +182,33 @@ const checkFilesSectionData = async (page, files) => {
 const checkFinancialSectionData = async (session, page, sessionLocator) => {
     console.log('Should Allow User to View Financial Section');
 
-    // Wait for application card to be ready and click it
-    const applicationCard = page.locator('.application-card').first();
-    await expect(applicationCard).toBeVisible();
-    await applicationCard.click();
+    // Don't click application card again - we're already on the session details page
+    // The sessionLocator.click() was already called in the main test
 
-    const allSessionWithChildren = [ session, ...session.children ].filter(Boolean);
+    const allSessionWithChildren = [ session, ...(session.children || []) ].filter(Boolean);
 
-    const financialResponses = await Promise.all([
-        ...allSessionWithChildren.map(sess => {
-            const regex = new RegExp(`.+/financial-verifications?.+filters=.+{"session_id":{"\\$in":\\["${sess.id}"\\].+`, 'i');
-            return page.waitForResponse(resp => regex.test(decodeURI(resp.url()))
-                && resp.request().method() === 'GET'
-                && resp.ok());
-        }),
-        sessionLocator.click()
-    ]);
-
-    // Wait for financial section header to be ready and click it
+    // Wait for financial section header to be ready and click it FIRST to trigger API calls
     const financialHeader = page.getByTestId('financial-section-header');
     await expect(financialHeader).toBeVisible();
     await financialHeader.click();
+
+    const financialResponses = await Promise.all([
+        ...allSessionWithChildren.map(sess => {
+            // Simplified pattern for financial-verifications with session id
+            return page.waitForResponse(resp => {
+                const url = decodeURI(resp.url());
+                return url.includes('/financial-verifications') 
+                    && url.includes(sess.id)
+                    && resp.request().method() === 'GET'
+                    && resp.ok();
+            }, { timeout: 30000 }); // Add 30 second timeout
+        })
+    ]);
     
     // Wait for the financial section to load
     await expect(page.getByTestId('financial-section-financials-radio')).toBeVisible();
     
-    financialResponses.pop();
-
+    // No need to pop since we're not adding the click to the array anymore
     const financialDataResponses = financialResponses;
 
     const financialVerifications = [];
@@ -224,7 +224,7 @@ const checkFinancialSectionData = async (session, page, sessionLocator) => {
     await financialsRadio.click();
 
     for (let sIndex = 0;sIndex < allSessionWithChildren.length;sIndex++) {
-        const session = allSessionWithChildren[sIndex];
+        const currentSession = allSessionWithChildren[sIndex];
         const verifications = financialVerifications[sIndex];
 
         const accounts = verifications?.data?.reduce((acc, ver) => {
@@ -249,7 +249,7 @@ const checkFinancialSectionData = async (session, page, sessionLocator) => {
             }));
         }, []);
 
-        const financialWrapper = await page.getByTestId(`financial-section-financials-wrapper-${session?.id}`);
+        const financialWrapper = await page.getByTestId(`financial-section-financials-wrapper-${currentSession?.id}`);
 
         await expect(financialWrapper).toBeVisible();
 

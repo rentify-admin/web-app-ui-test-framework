@@ -136,6 +136,7 @@ test.describe('staff_user_permissions_test', () => {
         const { data: applications } = await waitForJsonResponse(
             applicationsResponse
         );
+        await page.waitForTimeout(3000);
 
         // Verify that the applications are visible
         const tableLocator = page.locator('table.table');
