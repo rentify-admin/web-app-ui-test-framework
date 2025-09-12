@@ -231,7 +231,7 @@ const checkExportPdf = async (page, context, sessionId) => {
     // Click export button and wait for modal
     exportBtn.click();
     await page.waitForTimeout(1000); // Wait for animation
-    await page.locator('[role="dialog"]').waitFor({ state: 'visible' });
+    await page.locator('[role="dialog"]').filter({ hasText: 'Export' }).waitFor({ state: 'visible' });
     
     // Click the income source delist submit button
     await page.getByTestId('income-source-delist-submit').click();
@@ -704,15 +704,18 @@ const checkFinancialSectionData = async (page, session, sessionLocator, financia
     if (financialData.length === 0) {
 
         // Step 1.1: Fetch Financial Data from API
-        await page.locator('.application-card').first()
-            .click();
+        // Don't click application card again - sessionLocator.click() will handle it
 
         const financialResponses = await Promise.all([
             ...allSessionWithChildren.map(sess => {
-                const regex = new RegExp(`.+/financial-verifications?.+filters=.+{"session_id":{"\\$in":\\["${sess.id}"\\].+`, 'i');
-                return page.waitForResponse(resp => regex.test(decodeURI(resp.url()))
-                    && resp.request().method() === 'GET'
-                    && resp.ok());
+                // Simplified pattern for financial-verifications with session id
+                return page.waitForResponse(resp => {
+                    const url = decodeURI(resp.url());
+                    return url.includes('/financial-verifications') 
+                        && url.includes(sess.id)
+                        && resp.request().method() === 'GET'
+                        && resp.ok();
+                }, { timeout: 30000 }); // Add 30 second timeout
             }),
             sessionLocator.click()
         ]);

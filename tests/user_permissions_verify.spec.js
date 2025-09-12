@@ -351,7 +351,12 @@ test.describe('user_permissions_verify', () => {
             await checkFilesSectionData(page, files);
 
             // ! Financial section should load properly
-            await checkFinancialSectionData(session, page, sessionLocator);
+            // Create session object with id and children for checkFinancialSectionData
+            const sessionObject = {
+                id: sessionDetails.id,
+                children: sessionDetails.children || []
+            };
+            await checkFinancialSectionData(sessionObject, page, sessionLocator);
             
             console.log('✅ All permission checks passed successfully');
             
