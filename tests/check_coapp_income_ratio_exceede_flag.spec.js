@@ -128,7 +128,7 @@ test.describe('check_coapp_income_ratio_exceede_flag', () => {
     
         await updateStateModal(applicantPage, 'ALABAMA');
     
-        await updateRentBudget(applicantPage, sessionId, '2500');
+        await updateRentBudget(applicantPage, sessionId, '1500');
     
         await applicantStep(applicantPage);
     

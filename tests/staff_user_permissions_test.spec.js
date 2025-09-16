@@ -29,7 +29,7 @@ test.beforeEach(async ({ page }) => {
 // Environment-dependent session ID (same as admin test)
 const sessionID = isStaging 
     ? '01992a4a-825f-7242-bc27-65f120f3398b'  // Staging session
-    : '01971d54-6284-70c4-8180-4eee1abd955a'; // Dev session
+    : '01986591-71eb-7079-b91f-398816e65fee'; // Dev session
 
 test.describe('staff_user_permissions_test', () => {
     test.describe.configure({ 
@@ -123,6 +123,7 @@ test.describe('staff_user_permissions_test', () => {
 
         // Click on the Applications menu to expand the menu
         await page.getByTestId('applications-menu').click();
+        await page.waitForTimeout(1000);
 
         // Click on Applications.
         const [ applicationsResponse ] = await Promise.all([
@@ -136,13 +137,14 @@ test.describe('staff_user_permissions_test', () => {
         const { data: applications } = await waitForJsonResponse(
             applicationsResponse
         );
-        await page.waitForTimeout(3000);
 
-        // Verify that the applications are visible
+        await page.waitForTimeout(4000);
+
+        // Wait for the applications table to be visible
         const tableLocator = page.locator('table.table');
         await expect(tableLocator).toBeVisible();
 
-        const allTableRaws = await tableLocator.locator('tbody tr');
+        const allTableRaws = tableLocator.locator('tbody tr');
         for (let it = 0;it < applications?.length;it++) {
             await expect(
                 allTableRaws.nth(it).locator('td:nth-child(1)')

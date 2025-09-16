@@ -237,7 +237,7 @@ const checkExportPdf = async (page, context, sessionId) => {
     await page.getByTestId('income-source-delist-submit').click();
 
     const [ pdfResponse, popupPage ] = await Promise.all([
-        page.waitForResponse(resp => resp.url().includes(`/sessions/${sessionId}`)
+        page.waitForResponse(resp => resp.url().includes(`/sessions?session_ids[]=${sessionId}`)
             && resp.request().method() === 'GET'
             && resp.headers()['content-type'] === 'application/pdf'
             && resp.ok()),
@@ -259,9 +259,6 @@ const checkExportPdf = async (page, context, sessionId) => {
     } else {
         await popupPage.close();
     }
-    
-    // Close the modal after PDF export
-    await page.getByTestId('income-source-delist-cancel').click();
 };
 
 /**
