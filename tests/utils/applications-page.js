@@ -89,14 +89,21 @@ const searchApplication = async (page, search) => {
  * Search and edit application (optionally remove applicant type and publish)
  * @param {import('@playwright/test').Page} page
  * @param {string} applicationName
- * @param {{removeApplicantType?: string}} options
+ * @param {{removeApplicantType?: string, applicationId?: string}} options
  */
 const searchAndEditApplication = async (page, applicationName, options = {}) => {
+    // Wait for "No Record Found" to disappear (data to load) before searching
+    await page.getByText('No Record Found').waitFor({ state: 'hidden', timeout: 30000 });
     await page.getByTestId('application-search').fill(applicationName);
     await page.waitForTimeout(2000);
 
-    // Click edit button
-    await page.locator('a[title="Edit"]').click();
+    // Click edit button - use applicationId if provided, otherwise fallback to title
+    if (options.applicationId) {
+        console.log(`📝 Using application ID ${options.applicationId} for editing`);
+        await page.getByTestId(`edit-${options.applicationId}`).click();
+    } else {
+        await page.locator('a[title="Edit"]').click();
+    }
     await page.waitForTimeout(2000);
 
     if (options.removeApplicantType) {
@@ -151,14 +158,20 @@ const searchAndEditApplication = async (page, applicationName, options = {}) => 
  * Search and verify application (count applicant types)
  * @param {import('@playwright/test').Page} page
  * @param {string} applicationName
+ * @param {string} [applicationId] - Optional application ID for robust selection
  * @returns {Promise<number>}
  */
-const searchAndVerifyApplication = async (page, applicationName) => {
+const searchAndVerifyApplication = async (page, applicationName, applicationId = null) => {
     await page.getByTestId('application-search').fill(applicationName);
     await page.waitForTimeout(2000);
 
-    // Click edit button
-    await page.locator('a[title="Edit"]').click();
+    // Click edit button - use applicationId if provided, otherwise fallback to title
+    if (applicationId) {
+        console.log(`📝 Using application ID ${applicationId} for verification`);
+        await page.getByTestId(`edit-${applicationId}`).click();
+    } else {
+        await page.locator('a[title="Edit"]').click();
+    }
     await page.waitForTimeout(2000);
 
     // Count applicant types and cancel
