@@ -3,38 +3,8 @@ import { adminLoginAndNavigateToApplications } from '~/tests/utils/session-utils
 import { admin } from '~/tests/test_config';
 import { findAndInviteApplication } from '~/tests/utils/applications-page';
 import { getRandomEmail } from '~/tests/utils/helper';
-import { completePaystubConnection, fillhouseholdForm, identityStep, selectApplicantType, updateRentBudget, updateStateModal } from '~/tests/utils/session-flow';
+import { completePaystubConnection, fillhouseholdForm, identityStep, selectApplicantType, updateRentBudget, updateStateModal, completePlaidFinancialStepBetterment, waitForPlaidConnectionCompletion } from '~/tests/utils/session-flow';
 import generateSessionForm from '~/tests/utils/generate-session-form';
-
-
-
-const completePlaidConnection = async (applicantPage, username = 'custom_gig') => {
-    await applicantPage.getByTestId('financial-secondary-connect-btn').click({ timeout: 20_000 });
-
-    const pFrame = await applicantPage.frameLocator('#plaid-link-iframe-1');
-
-    const plaidFrame = await pFrame.locator('reach-portal');
-
-    await plaidFrame.locator('#aut-secondary-button').click({ timeout: 20_000 });
-
-    // Wait for element to be visible and attached before clicking
-    await expect(plaidFrame.locator('[aria-label="Betterment"]')).toBeVisible({ timeout: 20_000 });
-    await plaidFrame.locator('[aria-label="Betterment"]').waitFor({ state: 'attached' });
-    await applicantPage.waitForTimeout(2000);
-    await plaidFrame.locator('[aria-label="Betterment"]').click({ timeout: 20_000 });
-
-    await plaidFrame.locator('#aut-input-0-input').fill(username);
-
-    await plaidFrame.locator('#aut-input-1-input').fill('custom_gig');
-
-    await plaidFrame.locator('#aut-button').click({ timeout: 20_000 });
-
-    await plaidFrame.locator('#aut-button:not([disabled])').click({ timeout: 20_000 });
-
-    await plaidFrame.locator('#aut-secondary-button').click({ timeout: 20_000 });
-
-    await applicantPage.getByTestId('financial-verification-continue-btn').click({ timeout: 20_000 });
-};
 
 test.describe('application_step_should_skip_properly', () => {
     test('Check Application step skip works propertly', async ({ page, browser }) => {
@@ -100,8 +70,10 @@ test.describe('application_step_should_skip_properly', () => {
         console.log('✅ Done Id verification step')
     
         console.log('🚀 Financial Step')
-        await completePlaidConnection(page, 'custom_coffee');
+        await completePlaidFinancialStepBetterment(page, 'custom_coffee', 'custom_gig');
         console.log('✅ Done Financial Step')
+
+        await waitForPlaidConnectionCompletion(page);
     
         console.log('🚀 Skip employment step')
         await page.getByTestId('employment-step-skip-btn').click({ timeout: 10_000 });

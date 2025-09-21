@@ -4,7 +4,7 @@ import { admin, app } from '~/tests/test_config';
 import { findAndInviteApplication, gotoApplicationsPage } from '~/tests/utils/applications-page';
 import generateSessionForm from '~/tests/utils/generate-session-form';
 import { getCentsToDollarsSafe, joinUrl } from '~/tests/utils/helper';
-import { completePaystubConnection, fillhouseholdForm, selectApplicantType, updateRentBudget, updateStateModal, identityStep, waitForPlaidConnectionCompletion } from '~/tests/utils/session-flow';
+import { completePaystubConnection, fillhouseholdForm, selectApplicantType, updateRentBudget, updateStateModal, identityStep, waitForPlaidConnectionCompletion, completePlaidFinancialStepBetterment } from '~/tests/utils/session-flow';
 import { gotoPage } from '~/tests/utils/common';
 import { findSessionLocator, searchSessionWithText } from '~/tests/utils/report-page';
 import { waitForJsonResponse } from '~/tests/utils/wait-response';
@@ -33,38 +33,6 @@ const applicantStep = async applicantPage => {
 };
 
 
-const completePlaidConnection = async (applicantPage, username = 'custom_gig', password = 'password') => {
-    // Wait for element to be present first, then get the locator
-    await applicantPage.waitForSelector('[data-testid="financial-secondary-connect-btn"]', { timeout: 100_000 });
-    await applicantPage.waitForTimeout(2000);
-    const financialSecondaryConnectBtn = applicantPage.getByTestId('financial-secondary-connect-btn');
-    await expect(financialSecondaryConnectBtn).toBeVisible({ timeout: 20_000 });
-    await financialSecondaryConnectBtn.click({ timeout: 20_000 });
-
-    const pFrame = await applicantPage.frameLocator('#plaid-link-iframe-1');
-
-    const plaidFrame = await pFrame.locator('reach-portal');
-
-    await plaidFrame.locator('#aut-secondary-button').click({ timeout: 20_000 });
-
-    // Wait for element to be visible and attached before clicking
-    await expect(plaidFrame.locator('[aria-label="Betterment"]')).toBeVisible({ timeout: 20_000 });
-    await plaidFrame.locator('[aria-label="Betterment"]').waitFor({ state: 'attached' });
-    await applicantPage.waitForTimeout(2000);
-    await plaidFrame.locator('[aria-label="Betterment"]').click({ timeout: 20_000 });
-
-    await plaidFrame.locator('#aut-input-0-input').fill(username);
-
-    await plaidFrame.locator('#aut-input-1-input').fill(password);
-
-    await plaidFrame.locator('#aut-button').click({ timeout: 20_000 });
-
-    await plaidFrame.locator('#aut-button:not([disabled])').click({ timeout: 20_000 });
-
-    await plaidFrame.locator('#aut-secondary-button').click({ timeout: 20_000 });
-
-    //await applicantPage.getByTestId('financial-verification-continue-btn').click({ timeout: 20_000 });
-};
 
 const checkDollarText = async (rentBudget, rentLocator) => {
     if (rentBudget !== 0) {
@@ -79,7 +47,7 @@ test.describe('check_coapp_income_ratio_exceede_flag', () => {
     test('Should confirm co-applicant income is considered when generating/removing Gross Income Ratio Exceeded flag', { 
         tag: ['@smoke'],
     }, async ({ page, browser }) => {
-        test.setTimeout(380000);
+        test.setTimeout(400000);
         
         // Step 1: Admin Login and Navigate to Applications
         await loginForm.adminLoginAndNavigate(page, admin);
@@ -135,8 +103,8 @@ test.describe('check_coapp_income_ratio_exceede_flag', () => {
         await identityStep(applicantPage);
     
     
-        // Complete Plaid Connection
-        await completePlaidConnection(applicantPage);
+        // Complete Plaid Connection using robust utility
+        await completePlaidFinancialStepBetterment(applicantPage);
 
         await waitForPlaidConnectionCompletion(applicantPage);
     
@@ -253,8 +221,8 @@ test.describe('check_coapp_income_ratio_exceede_flag', () => {
     
         await identityStep(coAppPage);
     
-        // Complete Plaid Connection
-        await completePlaidConnection(coAppPage, 'user_bank_income', '{}');
+        // Complete Plaid Connection using robust utility
+        await completePlaidFinancialStepBetterment(coAppPage, 'user_bank_income', '{}');
     
         await waitForPlaidConnectionCompletion(coAppPage);
 
