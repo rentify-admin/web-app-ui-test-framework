@@ -1198,15 +1198,38 @@ const completePlaidFinancialStepBetterment = async (applicantPage, username = 'c
         .getByTestId('financial-secondary-connect-btn')
         .click({ timeout: 20000 });
 
+    // Wait for iframe to be present and loaded (CI-friendly)
+    await applicantPage.waitForSelector('#plaid-link-iframe-1', { timeout: 60000 });
+    await applicantPage.waitForTimeout(3000); // Allow iframe content to load
+    
     const pFrame = await applicantPage.frameLocator('#plaid-link-iframe-1');
     const plaidFrame = await pFrame.locator('reach-portal');
 
     await plaidFrame.locator('#aut-secondary-button').click({ timeout: 20000 });
 
-    // Select Betterment instead of Bank of America
-    // Wait for element to be visible and attached before clicking
-    await expect(plaidFrame.locator('[aria-label="Betterment"]')).toBeVisible({ timeout: 20000 });
-    await plaidFrame.locator('[aria-label="Betterment"]').waitFor({ state: 'attached' });
+    // Select Betterment - use retry logic for CI reliability
+    let bettermentFound = false;
+    let attempts = 0;
+    const maxAttempts = 3;
+    
+    while (!bettermentFound && attempts < maxAttempts) {
+        try {
+            console.log(`🔄 Attempting to find Betterment button (attempt ${attempts + 1}/${maxAttempts})`);
+            await expect(plaidFrame.locator('[aria-label="Betterment"]')).toBeVisible({ timeout: 60000 });
+            await plaidFrame.locator('[aria-label="Betterment"]').waitFor({ state: 'attached' });
+            bettermentFound = true;
+            console.log('✅ Betterment button found and ready');
+        } catch (error) {
+            attempts++;
+            if (attempts >= maxAttempts) {
+                console.error('❌ Failed to find Betterment button after all attempts');
+                throw error;
+            }
+            console.log(`⚠️ Attempt ${attempts} failed, waiting and retrying...`);
+            await applicantPage.waitForTimeout(5000);
+        }
+    }
+    
     await applicantPage.waitForTimeout(2000);
     await plaidFrame
         .locator('[aria-label="Betterment"]')

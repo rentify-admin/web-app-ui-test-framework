@@ -313,8 +313,8 @@ test.describe('co_applicant_effect_on_session_test', () => {
         const rentBudgetRatio1
             = newSession.data.state?.summary?.total_target_to_income_ratio;
     
-        // expect(monthlyIncome).not.toBe(monthlyIncome1);
-        // expect(rentBudgetRatio).not.toBe(rentBudgetRatio1);
+        expect(monthlyIncome).not.toBe(monthlyIncome1);
+        expect(rentBudgetRatio).not.toBe(rentBudgetRatio1);
         
         // Check All applicant Income Sources Available
         await Promise.all([
