@@ -6,14 +6,14 @@ import { createApplicationFlow, searchAndEditApplication, searchAndVerifyApplica
 import { generateUniqueName } from '~/tests/utils/common';
 
 test.describe('applicant_edits_a_workflow_used_by_another_applicant', () => {
-    let app1Name, app2Name;
+    let app1Name, app2Name, app1Id, app2Id;
 
     test.afterEach(async ({ page }) => {
         //TODO IMPORTANT. IMPLEMENT CLEAN UP BY API
         try {
-            // Clean up applications even if test fails
-            if (app1Name) await searchAndDeleteApplication(page, app1Name).catch(() => {});
-            if (app2Name) await searchAndDeleteApplication(page, app2Name).catch(() => {});
+            // Clean up applications even if test fails - use robust delete selectors
+            if (app1Name && app1Id) await searchAndDeleteApplication(page, app1Name, app1Id).catch(() => {});
+            if (app2Name && app2Id) await searchAndDeleteApplication(page, app2Name, app2Id).catch(() => {});
         } catch (error) {
             console.log('Cleanup failed:', error.message);
         }
@@ -65,24 +65,29 @@ test.describe('applicant_edits_a_workflow_used_by_another_applicant', () => {
 
         // Step 6-47: Create first application
         console.log('Creating first application...');
-        await createApplicationFlow(page, app1Config);
+        const app1Responses = await createApplicationFlow(page, app1Config);
+        app1Id = app1Responses.applicationId;
+        console.log('✅ First application created with ID:', app1Id);
 
         // Step 48-87: Create second application
         console.log('Creating second application...');
-        await createApplicationFlow(page, app2Config);
+        const app2Responses = await createApplicationFlow(page, app2Config);
+        app2Id = app2Responses.applicationId;
+        console.log('✅ Second application created with ID:', app2Id);
 
         // Step 88-100: Edit first application - remove "Other" applicant type
         console.log('Editing first application...');
         await searchAndEditApplication(page, app1Name, {
-            removeApplicantType: 'Other'
+            removeApplicantType: 'Other',
+            applicationId: app1Id
         });
 
         // Step 101-108: Verify second application still has all applicant types
         console.log('Verifying workflow isolation...');
-        const edit2Length = await searchAndVerifyApplication(page, app2Name);
+        const edit2Length = await searchAndVerifyApplication(page, app2Name, app2Id);
 
         // Step 109: Assert that second application has more applicant types than first
-        const edit1Length = await searchAndVerifyApplication(page, app1Name);
+        const edit1Length = await searchAndVerifyApplication(page, app1Name, app1Id);
 
         expect(edit2Length).toBeGreaterThan(edit1Length);
         console.log(`Application 2 has ${edit2Length} applicant types, Application 1 has ${edit1Length} applicant types`);

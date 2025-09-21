@@ -87,6 +87,11 @@ export const submitApplicationSetup = async (page, config = {}) => {
 
     // Wait for the response
     const setupResponse = await setupResponsePromise;
+    
+    // Extract application ID from response
+    const setupResponseData = await setupResponse.json();
+    const applicationId = setupResponseData.data.id;
+    console.log('📝 Application created with ID:', applicationId);
 
     await page.waitForTimeout(4000);
 
@@ -110,10 +115,10 @@ export const submitApplicationSetup = async (page, config = {}) => {
         // Wait for the response
         const workflowResponse = await workflowResponsePromise;
 
-        return { setupResponse, workflowResponse };
+        return { setupResponse, workflowResponse, applicationId };
     }
 
-    return { setupResponse };
+    return { setupResponse, applicationId };
 };
 
 /**
@@ -177,8 +182,9 @@ export const publishApplicationToLive = async page => {
  * Search and delete application
  * @param {import('@playwright/test').Page} page
  * @param {string} applicationName
+ * @param {string} [applicationId] - Optional application ID for robust selection
  */
-export const searchAndDeleteApplication = async (page, applicationName) => {
+export const searchAndDeleteApplication = async (page, applicationName, applicationId = null) => {
     await page.getByTestId('application-search').fill(applicationName);
     await page.waitForTimeout(1500);
 
@@ -193,8 +199,15 @@ export const searchAndDeleteApplication = async (page, applicationName) => {
             && resp.request().method() === 'DELETE'
             && resp.ok()),
         expect(page.locator('div[role="alert"] p:has-text("Application deleted successfully")')).toBeVisible({ timeout: 10_000 }),
-        page.locator('a[title="Delete"]').click()
+        // Use applicationId if provided, otherwise fallback to title
+        applicationId ? 
+            page.getByTestId(`delete-${applicationId}`).click() :
+            page.locator('a[title="Delete"]').click()
     ]);
+
+    if (applicationId) {
+        console.log(`🗑️ Deleted application ${applicationName} using ID: ${applicationId}`);
+    }
 
     return deleteResponse;
 };
@@ -209,8 +222,8 @@ export const searchAndEditApplication = async (page, applicationName, options = 
 /**
  * Search and verify application (delegates to applications-page util)
  */
-export const searchAndVerifyApplication = async (page, applicationName) => {
-    return await searchAndVerifyApplicationUtil(page, applicationName);
+export const searchAndVerifyApplication = async (page, applicationName, applicationId = null) => {
+    return await searchAndVerifyApplicationUtil(page, applicationName, applicationId);
 };
 
 /**
@@ -223,8 +236,12 @@ export const completeApplicationFlow = async (page, config) => {
     // Navigate to application & create application
     const responses = await createApplicationFlow(page, config);
 
-    // Search and delete
-    responses.delete = await searchAndDeleteApplication(page, config.applicationName);
+    // Extract applicationId for robust deletion
+    const applicationId = responses.applicationId;
+    console.log('🔄 Using application ID for deletion:', applicationId);
+
+    // Search and delete using robust selector
+    responses.delete = await searchAndDeleteApplication(page, config.applicationName, applicationId);
 
     return responses;
 };
