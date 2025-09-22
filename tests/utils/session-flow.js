@@ -830,6 +830,11 @@ const createSessionForUser = async (
     await page.goto('/');
     await loginForm.adminLoginAndNavigate(page, adminCredentials);
 
+    await page.getByTestId('applications-menu').click();
+    await page.waitForTimeout(500);
+    await page.getByTestId('applications-submenu').click();
+    await page.waitForTimeout(2000); // Wait longer for sessions to load
+
     // Step 2: Find Application and Invite
     const applicationFound = await findApplicationByNameAndInvite(
         page,
