@@ -148,7 +148,7 @@ test.describe('property_admin_permission_test', () => {
                     await Promise.all([
                         page.waitForResponse(resp => approvalGetUrlReg.test(resp.url()) && resp.request().method() === 'GET' && resp.ok()),
                         element.locator('td').nth(1)
-                            .locator('a')
+                            .locator('button')
                             .click()
                     ]);
                     break;
