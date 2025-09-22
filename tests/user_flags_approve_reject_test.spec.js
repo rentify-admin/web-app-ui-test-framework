@@ -2,6 +2,7 @@ import { expect, test } from '@playwright/test';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 import { app } from '~/tests/test_config';
+import admin from '~/tests/test_config/admin';
 import generateSessionForm from '~/tests/utils/generate-session-form';
 import loginForm from '~/tests/utils/login-form';
 
@@ -21,10 +22,6 @@ import { createSessionForUser } from '~/tests/utils/session-flow';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-const testAdmin = {
-    email: 'jeremiah.jacobs+playwright@verifast.com',
-    password: 'Test1234'
-};
 
 test.describe('user_flags_approve_reject_test', () => {
 
@@ -39,7 +36,7 @@ test.describe('user_flags_approve_reject_test', () => {
 
         let flagIssueSession = '01985a2c-c3f3-71fa-bc3d-f5a11279d36a';
 
-        test.skip('Should create applicant session for flag issue', { tag: [ '@core', '@smoke', '@regression' ] }, async ({
+        test('Should create applicant session for flag issue', { tag: [ '@core', '@smoke', '@regression' ] }, async ({
         page,
         browser
     }) => {
@@ -48,7 +45,7 @@ test.describe('user_flags_approve_reject_test', () => {
         const { sessionId } = await createSessionForUser(
             page,
             browser,
-            testAdmin,
+            admin,
             'Permissions Test Org',
             'AutoTest - Flag Issue V2',
             userData,
@@ -59,16 +56,23 @@ test.describe('user_flags_approve_reject_test', () => {
         flagIssueSession = sessionId;
         });
 
-        test.skip('Check Session Flag', { tag: [ '@core', '@smoke', '@regression', '@needs-review' ] }, async ({ page }) => {
+        test('Check Session Flag', { tag: [ '@core', '@smoke', '@regression' ] }, async ({ page }) => {
         const sessionId = flagIssueSession;
 
         // Step 1: Login and navigate to session
-        await loginForm.adminLoginAndNavigate(page, testAdmin);
+        await loginForm.adminLoginAndNavigate(page, admin);
         await page.waitForTimeout(2000); // Wait longer for page to fully load
 
         // Step 1.1: Navigate to sessions page (not applications)
-        await page.getByTestId('applicants-menu').click();
-        await page.waitForTimeout(500);
+        // Check if applicants menu is already open before clicking
+        const applicantsMenu = page.getByTestId('applicants-menu');
+        const isMenuOpen = await applicantsMenu.evaluate(el => el.classList.contains('sidebar-item-open'));
+        
+        if (!isMenuOpen) {
+            await applicantsMenu.click();
+            await page.waitForTimeout(500);
+        }
+        
         await page.getByTestId('applicants-submenu').click();
         await page.waitForTimeout(2000); // Wait longer for sessions to load
 
@@ -136,7 +140,7 @@ test.describe('user_flags_approve_reject_test', () => {
 
         let approveRejectSession = '01976921-a4d1-729f-9212-6f88ac9a189c';
 
-        test.skip('Should create applicant session for approve reject', { tag: [ '@core', '@smoke', '@regression' ] }, async ({
+        test('Should create applicant session for approve reject', { tag: [ '@core', '@smoke', '@regression' ] }, async ({
         page,
         browser
     }) => {
@@ -145,7 +149,7 @@ test.describe('user_flags_approve_reject_test', () => {
         const { sessionId } = await createSessionForUser(
             page,
             browser,
-            testAdmin,
+            admin,
             'Permissions Test Org',
             'AutoTest - Flag Issue V2',
             userData2,
@@ -156,15 +160,23 @@ test.describe('user_flags_approve_reject_test', () => {
         approveRejectSession = sessionId;
         });
 
-        test.skip('Check session by Approving and Rejecting', { tag: [ '@core', '@smoke', '@regression', '@needs-review' ] }, async ({ page }) => {
+        test('Check session by Approving and Rejecting', { tag: [ '@core', '@smoke', '@regression' ] }, async ({ page }) => {
         const sessionId = approveRejectSession;
 
         // Login and navigate to session
-        await loginForm.adminLoginAndNavigate(page, testAdmin);
+        await loginForm.adminLoginAndNavigate(page, admin);
         await page.waitForTimeout(1000); // Wait for page to fully load
 
         // Navigate to sessions page (not applications)
-        await page.getByTestId('applicants-menu').click();
+        // Check if applicants menu is already open before clicking
+        const applicantsMenu = page.getByTestId('applicants-menu');
+        const isMenuOpen = await applicantsMenu.evaluate(el => el.classList.contains('sidebar-item-open'));
+        
+        if (!isMenuOpen) {
+            await applicantsMenu.click();
+            await page.waitForTimeout(500);
+        }
+        
         await page.getByTestId('applicants-submenu').click();
         await page.waitForTimeout(1000);
 
