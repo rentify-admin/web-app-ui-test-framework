@@ -1212,6 +1212,18 @@ const completePlaidFinancialStepBetterment = async (applicantPage, username = 'c
 
     await plaidFrame.locator('#aut-secondary-button').click({ timeout: 20000 });
 
+    // Search for Betterment before selecting it
+    try {
+        console.log('🔍 Searching for Betterment in the search box...');
+        const searchBox = plaidFrame.getByRole('textbox', { name: 'Search' });
+        await expect(searchBox).toBeVisible({ timeout: 30000 });
+        await searchBox.fill('Betterment');
+        await applicantPage.waitForTimeout(2000); // Wait for search results
+        console.log('✅ Search completed for Betterment');
+    } catch (error) {
+        console.log('⚠️ Search box not found or search failed, proceeding with direct selection...');
+    }
+
     // Select Betterment - use retry logic for CI reliability
     let bettermentFound = false;
     let attempts = 0;

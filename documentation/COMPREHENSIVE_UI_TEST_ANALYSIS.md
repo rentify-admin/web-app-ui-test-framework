@@ -1757,64 +1757,137 @@ Based on the test files in the framework, I've identified these categories:
 #### **Overlap Assessment:**
 **NO OVERLAP** - This test is unique in its comprehensive focus on skip button visibility logic across all verification steps and validation of UI state management.
 
-### **7. user_flags_approve_reject_test.spec.js - User Flags Approve Reject Test**
+### **7. user_flags_approve_reject_test.spec.js - Session Flag Management and Approval/Rejection**
 
 #### **Complete Test Structure:**
-- **2 test suites** (200s timeout each)
-- **Session flag management** and **approval/rejection workflows**
+- **2 test describes** (Session Flag + Session Approve/Reject)
+- **4 total tests** (2 session creation + 2 validation tests)
+- **200s timeout** per test describe
 - **Tags**: @core, @smoke, @regression
 
-#### **Test Purpose and API Endpoints Called:**
-- **Purpose**: Validates session flag management (marking flags as issues/non-issues) and session approval/rejection workflows
-- **API Endpoints**:
-  - `POST /auth` (Lines 63, 167) - Admin authentication
-  - `GET /applications?` (Line 839) - Application search and management
-  - `POST /sessions` (Line 854) - Session generation
-  - `PATCH /sessions/{id}` (Line 854) - Session updates
-  - `GET /sessions?fields[session]` (Lines 165-168) - Session search
-  - `GET /sessions/{id}?fields[session]` (Lines 936-940) - Session details
-  - `GET /sessions/{id}/flags` (Lines 1009-1012) - Session flags retrieval
-  - `PATCH /sessions/{id}/flags` (Lines 1039-1042, 1063-1066) - Flag status updates
-  - `PATCH /sessions/{id}` (Lines 33-36, 58-61) - Session approval/rejection
+#### **Test Describe 1: "Session Flag"**
 
-#### **Response Used For and What's Actually Checked:**
-- **Authentication Response**: Used to verify admin login success
-- **Application Search Response**: Used to find and select application for session creation
-- **Session Generation Response**: Used to create new session for testing
-- **Session Search Response**: Used to find specific session by ID
-- **Session Details Response**: Used to navigate to session and load session data
-- **Flags Retrieval Response**: Used to load session flags and validate flag sections
-- **Flag Status Update Response**: Used to mark flags as issues or non-issues
-- **Session Approval Response**: Used to approve session and verify approval workflow
-- **Session Rejection Response**: Used to reject session and verify rejection workflow
+##### **Test 1: "Should create applicant session for flag issue"**
+**Purpose**: Create a session for flag management testing
+**API Endpoints Called**:
+- `POST /auth` - Admin authentication (via createSessionForUser utility)
+  - **Response Used For**: Authentication for session creation
+  - **What's Actually Checked**: Admin login successful, session creation initiated
+- `GET /applications?` - Search applications (via createSessionForUser utility)
+  - **Response Used For**: Finding 'AutoTest - Flag Issue V2' application
+  - **What's Actually Checked**: Application found and selected
+- `POST /sessions` - Create session (via createSessionForUser utility)
+  - **Response Used For**: Creating new session for flag testing
+  - **What's Actually Checked**: Session created successfully, sessionId returned
+- `PATCH /sessions/{id}` - Update session (via createSessionForUser utility)
+  - **Response Used For**: Setting up session with rent budget and financial data
+  - **What's Actually Checked**: Session updated with test data
 
-#### **Detailed Steps:**
-1. **Session Creation**: Creates two separate sessions for flag testing and approval/rejection testing
-2. **Admin Login and Navigation**: Admin logs in and navigates to sessions page
-3. **Session Search**: Searches for specific session by ID
-4. **Session Navigation**: Navigates to session details page
-5. **Flag Management Testing**:
-   - **Flag Section Validation**: Validates flag sections are visible and contain expected flags
-   - **Mark Flag as Issue**: Marks NO_INCOME_SOURCES_DETECTED flag as issue with comment
-   - **Verify Flag Movement**: Verifies flag moved to decline section
-   - **Mark Flag as Non-Issue**: Marks MISSING_TRANSACTIONS flag as non-issue with comment
-   - **Verify Flag Movement**: Verifies flag moved to reviewed section
-6. **Approval/Rejection Testing**:
-   - **Session Status Validation**: Validates session status shows "Unreviewed"
-   - **Session Approval**: Approves session and verifies approval workflow
-   - **Session Rejection**: Rejects session and verifies rejection workflow
+**Steps**:
+1. Create session using `createSessionForUser` utility with:
+   - Organization: 'Permissions Test Org'
+   - Application: 'AutoTest - Flag Issue V2'
+   - User data: { first_name: 'Flag Issue', last_name: 'Testing', email: 'FlagIssueTesting@verifast.com' }
+   - Rent budget: '2500'
+   - State: 'fl'
+2. Store sessionId in `flagIssueSession` variable for subsequent tests
+
+##### **Test 2: "Check Session Flag"**
+**Purpose**: Test comprehensive flag management functionality
+**API Endpoints Called**:
+- `POST /auth` - Admin login (via loginForm.adminLoginAndNavigate)
+  - **Response Used For**: Authentication and session establishment
+  - **What's Actually Checked**: Response status is OK (200), admin login successful
+- `GET /sessions?fields[session]=` - Search sessions (via searchSessionWithText)
+  - **Response Used For**: Finding session by ID
+  - **What's Actually Checked**: Response status is OK (200), sessions data array is returned
+- `GET /sessions/{id}?fields[session]=` - Get session details (via navigateToSessionById)
+  - **Response Used For**: Loading session data for navigation
+  - **What's Actually Checked**: Response status is OK (200), session data is returned
+- `GET /sessions/{id}/flags` - Get session flags (via navigateToSessionFlags)
+  - **Response Used For**: Loading session flags and validating flag sections
+  - **What's Actually Checked**: Response status is OK (200), flags data is returned
+- `PATCH /sessions/{id}/flags` - Update flag status (via markFlagAsIssue)
+  - **Response Used For**: Marking NO_INCOME_SOURCES_DETECTED as issue
+  - **What's Actually Checked**: Response status is OK (200), flag status updated
+- `PATCH /sessions/{id}/flags` - Update flag status (via markFlagAsNonIssue)
+  - **Response Used For**: Marking MISSING_TRANSACTIONS as non-issue
+  - **What's Actually Checked**: Response status is OK (200), flag status updated
+
+**Steps**:
+1. **Admin login and navigation** (via loginForm.adminLoginAndNavigate utility)
+2. **Smart menu navigation** (check if applicants-menu is already open before clicking)
+3. **Session search and navigation** (via searchSessionWithText and navigateToSessionById utilities)
+4. **Flag section validation** (via navigateToSessionFlags and validateFlagSections utilities)
+5. **Mark flag as issue** (via markFlagAsIssue utility with comment)
+6. **Modal management** (close event history modal, verify financial status modal)
+7. **Mark flag as non-issue** (via markFlagAsNonIssue utility with comment)
+
+#### **Test Describe 2: "Session Approve/Reject"**
+
+##### **Test 3: "Should create applicant session for approve reject"**
+**Purpose**: Create a session for approval/rejection testing
+**API Endpoints Called**:
+- `POST /auth` - Admin authentication (via createSessionForUser utility)
+  - **Response Used For**: Authentication for session creation
+  - **What's Actually Checked**: Admin login successful, session creation initiated
+- `GET /applications?` - Search applications (via createSessionForUser utility)
+  - **Response Used For**: Finding 'AutoTest - Flag Issue V2' application
+  - **What's Actually Checked**: Application found and selected
+- `POST /sessions` - Create session (via createSessionForUser utility)
+  - **Response Used For**: Creating new session for approval/rejection testing
+  - **What's Actually Checked**: Session created successfully, sessionId returned
+- `PATCH /sessions/{id}` - Update session (via createSessionForUser utility)
+  - **Response Used For**: Setting up session with rent budget and financial data
+  - **What's Actually Checked**: Session updated with test data
+
+**Steps**:
+1. Create session using `createSessionForUser` utility with:
+   - Organization: 'Permissions Test Org'
+   - Application: 'AutoTest - Flag Issue V2'
+   - User data: { first_name: 'Approval_reject', last_name: 'Testing', email: 'ApprovalRejecttesting@verifast.com' }
+   - Rent budget: '2500'
+   - State: 'fl'
+2. Store sessionId in `approveRejectSession` variable for subsequent tests
+
+##### **Test 4: "Check session by Approving and Rejecting"**
+**Purpose**: Test session approval and rejection workflows
+**API Endpoints Called**:
+- `POST /auth` - Admin login (via loginForm.adminLoginAndNavigate)
+  - **Response Used For**: Authentication and session establishment
+  - **What's Actually Checked**: Response status is OK (200), admin login successful
+- `GET /sessions?fields[session]=` - Search sessions (via searchSessionWithText)
+  - **Response Used For**: Finding session by ID
+  - **What's Actually Checked**: Response status is OK (200), sessions data array is returned
+- `GET /sessions/{id}?fields[session]=` - Get session details (via navigateToSessionById)
+  - **Response Used For**: Loading session data for navigation
+  - **What's Actually Checked**: Response status is OK (200), session data is returned
+- `PATCH /sessions/{id}` - Approve session (via checkSessionApproveReject)
+  - **Response Used For**: Approving session
+  - **What's Actually Checked**: Response status is OK (200), session approved
+- `PATCH /sessions/{id}` - Reject session (via checkSessionApproveReject)
+  - **Response Used For**: Rejecting session
+  - **What's Actually Checked**: Response status is OK (200), session rejected
+
+**Steps**:
+1. **Admin login and navigation** (via loginForm.adminLoginAndNavigate utility)
+2. **Smart menu navigation** (check if applicants-menu is already open before clicking)
+3. **Session search and navigation** (via searchSessionWithText and navigateToSessionById utilities)
+4. **Session status validation** (verify session status shows "Unreviewed")
+5. **Approval/rejection workflow** (via checkSessionApproveReject utility)
 
 #### **Key Business Validations:**
-- **Flag Management Logic**: Validates flag marking as issue/non-issue functionality
-- **Flag Section Management**: Validates flags move between decline and review sections
-- **Session Approval Workflow**: Validates complete session approval process
-- **Session Rejection Workflow**: Validates complete session rejection process
-- **Flag Comment System**: Validates flag commenting functionality
-- **Session Status Management**: Validates session status updates
-- **Financial Flag Handling**: Validates financial verification flag management
-- **Income Source Flag Handling**: Validates income source detection flag management
-- **Transaction Flag Handling**: Validates transaction-related flag management
-- **Session State Persistence**: Validates session state changes persist correctly
+- **Session Flag Management**: Mark flags as issues/non-issues with comments
+- **Flag Section Movement**: Flags move between decline and review sections
+- **Session Approval Workflow**: Complete session approval process
+- **Session Rejection Workflow**: Complete session rejection process
+- **Modal Management**: Event history and financial status modals
+- **Smart Menu Navigation**: Prevents double-clicking already open menus
+- **Retry Logic**: Robust flag navigation with retry mechanism
+- **Session State Persistence**: Session state changes persist correctly
+- **Financial Flag Handling**: Financial verification flag management
+- **Income Source Flag Handling**: Income source detection flag management
+- **Transaction Flag Handling**: Transaction-related flag management
 
 #### **Overlap Assessment:**
 **NO OVERLAP** - This test is unique in its focus on session flag management and approval/rejection workflows, different from other session flow tests.

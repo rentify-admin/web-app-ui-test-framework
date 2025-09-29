@@ -1006,18 +1006,56 @@ const navigateAndValidateFinancialData = async (page, sessionId, applicationName
  * @returns {Object} { flags, flagSection }
  */
 const navigateToSessionFlags = async (page, sessionId) => {
-    const [ flagsResponse ] = await Promise.all([
-        page.waitForResponse(resp => resp.url().includes(`/sessions/${sessionId}/flags`)
-            && resp.request().method() === 'GET'
-            && resp.ok()),
-        page.getByTestId('view-details-btn').click()
-    ]);
+    const maxRetries = 3;
+    const retryDelay = 2000; // 2 seconds between retries
+    
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+            console.log(`🔄 Attempt ${attempt}/${maxRetries}: Navigating to session flags for session ${sessionId}`);
+            
+            // Wait for view-details-btn to be ready first
+            await expect(page.getByTestId('view-details-btn')).toBeVisible({ timeout: 10000 });
+            await page.waitForTimeout(1000); // Allow UI to stabilize
 
-    const { data: flags } = await waitForJsonResponse(flagsResponse);
-    const flagSection = await page.getByTestId('report-view-details-flags-section');
-    await expect(flagSection).toBeVisible();
+            const [ flagsResponse ] = await Promise.all([
+                page.waitForResponse(resp => resp.url().includes(`/sessions/${sessionId}/flags`)
+                    && resp.request().method() === 'GET'
+                    && resp.ok(), { timeout: 30000 }), // 30 second timeout
+                page.getByTestId('view-details-btn').click()
+            ]);
 
-    return { flags, flagSection };
+            const { data: flags } = await waitForJsonResponse(flagsResponse);
+            const flagSection = await page.getByTestId('report-view-details-flags-section');
+            await expect(flagSection).toBeVisible();
+
+            console.log(`✅ Successfully navigated to session flags on attempt ${attempt}`);
+            return { flags, flagSection };
+            
+        } catch (error) {
+            console.log(`❌ Attempt ${attempt}/${maxRetries} failed: ${error.message}`);
+            
+            if (attempt < maxRetries) {
+                // Close modal if it's open before retrying
+                try {
+                    const closeModal = page.getByTestId('close-event-history-modal');
+                    if (await closeModal.isVisible()) {
+                        console.log('🚪 Closing event history modal before retry');
+                        await closeModal.click();
+                        await page.waitForTimeout(1000); // Wait for modal to close
+                    }
+                } catch (closeError) {
+                    console.log('⚠️ Could not close modal (might not be open):', closeError.message);
+                }
+                
+                console.log(`⏳ Waiting ${retryDelay}ms before retry ${attempt + 1}`);
+                await page.waitForTimeout(retryDelay);
+            } else {
+                // Last attempt failed, throw the error
+                console.log(`💥 All ${maxRetries} attempts failed for session flags navigation`);
+                throw error;
+            }
+        }
+    }
 };
 
 /**
