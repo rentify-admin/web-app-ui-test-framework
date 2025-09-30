@@ -101,7 +101,8 @@ test.describe('financial_mx_2_attempts_success_and_failed_password', () => {
         ]);
 
         await newPage.waitForLoadState('domcontentloaded');
-
+        await newPage.waitForTimeout(3000); // Wait 3 seconds to ensure full load
+        await newPage.locator('input[type="submit"][value="Authorize"]').waitFor({ state: 'visible' });
         await newPage.locator('input[type="submit"][value="Authorize"]').click();
 
         await newPage.waitForEvent('close');
