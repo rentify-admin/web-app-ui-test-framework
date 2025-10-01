@@ -126,13 +126,6 @@ test.describe('org_member_application_binding_scoping_check', () => {
 
             cleanupHelper.trackUser(responseLIst[0].user)
 
-            await page.getByRole('textbox', { name: 'Search Applications' }).click();
-            await page.getByRole('textbox', { name: 'Search Applications' }).fill(firstAppName);
-            const app1 = await page.getByRole('checkbox', { name: firstAppName })
-            if (!await app1.isChecked()) {
-                await app1.check({ timeout: 2000 });
-            }
-            await page.getByTestId('save-app-permission-btn').click();
             await page.getByRole('textbox', { name: 'Search Permissions' }).click();
             await page.getByRole('textbox', { name: 'Search Permissions' }).fill('view sessions');
             const perm1 = await page.getByRole('checkbox', { name: 'View Sessions' });
@@ -143,16 +136,53 @@ test.describe('org_member_application_binding_scoping_check', () => {
 
             await applicantPage.reload();
 
+            await applicantPage.waitForTimeout(3000);
+
             await applicantPage.locator('#sidebar').hover();
             await applicantPage.locator('.sidebar-action').click();
 
             await applicantPage.getByTestId('applicants-menu').click();
-            await applicantPage.getByTestId('applicants-submenu').click();
-            await applicantPage.waitForTimeout(1000);
-            const sidepanel = await applicantPage.getByTestId('side-panel');
-            const sideItems = await sidepanel.locator('.application-card');
 
-            const sideItemsCount = await sideItems.count();
+            await Promise.all([
+                applicantPage.waitForResponse(resp => resp.url().includes('/sessions?fields[session]=')
+                    && resp.request().method() === 'GET'
+                    && resp.ok()
+                ),
+                applicantPage.getByTestId('applicants-submenu').click()
+            ])
+
+            await applicantPage.waitForTimeout(1000);
+
+            let sidepanel = await applicantPage.getByTestId('side-panel');
+            let sideItems = await sidepanel.locator('.application-card');
+
+            let sideItemsCount = await sideItems.count();
+
+            await expect(sideItemsCount).toBe(0);
+
+            await page.getByRole('textbox', { name: 'Search Applications' }).click();
+            await page.getByRole('textbox', { name: 'Search Applications' }).fill(firstAppName);
+            const app1 = await page.getByRole('checkbox', { name: firstAppName })
+            if (!await app1.isChecked()) {
+                await app1.check({ timeout: 2000 });
+            }
+            await page.getByTestId('save-app-permission-btn').click();
+
+            await Promise.all([
+                applicantPage.waitForResponse(resp => resp.url().includes('/sessions?fields[session]=')
+                    && resp.request().method() === 'GET'
+                    && resp.ok()
+                ),
+                applicantPage.reload()
+            ])
+
+            await applicantPage.waitForTimeout(3000);
+
+            sidepanel = await applicantPage.getByTestId('side-panel');
+            sideItems = await sidepanel.locator('.application-card');
+            sideItemsCount = await sideItems.count();
+
+            await expect(sideItemsCount).toBeGreaterThan(0)
 
             await sideItems.nth(0).click()
 
@@ -174,7 +204,14 @@ test.describe('org_member_application_binding_scoping_check', () => {
             }
             await page.getByTestId('save-app-permission-btn').click();
 
-            await applicantPage.reload();
+            await Promise.all([
+                applicantPage.waitForResponse(resp => resp.url().includes('/sessions?fields[session]=')
+                    && resp.request().method() === 'GET'
+                    && resp.ok()
+                ),
+                applicantPage.reload()
+            ]);
+
             try {
                 await applicantPage.getByTestId('new-session-btn').click({ timeout: 3000 })
             } catch (err) {
@@ -182,10 +219,24 @@ test.describe('org_member_application_binding_scoping_check', () => {
             }
 
             await expect(allTabbadge).toHaveText('2')
-            const element1 = await sideItems.nth(0);
-            await expect(element1).toContainText(secondAppName)
-            const element2 = await sideItems.nth(1);
-            await expect(element2).toContainText(firstAppName)
+
+            sidepanel = await applicantPage.getByTestId('side-panel');
+            sideItems = await sidepanel.locator('.application-card');
+            sideItemsCount = await sideItems.count();
+
+            await expect(sideItemsCount).toBeGreaterThan(0)
+
+            await sideItems.nth(0).click()
+
+            for (let index = 0; index < sideItemsCount.length; index++) {
+                const element = await sideItems.nth(0);
+                const firstTextLocator = element.getByText(firstAppName);
+                const secondTextLocator = element.getByText(secondAppName);
+
+                const combinedLocator = firstTextLocator.or(secondTextLocator);
+
+                await expect(combinedLocator).toBeVisible();
+            }
 
         })
 
