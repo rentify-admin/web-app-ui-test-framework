@@ -880,6 +880,10 @@ const checkMergeWithDragAndDrop = async (page, sessions) => {
 
     dragAndDrop(page, dragHandle, mainSection);
 
+    // Wait for drag and drop to complete, then click merge button
+    await page.waitForTimeout(3000);
+    await page.getByTestId('merge-session-btn').click();
+
     const mergeSessionModal = await page.getByTestId('merge-session-modal');
     await expect(mergeSessionModal).toBeVisible();
     await page.waitForTimeout(2000);
@@ -1146,7 +1150,7 @@ async function verifyTransactionErrorAndDeclineFlag(page, randomName) {
         .toHaveText('1 account | 1 transaction');
 
     // Close the modal, click 'X'
-    await page.locator('button[type="button"] > img.h-3.w-3').click();
+    await page.getByTestId('report-financial-status-modal-cancel').click();
 
     // Click on 'View Details' button
     await page.locator('button:has-text("View Details")').click();

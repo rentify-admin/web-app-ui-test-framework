@@ -161,7 +161,12 @@ const addOrganizationMember = async (page, data, memberCreateModal) => {
         memberCreateModal.getByTestId('submit-create-member').click()
     ]);
 
-    await memberCreateModal.getByTestId('cancel-create-member').click();
+    await page.waitForTimeout(2000);
+    
+    // Try to find cancel button - different modals may use different test IDs
+    const cancelButton = memberCreateModal.getByTestId('org-user-create-modal-cancel')
+        .or(memberCreateModal.getByTestId('create-member-modal-cancel'));
+    await cancelButton.click();
 
     const { data: member } = await waitForJsonResponse(memberRes);
     const { data: members } = await waitForJsonResponse(membersRes);
