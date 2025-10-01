@@ -1,4 +1,4 @@
-import { admin } from '~/tests/test_config';
+import { admin, app } from '~/tests/test_config';
 import loginForm from '~/tests/utils/login-form';
 import { customUrlDecode, getRandomEmail } from './utils/helper';
 import { waitForJsonResponse } from './utils/wait-response';
@@ -81,7 +81,7 @@ test.describe('org_member_application_binding_scoping_check', () => {
             await page.getByTestId('submit-create-member').click();
             await page.getByTestId('copy-invitation-link').click();
 
-            let invitationUrl = (await page.getByText('https://dev.verifast.app/invitations/').textContent()).trim();
+            let invitationUrl = (await page.getByText(`${app.urls.app}/invitations/`).textContent()).trim();
 
             await page.getByTestId('org-user-create-modal-cancel').click();
 
