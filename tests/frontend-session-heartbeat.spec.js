@@ -197,6 +197,17 @@ test.describe('frontend-session-heartbeat', () => {
             // Check income sources counter in the header SVG
             console.log(`🚀 ~ Attempt ${attempts + 1}: Checking income sources counter...`);
             try {
+                // Focus the container and scroll all the way down to trigger lazy loading
+                const container = page.locator('#container');
+                await container.focus();
+                
+                // Scroll container to bottom to trigger SVG rendering
+                await container.evaluate(element => {
+                    element.scrollTop = element.scrollHeight;
+                });
+                
+                await page.waitForTimeout(3000); // Wait 3 seconds after scroll for lazy loading
+                
                 // Look for the counter text inside the SVG in the income source section header
                 const incomeSourceHeader = page.getByTestId('income-source-section-header');
                 const counterText = incomeSourceHeader.locator('svg text');
@@ -211,21 +222,16 @@ test.describe('frontend-session-heartbeat', () => {
             // If counter is 0 and we haven't reached max attempts, reload and try again
             if (incomeSourcesCount === 0 && attempts < maxAttempts - 1) {
                 console.log(`🚀 ~ Attempt ${attempts + 1}: Income sources counter is 0, reloading page...`);
-                await page.reload();
-                await page.waitForTimeout(2000); // Wait for page to load
                 
-                // Re-search for session after reload
-                await searchSessionWithText(page, sessionId);
-                const sessionLocator = await findSessionLocator(page, `.application-card[data-session="${sessionId}"]`);
-                
-                // Re-click session after reload
-                const [sessionResponse] = await Promise.all([
+                // After reload, session is already focused, so response comes automatically
+                const [reloadSessionResponse] = await Promise.all([
                     page.waitForResponse(resp => resp.url().includes(`/sessions/${sessionId}?fields[session]`)
                         && resp.ok()
                         && resp.request().method() === 'GET'),
-                    sessionLocator.click()
+                    page.reload()
                 ]);
-                await waitForJsonResponse(sessionResponse);
+                await waitForJsonResponse(reloadSessionResponse);
+                await page.waitForTimeout(3000); // Wait for UI to render after reload
             }
             
             attempts++;
