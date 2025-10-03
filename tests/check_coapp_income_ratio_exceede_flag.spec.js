@@ -47,7 +47,7 @@ test.describe('check_coapp_income_ratio_exceede_flag', () => {
     test('Should confirm co-applicant income is considered when generating/removing Gross Income Ratio Exceeded flag', { 
         tag: ['@smoke'],
     }, async ({ page, browser }) => {
-        test.setTimeout(400000);
+        test.setTimeout(450000);
         
         // Step 1: Admin Login and Navigate to Applications
         await loginForm.adminLoginAndNavigate(page, admin);

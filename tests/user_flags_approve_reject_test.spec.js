@@ -183,10 +183,52 @@ test.describe('user_flags_approve_reject_test', () => {
         await searchSessionWithText(page, sessionId);
         await navigateToSessionById(page, sessionId);
 
-        // Validate session status and perform approve/reject flow
+        // Validate session status
         expect(await page.getByTestId('household-status-alert')).toContainText(
             'Unreviewed'
         );
+
+        // NEW STEP: Approve documents before approving session
+        console.log('🚀 Starting document approval process...');
+        
+        // Step 1: Click files section header to open the section
+        console.log('🚀 Clicking files-section-header to open files section...');
+        const filesSectionHeader = page.getByTestId('files-section-header');
+        await expect(filesSectionHeader).toBeVisible({ timeout: 10_000 });
+        await filesSectionHeader.click();
+        console.log('✅ Files section opened');
+        
+        // Step 2: Find and click the files document status pill
+        console.log('🚀 Looking for files-document-status-pill...');
+        const filesDocumentStatusPill = page.getByTestId('files-document-status-pill');
+        await expect(filesDocumentStatusPill).toBeVisible({ timeout: 10_000 });
+        
+        // Click the 'a' element inside the pill
+        const pillLink = filesDocumentStatusPill.locator('a');
+        await expect(pillLink).toBeVisible();
+        console.log('🚀 Clicking files document status pill link...');
+        await pillLink.click();
+        
+        // Step 3: Wait for decision modal to appear
+        console.log('🚀 Waiting for decision modal to appear...');
+        const decisionModal = page.getByTestId('decision-modal');
+        await expect(decisionModal).toBeVisible({ timeout: 10_000 });
+        console.log('✅ Decision modal is visible');
+        
+        // Step 4: Click the accept button
+        console.log('🚀 Clicking decision modal accept button...');
+        const acceptButton = page.getByTestId('decision-modal-accept-btn');
+        await expect(acceptButton).toBeVisible();
+        await acceptButton.click();
+        console.log('✅ Document approval completed');
+        
+        // Step 5: Wait 5 seconds as requested
+        console.log('🚀 Waiting 5 seconds after document approval...');
+        await page.waitForTimeout(5000);
+        console.log('✅ Wait completed, proceeding with session approval');
+
+        // Step 6: Now proceed with session approve/reject flow
+        console.log('🚀 Starting session approve/reject flow...');
         await checkSessionApproveReject(page, sessionId);
         });
     });
