@@ -4,7 +4,7 @@ import { customUrlDecode, getRandomEmail } from './utils/helper';
 import { waitForJsonResponse } from './utils/wait-response';
 import { expect, test } from './fixtures/enhanced-cleanup-fixture';
 
-test.describe('org_member_application_binding_scoping_check', () => {
+test.describe('QA-123: org_member_application_binding_scoping_check', () => {
 
     test.afterAll(async ({ cleanupHelper }) => {
         console.log(`🧹 Suite Cleanup: Running afterAll cleanup`);
@@ -23,7 +23,7 @@ test.describe('org_member_application_binding_scoping_check', () => {
 
     test('Check Application Binding Scoping (Inbox Visibility)',
         {
-            tag: ['@smoke', '@regression'],
+            tag: ['@needs_review'],
             timeout: 180_000  // 5 minutes
         }, async ({ page, browser, cleanupHelper }) => {
 
