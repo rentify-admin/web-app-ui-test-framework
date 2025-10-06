@@ -206,6 +206,8 @@ async function testSkipButtonVisibility(page, stepType) {
             // TODO: create request check for employment verification start API call
             await completePaystubConnection(page);
             await waitForPaystubConnectionCompletion(page);
+            // Additional wait for UI state to update after connection completion
+            await page.waitForTimeout(3000);
             break;
     }
 

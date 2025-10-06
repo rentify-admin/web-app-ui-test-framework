@@ -199,7 +199,10 @@ const findAndInviteApplication = async (page, applicationName) => {
             .textContent();
 
         if (appName === applicationName) {
-            await element.locator('td').getByRole('link', { name: 'Invite' })
+            // Click the invite link from the invite column without asserting link content
+            await element
+                .getByTestId('application-table-invite-col')
+                .locator('a')
                 .click();
             
             // Wait for the modal to be visible
