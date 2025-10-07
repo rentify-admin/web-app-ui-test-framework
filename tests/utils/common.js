@@ -11,13 +11,13 @@ import { expect, test } from '@playwright/test';
  * @param {String | RegExp} urlRegex
  * @returns
  */
-const gotoPage =  async (page, parentMenuTestId, submenuTestId, url, urlRegex = false) => {
+const gotoPage = async (page, parentMenuTestId, submenuTestId, url, urlRegex = false) => {
     console.log(`🚀 ~ Navigating to ${parentMenuTestId} > ${submenuTestId}`);
 
     const menu = await page.getByTestId(parentMenuTestId);
     const navItem = await page.locator('li.nav-item', { has: menu });
 
-    const maxHeight =  await navItem.locator('div').first()
+    const maxHeight = await navItem.locator('div').first()
         .evaluate(el => window.getComputedStyle(el).maxHeight);
     if (maxHeight === '0px') {
         console.log(`🚀 ~ Expanding menu ${parentMenuTestId}`);
@@ -25,7 +25,7 @@ const gotoPage =  async (page, parentMenuTestId, submenuTestId, url, urlRegex = 
     }
 
     console.log(`🚀 ~ Waiting for response to ${url}`);
-    const [ listResponse ] = await Promise.all([
+    const [listResponse] = await Promise.all([
         page.waitForResponse(resp => {
             let isMatch;
             if (urlRegex && url instanceof RegExp) {
@@ -60,7 +60,7 @@ const gotoPage =  async (page, parentMenuTestId, submenuTestId, url, urlRegex = 
 const fillMultiselect = async (page, selector, values) => {
     await selector.locator('.multiselect__tags').first()
         .click();
-    for (let index = 0;index < values.length;index++) {
+    for (let index = 0; index < values.length; index++) {
         const item = values[index];
         await selector.locator('input').fill(item);
         await selector.locator('ul>li', { hasText: item }).click();
@@ -163,6 +163,7 @@ const checkSidebarMenusAndTitles = async page => {
                 'applications-submenu',
                 'portfolios-submenu',
                 'workflows-submenu',
+                'affordable-templates-submenu',
                 'approval-conditions-submenu'
             ]
         },
@@ -198,6 +199,15 @@ const checkSidebarMenusAndTitles = async page => {
         {
             menu: 'organizations-menu',
             submenus: [] // No submenus - checks title directly
+        },
+        {
+            menu: 'reports-menu',
+            submenus: [
+                'report-sessions-menu',
+                'report-verifications-menu',
+                'report-files-menu',
+                'report-income-sources-menu'
+            ]
         },
         {
             menu: 'users-menu',
@@ -243,6 +253,7 @@ const checkSidebarMenusAndTitles = async page => {
         'applications-submenu': 'application-forms-heading',
         'portfolios-submenu': 'portfolios-heading',
         'workflows-submenu': 'workflow-list-heading',
+        'affordable-templates-submenu': 'affordable-templates-heading',
         'approval-conditions-submenu': 'approval-conditions-template-list-heading',
         'documents-submenu': null, // Click only, no title check
         'document-policies-submenu': 'document-policies-heading',
@@ -253,6 +264,10 @@ const checkSidebarMenusAndTitles = async page => {
         'incomesource-configuration-submenu': 'income-configuration-heading',
         'organization-self-submenu': null, // No title check for organization self
         'members-submenu': 'members-heading',
+        'report-sessions-menu': 'report-sessions-heading',
+        'report-verifications-menu': 'report-verifications-heading',
+        'report-files-menu': 'report-files-heading',
+        'report-income-sources-menu': 'report-income-sources-heading',
         'users-submenu': 'users-heading',
         'roles-submenu': 'roles-heading',
         'permissions-submenu': 'permissions-heading',
@@ -260,16 +275,16 @@ const checkSidebarMenusAndTitles = async page => {
         'name-tester-submenu': 'name-check-testing-heading',
         'integrations-submenu': 'integrations-heading', // Document Tester
         'devices-setting-submenu': 'devices-heading',
+        'devices-setting-submenu': null,
+        'notification-setting-submenu': null, // Click only, no title check
         '2fa-setting-submenu': null, // Click only, no title check
-        'account-setting-submenu': null, // Click only, no title check
-        'notification-setting-submenu': null // Click only, no title check
     };
 
     // Mapping for menus without submenus that have page titles to verify
     const menuTestIdMap = { 'organizations-menu': 'organizations-heading' };
 
     // Iterate through all sidebar menus
-    for (let i = 0;i < sidebarMenus.length;i++) {
+    for (let i = 0; i < sidebarMenus.length; i++) {
         const { menu, submenus } = sidebarMenus[i];
 
         // Step 1: Check menu visibility
