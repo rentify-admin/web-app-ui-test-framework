@@ -302,4 +302,65 @@ export class ApiDataManager {
   getEntities(type) {
     return this.created[type] || [];
   }
+
+  /**
+   * Get all roles from the API
+   * @returns {Promise<Array>} Array of role objects
+   */
+  async getRoles() {
+    try {
+      if (!this.authToken) {
+        throw new Error('Authentication required. Call authenticate() first.');
+      }
+
+      const baseURL = process.env.API_URL;
+      const fullUrl = `${baseURL}/roles`;
+      
+      console.log('🔍 Fetching roles from:', fullUrl);
+      
+      const response = await this.api.get(fullUrl, {
+        headers: this.getHeaders()
+      });
+
+      if (!response.ok()) {
+        const errorText = await response.text();
+        console.error('Failed to fetch roles:', response.status(), errorText);
+        throw new Error(`Failed to fetch roles: ${response.status()}`);
+      }
+
+      const rolesData = await response.json();
+      const roles = rolesData.data;
+      console.log(`✅ Fetched ${roles.length} roles`);
+      
+      return roles;
+    } catch (error) {
+      console.error('❌ Error fetching roles:', error.message);
+      throw error;
+    }
+  }
+
+  /**
+   * Get a role by name
+   * @param {string} roleName - The name of the role to find
+   * @returns {Promise<Object|undefined>} Role object if found, undefined otherwise
+   */
+  async getRoleByName(roleName) {
+    try {
+      console.log(`🔍 Searching for role: "${roleName}"`);
+      
+      const roles = await this.getRoles();
+      const role = roles.find(r => r.name === roleName);
+      
+      if (role) {
+        console.log(`✅ Found role "${roleName}" with ID: ${role.id}`);
+        return role;
+      } else {
+        console.warn(`⚠️ Role "${roleName}" not found`);
+        return undefined;
+      }
+    } catch (error) {
+      console.error(`❌ Error finding role "${roleName}":`, error.message);
+      throw error;
+    }
+  }
 }

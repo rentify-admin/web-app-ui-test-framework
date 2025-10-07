@@ -80,6 +80,7 @@ const addManageAppPermissionAndCheck = async (page, editBtn) => {
 
     await expect(editBtn).toBeVisible();
     await editBtn.click();
+    await page.waitForTimeout(1500); // wait for animation
 
     const memberRoleModal = await page.getByTestId('member-role-modal');
     await expect(memberRoleModal).toBeVisible();

@@ -36,6 +36,9 @@ let globalDataManager = null;
 const SUITE_NAME = 'user_permissions_verify';
 const TOTAL_TESTS = 3;
 
+// Role name to search for
+const roleName = 'Autotest - Centralized Leasing';
+
 // Test registration function
 const registerTest = (suiteName, testName, totalTests) => {
     testSuiteCleanupManager.registerTest(suiteName, testName, totalTests);
@@ -78,9 +81,18 @@ test.describe('user_permissions_verify', () => {
             throw new Error('Authentication failed - cannot create users without API access');
         }
 
-        // Hardcoded values based on environment for quick setup
+        // Fetch role by name dynamically
+        console.log(`🔍 Fetching role: "${roleName}"`);
+        const role = await dataManager.getRoleByName(roleName);
+        
+        if (!role) {
+            throw new Error(`Role "${roleName}" not found. Please ensure the role exists in the system.`);
+        }
+        
+        console.log(`✅ Role "${roleName}" found with ID: ${role.id}`);
+
+        // Organization ID still hardcoded based on environment
         const isStaging = process.env.APP_ENV === 'staging';
-        const roleId = isStaging ? '0196c9cd-4cf9-7368-949c-a298396673d9' : '0196f6c9-da5e-7074-9e6e-c35ac8f1818e'; // Centralized Leasing
         const organizationId = isStaging ? '0196cb22-5da4-715a-a89d-3ad36eeacf7d' : '01971d42-96b6-7003-bcc9-e54006284a7e'; // Test Org / Permissions Test Org
 
         // Create user via API instead of UI
@@ -91,7 +103,7 @@ test.describe('user_permissions_verify', () => {
             email: `${prefix}@verifast.com`,
             password: 'Playwright@123',
             password_confirmation: 'Playwright@123',
-            role: roleId, // Hardcoded role ID based on environment
+            role: role.id, // Use dynamically fetched role ID
             organization: organizationId // Hardcoded organization ID based on environment
         });
 

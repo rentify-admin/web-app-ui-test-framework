@@ -12,15 +12,18 @@ import { waitForJsonResponse } from './utils/wait-response';
 // Global state management for test isolation
 let globalStaffUser = null;
 
-// Staff user template (now used with API) - environment-dependent
+// Staff user template (now used with API) - dynamically fetched role
 const isStaging = process.env.APP_ENV === 'staging';
 const staffUserTemplate = {
     first_name: 'Staff',
     last_name: 'Playwright',
     password: 'Playwright@123',
-    role: isStaging ? '0196c9cd-4cf9-7368-949c-a298396673d9' : '0196f6c9-da51-7337-bbde-ca7d0efd7f84', // Centralized Leasing role
+    // Role will be fetched dynamically by name
     organization: isStaging ? '0196cb22-5da4-715a-a89d-3ad36eeacf7d' : '01971d42-96b6-7003-bcc9-e54006284a7e' // Test Org / Permissions Test Org
 };
+
+// Role name to search for
+const roleName = 'Autotest - Staff';
 
 test.beforeEach(async ({ page }) => {
     await page.goto('/');
@@ -64,12 +67,23 @@ test.describe('staff_user_permissions_test', () => {
             throw new Error('Authentication failed - cannot create users without API access');
         }
 
+        // Fetch role by name dynamically
+        console.log(`🔍 Fetching role: "${roleName}"`);
+        const role = await dataManager.getRoleByName(roleName);
+        
+        if (!role) {
+            throw new Error(`Role "${roleName}" not found. Please ensure the role exists in the system.`);
+        }
+        
+        console.log(`✅ Role "${roleName}" found with ID: ${role.id}`);
+
         // Create staff user via API instead of UI
         const prefix = ApiDataManager.uniquePrefix();
         const staffUserData = ApiDataManager.createUserData(prefix, {
             ...staffUserTemplate,
             email: `${prefix}@verifast.com`,
-            password_confirmation: staffUserTemplate.password
+            password_confirmation: staffUserTemplate.password,
+            role: role.id // Use dynamically fetched role ID
         });
 
         // Create the user via API (now authenticated)

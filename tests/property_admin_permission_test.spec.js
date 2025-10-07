@@ -15,6 +15,9 @@ import { ApiDataManager } from './utils/api-data-manager';
 let globalPropertyAdminUser = null;
 let globalDataManager = null;
 
+// Role name to search for
+const roleName = 'Autotest - Property Admin';
+
 test.beforeEach(async ({ page }) => {
     await page.goto('/');
 });
@@ -37,6 +40,16 @@ test.describe('property_admin_permission_test', () => {
             throw new Error('Authentication failed - cannot create users without API access');
         }
 
+        // Fetch role by name dynamically
+        console.log(`🔍 Fetching role: "${roleName}"`);
+        const role = await dataManager.getRoleByName(roleName);
+        
+        if (!role) {
+            throw new Error(`Role "${roleName}" not found. Please ensure the role exists in the system.`);
+        }
+        
+        console.log(`✅ Role "${roleName}" found with ID: ${role.id}`);
+
         // Create property admin user via API instead of UI
         const prefix = ApiDataManager.uniquePrefix();
         const propertyAdminUserData = ApiDataManager.createUserData(prefix, {
@@ -45,7 +58,7 @@ test.describe('property_admin_permission_test', () => {
             email: `${prefix}@verifast.com`,
             password: 'Playwright@123',
             password_confirmation: 'Playwright@123',
-            role: '0196f6c9-da56-7358-84bc-56f0f80b4c19' // Property Admin role UUID
+            role: role.id // Use dynamically fetched role ID
         });
 
         // Create the user via API
