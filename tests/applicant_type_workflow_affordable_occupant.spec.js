@@ -13,7 +13,7 @@ test.describe('applicant_type_workflow_affordable_occupant', () => {
         // Step 1: Login as admin
         await page.goto(app.urls.app);
         await loginForm.fill(page, admin);
-        await loginForm.submit(page);
+        await loginForm.submitAndSetLocale(page);
         await expect(page.getByTestId('applicants-menu')).toBeVisible();
 
         // Step 2: Navigate to Applications and search for the test application

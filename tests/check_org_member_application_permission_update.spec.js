@@ -13,7 +13,7 @@ test.describe('check_org_member_application_permission_update', () => {
 
         console.log('🚀 Login with the admin credentials...');
         await loginForm.fill(page, admin);
-        await loginForm.submit(page);
+        await loginForm.submitAndSetLocale(page);
 
         console.log('🚀 Wait for session page to load...');
         await expect(page.getByTestId('household-status-alert')).toBeVisible({ timeout: 10_000 });

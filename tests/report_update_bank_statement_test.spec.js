@@ -24,7 +24,7 @@ const loginWith =  async (page, data) => {
 
     // Step 1: Admin Login and Navigate
     await loginForm.fill(page, data);
-    await loginForm.submit(page);
+    await loginForm.submitAndSetLocale(page);
     await expect(page).toHaveTitle(/Applicants/, { timeout: 10_000 });
     await expect(page.getByTestId('household-status-alert')).toBeVisible();
 };

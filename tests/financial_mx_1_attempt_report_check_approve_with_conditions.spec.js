@@ -29,7 +29,7 @@ test.describe('financial_mx_1_attempt_report_check_approve_with_conditions', () 
     }, async ({ page, browser }) => {
         // Step 1: Admin Login and Navigate
         await loginForm.fill(page, admin);
-        await loginForm.submit(page);
+        await loginForm.submitAndSetLocale(page);
         await expect(page).toHaveTitle(/Applicants/, { timeout: 10_000 });
 
         await gotoApplicationsPage(page);

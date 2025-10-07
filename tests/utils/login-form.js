@@ -1,6 +1,5 @@
 import config from '~/tests/test_config';
 import { joinUrl } from '~/tests/utils/helper.js';
-import { gotoApplicationsPage } from './applications-page';
 import { expect } from '@playwright/test';
 
 const LOGIN_API = joinUrl(config.app.urls.api, 'auth');
@@ -26,19 +25,116 @@ const submit = async page => {
 };
 
 /**
+ * Submit login and set locale to English
+ * Enhanced version of submit() that also captures auth response and sets locale
+ * @param {import('@playwright/test').Page} page
+ */
+const submitAndSetLocale = async page => {
+    // Wait for both auth response and users/self response during submit
+    const [authResponse, selfResponse] = await Promise.all([
+        page.waitForResponse(LOGIN_API),
+        page.waitForResponse(resp => resp.url().includes('/users/self') && resp.request().method() === 'GET'),
+        (async () => {
+            await page.locator('button[type="submit"]').click();
+            await page.waitForSelector('[data-testid=household-status-alert]', { timeout: 100_000 });
+            await expect(page.getByTestId('household-status-alert')).toBeVisible({ timeout: 100_000 });
+        })()
+    ]);
+    
+    // Set locale to English for the logged-in user
+    try {
+        const authData = await authResponse.json();
+        const authToken = authData?.data?.token;
+        
+        const selfData = await selfResponse.json();
+        const userId = selfData?.data?.id;
+        
+        if (userId && authToken) {
+            console.log('🔑 Auth token retrieved from /auth response, updating locale...');
+            
+            const localeResponse = await page.request.patch(`${config.app.urls.api}/users/${userId}`, {
+                headers: {
+                    'Authorization': `Bearer ${authToken}`,
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json, text/plain, */*'
+                },
+                data: JSON.stringify({ locale: 'en' })
+            });
+            
+            if (!localeResponse.ok()) {
+                const responseText = await localeResponse.text();
+                console.log(`⚠️ Failed to set locale. Status: ${localeResponse.status()}, Response: ${responseText}`);
+            } else {
+                console.log('✅ Locale set to English successfully');
+            }
+        } else {
+            console.log('⚠️ Missing userId or authToken');
+        }
+    } catch (error) {
+        console.log('⚠️ Failed to set locale to English:', error.message);
+    }
+};
+
+/**
  * Complete admin login and navigation to applications page
+ * Also sets user locale to English
  * @param {import('@playwright/test').Page} page
  * @param {Object} adminCredentials
  */
 const adminLoginAndNavigate = async (page, adminCredentials) => {
     await page.goto('/');
     await fill(page, adminCredentials);
-    await submit(page);
+    
+    // Wait for both auth response and users/self response
+    const [authResponse, selfResponse] = await Promise.all([
+        page.waitForResponse(LOGIN_API),
+        page.waitForResponse(resp => resp.url().includes('/users/self') && resp.request().method() === 'GET'),
+        submit(page)
+    ]);
+    
     await expect(page).toHaveTitle(/Applicants/, { timeout: 10_000 });
+    
+    // Set locale to English for the logged-in user
+    try {
+        // Get token from auth response
+        const authData = await authResponse.json();
+        const authToken = authData?.data?.token;
+        
+        // Get user ID from self response
+        const selfData = await selfResponse.json();
+        const userId = selfData?.data?.id;
+        
+        if (userId && authToken) {
+            console.log('🔑 Auth token retrieved from /auth response, updating locale...');
+            
+            // Update user locale to English
+            const localeResponse = await page.request.patch(`${config.app.urls.api}/users/${userId}`, {
+                headers: {
+                    'Authorization': `Bearer ${authToken}`,
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json, text/plain, */*'
+                },
+                data: JSON.stringify({ locale: 'en' })
+            });
+            
+            if (!localeResponse.ok()) {
+                const responseText = await localeResponse.text();
+                console.log(`⚠️ Failed to set locale. Status: ${localeResponse.status()}, Response: ${responseText}`);
+            } else {
+                console.log('✅ Locale set to English successfully');
+            }
+        } else {
+            console.log('⚠️ Missing userId or authToken');
+        }
+    } catch (error) {
+        console.log('⚠️ Failed to set locale to English:', error.message);
+        // Don't fail the test if locale update fails
+    }
 };
 
 export default {
     fill,
     submit,
+    submitAndSetLocale,
     adminLoginAndNavigate
 };

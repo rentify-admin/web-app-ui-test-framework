@@ -23,8 +23,8 @@ test.describe('QA-123: org_member_application_binding_scoping_check', () => {
 
     test('Check Application Binding Scoping (Inbox Visibility)',
         {
-            tag: ['@needs_review'],
-            timeout: 180_000  // 5 minutes
+            tag: ['@needs-review', '@document-upload'],
+            timeout: 180_000  // 3 minutes
         }, async ({ page, browser, cleanupHelper }) => {
 
             user = {
@@ -103,7 +103,7 @@ test.describe('QA-123: org_member_application_binding_scoping_check', () => {
             await applicantPage.getByRole('textbox', { name: 'Email Address' }).press('Tab');
             await applicantPage.getByRole('textbox', { name: 'Password' }).fill(user.password);
             await applicantPage.getByTestId('admin-login-btn').click();
-            await applicantPage.locator('div').filter({ hasText: /^Coming Soon\.\.\.$/ }).click();
+            //await applicantPage.locator('div').filter({ hasText: /^Coming Soon\.\.\.$/ }).click();
 
             await expect(applicantPage.getByTestId('applicants-menu')).not.toBeVisible();
 

@@ -2,7 +2,7 @@ import { expect } from '@playwright/test';
 import loginForm from './login-form';
 
 /**
- * Login helper function
+ * Login helper function with locale set to English
  * @param {import('@playwright/test').Page} page
  * @param {Object} data - Login credentials
  */
@@ -10,13 +10,13 @@ const loginWith = async (page, data) => {
 
     // Step 1: Admin Login and Navigate
     await loginForm.fill(page, data);
-    await loginForm.submit(page);
+    await loginForm.submitAndSetLocale(page);
     await expect(page).toHaveTitle(/Applicants/, { timeout: 10_000 });
     await expect(page.getByTestId('household-status-alert')).toBeVisible();
 };
 
 /**
- * Complete admin login and navigation to applications
+ * Complete admin login and navigation to applications with locale set to English
  * @param {import('@playwright/test').Page} page
  * @param {Object} data - Login credentials
  */

@@ -14,7 +14,7 @@ test.describe('financial_plaid_one_transaction_error_decline', () => {
         // Step 1: Login as admin
         await page.goto('https://dev.verifast.app/');
         await loginForm.fill(page, admin);
-        await loginForm.submit(page);
+        await loginForm.submitAndSetLocale(page);
         await expect(page.getByTestId('applicants-menu')).toBeVisible();
 
         // Step 2: Navigate to Applications

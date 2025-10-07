@@ -13,7 +13,7 @@ test.describe('pdf_download_test', () => {
         // Step 1-5: Login as staff user
         await page.goto('https://dev.verifast.app/');
         await loginForm.fill(page, staff);
-        await loginForm.submit(page);
+        await loginForm.submitAndSetLocale(page);
         await expect(page.getByTestId('applicants-menu')).toBeVisible();
 
         // Step 6-7: Search for specific application

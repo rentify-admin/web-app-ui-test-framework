@@ -31,7 +31,7 @@ test.describe('financial_mx_2_attempts_success_and_failed_password', () => {
     }, async ({ page, browser }) => {
         // Step 1: Admin Login and Navigate
         await loginForm.fill(page, admin);
-        await loginForm.submit(page);
+        await loginForm.submitAndSetLocale(page);
         await expect(page).toHaveTitle(/Applicants/, { timeout: 10_000 });
 
         await gotoApplicationsPage(page);

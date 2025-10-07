@@ -46,7 +46,7 @@ test.describe('frontend_heartbeat', () => {
     }, async ({ page }) => {
         await page.goto('/');
         await loginForm.fill(page, admin);
-        await loginForm.submit(page);
+        await loginForm.submitAndSetLocale(page);
         await expect(page.getByTestId('household-status-alert')).toBeVisible({ timeout: 10_000 });
 
         // Check header, menu, profile, and applicants submenu
@@ -61,7 +61,7 @@ test.describe('frontend_heartbeat', () => {
     }, async ({ page }) => {
         await page.goto('/');
         await loginForm.fill(page, admin);
-        await loginForm.submit(page);
+        await loginForm.submitAndSetLocale(page);
         await expect(page.getByTestId('household-status-alert')).toBeVisible({ timeout: 10_000 });
 
         // 1. Test Action Button and See Details Button

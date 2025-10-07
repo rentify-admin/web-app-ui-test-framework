@@ -24,7 +24,7 @@ test.describe('application_flow_with_id_only', () => {
 
         // Step 1: Admin Login and Navigate
         await loginForm.fill(page, admin);
-        await loginForm.submit(page);
+        await loginForm.submitAndSetLocale(page);
         await expect(page.getByTestId('household-status-alert')).toBeVisible();
         await expect(page).toHaveTitle(/Applicants/, { timeout: 10_000 });
 

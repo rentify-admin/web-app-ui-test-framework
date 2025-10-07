@@ -11,7 +11,7 @@ test.describe('application_edit_id_template_settings', () => {
       // Step 1: Login as admin
       await page.goto('/');
       await loginForm.fill(page, admin);
-      await loginForm.submit(page);
+      await loginForm.submitAndSetLocale(page);
       await expect(page.getByTestId('applicants-menu')).toBeVisible();
 
       // Step 2: Open Applications from sidebar using robust selectors

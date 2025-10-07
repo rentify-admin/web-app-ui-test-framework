@@ -14,7 +14,7 @@ test.describe('application_create_delete_test', () => {
     }, async ({ page }) => {
         // Step 1-5: Login as admin (dhaval)
         await loginForm.fill(page, admin);
-        await loginForm.submit(page);
+        await loginForm.submitAndSetLocale(page);
         await expect(page.getByTestId('applicants-menu')).toBeVisible();
 
         // Application configuration
