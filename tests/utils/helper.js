@@ -61,6 +61,15 @@ const getAmount = (amount, locale, fraction = 2) => `$ ${Intl.NumberFormat(local
 const getSafeAmount = (amount, locale, fraction) => amount ? getAmount(amount, locale, fraction) : 'N/A';
 const getCentsToDollarsSafe = (amount, locale, fraction) => getSafeAmount(amount && amount / 100, locale, fraction);
 
+
+const kebabToTitleCase = (str) => {
+    return str
+        .split('-')
+        .filter(Boolean)
+        .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(' ');
+}
+
 export {
     joinUrl,
     escapeRegex,
@@ -69,5 +78,6 @@ export {
     customUrlDecode,
     getAmount,
     getSafeAmount,
-    getCentsToDollarsSafe
+    getCentsToDollarsSafe,
+    kebabToTitleCase
 };
