@@ -54,7 +54,8 @@ test.describe('heartbeat_transactions_menus.spec', () => {
         if (tags.data.length > 0) {
             const tagTable = await page.locator('table');
             const tagTableRows = await tagTable.locator('tbody>tr')
-            for (let index = 0; index < await tagTableRows.count(); index++) {
+            // Loop through API data, not UI rows (to avoid pagination mismatches)
+            for (let index = 0; index < tags.data.length; index++) {
                 const row = await tagTableRows.nth(index);
                 await expect(row).toContainText(tags.data[index].name);
             }
@@ -64,6 +65,7 @@ test.describe('heartbeat_transactions_menus.spec', () => {
 
         // verifying keyword mapping page
         const keywordMappingSubMenu = await page.getByTestId('keyword-mapping-submenu');
+        await expect(keywordMappingSubMenu).toBeVisible();
         let keywords = []
         if (await keywordMappingSubMenu.isVisible()) {
             const [response] = await Promise.all([
@@ -88,6 +90,7 @@ test.describe('heartbeat_transactions_menus.spec', () => {
 
         // verifying blacklists page
         const blacklistSubMenu = await page.getByTestId('blacklists-submenu');
+        await expect(blacklistSubMenu).toBeVisible();
         let blacklists = []
         if (await blacklistSubMenu.isVisible()) {
             const [response] = await Promise.all([
@@ -112,6 +115,7 @@ test.describe('heartbeat_transactions_menus.spec', () => {
 
         // verifying provider mapping page
         const providerMappingMenu = await page.getByTestId('provider-mapping-submenu');
+        await expect(providerMappingMenu).toBeVisible();
         let providerMappings = [];
         if (await providerMappingMenu.isVisible()) {
             const [response] = await Promise.all([

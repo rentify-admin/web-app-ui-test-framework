@@ -64,6 +64,7 @@ test.describe('heartbeat_documents_menus.spec', () => {
 
         // verifying document policies page
         const documentPolicySubmenu = await page.getByTestId('document-policies-submenu');
+        await expect(documentPolicySubmenu).toBeVisible();
         let documentPolicies = []
         if (await documentPolicySubmenu.isVisible()) {
             const [response] = await Promise.all([

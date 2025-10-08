@@ -59,6 +59,7 @@ test.describe('heartbeat_organizations_menus.spec', () => {
 
         // verifying members page
         const membersSubMenu = await page.getByTestId('members-submenu');
+        await expect(membersSubMenu).toBeVisible();
         let members = []
         if (await membersSubMenu.isVisible()) {
             const [response] = await Promise.all([

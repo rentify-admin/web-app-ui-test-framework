@@ -55,7 +55,8 @@ test.describe('heartbeat_applications_menus.spec', () => {
         if (applications.data.length > 0) {
             const appTable = await page.getByTestId('application-table');
             const appTableRows = await appTable.locator('tbody>tr')
-            for (let index = 0; index < await appTableRows.count(); index++) {
+            // Loop through API data, not UI rows (to avoid pagination mismatches)
+            for (let index = 0; index < applications.data.length; index++) {
                 const row = await appTableRows.nth(index);
                 await expect(row).toContainText(applications.data[index].name);
             }
@@ -63,6 +64,7 @@ test.describe('heartbeat_applications_menus.spec', () => {
 
         // verifying portfolios page
         const portfolioMenu = await page.getByTestId('portfolios-submenu');
+        await expect(portfolioMenu).toBeVisible();
         let portfolios = []
         if (await portfolioMenu.isVisible()) {
             const [response] = await Promise.all([
@@ -76,7 +78,7 @@ test.describe('heartbeat_applications_menus.spec', () => {
             portfolios = await waitForJsonResponse(response)
         }
 
-        if (portfolios.data.length) {
+        if (portfolios.data.length > 0) {
             const portfolioTableRows = await page.locator('table').locator('tbody>tr');
             for (let index = 0; index < portfolios.data.length; index++) {
                 const row = await portfolioTableRows.nth(index);
@@ -87,6 +89,7 @@ test.describe('heartbeat_applications_menus.spec', () => {
 
         // verifying workflows page
         const workflowSubmenu = await page.getByTestId('workflows-submenu');
+        await expect(workflowSubmenu).toBeVisible();
 
         let workflows = [];
 
@@ -114,6 +117,7 @@ test.describe('heartbeat_applications_menus.spec', () => {
 
         // verifying affordable templates page
         const affordableMenu = await page.getByTestId('affordable-templates-submenu');
+        await expect(affordableMenu).toBeVisible();
 
         let templates = [];
 
@@ -141,6 +145,7 @@ test.describe('heartbeat_applications_menus.spec', () => {
 
         // verifying approval conditions page
         const approvalMenu = await page.getByTestId('approval-conditions-submenu');
+        await expect(approvalMenu).toBeVisible();
 
         let approvalConditions = [];
 

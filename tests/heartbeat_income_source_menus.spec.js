@@ -54,7 +54,12 @@ test.describe('heartbeat_income_source_menus.spec', () => {
         if (incomeSources.data.length > 0) {
             const table = await page.locator('table');
             const tableRows = await table.locator('tbody>tr')
-            for (let index = 0; index < await tableRows.count(); index++) {
+            
+            // Wait for all rows to be rendered (expect at least API data count)
+            await expect(tableRows).toHaveCount(incomeSources.data.length, { timeout: 10000 });
+            
+            // Loop through API data, not UI rows (to avoid pagination mismatches)
+            for (let index = 0; index < incomeSources.data.length; index++) {
                 const row = await tableRows.nth(index);
                 await expect(row).toContainText(incomeSources.data[index].name);
             }
