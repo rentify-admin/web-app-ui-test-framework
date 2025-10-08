@@ -56,9 +56,9 @@ test.describe('heartbeat-applicant-inbox-menus.spec', () => {
             sessions = await waitForJsonResponse(response)
         }
 
-        for (let index = 0; index < sessions.length; index++) {
-            const session = sessions[index];
-            await expect(page.getByTestId(`.application-card[data-session=${session.id}]`)).toBeVisible();
+        for (let index = 0; index < sessions.data.length; index++) {
+            const session = sessions.data[index];
+            await expect(page.locator(`.application-card[data-session="${session.id}"]`)).toBeVisible({ timeout: 10_000 });
         }
 
         const requireReviewMenu = await page.getByTestId('approval-status-submenu');
@@ -79,9 +79,9 @@ test.describe('heartbeat-applicant-inbox-menus.spec', () => {
         }
 
 
-        for (let index = 0; index < sessions.length; index++) {
-            const session = sessions[index];
-            await expect(page.getByTestId(`.application-card[data-session=${session.id}]`)).toBeVisible();
+        for (let index = 0; index < sessions.data.length; index++) {
+            const session = sessions.data[index];
+            await expect(page.locator(`.application-card[data-session="${session.id}"]`)).toBeVisible({ timeout: 10_000 });
         }
 
         const meetCriteriaMenu = await page.getByTestId('reviewed-submenu');
@@ -103,9 +103,9 @@ test.describe('heartbeat-applicant-inbox-menus.spec', () => {
         }
 
 
-        for (let index = 0; index < sessions.length; index++) {
-            const session = sessions[index];
-            await expect(page.getByTestId(`.application-card[data-session=${session.id}]`)).toBeVisible();
+        for (let index = 0; index < sessions.data.length; index++) {
+            const session = sessions.data[index];
+            await expect(page.locator(`.application-card[data-session="${session.id}"]`)).toBeVisible({ timeout: 10_000 });
         }
 
 
@@ -127,9 +127,9 @@ test.describe('heartbeat-applicant-inbox-menus.spec', () => {
         }
 
 
-        for (let index = 0; index < sessions.length; index++) {
-            const session = sessions[index];
-            await expect(page.getByTestId(`.application-card[data-session=${session.id}]`)).toBeVisible();
+        for (let index = 0; index < sessions.data.length; index++) {
+            const session = sessions.data[index];
+            await expect(page.locator(`.application-card[data-session="${session.id}"]`)).toBeVisible({ timeout: 10_000 });
         }
 
     })
