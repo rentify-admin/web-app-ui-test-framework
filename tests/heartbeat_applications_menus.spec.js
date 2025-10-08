@@ -1,0 +1,169 @@
+import { test, expect } from '@playwright/test';
+import loginForm from './utils/login-form';
+import { admin } from './test_config';
+import { waitForJsonResponse } from './utils/wait-response';
+import { customUrlDecode } from './utils/helper';
+
+
+test.describe('heartbeat_applications_menus.spec', () => {
+
+    test('Should check Applications menu heartbeat', {
+        tag: ['@core', '@smoke', '@regression'],
+    }, async ({ page }) => {
+
+        await page.goto('/');
+        await loginForm.fill(page, admin);
+        await loginForm.submit(page);
+        await expect(page.getByTestId('household-status-alert')).toBeVisible({ timeout: 10_000 });
+
+        const applicationsMenu = await page.getByTestId('applications-menu');
+
+        const isApplicationsExpanded = await applicationsMenu.evaluate(element => element.classList.contains('sidebar-item-open'));
+
+        if (!isApplicationsExpanded) {
+            await applicationsMenu.click()
+        }
+
+        // verifying applications page
+        const applicationSubMenu = await page.getByTestId('applications-submenu');
+        const isApplicationSubMenuActive = await applicationSubMenu.evaluate(item => item.classList.contains('sidebar-active'))
+
+        let applications = [];
+        if (!isApplicationSubMenuActive) {
+            const [response] = await Promise.all([
+                page.waitForResponse(resp => {
+                    return resp.url().includes('/applications?')
+                        && resp.request().method() === 'GET'
+                        && resp.ok()
+                }),
+                applicationSubMenu.click()
+            ])
+            applications = await waitForJsonResponse(response)
+        } else {
+            const [response] = await Promise.all([
+                page.waitForResponse(resp => {
+                    return resp.url().includes('/applications?')
+                        && resp.request().method() === 'GET'
+                        && resp.ok()
+                }),
+                page.reload()
+            ])
+            applications = await waitForJsonResponse(response)
+        }
+
+
+        if (applications.length > 0) {
+            const appTable = await page.getByTestId('application-table');
+            const appTableRows = await appTable.locator('tbody>tr')
+            for (let index = 0; index < await appTableRows.count(); index++) {
+                const row = await appTableRows.nth(index);
+                await expect(row).toContainText(applications[index].name);
+            }
+        }
+
+        // verifying portfolios page
+        const portfolioMenu = await page.getByTestId('portfolios-submenu');
+        let portfolios = []
+        if (await portfolioMenu.isVisible()) {
+            const [response] = await Promise.all([
+                page.waitForResponse(resp => {
+                    return resp.url().includes('/portfolios?')
+                        && resp.request().method() === 'GET'
+                        && resp.ok()
+                }),
+                portfolioMenu.click()
+            ])
+            portfolios = await waitForJsonResponse(response)
+        }
+
+        if (portfolios.length) {
+            const portfolioTableRows = await page.locator('table').locator('tbody>tr');
+            for (let index = 0; index < portfolios.length; index++) {
+                const row = await portfolioTableRows.nth(index);
+                await expect(row).toContainText(portfolios[index]);
+            }
+        }
+
+
+        // verifying workflows page
+        const workflowSubmenu = await page.getByTestId('workflows-submenu');
+
+        let workflows = [];
+
+        if (await workflowSubmenu.isVisible()) {
+            const [response] = await Promise.all([
+                page.waitForResponse(resp => {
+                    return resp.url().includes('/workflows?')
+                        && resp.request().method() === 'GET'
+                        && resp.ok()
+                }),
+                workflowSubmenu.click()
+            ])
+            workflows = await waitForJsonResponse(response)
+        }
+        if (workflows.length > 0) {
+            const workflowTable = await page.getByTestId('workflow-table');
+            const workflowRows = await workflowTable.locator('tbody>tr')
+            for (let index = 0; index < workflows.length; index++) {
+                const row = await workflowRows.nth(index);
+                await expect(row).toContainText(workflow[index].name?.replaceAll('-', ' '));
+            }
+        }
+
+        // verifying affordable templates page
+        const affordableMenu = await page.getByTestId('affordable-templates-submenu');
+
+        let templates = [];
+
+        if (await affordableMenu.isVisible()) {
+            const [response] = await Promise.all([
+                page.waitForResponse(resp => {
+                    return resp.url().includes('/eligibility-templates?')
+                        && resp.request().method() === 'GET'
+                        && resp.ok()
+                }),
+                affordableMenu.click()
+            ])
+            templates = await waitForJsonResponse(response)
+        }
+        if (templates.length > 0) {
+            const eligibilityTable = await page.getByTestId('eligibility-template-table');
+
+            const tableRows = await eligibilityTable.locator('tbody>tr')
+
+            for (let index = 0; index < templates.length; index++) {
+                const row = await tableRows.nth(index)
+                await expect(row).toContainText(templates[index].name)
+            }
+        }
+
+        // verifying approval conditions page
+        const approvalMenu = await page.getByTestId('approval-conditions-submenu');
+
+        let approvalConditions = [];
+
+        if (await approvalMenu.isVisible()) {
+            const [response] = await Promise.all([
+                page.waitForResponse(resp => {
+                    return resp.url().includes('/flag-collections?')
+                        && resp.request().method() === 'GET'
+                        && resp.ok()
+                }),
+                approvalMenu.click()
+            ])
+            approvalConditions = await waitForJsonResponse(response)
+        }
+        if (approvalConditions.length > 0) {
+            const approvalTable = await page.getByTestId('approval-conditions-table');
+
+            const tableRows = await approvalTable.locator('tbody>tr')
+
+            for (let index = 0; index < approvalConditions.length; index++) {
+                const row = await tableRows.nth(index)
+                await expect(row).toContainText(approvalConditions[index].name)
+            }
+        }
+
+    })
+
+})
