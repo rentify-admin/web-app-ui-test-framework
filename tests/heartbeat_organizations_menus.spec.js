@@ -33,7 +33,7 @@ test.describe('heartbeat_organizations_menus.spec', () => {
         if (!isOrganizationSubMenuActive) {
             const [response] = await Promise.all([
                 page.waitForResponse(resp => {
-                    return resp.url().startsWith(joinUrl(app.urls.api, '/organizations/self?'))
+                    return resp.url().startsWith(joinUrl(app.urls.api, '/organizations/self'))
                         && resp.request().method() === 'GET'
                         && resp.ok()
                 }),
@@ -54,9 +54,33 @@ test.describe('heartbeat_organizations_menus.spec', () => {
         if (organization.data) {
             const heading = await page.getByRole('heading', { name: organization.data.name })
             await expect(heading).toBeDefined()
+            console.log('🚀 ~ Organization page tested')
         }
 
-        console.log('🚀 ~ Organization page tested')
+        // verifying members page
+        const membersSubMenu = await page.getByTestId('members-submenu');
+        let members = []
+        if (await membersSubMenu.isVisible()) {
+            const [response] = await Promise.all([
+                page.waitForResponse(resp => {
+                    const matchUrl = new RegExp(`/organizations/.+/members`, 'i');
+                    return matchUrl.test(resp.url())
+                        && resp.request().method() === 'GET'
+                        && resp.ok()
+                }),
+                membersSubMenu.click()
+            ])
+            members = await waitForJsonResponse(response)
+        }
+
+        if (members.data.length > 0) {
+            const rows = await page.getByTestId('members-table').locator('tbody>tr');
+            for (let index = 0; index < members.data.length; index++) {
+                const row = await rows.nth(index);
+                await expect(row).toContainText(members.data[index].user.full_name);
+            }
+            console.log('🚀 ~ Members list checked')
+        }
 
     })
 
