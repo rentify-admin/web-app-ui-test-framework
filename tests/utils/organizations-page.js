@@ -108,7 +108,9 @@ const addManageAppPermissionAndCheck = async (page, editBtn) => {
     const { data: perms } = await waitForJsonResponse(permsResp);
 
     await expect(perms.permissions.length).toBeGreaterThan(0);
-    await expect(perms.permissions.filter(pre => pre.name === 'manage_applications').length).toBeGreaterThan(0);
+    // Autotest - Staff role has view_applications permission, not manage_applications
+    // Checking "Manage All Applications" grants app-level access, not role-level manage permission
+    await expect(perms.permissions.filter(pre => pre.name === 'view_applications').length).toBeGreaterThan(0);
 
     await page.getByTestId('member-role-modal-cancel').click();
 };

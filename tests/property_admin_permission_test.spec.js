@@ -204,7 +204,7 @@ test.describe('property_admin_permission_test', () => {
             const orgMemberCreateModal = await page.getByTestId('org-user-create-modal');
             await expect(orgMemberCreateModal).toBeVisible();
             const staffEmail = `admin_test+${ApiDataManager.uniquePrefix()}@verifast.com`;
-            const userData = { email: staffEmail, role: 'Staff' };
+            const userData = { email: staffEmail, role: 'Autotest - Staff' }; // Use Autotest role to avoid permission mismatches
             await orgUtils.addOrganizationMember(page, userData, orgMemberCreateModal);
             await orgUtils.checkFirstRowHasEmail(page, userData.email);
             await orgUtils.addManageAppPermissionAndCheck(page, await page.getByTestId('members-table').locator('tbody>tr')
