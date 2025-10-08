@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import loginForm from './utils/login-form';
 import { admin } from './test_config';
 import { waitForJsonResponse } from './utils/wait-response';
-import { customUrlDecode } from './utils/helper';
+import { customUrlDecode, kebabToTitleCase } from './utils/helper';
 
 
 test.describe('heartbeat_applications_menus.spec', () => {
@@ -52,12 +52,12 @@ test.describe('heartbeat_applications_menus.spec', () => {
         }
 
 
-        if (applications.length > 0) {
+        if (applications.data.length > 0) {
             const appTable = await page.getByTestId('application-table');
             const appTableRows = await appTable.locator('tbody>tr')
             for (let index = 0; index < await appTableRows.count(); index++) {
                 const row = await appTableRows.nth(index);
-                await expect(row).toContainText(applications[index].name);
+                await expect(row).toContainText(applications.data[index].name);
             }
         }
 
@@ -76,11 +76,11 @@ test.describe('heartbeat_applications_menus.spec', () => {
             portfolios = await waitForJsonResponse(response)
         }
 
-        if (portfolios.length) {
+        if (portfolios.data.length) {
             const portfolioTableRows = await page.locator('table').locator('tbody>tr');
-            for (let index = 0; index < portfolios.length; index++) {
+            for (let index = 0; index < portfolios.data.length; index++) {
                 const row = await portfolioTableRows.nth(index);
-                await expect(row).toContainText(portfolios[index]);
+                await expect(row).toContainText(portfolios.data[index]);
             }
         }
 
@@ -101,12 +101,14 @@ test.describe('heartbeat_applications_menus.spec', () => {
             ])
             workflows = await waitForJsonResponse(response)
         }
-        if (workflows.length > 0) {
+        if (workflows.data.length > 0) {
             const workflowTable = await page.getByTestId('workflow-table');
             const workflowRows = await workflowTable.locator('tbody>tr')
-            for (let index = 0; index < workflows.length; index++) {
+            for (let index = 0; index < workflows.data.length; index++) {
                 const row = await workflowRows.nth(index);
-                await expect(row).toContainText(workflow[index].name?.replaceAll('-', ' '));
+                if (workflows.data[index].name) {
+                    await expect(row).toContainText(kebabToTitleCase(workflows.data[index].name));
+                }
             }
         }
 
@@ -126,14 +128,14 @@ test.describe('heartbeat_applications_menus.spec', () => {
             ])
             templates = await waitForJsonResponse(response)
         }
-        if (templates.length > 0) {
+        if (templates.data.length > 0) {
             const eligibilityTable = await page.getByTestId('eligibility-template-table');
 
             const tableRows = await eligibilityTable.locator('tbody>tr')
 
-            for (let index = 0; index < templates.length; index++) {
+            for (let index = 0; index < templates.data.length; index++) {
                 const row = await tableRows.nth(index)
-                await expect(row).toContainText(templates[index].name)
+                await expect(row).toContainText(templates.data[index].name)
             }
         }
 
@@ -153,14 +155,14 @@ test.describe('heartbeat_applications_menus.spec', () => {
             ])
             approvalConditions = await waitForJsonResponse(response)
         }
-        if (approvalConditions.length > 0) {
+        if (approvalConditions.data.length > 0) {
             const approvalTable = await page.getByTestId('approval-conditions-table');
 
             const tableRows = await approvalTable.locator('tbody>tr')
 
-            for (let index = 0; index < approvalConditions.length; index++) {
+            for (let index = 0; index < approvalConditions.data.length; index++) {
                 const row = await tableRows.nth(index)
-                await expect(row).toContainText(approvalConditions[index].name)
+                await expect(row).toContainText(approvalConditions.data[index].name)
             }
         }
 
