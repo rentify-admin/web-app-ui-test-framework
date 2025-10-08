@@ -31,7 +31,7 @@ test.describe('heartbeat-applicant-inbox-menus.spec', () => {
         if (!isAllmenuActive) {
             const [response] = await Promise.all([
                 page.waitForResponse(resp => {
-                    const link = new URL(resp.url())
+                    const link = new URL(customUrlDecode(resp.url()))
                     const params = new URLSearchParams(link.search)
                     return resp.url().includes('/sessions?')
                         && !params.get('filters').includes('approval_status')
@@ -44,7 +44,7 @@ test.describe('heartbeat-applicant-inbox-menus.spec', () => {
         } else {
             const [response] = await Promise.all([
                 page.waitForResponse(resp => {
-                    const link = new URL(resp.url())
+                    const link = new URL(customUrlDecode(resp.url()))
                     const params = new URLSearchParams(link.search)
                     return resp.url().includes('/sessions?')
                         && !params.get('filters').includes('approval_status')
