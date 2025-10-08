@@ -7,7 +7,7 @@ import { customUrlDecode, joinUrl } from './utils/helper';
 
 test.describe('heartbeat_transactions_menus.spec', () => {
 
-    test('Should check Documents menu heartbeat', {
+    test('Should check Transactions menu heartbeat', {
         tag: ['@core', '@smoke', '@regression'],
     }, async ({ page }) => {
 
