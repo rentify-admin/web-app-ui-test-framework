@@ -16,7 +16,11 @@ test.describe('heartbeat-address-menus.spec', () => {
 
         const addressMenus = await page.getByTestId('address-menu');
 
-        await addressMenus.click()
+        await addressMenus.click();
+
+        await page.waitForTimeout(1000);
+
+        // Now only coming soon page here
 
     })
 })
