@@ -17,7 +17,7 @@ import {
     markFlagAsNonIssue,
     validateFlagSections
 } from '~/tests/utils/report-page';
-import { createSessionForUser } from '~/tests/utils/session-flow';
+import { createSessionWithSimulator } from '~/tests/utils/session-flow';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -41,8 +41,8 @@ test.describe('user_flags_approve_reject_test', () => {
         browser
     }) => {
 
-        // Create session \
-        const { sessionId } = await createSessionForUser(
+        // Create session with VERIDOCS_PAYLOAD simulator
+        const { sessionId } = await createSessionWithSimulator(
             page,
             browser,
             admin,
@@ -145,8 +145,8 @@ test.describe('user_flags_approve_reject_test', () => {
         browser
     }) => {
 
-        // Create session using the existing utility
-        const { sessionId } = await createSessionForUser(
+        // Create session with VERIDOCS_PAYLOAD simulator
+        const { sessionId } = await createSessionWithSimulator(
             page,
             browser,
             admin,
@@ -222,10 +222,73 @@ test.describe('user_flags_approve_reject_test', () => {
         await acceptButton.click();
         console.log('✅ Document approval completed');
         
-        // Step 5: Wait 5 seconds as requested
-        console.log('🚀 Waiting 5 seconds after document approval...');
-        await page.waitForTimeout(5000);
-        console.log('✅ Wait completed, proceeding with session approval');
+        // Step 5: Click View Details button to access flags
+        console.log('🚀 Clicking View Details button...');
+        await page.waitForTimeout(2000); // Wait for modal to close
+        const viewDetailsBtn = page.getByTestId('view-details-btn');
+        await expect(viewDetailsBtn).toBeVisible({ timeout: 10_000 });
+        await viewDetailsBtn.click();
+        console.log('✅ View Details clicked');
+        
+        // Step 6: Wait for details screen to load
+        await page.waitForTimeout(2000);
+        
+        // Step 7: Find and mark all flags in "Items Requiring Review" as issues
+        console.log('🚀 Looking for Items Requiring Review section...');
+        const irrsSection = page.getByTestId('items-requiring-review-section');
+        
+        // Check if section exists and has items
+        const irrsSectionExists = await irrsSection.count();
+        
+        if (irrsSectionExists > 0) {
+            console.log('✅ Items Requiring Review section found');
+            
+            // Get all flag items in the section
+            const flagItems = await irrsSection.locator('li[id^="flag-"]').all();
+            console.log(`📊 Found ${flagItems.length} flag(s) in Items Requiring Review`);
+            
+            // Mark each flag as issue
+            for (let i = 0; i < flagItems.length; i++) {
+                const flagItem = flagItems[i];
+                const flagTestId = await flagItem.getAttribute('data-testid');
+                console.log(`🚀 Marking flag ${i + 1}/${flagItems.length} (${flagTestId}) as issue...`);
+                
+                // Click "mark as issue" button within this flag item
+                const markAsIssueBtn = flagItem.getByTestId('mark_as_issue');
+                await expect(markAsIssueBtn).toBeVisible();
+                await markAsIssueBtn.click();
+                
+                // Wait for confirmation modal
+                await page.waitForTimeout(500);
+                
+                // Fill in the reason textarea
+                const reasonTextarea = page.locator('textarea[placeholder="Enter a reason..."]');
+                await expect(reasonTextarea).toBeVisible({ timeout: 5_000 });
+                await reasonTextarea.fill(`${flagTestId} marked as issue by automated test`);
+                
+                // Click confirm button
+                const confirmBtn = page.getByRole('button', { name: 'Confirm' });
+                await expect(confirmBtn).toBeVisible();
+                await confirmBtn.click();
+                
+                console.log(`✅ Flag ${flagTestId} marked as issue`);
+                
+                // Wait for modal to close and UI to update
+                await page.waitForTimeout(1000);
+            }
+            
+            console.log('✅ All flags in Items Requiring Review marked as issues');
+        } else {
+            console.log('ℹ️ No Items Requiring Review section found - proceeding without marking flags');
+        }
+        
+        // Step 8: Close details view (event history modal) and return to main session view
+        console.log('🚀 Closing event history modal...');
+        const closeEventHistoryModal = page.getByTestId('close-event-history-modal');
+        await expect(closeEventHistoryModal).toBeVisible({ timeout: 5_000 });
+        await closeEventHistoryModal.click();
+        await page.waitForTimeout(1000);
+        console.log('✅ Event history modal closed, proceeding with session approval');
 
         // Step 6: Now proceed with session approve/reject flow
         console.log('🚀 Starting session approve/reject flow...');

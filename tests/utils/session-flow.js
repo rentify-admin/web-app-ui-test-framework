@@ -897,6 +897,380 @@ const createSessionForUser = async (
     return { sessionId, sessionUrl, link };
 };
 
+/**
+ * Complete session creation flow with VERIDOCS_PAYLOAD simulator via API
+ * @param {import('@playwright/test').Page} page
+ * @param {import('@playwright/test').Browser} browser
+ * @param {Object} adminCredentials
+ * @param {String} organizationName
+ * @param {String} applicationName
+ * @param {Object} userData
+ * @param {String} rentBudget
+ * @param {String} stateCode
+ * @returns {Object} { sessionId, sessionUrl, link }
+ */
+const createSessionWithSimulator = async (
+    page,
+    browser,
+    adminCredentials,
+    organizationName,
+    applicationName,
+    userData,
+    rentBudget = '2500',
+    stateCode = 'fl'
+) => {
+    console.log('🚀 Starting API-based session creation with VERIDOCS_PAYLOAD...');
+
+    // Step 1: Admin Login via API and get token
+    console.log('🔍 Logging in as admin via API...');
+    
+    // Generate UUID for login
+    const generateUUID = () => {
+        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+            const r = Math.random() * 16 | 0;
+            const v = c === 'x' ? r : (r & 0x3 | 0x8);
+            return v.toString(16);
+        });
+    };
+    
+    const adminLoginResponse = await page.request.post(`${app.urls.api}/auth`, {
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        data: {
+            email: adminCredentials.email,
+            password: adminCredentials.password,
+            uuid: generateUUID(),
+            os: 'web'
+        }
+    });
+
+    if (!adminLoginResponse.ok()) {
+        const errorText = await adminLoginResponse.text();
+        throw new Error(`Failed to login as admin: ${adminLoginResponse.status()} - ${errorText}`);
+    }
+
+    const adminAuth = await adminLoginResponse.json();
+    const authToken = adminAuth.data.token;
+
+    if (!authToken) {
+        throw new Error('Failed to get auth token from login response');
+    }
+
+    console.log('✅ Admin login successful, token retrieved');
+
+    // Step 2: Find application via API with retry logic and proper query parameters
+    console.log(`🔍 Finding application: ${applicationName} in organization: ${organizationName}`);
+    
+    const retryApiCall = async (apiCall, maxRetries = 3) => {
+        for (let i = 0; i < maxRetries; i++) {
+            try {
+                console.log(`🔄 Attempt ${i + 1}/${maxRetries} to fetch applications...`);
+                const startTime = Date.now();
+                const result = await apiCall();
+                const duration = Date.now() - startTime;
+                console.log(`✅ Applications fetched successfully in ${duration}ms`);
+                return result;
+            } catch (error) {
+                console.log(`❌ Attempt ${i + 1} failed: ${error.message}`);
+                if (i === maxRetries - 1) throw error;
+                await page.waitForTimeout(2000); // Wait 2 seconds before retry
+            }
+        }
+    };
+
+    const application = await retryApiCall(async () => {
+        const applicationsResponse = await page.request.get(`${app.urls.api}/applications`, {
+            headers: {
+                'Authorization': `Bearer ${authToken}`,
+                'Content-Type': 'application/json'
+            },
+            params: {
+                'fields[application]': 'id,name,organization',
+                'filters': JSON.stringify({
+                    "$and": [{
+                        "$or": { "name": { "$like": applicationName } }
+                    }]
+                }),
+                'limit': 50,
+                'page': 1,
+                'pagination': 'cursor'
+            },
+            timeout: 120000 // 2 minutes timeout like API tests
+        });
+
+        if (!applicationsResponse.ok()) {
+            const errorText = await applicationsResponse.text();
+            throw new Error(`Failed to fetch applications: ${applicationsResponse.status()} - ${errorText}`);
+        }
+
+        const response = await applicationsResponse.json();
+        console.log(`📊 Found ${response.data.length} applications`);
+        
+        const application = response.data.find(app => 
+            app.name === applicationName && 
+            app.organization.name === organizationName
+        );
+
+        if (!application) {
+            console.log(`❌ Application '${applicationName}' not found in organization '${organizationName}'`);
+            console.log(`📋 Available applications:`, response.data.map(app => `${app.name} (${app.organization.name})`));
+            throw new Error(`Application '${applicationName}' not found in organization '${organizationName}'`);
+        }
+
+        return application;
+    });
+
+    console.log(`✅ Application found: ${application.id}`);
+
+    // Step 3: Create session via API
+    console.log('🔍 Creating session via API...');
+    const sessionData = {
+        application: application.id,
+        first_name: userData.first_name,
+        last_name: userData.last_name,
+        email: userData.email,
+        invite: true
+    };
+
+    const sessionResponse = await page.request.post(`${app.urls.api}/sessions`, {
+        headers: {
+            'Authorization': `Bearer ${authToken}`,
+            'Content-Type': 'application/json'
+        },
+        data: sessionData
+    });
+
+    if (!sessionResponse.ok()) {
+        const errorText = await sessionResponse.text();
+        throw new Error(`Failed to create session: ${sessionResponse.status()} - ${errorText}`);
+    }
+
+    const session = await sessionResponse.json();
+    const sessionId = session.data.id;
+    const sessionUrl = session.data.url;
+
+    console.log(`✅ Session created via API: ${sessionId}`);
+
+    // Step 4: Login as guest using invitation token from session URL
+    console.log('🔍 Logging in as guest with invitation token...');
+    
+    // Extract token from session URL
+    const inviteUrl = new URL(sessionUrl);
+    const invitationToken = inviteUrl.searchParams.get('token');
+    
+    if (!invitationToken) {
+        throw new Error('No invitation token found in session URL');
+    }
+    
+    console.log('📋 Invitation token extracted from session URL');
+    
+    const guestLoginResponse = await page.request.post(`${app.urls.api}/auth/guests`, {
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        data: {
+            token: invitationToken,
+            uuid: generateUUID(),
+            os: 'web'
+        }
+    });
+
+    if (!guestLoginResponse.ok()) {
+        const errorText = await guestLoginResponse.text();
+        throw new Error(`Failed to login as guest: ${guestLoginResponse.status()} - ${errorText}`);
+    }
+
+    const guestAuth = await guestLoginResponse.json();
+    const guestToken = guestAuth.data.token;
+
+    console.log('✅ Guest login successful with invitation token');
+
+    // Step 5: Complete session steps via API
+    console.log('🔍 Completing session steps via API...');
+    
+    // Get current session state
+    const sessionDetailsResponse = await page.request.get(`${app.urls.api}/sessions/${sessionId}`, {
+        headers: {
+            'Authorization': `Bearer ${guestToken}`,
+            'Content-Type': 'application/json'
+        }
+    });
+
+    if (!sessionDetailsResponse.ok()) {
+        throw new Error(`Failed to get session details: ${sessionDetailsResponse.status()}`);
+    }
+
+    const sessionDetails = await sessionDetailsResponse.json();
+    console.log(`📊 Current step: ${sessionDetails.data.state.current_step.type}`);
+
+    // Complete START step if needed
+    if (sessionDetails.data.state.current_step.type === 'START') {
+        console.log('📄 Completing START step...');
+        
+        // Step 1: Create session step
+        const stepData = { step: sessionDetails.data.state.current_step.id };
+        const stepResponse = await page.request.post(`${app.urls.api}/sessions/${sessionId}/steps`, {
+            headers: {
+                'Authorization': `Bearer ${guestToken}`,
+                'Content-Type': 'application/json'
+            },
+            data: stepData
+        });
+        
+        const sessionStep = await stepResponse.json();
+        console.log(`✅ Session step created: ${sessionStep.data.id}`);
+        
+        // Step 2: Update session with rent budget (target)
+        console.log(`📄 Updating rent budget to ${rentBudget}...`);
+        await page.request.patch(`${app.urls.api}/sessions/${sessionId}`, {
+            headers: {
+                'Authorization': `Bearer ${guestToken}`,
+                'Content-Type': 'application/json'
+            },
+            data: {
+                target: rentBudget
+            }
+        });
+        console.log(`✅ Rent budget updated to ${rentBudget}`);
+        
+        // Step 3: Mark session step as COMPLETED
+        console.log('📄 Marking START step as completed...');
+        await page.request.patch(`${app.urls.api}/sessions/${sessionId}/steps/${sessionStep.data.id}`, {
+            headers: {
+                'Authorization': `Bearer ${guestToken}`,
+                'Content-Type': 'application/json'
+            },
+            data: {
+                status: 'COMPLETED'
+            }
+        });
+        console.log('✅ START step marked as completed');
+    }
+
+    // Step 6: Wait for step transition (polling like API tests)
+    console.log('⏳ Waiting for step transition from START...');
+    let updatedSession;
+    let transitionCount = 0;
+    const maxTransitionAttempts = 10;
+    
+    do {
+        const updatedSessionResponse = await page.request.get(`${app.urls.api}/sessions/${sessionId}`, {
+            headers: {
+                'Authorization': `Bearer ${guestToken}`,
+                'Content-Type': 'application/json'
+            }
+        });
+        updatedSession = await updatedSessionResponse.json();
+        
+        if (updatedSession.data.state.current_step?.type === 'START') {
+            console.log(`⏳ Still on START step, waiting... (attempt ${transitionCount + 1}/${maxTransitionAttempts})`);
+            await page.waitForTimeout(2000);
+        }
+        transitionCount++;
+    } while (updatedSession.data.state.current_step?.type === 'START' && transitionCount < maxTransitionAttempts);
+    
+    console.log(`📊 Current step after START: ${updatedSession.data.state.current_step.type}`);
+    console.log(`📊 Current step task key: ${updatedSession.data.state.current_step.task?.key}`);
+    
+    // Step 7: Complete FINANCIAL step with VERIDOCS_PAYLOAD
+    console.log('🏦 Completing FINANCIAL step with VERIDOCS_PAYLOAD...');
+    
+    if (updatedSession.data.state.current_step.type === 'FINANCIAL_VERIFICATION' || 
+        updatedSession.data.state.current_step.task?.key === 'FINANCIAL_VERIFICATION') {
+        // Create session step
+        const stepResponse = await page.request.post(`${app.urls.api}/sessions/${sessionId}/steps`, {
+            headers: {
+                'Authorization': `Bearer ${guestToken}`,
+                'Content-Type': 'application/json'
+            },
+            data: {
+                step: updatedSession.data.state.current_step.id
+            }
+        });
+
+        const step = await stepResponse.json();
+        console.log(`✅ Session step created: ${step.data.id}`);
+
+        // Get Simulation provider
+        const providersResponse = await page.request.get(`${app.urls.api}/providers`, {
+            headers: {
+                'Authorization': `Bearer ${guestToken}`,
+                'Content-Type': 'application/json'
+            }
+        });
+
+        const providers = await providersResponse.json();
+        const simulationProvider = providers.data.find(p => p.name === 'Simulation');
+
+        if (!simulationProvider) {
+            throw new Error('Simulation provider not found');
+        }
+
+        console.log(`✅ Simulation provider found: ${simulationProvider.id}`);
+
+        // Create financial verification with VERIDOCS_PAYLOAD
+        const { getVeridocsPayloadWellsFargo } = await import('../test_files/veridocs-payload-wells-fargo.js');
+        const veridocsPayloadRaw = getVeridocsPayloadWellsFargo();
+        
+        // Wrap payload in documents array like API tests do
+        const veridocsPayload = {
+            documents: [veridocsPayloadRaw]
+        };
+
+        const verificationData = {
+            step: step.data.id,
+            provider: simulationProvider.id,
+            simulation_type: 'VERIDOCS_PAYLOAD',
+            custom_payload: veridocsPayload
+        };
+
+        console.log('📋 Creating financial verification with VERIDOCS_PAYLOAD...');
+        const verificationResponse = await page.request.post(`${app.urls.api}/financial-verifications`, {
+            headers: {
+                'Authorization': `Bearer ${guestToken}`,
+                'Content-Type': 'application/json'
+            },
+            data: verificationData
+        });
+
+        if (!verificationResponse.ok()) {
+            const errorText = await verificationResponse.text();
+            throw new Error(`Failed to create financial verification: ${verificationResponse.status()} - ${errorText}`);
+        }
+
+        const verification = await verificationResponse.json();
+        console.log(`✅ Financial verification created: ${verification.data.id}`);
+
+        // Wait for verification to complete
+        console.log('⏳ Waiting for verification to complete...');
+        await page.waitForTimeout(15000); // Wait 15 seconds for VERIDOCS_PAYLOAD processing
+
+        // Update session step to completed
+        await page.request.patch(`${app.urls.api}/sessions/${sessionId}/steps/${step.data.id}`, {
+            headers: {
+                'Authorization': `Bearer ${guestToken}`,
+                'Content-Type': 'application/json'
+            },
+            data: {
+                status: 'COMPLETED'
+            }
+        });
+
+        console.log('✅ FINANCIAL step completed');
+    } else {
+        console.log(`⚠️ Current step is not FINANCIAL_VERIFICATION. Step type: ${updatedSession.data.state.current_step.type}`);
+        console.log(`⚠️ Skipping FINANCIAL step - session may need different workflow steps`);
+    }
+
+    console.log(`✅ Session created successfully via API. Session ID: ${sessionId}`);
+    return { 
+        sessionId, 
+        sessionUrl, 
+        link: sessionUrl // For compatibility with existing code
+    };
+};
+
 const updateStateModal = async (page, state = 'FLORIDA') => {
 
     let isStateVisible = false;
@@ -1459,14 +1833,85 @@ const waitForButtonOrAutoAdvance = async (
     return { buttonClicked, autoAdvanced };
 };
 
+/**
+ * Complete financial verification using Simulation provider with VERIDOCS_PAYLOAD via UI
+ * @param {import('@playwright/test').Page} page - Playwright page object
+ * @param {object} veridocsPayload - The Veridocs payload object
+ * @returns {Promise<void>}
+ */
+const simulatorFinancialStepWithVeridocs = async (page, veridocsPayload) => {
+    console.log('🚀 ~ Starting financial verification with Simulation provider (VERIDOCS_PAYLOAD) via UI...');
+
+    // Step 1: Wait for financial verification step to be visible
+    const financialStep = await page.getByTestId('financial-verification-step');
+    await expect(financialStep).toBeVisible();
+
+    // Step 2: Click "Upload Statement" button
+    console.log('🔍 Clicking Upload Statement button...');
+    const uploadStatementBtn = await page.getByTestId('financial-upload-statement-btn');
+    await expect(uploadStatementBtn).toBeVisible();
+    await uploadStatementBtn.click();
+    await page.waitForTimeout(2000);
+
+    // Step 3: Click "Connect Bank" button and handle browser prompt
+    console.log('🔍 Setting up browser prompt handler...');
+    const connectBankBtn = await page.getByTestId('connect-bank');
+    await expect(connectBankBtn).toBeVisible();
+    
+    // Convert the payload to JSON string
+    const payloadString = JSON.stringify(veridocsPayload);
+    console.log(`📋 Payload ready: ${payloadString.length} characters`);
+    
+    // Step 1: Click Connect Bank button first (manual flow)
+    console.log('🔍 Clicking Connect Bank button...');
+    await connectBankBtn.click();
+    console.log('✅ Connect Bank clicked');
+    
+    // Step 2: Wait for dialog to appear and handle it
+    console.log('🔍 Waiting for dialog to appear...');
+    const dialog = await page.waitForEvent('dialog', { timeout: 10000 });
+    
+    console.log('✅ Browser prompt detected!');
+    console.log(`📋 Dialog type: ${dialog.type()}`);
+    console.log(`📋 Dialog message: ${dialog.message()}`);
+    
+    // Step 3: Accept the prompt with the payload
+    console.log('📋 Sending payload to dialog...');
+    await dialog.accept(payloadString);
+    console.log('✅ Payload sent to browser prompt');
+    
+    // Step 4: Wait for simulator to process
+    console.log('⏳ Waiting for simulator to process payload...');
+    await page.waitForTimeout(5000);
+    console.log('✅ Simulator processing completed');
+    // Step 6: Check if connection row exists at all
+    console.log('🔍 Checking if connection row exists...');
+    const connectionRows = page.getByTestId('connection-row');
+    const rowCount = await connectionRows.count();
+    console.log(`📊 Found ${rowCount} connection row(s)`);
+    
+    if (rowCount === 0) {
+        console.log('❌ No connection rows found - simulator may not have processed the payload');
+        throw new Error('No connection rows found after simulator dialog');
+    }
+    
+    // Step 7: Wait for completion
+    console.log('⏳ Waiting for verification to complete...');
+    await expect(page.getByTestId('connection-row').filter({ hasText: /Complete|Completed/i })).toBeVisible({ timeout: 60000 });
+    
+    console.log('✅ Verification completed successfully via simulator UI');
+};
+
 export {
     uploadStatementFinancialStep,
+    simulatorFinancialStepWithVeridocs,
     completeApplicantForm,
     waitForConnectionCompletion,
     waitForPlaidConnectionCompletion,
     waitForPaystubConnectionCompletion,
     continueFinancialVerification,
     createSessionForUser,
+    createSessionWithSimulator,
     handleOptionalStateModal,
     employmentVerificationWalmartPayStub,
     skipEmploymentVerification,
