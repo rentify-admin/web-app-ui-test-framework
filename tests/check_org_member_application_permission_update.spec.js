@@ -38,11 +38,11 @@ test.describe('check_org_member_application_permission_update', () => {
 
         const memberTable = await page.getByTestId('members-table');
 
-        const targetText = 'Reviewer';
+        const targetEmail = 'test_reviwer@verifast.com';
 
-        console.log('🚀 Searching for the target member with role:', targetText);
+        console.log('🚀 Searching for the target member with email:', targetEmail);
         
-        // Use the search bar to find the member by role
+        // Use the search bar to find the member by email
         const searchBar = page.locator('input[placeholder*="Search"]');
         await page.waitForTimeout(1000); // Wait for animation
         await expect(searchBar).toBeVisible({ timeout: 10000 });
@@ -52,16 +52,16 @@ test.describe('check_org_member_application_permission_update', () => {
         await searchBar.focus();
         await page.waitForTimeout(500);
         
-        // Clear any existing content and search for the role
+        // Clear any existing content and search for the email
         await searchBar.clear();
-        await searchBar.fill(targetText);
+        await searchBar.fill(targetEmail);
         
         // Wait for search results and find the target member
         await page.waitForTimeout(1000); // Wait for search results to load
         
-        // Find the row that contains the target text
+        // Find the row that contains the target email
         const targetTdLocator = memberTable
-            .getByTestId('members-table-role-col').filter({ hasText: targetText }).first();
+            .getByTestId('members-table-email-col').filter({ hasText: targetEmail }).first();
         
         await expect(targetTdLocator).toBeVisible({ timeout: 10000 });
         console.log('✅ Target member found! Getting the parent row.');
@@ -90,7 +90,7 @@ test.describe('check_org_member_application_permission_update', () => {
         await lastRow.scrollIntoViewIfNeeded();
         console.log('✅ Last row is in view.');
 
-        const checkbox = lastRow.getByTestId('all-application-check-item');
+        const checkbox = lastRow.getByTestId('bind-view-application-check').locator('input[type="checkbox"]');
         const isInitiallyChecked = await checkbox.isChecked();
 
         if (!isInitiallyChecked) {
