@@ -4,9 +4,9 @@ import { admin, app } from './test_config';
 import { joinUrl } from './utils/helper';
 
 
-test.describe('heartbeat_income_source_menus.spec', () => {
+test.describe('heartbeat_logout_menu.spec.spec', () => {
 
-    test('Should check Income Sources menu heartbeat', {
+    test('Should check Logout flow heartbeat', {
         tag: ['@core', '@smoke', '@regression'],
     }, async ({ page }) => {
 
