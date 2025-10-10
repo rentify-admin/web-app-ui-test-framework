@@ -154,6 +154,9 @@ const searchSessionWithText = async (page, searchText) => {
     console.log('🚀 ~ searchSessionWithText called with:', searchText);
 
     const sessionSearchInput = await page.locator('[id="search_sessions"]');
+    
+    // Wait for the search input to be ready
+    await sessionSearchInput.waitFor({ state: 'visible', timeout: 10_000 });
 
     await expect(sessionSearchInput).toBeVisible();
     console.log('🚀 ~ Session search input is visible');

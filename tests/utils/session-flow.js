@@ -1902,9 +1902,174 @@ const simulatorFinancialStepWithVeridocs = async (page, veridocsPayload) => {
     console.log('✅ Verification completed successfully via simulator UI');
 };
 
+/**
+ * Complete Identity Verification step via API using PERSONA_PAYLOAD simulator
+ * @param {import('@playwright/test').Page} page - Playwright page object
+ * @param {String} sessionId - Session ID
+ * @param {String} guestToken - Guest authentication token
+ * @param {Object} userData - User data with first_name, last_name
+ * @param {String} userType - 'primary' or 'co-applicant'
+ * @param {Boolean} useMismatchedName - If true, uses completely different name (Maria Dominguez) to trigger flag
+ * @returns {Promise<void>}
+ */
+const completeIdentityStepViaAPI = async (page, sessionId, guestToken, userData, userType = 'primary', useMismatchedName = false) => {
+    console.log(`🚀 Starting Identity Verification via API for ${userType}...`);
+    
+    // Step 1: Get current session state
+    const sessionResponse = await page.request.get(`${app.urls.api}/sessions/${sessionId}`, {
+        headers: {
+            'Authorization': `Bearer ${guestToken}`,
+            'Content-Type': 'application/json'
+        }
+    });
+    
+    const session = await sessionResponse.json();
+    
+    // Step 2: Check if current step is IDENTITY_VERIFICATION
+    if (session.data.state.current_step.type !== 'IDENTITY_VERIFICATION' && 
+        session.data.state.current_step.task?.key !== 'IDENTITY_VERIFICATION') {
+        console.log(`⚠️ Current step is not IDENTITY_VERIFICATION. Step: ${session.data.state.current_step.type}`);
+        throw new Error('Cannot complete identity step - not on IDENTITY_VERIFICATION step');
+    }
+    
+    console.log('✅ On IDENTITY_VERIFICATION step');
+    
+    // Step 3: Create session step
+    const stepResponse = await page.request.post(`${app.urls.api}/sessions/${sessionId}/steps`, {
+        headers: {
+            'Authorization': `Bearer ${guestToken}`,
+            'Content-Type': 'application/json'
+        },
+        data: {
+            step: session.data.state.current_step.id
+        }
+    });
+    
+    const step = await stepResponse.json();
+    console.log(`✅ Session step created: ${step.data.id}`);
+    
+    // Step 4: Get Simulation provider
+    const providersResponse = await page.request.get(`${app.urls.api}/providers`, {
+        headers: {
+            'Authorization': `Bearer ${guestToken}`,
+            'Content-Type': 'application/json'
+        }
+    });
+    
+    const providers = await providersResponse.json();
+    const simulationProvider = providers.data.find(p => p.name === 'Simulation');
+    
+    if (!simulationProvider) {
+        throw new Error('Simulation provider not found');
+    }
+    
+    console.log(`✅ Simulation provider found: ${simulationProvider.id}`);
+    
+    // Step 5: Import persona payload function
+    const { getPrimaryPersonaPayload, getCoApplicantPersonaPayloadMismatch } = 
+        await import('../test_files/persona-id-household-test.js');
+    
+    // Step 6: Generate appropriate payload based on user type and mismatch
+    let personaPayload;
+    if (userType === 'primary') {
+        personaPayload = getPrimaryPersonaPayload(userData);
+        console.log(`📋 Using Primary Persona payload (name matches: ${userData.first_name} ${userData.last_name})`);
+    } else if (useMismatchedName) {
+        personaPayload = getCoApplicantPersonaPayloadMismatch();
+        console.log(`📋 Using Co-Applicant Persona payload with MISMATCHED name: X Y (expected: ${userData.first_name} ${userData.last_name}) - TRIGGERS FLAG`);
+    } else {
+        personaPayload = getPrimaryPersonaPayload(userData);
+        console.log(`📋 Using Co-Applicant Persona payload (name matches: ${userData.first_name} ${userData.last_name})`);
+    }
+    
+    // Step 7: Create identity verification with PERSONA_PAYLOAD
+    const verificationData = {
+        step: step.data.id,
+        provider: simulationProvider.id,
+        simulation_type: 'PERSONA_PAYLOAD',
+        custom_payload: personaPayload
+    };
+    
+    console.log('📋 Creating identity verification with PERSONA_PAYLOAD...');
+    const verificationResponse = await page.request.post(`${app.urls.api}/identity-verifications`, {
+        headers: {
+            'Authorization': `Bearer ${guestToken}`,
+            'Content-Type': 'application/json'
+        },
+        data: verificationData
+    });
+    
+    if (!verificationResponse.ok()) {
+        const errorText = await verificationResponse.text();
+        throw new Error(`Failed to create identity verification: ${verificationResponse.status()} - ${errorText}`);
+    }
+    
+    const verification = await verificationResponse.json();
+    console.log(`✅ Identity verification created: ${verification.data.id}`);
+    
+    // Step 8: Wait for verification to complete (polling)
+    console.log('⏳ Waiting for identity verification to complete...');
+    let verificationComplete = false;
+    let pollCount = 0;
+    const maxPolls = 10;
+    
+    while (!verificationComplete && pollCount < maxPolls) {
+        await page.waitForTimeout(4000); // Wait 4 seconds between polls
+        
+        const verificationCheckResponse = await page.request.get(`${app.urls.api}/identity-verifications`, {
+            headers: {
+                'Authorization': `Bearer ${guestToken}`,
+                'Content-Type': 'application/json'
+            },
+            params: {
+                filters: JSON.stringify({
+                    "$has": {
+                        "step": {
+                            "id": step.data.id
+                        }
+                    },
+                    "status": {
+                        "$neq": "EXPIRED"
+                    }
+                })
+            }
+        });
+        
+        const verifications = await verificationCheckResponse.json();
+        const currentVerification = verifications.data.find(v => v.id === verification.data.id);
+        
+        if (currentVerification && ['COMPLETED', 'PROCESSING'].includes(currentVerification.status)) {
+            verificationComplete = true;
+            console.log(`✅ Identity verification completed with status: ${currentVerification.status}`);
+        } else {
+            pollCount++;
+            console.log(`⏳ Verification not complete yet, polling... (${pollCount}/${maxPolls})`);
+        }
+    }
+    
+    if (!verificationComplete) {
+        throw new Error('Identity verification timed out');
+    }
+    
+    // Step 9: Mark session step as COMPLETED
+    console.log('📄 Marking IDENTITY step as completed...');
+    await page.request.patch(`${app.urls.api}/sessions/${sessionId}/steps/${step.data.id}`, {
+        headers: {
+            'Authorization': `Bearer ${guestToken}`,
+            'Content-Type': 'application/json'
+        },
+        data: {
+            status: 'COMPLETED'
+        }
+    });
+    
+    console.log(`✅ IDENTITY verification completed for ${userType}`);
+};
+
 export {
     uploadStatementFinancialStep,
     simulatorFinancialStepWithVeridocs,
+    completeIdentityStepViaAPI,
     completeApplicantForm,
     waitForConnectionCompletion,
     waitForPlaidConnectionCompletion,

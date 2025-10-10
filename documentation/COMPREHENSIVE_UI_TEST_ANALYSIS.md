@@ -1575,101 +1575,143 @@ Based on the test files in the framework, I've identified these categories:
 
 ---
 
-### **5. co_app_household_with_flag_errors.spec.js - Co-Applicant Household with Flag Errors**
+### **5. co_app_household_with_flag_errors.spec.js - Co-Applicant Flag Attribution and Household Status Transitions**
 
 #### **Complete Test Structure:**
-- **1 test** (380s timeout, currently skipped)
-- **Co-applicant household with flag errors** testing
-- **Tags**: @regression
+- **1 test** (380s timeout)
+- **Co-applicant flag attribution and household status transitions** testing
+- **Tags**: @regression, @household, @flag-attribution
 
-#### **Test: "Should complete applicant flow with co-applicant household with flag errors"**
-**Purpose**: Test co-applicant household flow with flag error handling and flag management functionality
+#### **Test: "Should verify co-applicant flag attribution and household status transitions"**
+**Purpose**: Test co-applicant flag attribution and household status transitions with API-based identity verification
+**Goal**: This test isolates co-applicant flag attribution and its effect on household status. Primary is intentionally kept clean; co-app is configured to trigger a flag.
+
+**Expected Flow:**
+1. Primary completes all steps (ID, Financial, Employment) and flags resolved → Status: APPROVED (UI: "Meets Criteria")
+2. Co-app invited but incomplete → GROUP_MISSING_IDENTITY flag → Status: REJECTED (UI: "Criteria Not Met")
+3. Co-app completes ID with name mismatch → GROUP_MISSING_IDENTITY gone, IDENTITY_NAME_MISMATCH_CRITICAL appears → Status: REJECTED (UI: "Criteria Not Met")
+4. Admin resolves co-app flag → Status: APPROVED (UI: "Meets Criteria")
+
+**Key Validations:**
+- Flags are attributed to correct applicant (primary vs co-app)
+- GROUP_MISSING_IDENTITY appears when co-app invited, disappears when co-app completes ID
+- IDENTITY_NAME_MISMATCH_CRITICAL appears for co-app name mismatch
+- Household status transitions correctly (APPROVED ↔ REJECTED)
+- API status = APPROVED corresponds to UI status = "Meets Criteria"
+
 **API Endpoints Called**:
-- `POST /auth` - Admin login (via loginForm.adminLoginAndNavigate)
+- `POST /auth` - Admin login (via loginForm.adminLoginAndNavigate, line 73)
   - **Response Used For**: Authentication and session establishment
   - **What's Actually Checked**: Response status is OK (200), admin login successful
-- `GET /applications?` - Search applications (via findAndInviteApplication)
+- `GET /applications?` - Search applications (via findAndInviteApplication, line 77)
   - **Response Used For**: Getting applications data for search
   - **What's Actually Checked**: Response status is OK (200), applications array is returned
-- `POST /sessions` - Create session (via generateSessionForm.generateSessionAndExtractLink)
+- `POST /sessions` - Create session (via generateSessionForm.generateSessionAndExtractLink, line 80)
   - **Response Used For**: Creating new session for applicant
   - **What's Actually Checked**: Response status is OK (200), session data is returned with sessionId and sessionUrl
-- `PATCH /sessions/{id}` - Update session applicant type (via selectApplicantType)
-  - **Response Used For**: Updating session with selected applicant type
+- `PATCH /sessions/{id}` - Update session rent budget (via updateRentBudget, line 97)
+  - **Response Used For**: Updating session with rent budget (500)
   - **What's Actually Checked**: Response status is OK (200), PATCH method successful
-- `PATCH /sessions/{id}` - Update session rent budget (via updateRentBudget)
-  - **Response Used For**: Updating session with rent budget amount
-  - **What's Actually Checked**: Response status is OK (200), PATCH method successful
-- `POST /applicants` - Create co-applicant (via fillhouseholdForm)
-  - **Response Used For**: Creating co-applicant record
-  - **What's Actually Checked**: Response status is OK (200), applicant data is returned
-- `PATCH /sessions/{id}/steps/` - Update session steps (via waitForResponse)
+- `POST /auth/guests` - Guest authentication (lines 130, 464)
+  - **Response Used For**: Authenticating primary and co-applicant guests with invitation tokens
+  - **What's Actually Checked**: Response status is OK (200), guest authentication successful, token retrieved
+- `POST /sessions/{id}/steps` - Create identity verification step (via completeIdentityStepViaAPI, lines 146, 480)
+  - **Response Used For**: Creating IDENTITY_VERIFICATION session step
+  - **What's Actually Checked**: Response status is OK (200), step created successfully
+- `POST /identity-verifications` - Create identity verification (via completeIdentityStepViaAPI, lines 146, 480)
+  - **Response Used For**: Submitting PERSONA_PAYLOAD for identity verification (matching name for primary, mismatched "Maria Dominguez" for co-applicant)
+  - **What's Actually Checked**: Response status is OK (200), identity verification created successfully
+- `PATCH /sessions/{id}/steps/{stepId}` - Complete identity verification step (via completeIdentityStepViaAPI, lines 146, 480)
+  - **Response Used For**: Marking IDENTITY_VERIFICATION step as COMPLETED
+  - **What's Actually Checked**: Response status is OK (200), step status updated to COMPLETED
+- `PATCH /sessions/{id}/steps/` - Update session steps for financial and employment (lines 160, 163)
   - **Response Used For**: Updating session step completion status
   - **What's Actually Checked**: Response status is OK (200), PATCH method successful
-- `GET /sessions?fields[session]` - Load sessions (via gotoPage)
-  - **Response Used For**: Getting sessions with children information
+- `POST /sessions/{id}/income-sources` - Add income source (line 180)
+  - **Response Used For**: Adding additional income source to prevent GROSS_INCOME_RATIO_EXCEEDED flag
+  - **What's Actually Checked**: Response status is OK (200), income source added successfully
+- `GET /sessions?fields[session]` - Load sessions (via gotoPage, line 201)
+  - **Response Used For**: Getting sessions for admin view
   - **What's Actually Checked**: Response status is OK (200), sessions array is returned
-- `GET /sessions/{id}?fields[session]` - Get session details (via waitForResponse)
-  - **Response Used For**: Getting complete session object with co-applicant data
+- `GET /sessions/{id}?fields[session]` - Get session details (lines 210, 386, 494)
+  - **Response Used For**: Getting complete session object with co-applicant data and flags
   - **What's Actually Checked**: Response status is OK (200), session data with children array is returned
-- `PATCH /sessions/{id}/flags` - Mark flag as non-issue (via markFlagAsNonIssue)
-  - **Response Used For**: Updating flag status to non-issue
+- `PATCH /sessions/{id}/flags` - Mark flag as non-issue (via markFlagAsNonIssue, lines 238, 276, 535)
+  - **Response Used For**: Updating flag status to non-issue for INCOME_SOURCE_CADENCE_MISMATCH_ERROR, EMPLOYEE_NAME_MISMATCH_CRITICAL, and IDENTITY_NAME_MISMATCH_CRITICAL
   - **What's Actually Checked**: Response status is OK (200), PATCH method successful
+- `GET /sessions/{id}` - Get session status (lines 316, 546)
+  - **Response Used For**: Polling for session status changes (APPROVED/REJECTED)
+  - **What's Actually Checked**: Response status is OK (200), approval_status field is validated
+- `POST /applicants` - Create co-applicant (via fillhouseholdForm, line 368)
+  - **Response Used For**: Creating co-applicant record
+  - **What's Actually Checked**: Response status is OK (200), applicant data is returned
 
 #### **Detailed Steps:**
-1. **Admin Login and Navigation** - Login as admin and navigate to applications page
-2. **Find and Invite Application** - Search for "AutoTest Suite - Full Test" application and click invite
-3. **Generate Session** - Create session with user data and extract invite link
-4. **Open Invite URL** - Navigate to applicant invite URL
-5. **Select Applicant Type** - Select applicant type (default affordable_primary)
-6. **Handle State Modal** - Handle optional state modal if present
-7. **Update Rent Budget** - Set rent budget to "2200"
-8. **Add Co-Applicant** - Fill household form with co-applicant data
-9. **Complete Co-Applicant Step** - Click continue button to complete co-applicant step
-10. **Skip ID Verification** - Click skip button for ID verification
-11. **Complete Financial Step** - Complete Plaid financial connection with Betterment
-12. **Wait for Plaid Completion** - Wait for Plaid connection to complete
-13. **Complete Paystub Connection** - Complete paystub connection with Paychex
-14. **Wait for Paystub Completion** - Wait for paystub connection to complete
-15. **Complete Employment Step** - Click continue button to complete employment step
-16. **Navigate to Sessions** - Go to sessions page to view session details
-17. **Search for Session** - Search for the specific session by ID
-18. **Click Session** - Click on session card to view details
-19. **Validate Co-Applicant Data** - Check that co-applicant data is present
-20. **Check Approval Status** - Verify session approval status
-21. **Handle Flag Errors** - If status is REJECTED, handle GROSS_INCOME_RATIO_EXCEEDED flag
-22. **Mark Flag as Non-Issue** - Mark the flag as non-issue with comment
-23. **Close Event History** - Close the event history modal
-24. **Invite Co-Applicant** - Click session action button and invite co-applicant
-25. **Copy Invite Link** - Copy the co-applicant invite link with error handling
-26. **Open Co-Applicant Link** - Navigate to co-applicant invite URL
-27. **Select Co-Applicant Type** - Select applicant type for co-applicant
-28. **Update Co-Applicant State** - Update state modal for co-applicant
-29. **Skip Co-Applicant ID** - Click skip button for co-applicant ID verification
-30. **Complete Co-Applicant Financial** - Complete Plaid connection for co-applicant with no income
-31. **Wait for Co-Applicant Plaid** - Wait for co-applicant Plaid connection to complete
-32. **Complete Co-Applicant Paystub** - Complete paystub connection for co-applicant
-33. **Wait for Co-Applicant Paystub** - Wait for co-applicant paystub connection to complete
-34. **Complete Co-Applicant Employment** - Complete employment step for co-applicant
-35. **Reload Session** - Reload the main session page to get updated data
-36. **Search Updated Session** - Search for the updated session
-37. **Click Updated Session** - Click on the updated session card
-38. **Verify Final Status** - Verify session status is AWAITING_REVIEW
+1. **Admin Login and Navigation** (line 73) - Login as admin and navigate to applications page
+2. **Find and Invite Application** (line 77) - Search for "Autotest - Household UI test" application and click invite
+3. **Generate Session** (line 80) - Create session with primary applicant user data (first_name: 'Primary', last_name: 'Applicant', email: 'primary.applicant@verifast.com') and extract invite link
+4. **Open Invite URL** (line 88) - Navigate to applicant invite URL in new browser context
+5. **Select Applicant Type** (line 91) - Select applicant type on page
+6. **Handle State Modal** (line 94) - Handle optional state modal if present
+7. **Update Rent Budget** (line 97) - Set rent budget to "500"
+8. **Skip Applicants Step** (line 104) - Click skip button on applicants step (co-applicant will be added later from primary page)
+9. **PRIMARY: Complete ID Verification via API** (lines 109-147) - Extract guest token from invitation URL, authenticate as guest, complete identity verification via API with matching name (should PASS)
+10. **PRIMARY: Complete Financial Step** (line 151) - Complete Plaid financial connection with 'custom_gig' user and 'test' password
+11. **PRIMARY: Wait for Plaid Completion** (line 153) - Wait for Plaid connection to complete
+12. **PRIMARY: Complete Paystub Connection** (line 155) - Complete paystub connection with Paychex
+13. **PRIMARY: Wait for Paystub Completion** (line 157) - Wait for paystub connection to complete
+14. **PRIMARY: Complete Employment Step** (line 163) - Click continue button to complete employment step
+15. **Add Income Source via API** (lines 169-195) - Add additional $500 income source via API to prevent GROSS_INCOME_RATIO_EXCEEDED flag from being generated
+16. **Navigate to Admin View** (line 201) - Navigate to sessions page to view session details
+17. **Search for Session** (line 205) - Search for the specific session by ID
+18. **Open Primary Session** (line 213) - Click on session card to view details
+19. **Resolve Primary Flags - Polling for INCOME_SOURCE_CADENCE_MISMATCH_ERROR** (lines 223-262) - Poll for flag (max 1 min, 2s intervals) and mark as non-issue if found
+20. **Resolve Primary Flags - Polling for EMPLOYEE_NAME_MISMATCH_CRITICAL** (lines 264-300) - Poll for flag (max 1 min, 2s intervals) and mark as non-issue if found
+21. **Close Event History Modal** (line 303) - Close the event history modal after resolving flags
+22. **ASSERTION 1 (API)** (lines 307-341) - Poll for household status = APPROVED after flag resolution (max 30 sec, 2s intervals)
+23. **ASSERTION 1 (UI)** (lines 343-347) - Verify household-status-alert shows "Meets Criteria"
+24. **Navigate to Applicants Step from Primary Page** (lines 350-363) - Click on 2nd step-APPLICANTS-lg element to navigate to applicants step
+25. **Add Co-Applicant from Primary Page** (lines 366-374) - Fill household form with co-applicant data (first_name: 'CoApplicant', last_name: 'Household') and click continue to invite
+26. **Close Primary Applicant Page** (line 377) - Close the primary applicant page after co-applicant invitation
+27. **ASSERTION 2a** (lines 379-400) - Reload admin view, search for session, open details, verify GROUP_MISSING_IDENTITY flag is PRESENT (co-app invited but incomplete)
+28. **ASSERTION 2b** (lines 406-415) - Verify household status = REJECTED (API) and "Criteria Not Met" (UI) after co-app invitation
+29. **Get Co-Applicant Invite Link** (lines 418-425) - Extract co-applicant invite URL from session children
+30. **Open Co-Applicant Link** (lines 428-441) - Navigate to co-applicant invite URL in new browser context
+31. **CO-APPLICANT: Select Applicant Type** (line 444) - Select applicant type on co-applicant page
+32. **CO-APPLICANT: Update State Modal** (line 447) - Select state in the state modal
+33. **CO-APPLICANT: Complete ID Verification via API with Name Mismatch** (lines 452-481) - Extract guest token, authenticate as guest, complete identity verification via API with mismatched name "Maria Dominguez" (should trigger IDENTITY_NAME_MISMATCH_CRITICAL flag)
+34. **Close Co-Applicant Page** (line 485) - Close the co-applicant page after ID verification
+35. **ASSERTION 3a** (lines 487-510) - Reload admin view, search for session, open details, verify GROUP_MISSING_IDENTITY flag is GONE (co-app completed ID)
+36. **ASSERTION 3b** (lines 512-521) - Verify IDENTITY_NAME_MISMATCH_CRITICAL flag is PRESENT and shows co-applicant name in UI (flag attribution)
+37. **ASSERTION 3c** (lines 523-531) - Verify household status = REJECTED (API) and "Criteria Not Met" (UI) due to name mismatch flag
+38. **Resolve Co-Applicant Flag** (lines 533-542) - Mark IDENTITY_NAME_MISMATCH_CRITICAL flag as non-issue and close event history modal
+39. **ASSERTION 4** (lines 544-561) - Verify household status restored to APPROVED (API) and "Meets Criteria" (UI) after resolving all flags
+40. **Test Summary** (lines 563-576) - Log complete test summary with all assertions passed
 
 #### **Key Business Validations:**
-- **Co-Applicant Household Management** - Tests co-applicant household flow with multiple applicants
-- **Flag Error Handling** - Tests handling of GROSS_INCOME_RATIO_EXCEEDED flag errors
-- **Flag Management** - Tests marking flags as non-issue with comments
-- **Approval Status Workflow** - Tests session approval status changes (REJECTED to AWAITING_REVIEW)
-- **Financial Data Validation** - Tests financial connections with different income scenarios
-- **Error Recovery** - Tests recovery from flag errors and status updates
-- **Clipboard Operations** - Tests clipboard operations with error handling and fallback methods
-- **Session State Management** - Ensures session data updates correctly after co-applicant completion
-- **UI State Persistence** - Validates UI updates reflect new session status
-- **Robust Error Handling** - Tests comprehensive error handling for clipboard and link operations
+- **Flag Attribution to Correct Applicant** - Validates flags are correctly attributed to primary vs co-applicant in UI
+- **GROUP_MISSING_IDENTITY Flag Lifecycle** - Tests flag appears when co-app invited, disappears when co-app completes ID
+- **IDENTITY_NAME_MISMATCH_CRITICAL Flag Triggering** - Tests name mismatch detection with "Maria Dominguez" vs "CoApplicant Household"
+- **Household Status Transitions (API)** - Tests status changes: APPROVED → REJECTED (co-app invited) → REJECTED (name mismatch) → APPROVED (flag resolved)
+- **Household Status Transitions (UI)** - Tests UI status: "Meets Criteria" → "Criteria Not Met" → "Criteria Not Met" → "Meets Criteria"
+- **API Status Mapping** - Validates API status APPROVED corresponds to UI status "Meets Criteria"
+- **Primary Applicant Completion** - Tests primary must complete ID (not skip) to avoid GROUP_MISSING_IDENTITY flags
+- **API-Based Identity Verification** - Tests Persona simulation via API using completeIdentityStepViaAPI utility
+- **Guest Token Authentication** - Tests extracting invitation tokens from URL and authenticating via POST /auth/guests
+- **Income Source Addition via API** - Tests adding income source to prevent GROSS_INCOME_RATIO_EXCEEDED flag
+- **Flag Polling with Retry Logic** - Tests polling for flags (INCOME_SOURCE_CADENCE_MISMATCH_ERROR, EMPLOYEE_NAME_MISMATCH_CRITICAL) with 1-minute max wait
+- **Status Polling with Retry Logic** - Tests polling for status changes with 30-second max wait
+- **Flag Resolution Workflow** - Tests marking multiple flags as non-issue (primary financial/employment flags, co-app identity flag)
+- **Co-Applicant Invitation from Primary Page** - Tests adding co-app using 2nd step-APPLICANTS-lg element from primary applicant context
+- **Multi-Stage Assertions** - Tests 4 major assertion stages with API and UI validation at each stage
+- **Rent Budget Configuration** - Tests rent budget set to $500
+- **Financial Provider Selection** - Tests custom_gig user for more financial transactions
+- **Employment Step UI-Based** - Tests employment verification remains UI-based (not VERIDOCS simulation)
+- **Context Management** - Tests proper handling of multiple browser contexts (admin, primary applicant, co-applicant)
+- **Modal Management** - Tests opening/closing event history modal and view details modal multiple times
 
 #### **Overlap Assessment:**
-**NO OVERLAP** - This test is unique in its focus on co-applicant household flow with flag error handling and flag management functionality.
+**NO OVERLAP** - This test is unique in its focus on co-applicant flag attribution, household status transitions, and comprehensive multi-stage validation with both API and UI checks at each transition point.
 
 ---
 
@@ -2014,7 +2056,7 @@ Based on the test files in the framework, I've identified these categories:
 | `frontend-session-heartbeat.spec.js` | **Complete E2E Session Flow** | • **Complete E2E user journey**<br>• **Co-applicant workflow**<br>• **State modal handling**<br>• **Manual upload options**<br>• **Skip functionality**<br>• **Intelligent button interaction**<br>• **Employment verification via iframe** | **NO OVERLAP** - Different business flow, different validation approach |
 | `application_flow_with_id_only.spec.js` | **ID-Only Application Flow** | • **ID-only application flow**<br>• **Persona identity verification**<br>• **Document upload functionality**<br>• **Passport document processing**<br>• **Iframe integration**<br>• **Session state management** | **NO OVERLAP** - Different application type, different verification approach |
 | `application_step_should_skip_properly.spec.js` | **Application Step Skip Functionality** | • **Step skip functionality**<br>• **Skip button visibility and behavior**<br>• **Step navigation and state management**<br>• **Summary page updates**<br>• **Co-applicant management after skips**<br>• **Employment verification after skips**<br>• **Rent budget updates**<br>• **UI state persistence** | **NO OVERLAP** - Different focus on skip functionality and step behavior validation |
-| `co_app_household_with_flag_errors.spec.js` | **Co-Applicant Household with Flag Errors** | • **Co-applicant household management**<br>• **Flag error handling**<br>• **Flag management and marking as non-issue**<br>• **Approval status workflow**<br>• **Error recovery mechanisms**<br>• **Clipboard operations with error handling**<br>• **Robust error handling**<br>• **Session state management** | **NO OVERLAP** - Different focus on flag error handling and household management |
+| `co_app_household_with_flag_errors.spec.js` | **Co-Applicant Flag Attribution and Status Transitions** | • **Flag attribution to correct applicant (primary vs co-app)**<br>• **GROUP_MISSING_IDENTITY flag lifecycle**<br>• **IDENTITY_NAME_MISMATCH_CRITICAL flag triggering**<br>• **Household status transitions (APPROVED ↔ REJECTED)**<br>• **API-UI status mapping validation**<br>• **API-based identity verification with Persona**<br>• **Guest token authentication from invitation URL**<br>• **Multi-stage assertions (4 stages with API + UI)**<br>• **Flag polling with retry logic**<br>• **Co-applicant invitation from primary page** | **NO OVERLAP** - Unique focus on flag attribution, status transitions, and comprehensive multi-stage validation |
 | `skip_button_visibility_logic.spec.js` | **Skip Button Visibility Logic Testing** | • **Skip button visibility logic across all verification steps**<br>• **UI state management validation**<br>• **Button interaction logic testing**<br>• **Step completion validation**<br>• **Multi-step workflow testing**<br>• **Error handling for skip button logic**<br>• **Applicants step skip logic**<br>• **Identity verification skip logic**<br>• **Financial verification skip logic**<br>• **Employment verification skip logic** | **NO OVERLAP** - Different focus on comprehensive skip button visibility logic and UI state management |
 | `user_flags_approve_reject_test.spec.js` | **User Flags Approve Reject Test** | • **Session flag management and approval/rejection workflows**<br>• **Flag marking as issue/non-issue functionality**<br>• **Flag section management and movement**<br>• **Session approval workflow validation**<br>• **Session rejection workflow validation**<br>• **Flag commenting system**<br>• **Session status management**<br>• **Financial flag handling**<br>• **Income source flag handling**<br>• **Transaction flag handling**<br>• **Session state persistence** | **NO OVERLAP** - Different focus on session flag management and approval/rejection workflows |
 
