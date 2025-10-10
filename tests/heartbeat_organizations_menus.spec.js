@@ -8,7 +8,7 @@ import { customUrlDecode, joinUrl } from './utils/helper';
 test.describe('heartbeat_organizations_menus.spec', () => {
 
     test('Should check Organizations menu heartbeat', {
-        tag: ['@core', '@smoke', '@regression'],
+        tag: ['@core', '@smoke', '@regression', '@critical'],
     }, async ({ page }) => {
 
         await page.goto('/');

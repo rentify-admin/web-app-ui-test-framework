@@ -7,7 +7,7 @@ import { navigateToSubMenu, verifyListContent } from './utils/heartbeat-helper';
 test.describe('heartbeat_settings_menus.spec', () => {
 
     test('Should check Settings menu heartbeat', {
-        tag: ['@core', '@smoke', '@regression'],
+        tag: ['@core', '@smoke', '@regression', '@critical'],
     }, async ({ page }) => {
 
         await page.goto('/');

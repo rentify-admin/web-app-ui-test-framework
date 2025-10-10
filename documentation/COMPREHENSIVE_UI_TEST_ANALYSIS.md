@@ -20,12 +20,13 @@ Based on the test files in the framework, I've identified these categories:
 
 1. **Authentication & Permission Tests** (4 files)
 2. **Financial Verification Tests** (5 files) 
-3. **Application Management Tests** (7 files)
-4. **Session Flow Tests** (3 files)
+3. **Application Management Tests** (3 files)
+4. **Session Flow Tests** (7 files)
 5. **Document Processing Tests** (3 files)
 6. **System Health Tests** (2 files)
 7. **Workflow Management Tests** (2 files)
 8. **Integration Tests** (2 files)
+9. **Menu Heartbeat Tests** (13 files)
 
 ---
 
@@ -1768,29 +1769,56 @@ Based on the test files in the framework, I've identified these categories:
 #### **Test Describe 1: "Session Flag"**
 
 ##### **Test 1: "Should create applicant session for flag issue"**
-**Purpose**: Create a session for flag management testing
+**Purpose**: Create a session for flag management testing using API-based session creation with VERIDOCS simulator
 **API Endpoints Called**:
-- `POST /auth` - Admin authentication (via createSessionForUser utility)
+- `POST /auth` - Admin authentication (via createSessionWithSimulator → admin login)
   - **Response Used For**: Authentication for session creation
-  - **What's Actually Checked**: Admin login successful, session creation initiated
-- `GET /applications?` - Search applications (via createSessionForUser utility)
+  - **What's Actually Checked**: Admin login successful with token retrieved
+- `GET /applications?` - Search applications (via createSessionWithSimulator → application search)
   - **Response Used For**: Finding 'AutoTest - Flag Issue V2' application
-  - **What's Actually Checked**: Application found and selected
-- `POST /sessions` - Create session (via createSessionForUser utility)
+  - **What's Actually Checked**: Application found, applicationId extracted
+- `POST /sessions` - Create session (via createSessionWithSimulator → session creation)
   - **Response Used For**: Creating new session for flag testing
-  - **What's Actually Checked**: Session created successfully, sessionId returned
-- `PATCH /sessions/{id}` - Update session (via createSessionForUser utility)
-  - **Response Used For**: Setting up session with rent budget and financial data
-  - **What's Actually Checked**: Session updated with test data
+  - **What's Actually Checked**: Session created successfully, sessionId and invitation URL returned
+- `POST /auth/guests` - Guest authentication (via createSessionWithSimulator → guest login)
+  - **Response Used For**: Guest login with invitation token
+  - **What's Actually Checked**: Guest authenticated, guestToken retrieved
+- `POST /sessions/{id}/steps` - Create START step (via createSessionWithSimulator)
+  - **Response Used For**: Creating START session step
+  - **What's Actually Checked**: Step created successfully, stepId returned
+- `PATCH /sessions/{id}` - Update rent budget (via createSessionWithSimulator)
+  - **Response Used For**: Setting rent budget to 2500
+  - **What's Actually Checked**: Session updated with rent budget
+- `PATCH /sessions/{id}/steps/{stepId}` - Complete START step (via createSessionWithSimulator)
+  - **Response Used For**: Marking START step as COMPLETED
+  - **What's Actually Checked**: Step status updated to COMPLETED
+- `GET /providers` - Get Simulation provider (via createSessionWithSimulator)
+  - **Response Used For**: Finding Simulation provider for VERIDOCS
+  - **What's Actually Checked**: Simulation provider found and selected
+- `POST /sessions/{id}/steps` - Create FINANCIAL step (via createSessionWithSimulator)
+  - **Response Used For**: Creating FINANCIAL_VERIFICATION session step
+  - **What's Actually Checked**: Step created successfully, stepId returned
+- `POST /financial-verifications` - Create financial verification (via createSessionWithSimulator)
+  - **Response Used For**: Submitting VERIDOCS_PAYLOAD for financial verification
+  - **What's Actually Checked**: Financial verification created successfully
+- `PATCH /sessions/{id}/steps/{stepId}` - Complete FINANCIAL step (via createSessionWithSimulator)
+  - **Response Used For**: Marking FINANCIAL step as COMPLETED
+  - **What's Actually Checked**: Step status updated to COMPLETED
 
 **Steps**:
-1. Create session using `createSessionForUser` utility with:
+1. Create session using `createSessionWithSimulator` utility (API-based, lines 45-54) with:
    - Organization: 'Permissions Test Org'
    - Application: 'AutoTest - Flag Issue V2'
    - User data: { first_name: 'Flag Issue', last_name: 'Testing', email: 'FlagIssueTesting@verifast.com' }
    - Rent budget: '2500'
    - State: 'fl'
-2. Store sessionId in `flagIssueSession` variable for subsequent tests
+2. Admin login via POST /auth API
+3. Find application via GET /applications API
+4. Create session via POST /sessions API
+5. Guest login via POST /auth/guests API with invitation token
+6. Complete START step via API (create step, update rent budget, mark complete)
+7. Complete FINANCIAL step via API (create step, submit VERIDOCS_PAYLOAD, mark complete)
+8. Store sessionId in `flagIssueSession` variable for subsequent tests
 
 ##### **Test 2: "Check Session Flag"**
 **Purpose**: Test comprehensive flag management functionality
@@ -1826,64 +1854,129 @@ Based on the test files in the framework, I've identified these categories:
 #### **Test Describe 2: "Session Approve/Reject"**
 
 ##### **Test 3: "Should create applicant session for approve reject"**
-**Purpose**: Create a session for approval/rejection testing
+**Purpose**: Create a session for approval/rejection testing using API-based session creation with VERIDOCS simulator
 **API Endpoints Called**:
-- `POST /auth` - Admin authentication (via createSessionForUser utility)
+- `POST /auth` - Admin authentication (via createSessionWithSimulator → admin login)
   - **Response Used For**: Authentication for session creation
-  - **What's Actually Checked**: Admin login successful, session creation initiated
-- `GET /applications?` - Search applications (via createSessionForUser utility)
+  - **What's Actually Checked**: Admin login successful with token retrieved
+- `GET /applications?` - Search applications (via createSessionWithSimulator → application search)
   - **Response Used For**: Finding 'AutoTest - Flag Issue V2' application
-  - **What's Actually Checked**: Application found and selected
-- `POST /sessions` - Create session (via createSessionForUser utility)
+  - **What's Actually Checked**: Application found, applicationId extracted
+- `POST /sessions` - Create session (via createSessionWithSimulator → session creation)
   - **Response Used For**: Creating new session for approval/rejection testing
-  - **What's Actually Checked**: Session created successfully, sessionId returned
-- `PATCH /sessions/{id}` - Update session (via createSessionForUser utility)
-  - **Response Used For**: Setting up session with rent budget and financial data
-  - **What's Actually Checked**: Session updated with test data
+  - **What's Actually Checked**: Session created successfully, sessionId and invitation URL returned
+- `POST /auth/guests` - Guest authentication (via createSessionWithSimulator → guest login)
+  - **Response Used For**: Guest login with invitation token
+  - **What's Actually Checked**: Guest authenticated, guestToken retrieved
+- `POST /sessions/{id}/steps` - Create START step (via createSessionWithSimulator)
+  - **Response Used For**: Creating START session step
+  - **What's Actually Checked**: Step created successfully, stepId returned
+- `PATCH /sessions/{id}` - Update rent budget (via createSessionWithSimulator)
+  - **Response Used For**: Setting rent budget to 2500
+  - **What's Actually Checked**: Session updated with rent budget
+- `PATCH /sessions/{id}/steps/{stepId}` - Complete START step (via createSessionWithSimulator)
+  - **Response Used For**: Marking START step as COMPLETED
+  - **What's Actually Checked**: Step status updated to COMPLETED
+- `GET /providers` - Get Simulation provider (via createSessionWithSimulator)
+  - **Response Used For**: Finding Simulation provider for VERIDOCS
+  - **What's Actually Checked**: Simulation provider found and selected
+- `POST /sessions/{id}/steps` - Create FINANCIAL step (via createSessionWithSimulator)
+  - **Response Used For**: Creating FINANCIAL_VERIFICATION session step
+  - **What's Actually Checked**: Step created successfully, stepId returned
+- `POST /financial-verifications` - Create financial verification (via createSessionWithSimulator)
+  - **Response Used For**: Submitting VERIDOCS_PAYLOAD for financial verification
+  - **What's Actually Checked**: Financial verification created successfully
+- `PATCH /sessions/{id}/steps/{stepId}` - Complete FINANCIAL step (via createSessionWithSimulator)
+  - **Response Used For**: Marking FINANCIAL step as COMPLETED
+  - **What's Actually Checked**: Step status updated to COMPLETED
 
 **Steps**:
-1. Create session using `createSessionForUser` utility with:
+1. Create session using `createSessionWithSimulator` utility (API-based, lines 149-158) with:
    - Organization: 'Permissions Test Org'
    - Application: 'AutoTest - Flag Issue V2'
    - User data: { first_name: 'Approval_reject', last_name: 'Testing', email: 'ApprovalRejecttesting@verifast.com' }
    - Rent budget: '2500'
    - State: 'fl'
-2. Store sessionId in `approveRejectSession` variable for subsequent tests
+2. Admin login via POST /auth API
+3. Find application via GET /applications API
+4. Create session via POST /sessions API
+5. Guest login via POST /auth/guests API with invitation token
+6. Complete START step via API (create step, update rent budget, mark complete)
+7. Complete FINANCIAL step via API (create step, submit VERIDOCS_PAYLOAD, mark complete)
+8. Store sessionId in `approveRejectSession` variable for subsequent tests
 
 ##### **Test 4: "Check session by Approving and Rejecting"**
-**Purpose**: Test session approval and rejection workflows
+**Purpose**: Test session approval and rejection workflows with document approval and flag marking
 **API Endpoints Called**:
-- `POST /auth` - Admin login (via loginForm.adminLoginAndNavigate)
+- `POST /auth` - Admin login (via loginForm.adminLoginAndNavigate, line 167)
   - **Response Used For**: Authentication and session establishment
   - **What's Actually Checked**: Response status is OK (200), admin login successful
-- `GET /sessions?fields[session]=` - Search sessions (via searchSessionWithText)
+- `GET /sessions?fields[session]=` - Search sessions (via searchSessionWithText, line 183)
   - **Response Used For**: Finding session by ID
   - **What's Actually Checked**: Response status is OK (200), sessions data array is returned
-- `GET /sessions/{id}?fields[session]=` - Get session details (via navigateToSessionById)
+- `GET /sessions/{id}?fields[session]=` - Get session details (via navigateToSessionById, line 184)
   - **Response Used For**: Loading session data for navigation
   - **What's Actually Checked**: Response status is OK (200), session data is returned
-- `PATCH /sessions/{id}` - Approve session (via checkSessionApproveReject)
+- `PATCH /sessions/{id}/flags` - Mark flags as issues (lines 257-283)
+  - **Response Used For**: Marking flags in "Items Requiring Review" as issues
+  - **What's Actually Checked**: Response status is OK (200), flag status updated for each flag
+- `PATCH /sessions/{id}` - Approve session (via checkSessionApproveReject, line 301)
   - **Response Used For**: Approving session
   - **What's Actually Checked**: Response status is OK (200), session approved
-- `PATCH /sessions/{id}` - Reject session (via checkSessionApproveReject)
+- `PATCH /sessions/{id}` - Reject session (via checkSessionApproveReject, line 301)
   - **Response Used For**: Rejecting session
   - **What's Actually Checked**: Response status is OK (200), session rejected
 
 **Steps**:
-1. **Admin login and navigation** (via loginForm.adminLoginAndNavigate utility)
-2. **Smart menu navigation** (check if applicants-menu is already open before clicking)
-3. **Session search and navigation** (via searchSessionWithText and navigateToSessionById utilities)
-4. **Session status validation** (verify session status shows "Unreviewed")
-5. **Approval/rejection workflow** (via checkSessionApproveReject utility)
+1. **Admin login and navigation** (lines 167-168, via loginForm.adminLoginAndNavigate utility)
+2. **Smart menu navigation** (lines 172-178, check if applicants-menu is already open before clicking)
+3. **Session search and navigation** (lines 183-184, via searchSessionWithText and navigateToSessionById utilities)
+4. **Session status validation** (lines 187-189, verify session status shows "Unreviewed")
+5. **Document approval process** (lines 192-229):
+   - Click files section header to open files section
+   - Find and click files document status pill link
+   - Wait for decision modal to appear
+   - Click accept button in decision modal
+   - Wait for pill to show success accepted with 30s timeout
+6. **View Details and mark flags** (lines 231-297):
+   - Click View Details button
+   - Find "Items Requiring Review" section
+   - Iterate through all flags in the section
+   - For each flag:
+     - Click "mark as issue" button
+     - Fill reason textarea
+     - Click confirm button
+     - Wait for modal to close
+   - Close event history modal using close-event-history-modal testid
+7. **Approval/rejection workflow** (line 301, via checkSessionApproveReject utility):
+   - **Approval Process**:
+     - Locate and click approve-session-btn (with session-action-btn fallback)
+     - Click confirm button
+     - Wait for PATCH /sessions/{id} response (approval)
+     - Wait for GET /sessions/{id} response (session reload)
+     - Verify approval response data
+   - **Rejection Process**:
+     - Scroll to session action button
+     - Click reject-session-btn
+     - Click confirm button
+     - Wait for PATCH /sessions/{id} response (rejection)
+     - Wait for GET /sessions/{id} response (session reload)
+     - Verify rejection response data
 
 #### **Key Business Validations:**
+- **API-Based Session Creation**: Complete session creation via API using VERIDOCS simulator
+- **VERIDOCS Payload Simulation**: Financial verification using simulation provider
+- **Guest Authentication**: Token-based guest login from invitation URL
+- **Session Steps API Management**: Complete START and FINANCIAL steps via API
+- **Document Approval Workflow**: Approve documents before session approval with success class validation (bg-success-light)
+- **Items Requiring Review**: Automatically mark all flags in "Items Requiring Review" section as issues
+- **Dynamic Flag Iteration**: Loop through all flags dynamically and mark each as issue with reason
 - **Session Flag Management**: Mark flags as issues/non-issues with comments
 - **Flag Section Movement**: Flags move between decline and review sections
-- **Session Approval Workflow**: Complete session approval process
+- **Session Approval Workflow**: Complete session approval process after marking flags
 - **Session Rejection Workflow**: Complete session rejection process
-- **Modal Management**: Event history and financial status modals
+- **Modal Management**: Event history modal, decision modal, and financial status modals
 - **Smart Menu Navigation**: Prevents double-clicking already open menus
-- **Retry Logic**: Robust flag navigation with retry mechanism
 - **Session State Persistence**: Session state changes persist correctly
 - **Financial Flag Handling**: Financial verification flag management
 - **Income Source Flag Handling**: Income source detection flag management
@@ -3161,13 +3254,719 @@ Based on the test files in the framework, I've identified these categories:
 
 ---
 
+## **Category 9: Menu Heartbeat Tests - COMPLETE ANALYSIS**
+
+### **Files Analyzed:**
+1. `heartbeat_addresses_menus.spec.js` - **Address Menu Health Check**
+2. `heartbeat_applicant_inbox_menus.spec.js` - **Applicant Inbox Menu Health Check**
+3. `heartbeat_applications_menus.spec.js` - **Applications Menu Health Check**
+4. `heartbeat_documents_menus.test.js` - **Documents Menu Health Check**
+5. `heartbeat_income_source_menus.spec.js` - **Income Source Menu Health Check**
+6. `heartbeat_logout_menu.spec.js` - **Logout Menu Health Check**
+7. `heartbeat_org_list_menus.spec.js` - **Organization List Menu Health Check**
+8. `heartbeat_organizations_menus.spec.js` - **Organizations Menu Health Check**
+9. `heartbeat_reports_menus.spec.js` - **Reports Menu Health Check**
+10. `heartbeat_settings_menus.spec.js` - **Settings Menu Health Check**
+11. `heartbeat_tools_menus.spec.js` - **Tools Menu Health Check**
+12. `heartbeat_transactions_menus.spec.js` - **Transactions Menu Health Check**
+13. `heartbeat_users_menu.spec.js` - **Users Menu Health Check**
+
+---
+
+### **1. heartbeat_addresses_menus.spec.js - Address Menu Health Check**
+
+#### **Complete Test Structure:**
+- **1 test** (no specific timeout)
+- **Address menu navigation** health check
+- **Tags**: @core, @smoke, @regression
+
+#### **Test: "Should check Address heartbeat"**
+**Purpose**: Test address menu navigation and verify "Coming Soon" page
+**API Endpoints Called**:
+- `POST /auth` - Admin login (via loginForm.submit, line 14)
+  - **Response Used For**: Authentication and session establishment
+  - **What's Actually Checked**: Response status is OK (200), household-status-alert is visible
+
+**Steps**:
+1. **Page Navigation** (Line 12) - Navigate to root page
+2. **Admin Login** (Lines 13-15):
+   - Fill login form with admin credentials
+   - Submit login form
+   - Verify household-status-alert is visible
+3. **Address Menu Click** (Lines 17-19):
+   - Get address menu element
+   - Click address menu
+4. **Wait for Page Load** (Line 21) - Wait 1000ms for menu to load
+5. **Note**: Currently only shows "Coming Soon" page (Line 23)
+
+#### **Key Business Validations:**
+- **Address Menu Navigation** ✅
+- **Menu Click Functionality** ✅
+- **Coming Soon Page Display** ✅
+
+---
+
+### **2. heartbeat_applicant_inbox_menus.spec.js - Applicant Inbox Menu Health Check**
+
+#### **Complete Test Structure:**
+- **1 test** (no specific timeout)
+- **Applicant inbox menu** with all status filters
+- **Tags**: @core, @smoke, @regression
+
+#### **Test: "Should check Applicant Inbox heartbeat"**
+**Purpose**: Test all applicant inbox menu navigation and session filtering by status
+**API Endpoints Called**:
+- `POST /auth` - Admin login (via loginForm.submit, line 16)
+  - **Response Used For**: Authentication and session establishment
+  - **What's Actually Checked**: Response status is OK (200), household-status-alert is visible
+- `GET /sessions?` - Load all sessions (lines 32-43, 45-56)
+  - **Response Used For**: Getting all sessions without approval_status filter
+  - **What's Actually Checked**: Response status is OK (200), sessions data array is returned, session cards are visible
+- `GET /sessions?` - Load awaiting review sessions (lines 67-78)
+  - **Response Used For**: Getting sessions with approval_status filter "awaiting_review"
+  - **What's Actually Checked**: Response status is OK (200), filters include "awaiting_review", session cards are visible
+- `GET /sessions?` - Load meets criteria sessions (lines 90-102)
+  - **Response Used For**: Getting sessions with approval_status filters "approved" and "conditionally_approved"
+  - **What's Actually Checked**: Response status is OK (200), filters include both statuses, session cards are visible
+- `GET /sessions?` - Load rejected sessions (lines 115-126)
+  - **Response Used For**: Getting sessions with approval_status filter "rejected"
+  - **What's Actually Checked**: Response status is OK (200), filters include "rejected", session cards are visible
+
+**Steps**:
+1. **Page Navigation and Login** (Lines 14-17)
+2. **Inbox Menu Expansion** (Lines 19-25):
+   - Get applicants menu element
+   - Check if inbox is already expanded
+   - Click if not expanded
+3. **All Sessions Submenu** (Lines 27-62):
+   - Get all sessions submenu
+   - Check if already active
+   - Click or reload to load sessions
+   - Verify all session cards are visible
+4. **Require Review Submenu** (Lines 64-85):
+   - Get approval status submenu
+   - Click and wait for API response
+   - Verify all awaiting review session cards are visible
+5. **Meets Criteria Submenu** (Lines 87-109):
+   - Get reviewed submenu
+   - Click and wait for API response
+   - Verify all approved/conditionally approved session cards are visible
+6. **Rejected Submenu** (Lines 112-133):
+   - Get rejected submenu
+   - Click and wait for API response
+   - Verify all rejected session cards are visible
+
+#### **Key Business Validations:**
+- **All Sessions Filter** ✅
+- **Awaiting Review Filter** ✅
+- **Meets Criteria Filter (Approved + Conditionally Approved)** ✅
+- **Rejected Filter** ✅
+- **Session Card Visibility** ✅
+- **Smart Menu Expansion** ✅
+
+---
+
+### **3. heartbeat_applications_menus.spec.js - Applications Menu Health Check**
+
+#### **Complete Test Structure:**
+- **1 test** (no specific timeout)
+- **Applications menu** with all submenus
+- **Tags**: @core, @smoke, @regression
+
+#### **Test: "Should check Applications menu heartbeat"**
+**Purpose**: Test all applications menu navigation and data loading
+**API Endpoints Called**:
+- `POST /auth` - Admin login (via loginForm.submit, line 16)
+  - **Response Used For**: Authentication and session establishment
+  - **What's Actually Checked**: Response status is OK (200), household-status-alert is visible
+- `GET /applications?` - Load applications (lines 33-51)
+  - **Response Used For**: Getting applications data
+  - **What's Actually Checked**: Response status is OK (200), applications table rows match API data
+- `GET /portfolios?` - Load portfolios (lines 70-78)
+  - **Response Used For**: Getting portfolios data
+  - **What's Actually Checked**: Response status is OK (200), portfolio table rows match API data
+- `GET /workflows?` - Load workflows (lines 97-105)
+  - **Response Used For**: Getting workflows data
+  - **What's Actually Checked**: Response status is OK (200), workflow table rows match API data with kebab-to-title-case conversion
+- `GET /eligibility-templates?` - Load affordable templates (lines 125-133)
+  - **Response Used For**: Getting eligibility templates data
+  - **What's Actually Checked**: Response status is OK (200), template table rows match API data
+- `GET /flag-collections?` - Load approval conditions (lines 153-161)
+  - **Response Used For**: Getting flag collections data
+  - **What's Actually Checked**: Response status is OK (200), approval conditions table rows match API data
+
+**Steps**:
+1. **Page Navigation and Login** (Lines 14-17)
+2. **Applications Menu Expansion** (Lines 19-25)
+3. **Applications Submenu** (Lines 27-63):
+   - Click applications submenu or reload
+   - Wait for applications API response
+   - Verify all application table rows match API data
+4. **Portfolios Submenu** (Lines 65-87):
+   - Click portfolios submenu
+   - Wait for portfolios API response
+   - Verify all portfolio table rows match API data
+5. **Workflows Submenu** (Lines 90-116):
+   - Click workflows submenu
+   - Wait for workflows API response
+   - Verify all workflow table rows match API data (with name conversion)
+6. **Affordable Templates Submenu** (Lines 118-144):
+   - Click affordable templates submenu
+   - Wait for eligibility templates API response
+   - Verify all template table rows match API data
+7. **Approval Conditions Submenu** (Lines 146-172):
+   - Click approval conditions submenu
+   - Wait for flag collections API response
+   - Verify all approval condition table rows match API data
+
+#### **Key Business Validations:**
+- **Applications List Navigation** ✅
+- **Portfolios List Navigation** ✅
+- **Workflows List Navigation** ✅
+- **Affordable Templates Navigation** ✅
+- **Approval Conditions Navigation** ✅
+- **Data-UI Consistency** ✅
+- **Menu Expansion Logic** ✅
+
+---
+
+### **4. heartbeat_documents_menus.test.js - Documents Menu Health Check**
+
+#### **Complete Test Structure:**
+- **1 test** (no specific timeout)
+- **Documents menu** with submenus
+- **Tags**: @core, @smoke, @regression
+
+#### **Test: "Should check Documents menu heartbeat"**
+**Purpose**: Test documents menu navigation and document policies
+**API Endpoints Called**:
+- `POST /auth` - Admin login (via loginForm.submit, line 16)
+  - **Response Used For**: Authentication and session establishment
+  - **What's Actually Checked**: Response status is OK (200), household-status-alert is visible
+- `GET /document-policies?` - Load document policies (lines 70-78)
+  - **Response Used For**: Getting document policies data
+  - **What's Actually Checked**: Response status is OK (200), document policy table rows match API data
+
+**Steps**:
+1. **Page Navigation and Login** (Lines 14-17)
+2. **Documents Menu Expansion** (Lines 19-25)
+3. **Documents Submenu** (Lines 27-63):
+   - Click documents submenu
+   - **Note**: Currently shows "Coming Soon" page, API code is commented out (lines 32-63)
+4. **Document Policies Submenu** (Lines 65-87):
+   - Click document policies submenu
+   - Wait for document policies API response
+   - Verify all document policy table rows match API data
+
+#### **Key Business Validations:**
+- **Documents Menu Navigation** ✅
+- **Document Policies List Navigation** ✅
+- **Data-UI Consistency** ✅
+- **Coming Soon Page Handling** ✅
+
+---
+
+### **5. heartbeat_income_source_menus.spec.js - Income Source Menu Health Check**
+
+#### **Complete Test Structure:**
+- **1 test** (no specific timeout)
+- **Income source menu** configuration
+- **Tags**: @core, @smoke, @regression
+
+#### **Test: "Should check Income Sources menu heartbeat"**
+**Purpose**: Test income source configuration menu and template list
+**API Endpoints Called**:
+- `POST /auth` - Admin login (via loginForm.submit, line 16)
+  - **Response Used For**: Authentication and session establishment
+  - **What's Actually Checked**: Response status is OK (200), household-status-alert is visible
+- `GET /income-source-templates?` - Load income source templates (lines 34-52)
+  - **Response Used For**: Getting income source templates data
+  - **What's Actually Checked**: Response status is OK (200), table row count matches API data length, rows contain template names
+
+**Steps**:
+1. **Page Navigation and Login** (Lines 14-17)
+2. **Income Source Menu Expansion** (Lines 19-25)
+3. **Income Source Configuration Submenu** (Lines 27-67):
+   - Click configuration submenu or reload
+   - Wait for income source templates API response
+   - Wait for table rows to match API data count (line 59)
+   - Verify all table rows contain template names
+   - Log success message
+
+#### **Key Business Validations:**
+- **Income Source Menu Navigation** ✅
+- **Configuration Submenu Navigation** ✅
+- **Template List Loading** ✅
+- **Data-UI Consistency with Count Validation** ✅
+- **Row Count Matching** ✅
+
+---
+
+### **6. heartbeat_logout_menu.spec.js - Logout Menu Health Check**
+
+#### **Complete Test Structure:**
+- **1 test** (no specific timeout)
+- **Logout functionality** and session termination
+- **Tags**: @core, @smoke, @regression
+
+#### **Test: "Should check Logout flow heartbeat"**
+**Purpose**: Test logout functionality and session termination
+**API Endpoints Called**:
+- `POST /auth` - Admin login (via loginForm.submit, line 15)
+  - **Response Used For**: Authentication and session establishment
+  - **What's Actually Checked**: Response status is OK (200), household-status-alert is visible
+
+**Steps**:
+1. **Page Navigation and Login** (Lines 13-16)
+2. **Logout Click** (Lines 18-20):
+   - Get logout menu element
+   - Click logout menu
+3. **Login Page Verification** (Lines 21-24):
+   - Verify "Welcome" heading is visible
+   - Verify "Email Address" textbox is visible
+   - Verify "Password" textbox is visible
+   - Verify admin login button is visible
+4. **Page Reload Verification** (Lines 26-31):
+   - Reload page
+   - Verify all login page elements are still visible
+   - Confirm session is terminated
+5. **Log Success** (Line 33)
+
+#### **Key Business Validations:**
+- **Logout Functionality** ✅
+- **Session Termination** ✅
+- **Login Page Redirect** ✅
+- **Persistent Logout After Reload** ✅
+
+---
+
+### **7. heartbeat_org_list_menus.spec.js - Organization List Menu Health Check**
+
+#### **Complete Test Structure:**
+- **1 test** (no specific timeout)
+- **Organization list menu** navigation
+- **Tags**: @core, @smoke, @regression
+
+#### **Test: "Should check Organization List menu heartbeat"**
+**Purpose**: Test organization list menu and data loading
+**API Endpoints Called**:
+- `POST /auth` - Admin login (via loginForm.submit, line 16)
+  - **Response Used For**: Authentication and session establishment
+  - **What's Actually Checked**: Response status is OK (200), household-status-alert is visible
+- `GET /organizations?` - Load organizations list (lines 26-44)
+  - **Response Used For**: Getting organizations data
+  - **What's Actually Checked**: Response status is OK (200), organization table rows match API data
+
+**Steps**:
+1. **Page Navigation and Login** (Lines 14-17)
+2. **Organizations Menu Click** (Lines 19-45):
+   - Get organizations menu element
+   - Check if already active
+   - Click or reload to load organizations
+   - Wait for organizations API response
+3. **Table Verification** (Lines 46-55):
+   - Verify organization data length > 0
+   - Get table rows
+   - Loop through API data (not UI rows to avoid pagination)
+   - Verify each row contains organization name
+   - Log success message
+
+#### **Key Business Validations:**
+- **Organization List Menu Navigation** ✅
+- **Organizations Data Loading** ✅
+- **Data-UI Consistency** ✅
+- **Pagination-Safe Verification** ✅
+
+---
+
+### **8. heartbeat_organizations_menus.spec.js - Organizations Menu Health Check**
+
+#### **Complete Test Structure:**
+- **1 test** (no specific timeout)
+- **Organization menu** with submenus
+- **Tags**: @core, @smoke, @regression
+
+#### **Test: "Should check Organizations menu heartbeat"**
+**Purpose**: Test organization menu navigation and members list
+**API Endpoints Called**:
+- `POST /auth` - Admin login (via loginForm.submit, line 16)
+  - **Response Used For**: Authentication and session establishment
+  - **What's Actually Checked**: Response status is OK (200), household-status-alert is visible
+- `GET /organizations/self` - Load current organization (lines 34-52)
+  - **Response Used For**: Getting current organization data
+  - **What's Actually Checked**: Response status is OK (200), organization name heading is defined
+- `GET /organizations/{id}/members` - Load organization members (lines 65-74)
+  - **Response Used For**: Getting organization members data
+  - **What's Actually Checked**: Response status is OK (200), member table rows match API data with full names
+
+**Steps**:
+1. **Page Navigation and Login** (Lines 14-17)
+2. **Organization Menu Expansion** (Lines 19-25)
+3. **Organization Self Submenu** (Lines 27-58):
+   - Click organization self submenu or reload
+   - Wait for organizations/self API response
+   - Verify organization name heading is defined
+   - Log success message
+4. **Members Submenu** (Lines 60-84):
+   - Get members submenu
+   - Click and wait for members API response
+   - Verify member table rows contain user full names
+   - Log success message
+
+#### **Key Business Validations:**
+- **Organization Menu Navigation** ✅
+- **Organization Self Page Loading** ✅
+- **Members List Navigation** ✅
+- **Data-UI Consistency** ✅
+- **User Full Name Display** ✅
+
+---
+
+### **9. heartbeat_reports_menus.spec.js - Reports Menu Health Check**
+
+#### **Complete Test Structure:**
+- **1 test** (no specific timeout)
+- **Reports menu** with all report types
+- **Tags**: @core, @smoke, @regression
+
+#### **Test: "Should check Report menu heartbeat"**
+**Purpose**: Test all reports menu navigation and data loading
+**API Endpoints Called**:
+- `POST /auth` - Admin login (via loginForm.submit, line 16)
+  - **Response Used For**: Authentication and session establishment
+  - **What's Actually Checked**: Response status is OK (200), household-status-alert is visible
+- `GET /sessions?` - Load session reports (lines 34-52)
+  - **Response Used For**: Getting sessions data for reports
+  - **What's Actually Checked**: Response status is OK (200), session table rows match application names
+- `GET /verifications?` - Load verification reports (lines 70-78)
+  - **Response Used For**: Getting verifications data
+  - **What's Actually Checked**: Response status is OK (200), verification table rows match verification types
+- `GET /documents?` - Load files reports (lines 94-102)
+  - **Response Used For**: Getting documents data
+  - **What's Actually Checked**: Response status is OK (200), file table rows match document type names
+- `GET /income-sources?` - Load income source reports (lines 117-125)
+  - **Response Used For**: Getting income sources data
+  - **What's Actually Checked**: Response status is OK (200), income source table rows match descriptions
+
+**Steps**:
+1. **Page Navigation and Login** (Lines 14-17)
+2. **Reports Menu Expansion** (Lines 19-25)
+3. **Session Reports Submenu** (Lines 27-64):
+   - Click session reports submenu or reload
+   - Wait for sessions API response
+   - Verify session table rows contain application names
+   - Log success message
+4. **Verification Reports Submenu** (Lines 66-88):
+   - Click verification page submenu
+   - Wait for verifications API response
+   - Verify table rows contain verification types
+   - Log success message
+5. **Files Reports Submenu** (Lines 90-112):
+   - Click files page submenu
+   - Wait for documents API response
+   - Verify table rows contain document type names
+   - Log success message
+6. **Income Source Reports Submenu** (Lines 114-136):
+   - Click income source page submenu
+   - Wait for income sources API response
+   - Verify income source table rows contain descriptions
+   - Log success message
+
+#### **Key Business Validations:**
+- **Session Reports Navigation** ✅
+- **Verification Reports Navigation** ✅
+- **Files Reports Navigation** ✅
+- **Income Source Reports Navigation** ✅
+- **Data-UI Consistency Across All Report Types** ✅
+
+### **10. heartbeat_settings_menus.spec.js - Settings Menu Health Check**
+
+#### **Complete Test Structure:**
+- **1 test** (no specific timeout)
+- **Settings menu** with account, devices, notification, and 2FA
+- **Tags**: @core, @smoke, @regression
+
+#### **Test: "Should check Settings menu heartbeat"**
+**Purpose**: Test all settings menu navigation and pages
+**API Endpoints Called**:
+- `POST /auth` - Admin login (via loginForm.submit, line 15)
+  - **Response Used For**: Authentication and session establishment
+  - **What's Actually Checked**: Response status is OK (200), household-status-alert is visible
+- `GET /devices?` - Load devices (via navigateToSubMenu, line 34)
+  - **Response Used For**: Getting devices data
+  - **What's Actually Checked**: Response status is OK (200), device list verified with names
+
+**Steps**:
+1. **Page Navigation and Login** (Lines 13-16)
+2. **Settings Menu Expansion** (Lines 18-24)
+3. **Account Submenu** (Lines 26-31):
+   - Click account settings submenu
+   - Log success message
+4. **Devices Submenu** (Lines 33-35):
+   - Navigate to devices submenu using helper
+   - Wait for devices API response
+   - Verify device list content by name field
+5. **Notification Submenu** (Lines 38-39):
+   - Click notification settings submenu
+   - **Note**: Notification page not integrated yet
+6. **2FA Submenu** (Lines 41-48):
+   - Click 2FA settings submenu
+   - Verify "Two-factor authentication" heading
+   - Verify "Additional Password Protection" heading
+   - Verify "Change Password" button is visible
+   - Log success message
+
+#### **Key Business Validations:**
+- **Account Settings Navigation** ✅
+- **Devices List Loading** ✅
+- **Notification Settings Navigation** ✅
+- **2FA Settings Page** ✅
+- **Password Management** ✅
+
+---
+
+### **11. heartbeat_tools_menus.spec.js - Tools Menu Health Check**
+
+#### **Complete Test Structure:**
+- **1 test** (no specific timeout)
+- **Tools menu** with testing utilities
+- **Tags**: @core, @smoke, @regression
+
+#### **Test: "Should check Tools menu heartbeat"**
+**Purpose**: Test all tools menu navigation and testing utilities
+**API Endpoints Called**:
+- `POST /auth` - Admin login (via loginForm.submit, line 14)
+  - **Response Used For**: Authentication and session establishment
+  - **What's Actually Checked**: Response status is OK (200), household-status-alert is visible
+
+**Steps**:
+1. **Page Navigation and Login** (Lines 12-15)
+2. **Tools Menu Expansion** (Lines 17-23)
+3. **Document Tester Submenu** (Lines 25-34):
+   - Click document tester submenu
+   - Verify document tester heading is defined
+   - Verify "Document Policy" text is defined
+   - Verify "Upload Test File" text is defined
+   - Verify filepond drop label is defined
+4. **Name Tester Submenu** (Lines 36-39):
+   - Click name tester submenu
+   - Verify "Name 1" text is visible
+   - Verify "Name 2" text is visible
+   - Verify "Submit" button is visible
+5. **Integrations Submenu** (Lines 42-44):
+   - Click integrations submenu
+   - Verify "New Customer" button is visible
+   - Verify "Sandbox Customers" button is visible
+6. **Test Setup Submenu** (Lines 47-48):
+   - Click test setup submenu
+   - Verify "Test Setup Page" heading is visible
+
+#### **Key Business Validations:**
+- **Document Tester Tool** ✅
+- **Name Tester Tool** ✅
+- **Integrations Tool** ✅
+- **Test Setup Tool** ✅
+- **UI Testing Utilities** ✅
+
+---
+
+### **12. heartbeat_transactions_menus.spec.js - Transactions Menu Health Check**
+
+#### **Complete Test Structure:**
+- **1 test** (no specific timeout)
+- **Transactions menu** with tags, keywords, blacklists, and provider mapping
+- **Tags**: @core, @smoke, @regression
+
+#### **Test: "Should check Transactions menu heartbeat"**
+**Purpose**: Test all transactions menu navigation and transaction configuration data
+**API Endpoints Called**:
+- `POST /auth` - Admin login (via loginForm.submit, line 16)
+  - **Response Used For**: Authentication and session establishment
+  - **What's Actually Checked**: Response status is OK (200), household-status-alert is visible
+- `GET /tags?` - Load transaction tags (lines 34-52)
+  - **Response Used For**: Getting transaction tags data
+  - **What's Actually Checked**: Response status is OK (200), tag table rows match API data
+- `GET /keywords?` - Load keyword mappings (lines 71-79)
+  - **Response Used For**: Getting keyword mappings data
+  - **What's Actually Checked**: Response status is OK (200), keyword table rows match API data
+- `GET /income-source-blacklist-rules?` - Load blacklists (lines 96-104)
+  - **Response Used For**: Getting blacklist rules data
+  - **What's Actually Checked**: Response status is OK (200), blacklist table rows match provider names
+- `GET /categories?` - Load provider mappings (lines 121-129)
+  - **Response Used For**: Getting category mappings data
+  - **What's Actually Checked**: Response status is OK (200), provider mapping table rows match API data
+
+**Steps**:
+1. **Page Navigation and Login** (Lines 14-17)
+2. **Transactions Menu Expansion** (Lines 19-25)
+3. **Tags Submenu** (Lines 27-63):
+   - Click tags submenu or reload
+   - Wait for tags API response
+   - Verify tag table rows contain tag names
+   - Log success message
+4. **Keyword Mapping Submenu** (Lines 66-89):
+   - Click keyword mapping submenu
+   - Wait for keywords API response
+   - Verify keyword table rows contain keyword data
+   - Log success message
+5. **Blacklists Submenu** (Lines 91-114):
+   - Click blacklists submenu
+   - Wait for blacklist rules API response
+   - Verify blacklist table rows contain provider names
+   - Log success message
+6. **Provider Mapping Submenu** (Lines 116-140):
+   - Click provider mapping submenu
+   - Wait for categories API response
+   - Verify provider mapping table rows contain category names
+   - Log success message
+
+#### **Key Business Validations:**
+- **Transaction Tags Management** ✅
+- **Keyword Mapping Configuration** ✅
+- **Blacklist Rules Management** ✅
+- **Provider Category Mapping** ✅
+- **Transaction Configuration Data** ✅
+
+---
+
+### **13. heartbeat_users_menu.spec.js - Users Menu Health Check**
+
+#### **Complete Test Structure:**
+- **1 test** (no specific timeout)
+- **Users menu** with users, roles, and permissions
+- **Tags**: @core, @smoke, @regression
+
+#### **Test: "Should check User menu heartbeat"**
+**Purpose**: Test all users menu navigation and user management data
+**API Endpoints Called**:
+- `POST /auth` - Admin login (via adminLoginAndNavigate, line 13)
+  - **Response Used For**: Authentication and session establishment
+  - **What's Actually Checked**: Response status is OK (200), admin login successful
+- `GET /users?` - Load users (via navigateToSubMenu, line 27)
+  - **Response Used For**: Getting users data
+  - **What's Actually Checked**: Response status is OK (200), users list verified with email field
+- `GET /roles?` - Load roles (via navigateToSubMenu, line 36)
+  - **Response Used For**: Getting roles data
+  - **What's Actually Checked**: Response status is OK (200), roles list verified with name field
+- `GET /permissions?` - Load permissions (via navigateToSubMenu, line 44)
+  - **Response Used For**: Getting permissions data
+  - **What's Actually Checked**: Response status is OK (200), permissions list verified with display_name field
+
+**Steps**:
+1. **Setup and Login** (Line 13):
+   - Admin login and navigate using helper
+2. **Expand Users Menu** (Lines 16-21):
+   - Get users menu element
+   - Check if already expanded
+   - Click if not expanded
+3. **Verify Users Page** (Lines 23-29):
+   - Get users submenu element
+   - Check if already active
+   - Navigate to users submenu using helper
+   - Verify users list content by email field
+4. **Verify Roles Page** (Lines 31-37):
+   - Get roles submenu element
+   - Navigate to roles submenu using helper (pass false for isActive)
+   - Verify roles list content by name field
+5. **Verify Permissions Page** (Lines 39-45):
+   - Get permissions submenu element
+   - Navigate to permissions submenu using helper (pass false for isActive)
+   - Verify permissions list content by display_name field
+
+#### **Key Business Validations:**
+- **Users List Navigation** ✅
+- **Roles List Navigation** ✅
+- **Permissions List Navigation** ✅
+- **User Management Data** ✅
+- **Helper Function Usage** ✅
+
+---
+
+## **Category 9 Analysis Summary**
+
+### **API Endpoints Coverage Analysis:**
+
+| API Endpoint | Category | Tests Using It | What's Actually Checked |
+|--------------|----------|----------------|-------------------------|
+| `POST /auth` | Authentication | All 13 tests | Response status is OK (200), admin login successful |
+| `GET /sessions?` | Session Management | 2 tests | Response status is OK (200), sessions data with various filters |
+| `GET /applications?` | Application Management | 1 test | Response status is OK (200), applications data returned |
+| `GET /portfolios?` | Portfolio Management | 1 test | Response status is OK (200), portfolios data returned |
+| `GET /workflows?` | Workflow Management | 1 test | Response status is OK (200), workflows data returned |
+| `GET /eligibility-templates?` | Templates Management | 1 test | Response status is OK (200), eligibility templates data returned |
+| `GET /flag-collections?` | Flag Collections | 1 test | Response status is OK (200), flag collections data returned |
+| `GET /document-policies?` | Document Management | 1 test | Response status is OK (200), document policies data returned |
+| `GET /income-source-templates?` | Income Source Management | 1 test | Response status is OK (200), income source templates data returned |
+| `GET /organizations?` | Organization Management | 1 test | Response status is OK (200), organizations list data returned |
+| `GET /organizations/self` | Organization Management | 1 test | Response status is OK (200), current organization data returned |
+| `GET /organizations/{id}/members` | Organization Management | 1 test | Response status is OK (200), organization members data returned |
+| `GET /verifications?` | Verification Management | 1 test | Response status is OK (200), verifications data returned |
+| `GET /documents?` | Document Management | 1 test | Response status is OK (200), documents data returned |
+| `GET /income-sources?` | Income Source Management | 1 test | Response status is OK (200), income sources data returned |
+| `GET /devices?` | Device Management | 1 test | Response status is OK (200), devices list verified with names |
+| `GET /tags?` | Transaction Management | 1 test | Response status is OK (200), transaction tags data returned |
+| `GET /keywords?` | Transaction Management | 1 test | Response status is OK (200), keyword mappings data returned |
+| `GET /income-source-blacklist-rules?` | Transaction Management | 1 test | Response status is OK (200), blacklist rules data returned |
+| `GET /categories?` | Transaction Management | 1 test | Response status is OK (200), category mappings data returned |
+| `GET /users?` | User Management | 1 test | Response status is OK (200), users list verified with email field |
+| `GET /roles?` | User Management | 1 test | Response status is OK (200), roles list verified with name field |
+| `GET /permissions?` | User Management | 1 test | Response status is OK (200), permissions list verified with display_name field |
+
+### **Business Purpose Analysis:**
+
+| Test File | Primary Business Purpose | Unique Validations | Overlap Assessment |
+|-----------|-------------------------|-------------------|-------------------|
+| `heartbeat_addresses_menus.spec.js` | **Address Menu Health Check** | • **Address menu navigation**<br>• **Coming Soon page display** | **NO OVERLAP** - Different menu, different validation |
+| `heartbeat_applicant_inbox_menus.spec.js` | **Applicant Inbox Menu Health Check** | • **All sessions filter**<br>• **Awaiting review filter**<br>• **Meets criteria filter**<br>• **Rejected filter**<br>• **Session card visibility**<br>• **Smart menu expansion** | **NO OVERLAP** - Comprehensive inbox filtering |
+| `heartbeat_applications_menus.spec.js` | **Applications Menu Health Check** | • **Applications list**<br>• **Portfolios list**<br>• **Workflows list**<br>• **Affordable templates list**<br>• **Approval conditions list**<br>• **5 different submenus** | **NO OVERLAP** - Multiple submenu validation |
+| `heartbeat_documents_menus.test.js` | **Documents Menu Health Check** | • **Documents menu navigation**<br>• **Document policies list**<br>• **Coming Soon handling** | **NO OVERLAP** - Document-specific menus |
+| `heartbeat_income_source_menus.spec.js` | **Income Source Menu Health Check** | • **Income source configuration**<br>• **Template list loading**<br>• **Row count validation** | **NO OVERLAP** - Income source specific |
+| `heartbeat_logout_menu.spec.js` | **Logout Menu Health Check** | • **Logout functionality**<br>• **Session termination**<br>• **Persistent logout after reload** | **NO OVERLAP** - Authentication flow |
+| `heartbeat_org_list_menus.spec.js` | **Organization List Menu Health Check** | • **Organization list navigation**<br>• **Pagination-safe verification** | **NO OVERLAP** - Organization list specific |
+| `heartbeat_organizations_menus.spec.js` | **Organizations Menu Health Check** | • **Organization self page**<br>• **Members list navigation**<br>• **User full name display** | **NO OVERLAP** - Organization management specific |
+| `heartbeat_reports_menus.spec.js` | **Reports Menu Health Check** | • **Session reports**<br>• **Verification reports**<br>• **Files reports**<br>• **Income source reports**<br>• **4 different report types** | **NO OVERLAP** - Comprehensive reporting validation |
+| `heartbeat_settings_menus.spec.js` | **Settings Menu Health Check** | • **Account settings navigation**<br>• **Devices list loading**<br>• **Notification settings**<br>• **2FA settings page**<br>• **Password management** | **NO OVERLAP** - Settings configuration specific |
+| `heartbeat_tools_menus.spec.js` | **Tools Menu Health Check** | • **Document tester tool**<br>• **Name tester tool**<br>• **Integrations tool**<br>• **Test setup tool**<br>• **UI testing utilities** | **NO OVERLAP** - Testing tools specific |
+| `heartbeat_transactions_menus.spec.js` | **Transactions Menu Health Check** | • **Transaction tags management**<br>• **Keyword mapping configuration**<br>• **Blacklist rules management**<br>• **Provider category mapping**<br>• **Transaction configuration data** | **NO OVERLAP** - Transaction configuration specific |
+| `heartbeat_users_menu.spec.js` | **Users Menu Health Check** | • **Users list navigation**<br>• **Roles list navigation**<br>• **Permissions list navigation**<br>• **User management data**<br>• **Helper function usage** | **NO OVERLAP** - User management specific |
+
+### **Key Insights:**
+
+1. **Different menu categories** - Each test validates a specific menu section
+2. **Different data types** - Applications vs Sessions vs Documents vs Organizations
+3. **Different filtering approaches** - Status filters, data type filters, role-based filters
+4. **Comprehensive coverage** - All major menu sections are tested
+5. **Data-UI consistency** - Each test verifies API data matches UI display
+6. **Smart navigation** - Tests handle already-expanded menus and active states
+
+### **Technical Setup Analysis:**
+
+#### **Common Setup Steps (Necessary for Each Test):**
+1. **Admin login** (`POST /auth`) - Needed to access menu sections
+2. **Menu navigation** - Each test navigates to specific menu sections
+3. **Data loading verification** - Each test verifies data loads correctly
+4. **UI-API consistency checks** - Each test confirms UI matches API data
+
+#### **These are NOT "extra steps" - they are essential setup for each test's unique menu validation**
+
+### **Conclusion for Category 9: NO MEANINGFUL OVERLAP**
+
+**All 13 tests should be kept** because:
+- Each tests different menu sections and navigation paths
+- Each validates different data types and API endpoints
+- Each covers different filtering and display scenarios
+- Each serves unique menu health validation purposes
+- Each contributes to comprehensive menu coverage
+
+---
+
 ## **🎉 COMPREHENSIVE UI TEST ANALYSIS - COMPLETE**
 
 ### **📊 FINAL SUMMARY**
 
-**Total Categories Analyzed**: 8/8 (100% Complete)
-**Total Test Files Analyzed**: 26 files
-**Total API Endpoints Documented**: 50+ unique endpoints
+**Total Categories Analyzed**: 9/9 (100% Complete)
+**Total Test Files Analyzed**: 39 files
+**Total API Endpoints Documented**: 65+ unique endpoints
 **Analysis Methodology**: Line-by-line analysis with exact API endpoints, utility functions, and business validations
 
 ### **✅ ALL CATEGORIES COMPLETE**
@@ -3180,10 +3979,11 @@ Based on the test files in the framework, I've identified these categories:
 6. **Category 6: System Health Tests** - **COMPLETE** (2 files)
 7. **Category 7: Workflow Management Tests** - **COMPLETE** (2 files)
 8. **Category 8: Integration Tests** - **COMPLETE** (2 files)
+9. **Category 9: Menu Heartbeat Tests** - **COMPLETE** (13 files)
 
 ### **🔍 KEY FINDINGS**
 
-- **NO MEANINGFUL OVERLAP FOUND** across all 26 test files
+- **NO MEANINGFUL OVERLAP FOUND** across all 39 test files
 - **All tests are unique** and serve different business purposes
 - **No redundant tests identified** - each test validates specific scenarios
 - **Complete API endpoint coverage** documented with exact line numbers
@@ -3192,7 +3992,7 @@ Based on the test files in the framework, I've identified these categories:
 
 ### **📋 RECOMMENDATIONS**
 
-**KEEP ALL 26 TEST FILES** because:
+**KEEP ALL 39 TEST FILES** because:
 - Each tests different business scenarios and functionality
 - Each validates different API endpoints and workflows
 - Each covers different user types and integration patterns

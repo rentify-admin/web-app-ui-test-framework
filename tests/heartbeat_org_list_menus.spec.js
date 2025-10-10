@@ -8,7 +8,7 @@ import { customUrlDecode, joinUrl } from './utils/helper';
 test.describe('heartbeat_org_list_menus.spec', () => {
 
     test('Should check Organization List menu heartbeat', {
-        tag: ['@core', '@smoke', '@regression'],
+        tag: ['@core', '@smoke', '@regression', '@critical'],
     }, async ({ page }) => {
 
         await page.goto('/');
@@ -46,7 +46,8 @@ test.describe('heartbeat_org_list_menus.spec', () => {
         if (organization.data.length > 0) {
             const table = await page.locator('table');
             const tableRows = await table.locator('tbody>tr')
-            for (let index = 0; index < await tableRows.count(); index++) {
+            // Loop through API data, not UI rows (to avoid pagination mismatches)
+            for (let index = 0; index < organization.data.length; index++) {
                 const row = await tableRows.nth(index);
                 await expect(row).toContainText(organization.data[index].name);
             }

@@ -8,7 +8,7 @@ import { customUrlDecode, joinUrl } from './utils/helper';
 test.describe('heartbeat_reports_menus.spec', () => {
 
     test('Should check Report menu heartbeat', {
-        tag: ['@core', '@smoke', '@regression'],
+        tag: ['@core', '@smoke', '@regression', '@critical'],
     }, async ({ page }) => {
 
         await page.goto('/');
@@ -55,7 +55,8 @@ test.describe('heartbeat_reports_menus.spec', () => {
         if (sessionReports.data.length > 0) {
             const table = await page.locator('table');
             const tableRows = await table.locator('tbody>tr')
-            for (let index = 0; index < await tableRows.count(); index++) {
+            // Loop through API data, not UI rows (to avoid pagination mismatches)
+            for (let index = 0; index < sessionReports.data.length; index++) {
                 const row = await tableRows.nth(index);
                 await expect(row).toContainText(sessionReports.data[index].application.name);
             }

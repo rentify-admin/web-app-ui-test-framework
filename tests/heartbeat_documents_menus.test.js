@@ -8,7 +8,7 @@ import { customUrlDecode } from './utils/helper';
 test.describe('heartbeat_documents_menus.spec', () => {
 
     test('Should check Documents menu heartbeat', {
-        tag: ['@core', '@smoke', '@regression'],
+        tag: ['@core', '@smoke', '@regression', '@critical'],
     }, async ({ page }) => {
 
         await page.goto('/');

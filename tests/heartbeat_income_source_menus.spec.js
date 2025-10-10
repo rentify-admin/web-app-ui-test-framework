@@ -8,7 +8,7 @@ import { customUrlDecode, joinUrl } from './utils/helper';
 test.describe('heartbeat_income_source_menus.spec', () => {
 
     test('Should check Income Sources menu heartbeat', {
-        tag: ['@core', '@smoke', '@regression'],
+        tag: ['@core', '@smoke', '@regression', '@critical'],
     }, async ({ page }) => {
 
         await page.goto('/');

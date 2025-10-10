@@ -220,6 +220,12 @@ test.describe('user_flags_approve_reject_test', () => {
         const acceptButton = page.getByTestId('decision-modal-accept-btn');
         await expect(acceptButton).toBeVisible();
         await acceptButton.click();
+
+        await page.waitForTimeout(2000); // wait for modal to close
+
+        const pill = page.getByTestId('files-document-status-pill');
+        await expect(pill.locator('.bg-success-light')).toBeVisible({ timeout: 30_000 });
+
         console.log('✅ Document approval completed');
         
         // Step 5: Click View Details button to access flags
