@@ -16,17 +16,56 @@ import { app } from '../test_config';
 async function navigateToSubMenu(page, subMenuLocator, apiUrl, isActive) {
     const apiEndpoint = joinUrl(app.urls.api, apiUrl);
 
-    const apiPredicate = (resp) =>
-        resp.url().startsWith(apiEndpoint) && resp.request().method() === 'GET' && resp.ok();
+    const watcher = createApiIdleWatcher(page, app.urls.api);
+    await watcher.waitForIdle();
 
     const action = isActive ? page.reload() : subMenuLocator.click();
 
-    const [response] = await Promise.all([
-        page.waitForResponse(apiPredicate),
+    const [request] = await Promise.all([
+        page.waitForRequest(req => req.url().startsWith(apiEndpoint) && req.method() === 'GET'),
         action
     ]);
 
+    const response = await request.response();
+    watcher.dispose();
+
+    if (!response || !response.ok()) {
+        throw new Error(`Failed to load ${apiEndpoint}`);
+    }
+
     return waitForJsonResponse(response);
+}
+
+/**
+ * Simple API idle watcher to avoid capturing prefetch responses.
+ */
+function createApiIdleWatcher(page, apiOrigin) {
+    let inFlight = 0;
+    const onReq = (r) => { if (r.url().startsWith(apiOrigin)) inFlight++; };
+    const onDone = (r) => { if (r.url().startsWith(apiOrigin)) inFlight = Math.max(0, inFlight - 1); };
+
+    page.on('request', onReq);
+    page.on('requestfinished', onDone);
+    page.on('requestfailed', onDone);
+
+    return {
+        async waitForIdle(idleMs = 300, timeout = 10000) {
+            const start = Date.now();
+            while (Date.now() - start < timeout) {
+                if (inFlight === 0) {
+                    await page.waitForTimeout(idleMs);
+                    if (inFlight === 0) return;
+                }
+                await page.waitForTimeout(50);
+            }
+            throw new Error('API not idle');
+        },
+        dispose() {
+            page.off('request', onReq);
+            page.off('requestfinished', onDone);
+            page.off('requestfailed', onDone);
+        }
+    };
 }
 
 /**
@@ -82,4 +121,5 @@ export {
     getDeepValue,
     navigateToSubMenu,
     verifyListContent,
+    createApiIdleWatcher,
 }

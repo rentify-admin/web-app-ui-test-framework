@@ -1,8 +1,7 @@
 import { test, expect } from '@playwright/test';
 import loginForm from './utils/login-form';
-import { admin, app } from './test_config';
-import { waitForJsonResponse } from './utils/wait-response';
-import { customUrlDecode, joinUrl } from './utils/helper';
+import { admin } from './test_config';
+import { navigateToSubMenu, verifyListContent } from './utils/heartbeat-helper';
 
 
 test.describe('heartbeat_org_list_menus.spec', () => {
@@ -21,38 +20,8 @@ test.describe('heartbeat_org_list_menus.spec', () => {
         const isOrganizationSubMenuActive = await organizationSubMenu.evaluate(item => item.classList.contains('sidebar-active'))
 
 
-        let organization = [];
-        if (!isOrganizationSubMenuActive) {
-            const [response] = await Promise.all([
-                page.waitForResponse(resp => {
-                    return resp.url().startsWith(joinUrl(app.urls.api, '/organizations?'))
-                        && resp.request().method() === 'GET'
-                        && resp.ok()
-                }),
-                organizationSubMenu.click()
-            ])
-            organization = await waitForJsonResponse(response)
-        } else {
-            const [response] = await Promise.all([
-                page.waitForResponse(resp => {
-                    return resp.url().startsWith(joinUrl(app.urls.api, '/organizations?'))
-                        && resp.request().method() === 'GET'
-                        && resp.ok()
-                }),
-                page.reload()
-            ])
-            organization = await waitForJsonResponse(response)
-        }
-        if (organization.data.length > 0) {
-            const table = await page.locator('table');
-            const tableRows = await table.locator('tbody>tr')
-            // Loop through API data, not UI rows (to avoid pagination mismatches)
-            for (let index = 0; index < organization.data.length; index++) {
-                const row = await tableRows.nth(index);
-                await expect(row).toContainText(organization.data[index].name);
-            }
-            console.log('🚀 ~ Organization list checked')
-        }
+        const organization = await navigateToSubMenu(page, organizationSubMenu, '/organizations?', isOrganizationSubMenuActive);
+        await verifyListContent(page, organization?.data || [], 'name', 'Organization list');
 
     })
 

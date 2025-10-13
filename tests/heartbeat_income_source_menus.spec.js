@@ -1,8 +1,7 @@
 import { test, expect } from '@playwright/test';
 import loginForm from './utils/login-form';
-import { admin, app } from './test_config';
-import { waitForJsonResponse } from './utils/wait-response';
-import { customUrlDecode, joinUrl } from './utils/helper';
+import { admin } from './test_config';
+import { navigateToSubMenu } from './utils/heartbeat-helper';
 
 
 test.describe('heartbeat_income_source_menus.spec', () => {
@@ -29,28 +28,7 @@ test.describe('heartbeat_income_source_menus.spec', () => {
         const isIncomeSourceSubMenuActive = await incomeSourceSubMenu.evaluate(item => item.classList.contains('sidebar-active'))
 
 
-        let incomeSources = [];
-        if (!isIncomeSourceSubMenuActive) {
-            const [response] = await Promise.all([
-                page.waitForResponse(resp => {
-                    return resp.url().startsWith(joinUrl(app.urls.api, '/income-source-templates?'))
-                        && resp.request().method() === 'GET'
-                        && resp.ok()
-                }),
-                incomeSourceSubMenu.click()
-            ])
-            incomeSources = await waitForJsonResponse(response)
-        } else {
-            const [response] = await Promise.all([
-                page.waitForResponse(resp => {
-                    return resp.url().startsWith(joinUrl(app.urls.api, '/income-source-templates?'))
-                        && resp.request().method() === 'GET'
-                        && resp.ok()
-                }),
-                page.reload()
-            ])
-            incomeSources = await waitForJsonResponse(response)
-        }
+        const incomeSources = await navigateToSubMenu(page, incomeSourceSubMenu, '/income-source-templates?', isIncomeSourceSubMenuActive);
         if (incomeSources.data.length > 0) {
             const table = await page.locator('table');
             const tableRows = await table.locator('tbody>tr')
