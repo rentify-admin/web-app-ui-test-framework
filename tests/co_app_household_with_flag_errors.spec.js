@@ -7,15 +7,13 @@ import loginForm from '~/tests/utils/login-form';
 import { waitForJsonResponse } from '~/tests/utils/wait-response';
 import { gotoPage } from '~/tests/utils/common';
 import {
-    completePaystubConnection,
-    completePlaidFinancialStepBetterment,
     fillhouseholdForm,
     handleOptionalStateModal,
     selectApplicantType,
     updateStateModal,
-    waitForPlaidConnectionCompletion,
-    waitForPaystubConnectionCompletion,
-    completeIdentityStepViaAPI
+    completeIdentityStepViaAPI,
+    completeFinancialStepViaAPI,
+    completeEmploymentStepViaAPI
 } from '~/tests/utils/session-flow';
 import { findSessionLocator, markFlagAsNonIssue, searchSessionWithText } from '~/tests/utils/report-page';
 
@@ -148,20 +146,24 @@ test.describe('co_app_household_with_flag_errors', () => {
 
         await applicantPage.waitForTimeout(2000); // Wait for step transition
 
-        await completePlaidFinancialStepBetterment(applicantPage, 'custom_gig', 'test');
+        // PRIMARY: Complete Financial via API Simulation (CUSTOM_PAYLOAD)
+        console.log('🏦 PRIMARY: Completing Financial step via API Simulation (CUSTOM_PAYLOAD)...');
+        await completeFinancialStepViaAPI(applicantPage, sessionId, primaryAuthToken, user);
+        console.log('✅ PRIMARY: Financial verification completed via Simulation');
 
-        await waitForPlaidConnectionCompletion(applicantPage);
+        // Ensure UI advances to Employment: click continue if visible to mark step as done in UI
+        try {
+            const continueBtn = applicantPage.getByTestId('financial-verification-continue-btn');
+            if (await continueBtn.isVisible({ timeout: 3000 })) {
+                await continueBtn.click();
+                await applicantPage.waitForTimeout(2000);
+            }
+        } catch (_) { /* optional advance, ignore */ }
 
-        await completePaystubConnection(applicantPage);
-
-        await waitForPaystubConnectionCompletion(applicantPage);
-
-        await Promise.all([
-            applicantPage.waitForResponse(resp => resp.url().includes(`/sessions/${sessionId}/steps/`)
-                && resp.ok()
-                && resp.request().method() === 'PATCH'),
-            applicantPage.getByTestId('employment-step-continue').click()
-        ]);
+        // PRIMARY: Complete Employment via API Simulation (VERIDOCS_PAYLOAD)
+        console.log('💼 PRIMARY: Completing Employment step via API Simulation (VERIDOCS_PAYLOAD)...');
+        await completeEmploymentStepViaAPI(applicantPage, sessionId, primaryAuthToken, user);
+        console.log('✅ PRIMARY: Employment verification completed via Simulation');
 
         console.log('✅ PRIMARY: All steps completed (ID, Financial, Employment)');
         
@@ -261,43 +263,7 @@ test.describe('co_app_household_with_flag_errors', () => {
             console.log('⚠️ INCOME_SOURCE_CADENCE_MISMATCH_ERROR flag not found after polling - continuing...');
         }
         
-        // Poll for EMPLOYEE_NAME_MISMATCH_CRITICAL flag (max 1 minute, 2 sec intervals)
-        console.log('🔍 Polling for EMPLOYEE_NAME_MISMATCH_CRITICAL flag...');
-        let employeeFlagFound = false;
-        
-        for (let i = 0; i < maxPolls; i++) {
-            const employeeNameFlag = page.getByTestId('EMPLOYEE_NAME_MISMATCH_CRITICAL');
-            const hasEmployeeFlag = await employeeNameFlag.count();
-            
-            if (hasEmployeeFlag > 0) {
-                employeeFlagFound = true;
-                console.log(`✅ EMPLOYEE_NAME_MISMATCH_CRITICAL flag found (poll ${i + 1}/${maxPolls})`);
-                console.log('🔧 Marking EMPLOYEE_NAME_MISMATCH_CRITICAL as non-issue...');
-                await markFlagAsNonIssue(
-                    page,
-                    sessionId,
-                    'EMPLOYEE_NAME_MISMATCH_CRITICAL',
-                    'Employee name mismatch marked as non-issue by automated test'
-                );
-                console.log('✅ EMPLOYEE_NAME_MISMATCH_CRITICAL marked as non-issue');
-                break;
-            }
-            
-            if (i < maxPolls - 1) {
-                console.log(`⏳ EMPLOYEE_NAME_MISMATCH_CRITICAL not visible yet, waiting... (poll ${i + 1}/${maxPolls})`);
-                await page.waitForTimeout(pollInterval);
-                
-                // Reload details view to get updated flags
-                await page.getByTestId('close-event-history-modal').click({ timeout: 5_000 });
-                await page.waitForTimeout(500);
-                await page.getByTestId('view-details-btn').click({ timeout: 10_000 });
-                await page.waitForTimeout(1000);
-            }
-        }
-        
-        if (!employeeFlagFound) {
-            console.log('⚠️ EMPLOYEE_NAME_MISMATCH_CRITICAL flag not found after polling - continuing...');
-        }
+        // Skip marking other mismatches; Simulation ensures matching names and owners now
         
         // Close details modal
         await page.getByTestId('close-event-history-modal').click({ timeout: 10_000 });
@@ -340,10 +306,28 @@ test.describe('co_app_household_with_flag_errors', () => {
             throw new Error(`Expected status APPROVED, got ${primarySessionResolved.data.approval_status}`);
         }
         
-        // Also verify UI shows "Meets Criteria"
-        console.log('🔍 ASSERTION 1 (UI): Verifying household-status-alert shows "Meets Criteria"...');
+        // Also verify UI shows "Meets Criteria" (poll UI as it can lag behind API)
+        console.log('🔍 ASSERTION 1 (UI): Polling household-status-alert for "Meets Criteria"...');
         const householdStatusAlert = page.getByTestId('household-status-alert');
-        await expect(householdStatusAlert).toContainText('Meets Criteria', { timeout: 10_000 });
+        let uiApproved = false;
+        for (let i = 0; i < 15; i++) { // up to ~30s
+            try {
+                await expect(householdStatusAlert).toContainText('Meets Criteria', { timeout: 2000 });
+                uiApproved = true;
+                break;
+            } catch (_) {
+                await Promise.all([
+                    page.waitForResponse(resp => resp.url().includes(`/sessions/${sessionId}?fields[session]`)
+                        && resp.ok()
+                        && resp.request().method() === 'GET'),
+                    page.reload()
+                ]);
+                await page.waitForTimeout(1000);
+            }
+        }
+        if (!uiApproved) {
+            throw new Error('UI did not reflect "Meets Criteria" after approval');
+        }
         console.log('✅ ASSERTION 1 (UI) PASSED: UI shows "Meets Criteria"');
         
         // Go back to applicantPage context to add co-applicant
@@ -378,19 +362,14 @@ test.describe('co_app_household_with_flag_errors', () => {
         
         // ASSERTION 2a: Check GROUP_MISSING_IDENTITY flag is present (co-app invited but not completed)
         console.log('🔍 ASSERTION 2a: Checking for GROUP_MISSING_IDENTITY flag after co-app invitation...');
-        await page.reload();
-        await page.waitForTimeout(2000); // Wait for page to reload
-        await searchSessionWithText(page, sessionId);
-        
         const [sessionAfterCoAppInviteResponse] = await Promise.all([
             page.waitForResponse(resp => resp.url().includes(`/sessions/${sessionId}?fields[session]`)
                 && resp.ok()
                 && resp.request().method() === 'GET'),
-            page.locator('.application-card').first().click()
+            page.reload()
         ]);
-        
         const sessionAfterCoAppInvite = await waitForJsonResponse(sessionAfterCoAppInviteResponse);
-        
+        await page.waitForTimeout(4000); // Wait for page to reload
         // Open details to check for GROUP_MISSING_IDENTITY flag
         await page.getByTestId('view-details-btn').click({ timeout: 10_000 });
         await page.waitForTimeout(1000);
@@ -404,9 +383,33 @@ test.describe('co_app_household_with_flag_errors', () => {
         await page.waitForTimeout(1000);
         
         // ASSERTION 2b: Status should be REJECTED (API) and "Criteria Not Met" (UI)
-        console.log('🔍 ASSERTION 2b: Checking household status after co-app invitation...');
-        console.log(`📊 API Household status: ${sessionAfterCoAppInvite.data.approval_status}`);
-        expect(sessionAfterCoAppInvite.data.approval_status).toBe('REJECTED');
+        console.log('🔍 ASSERTION 2b: Polling household status after co-app invitation...');
+        let status2bIsRejected = false;
+        let status2bLast = sessionAfterCoAppInvite.data.approval_status;
+        const status2bMaxPollTime = 30000; // 30 seconds
+        const status2bPollInterval = 2000; // 2 seconds
+        const status2bMaxPolls = status2bMaxPollTime / status2bPollInterval; // 15 polls
+        for (let i = 0; i < status2bMaxPolls; i++) {
+            const statusResp = await page.request.get(`${app.urls.api}/sessions/${sessionId}`, {
+                headers: {
+                    'Authorization': `Bearer ${primaryAuthToken}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+            const statusJson = await statusResp.json();
+            status2bLast = statusJson.data.approval_status;
+            console.log(`📊 API Status after co-app invite (poll ${i + 1}/${status2bMaxPolls}): ${status2bLast}`);
+            if (status2bLast === 'REJECTED') {
+                status2bIsRejected = true;
+                break;
+            }
+            if (i < status2bMaxPolls - 1) {
+                await page.waitForTimeout(status2bPollInterval);
+            }
+        }
+        if (!status2bIsRejected) {
+            throw new Error(`Expected status REJECTED after co-app invite, got ${status2bLast}`);
+        }
         console.log('✅ ASSERTION 2b (API) PASSED: Status = REJECTED (co-app invited but incomplete)');
         
         // Verify UI shows "Criteria Not Met"
@@ -486,19 +489,14 @@ test.describe('co_app_household_with_flag_errors', () => {
 
         // ASSERTION 3a: Check GROUP_MISSING_IDENTITY flag is GONE after co-app completes ID
         console.log('🔍 ASSERTION 3a: Checking GROUP_MISSING_IDENTITY flag is gone...');
-        await page.reload();
-        await page.waitForTimeout(2000); // Wait for page to reload
-        await searchSessionWithText(page, sessionId);
-
         const [sessionAfterCoAppIdResponse] = await Promise.all([
             page.waitForResponse(resp => resp.url().includes(`/sessions/${sessionId}?fields[session]`)
                 && resp.ok()
                 && resp.request().method() === 'GET'),
-            page.locator('.application-card').first().click()
+            page.reload()
         ]);
-
         const sessionAfterCoAppId = await waitForJsonResponse(sessionAfterCoAppIdResponse);
-        
+        await page.waitForTimeout(4000); // Wait for page to reload
         // Open details to check flags
         await page.getByTestId('view-details-btn').click({ timeout: 10_000 });
         await page.waitForTimeout(1000);
@@ -521,9 +519,33 @@ test.describe('co_app_household_with_flag_errors', () => {
         console.log(`✅ FLAG ATTRIBUTION VERIFIED: Flag shows co-applicant name "${coapplicant.first_name}" in UI`);
         
         // ASSERTION 3c: Status should still be REJECTED (API) and "Criteria Not Met" (UI)
-        console.log('🔍 ASSERTION 3c: Checking household status...');
-        console.log(`📊 API Household status after co-app ID: ${sessionAfterCoAppId.data.approval_status}`);
-        expect(sessionAfterCoAppId.data.approval_status).toBe('REJECTED');
+        console.log('🔍 ASSERTION 3c: Polling household status after co-app ID...');
+        let statusIsRejected = false;
+        let lastStatus = sessionAfterCoAppId.data.approval_status;
+        const status3cMaxPollTime = 30000; // 30 seconds
+        const status3cPollInterval = 2000; // 2 seconds
+        const status3cMaxPolls = status3cMaxPollTime / status3cPollInterval; // 15 polls
+        for (let i = 0; i < status3cMaxPolls; i++) {
+            const statusResp = await page.request.get(`${app.urls.api}/sessions/${sessionId}`, {
+                headers: {
+                    'Authorization': `Bearer ${primaryAuthToken}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+            const statusJson = await statusResp.json();
+            lastStatus = statusJson.data.approval_status;
+            console.log(`📊 API Status after co-app ID (poll ${i + 1}/${status3cMaxPolls}): ${lastStatus}`);
+            if (lastStatus === 'REJECTED') {
+                statusIsRejected = true;
+                break;
+            }
+            if (i < status3cMaxPolls - 1) {
+                await page.waitForTimeout(status3cPollInterval);
+            }
+        }
+        if (!statusIsRejected) {
+            throw new Error(`Expected status REJECTED after co-app ID, got ${lastStatus}`);
+        }
         console.log('✅ ASSERTION 3c (API) PASSED: Status = REJECTED (due to IDENTITY_NAME_MISMATCH_CRITICAL)');
         
         // Verify UI shows "Criteria Not Met"

@@ -13,6 +13,8 @@ import { app } from '../test_config';
 import loginForm from './login-form';
 import { findApplicationByNameAndInvite } from './applications-page';
 import generateSessionForm from './generate-session-form';
+import { getBankStatementCustomPayload } from '../test_files/mock_data/bank-statement-simulator.js';
+import { getPaystubVeridocsSimulation } from '../test_files/mock_data/paystub-simulator.js';
 
 /**
  * Complete initial applicant form with rent budget
@@ -2066,10 +2068,271 @@ const completeIdentityStepViaAPI = async (page, sessionId, guestToken, userData,
     console.log(`✅ IDENTITY verification completed for ${userType}`);
 };
 
+/**
+ * Complete Financial Verification via API using Simulation provider with CUSTOM_PAYLOAD
+ * @param {import('@playwright/test').Page} page - Playwright page object
+ * @param {String} sessionId - Session ID
+ * @param {String} guestToken - Guest authentication token
+ * @param {Object} userData - User data with first_name, last_name, email
+ * @returns {Promise<void>}
+ */
+const completeFinancialStepViaAPI = async (page, sessionId, guestToken, userData) => {
+    console.log('🚀 Starting Financial Verification via API with CUSTOM_PAYLOAD...');
+
+    // 1) Get current session state
+    const sessionResponse = await page.request.get(`${app.urls.api}/sessions/${sessionId}`, {
+        headers: {
+            'Authorization': `Bearer ${guestToken}`,
+            'Content-Type': 'application/json'
+        }
+    });
+    const session = await sessionResponse.json();
+
+    // 2) Ensure we are on FINANCIAL step
+    if (session.data.state.current_step.type !== 'FINANCIAL_VERIFICATION' &&
+        session.data.state.current_step.task?.key !== 'FINANCIAL_VERIFICATION') {
+        console.log(`⚠️ Current step is not FINANCIAL_VERIFICATION. Step: ${session.data.state.current_step.type}`);
+        throw new Error('Cannot complete financial step - not on FINANCIAL_VERIFICATION step');
+    }
+    console.log('✅ On FINANCIAL_VERIFICATION step');
+
+    // 3) Create session step
+    const stepResponse = await page.request.post(`${app.urls.api}/sessions/${sessionId}/steps`, {
+        headers: {
+            'Authorization': `Bearer ${guestToken}`,
+            'Content-Type': 'application/json'
+        },
+        data: { step: session.data.state.current_step.id }
+    });
+    const step = await stepResponse.json();
+    console.log(`✅ Session step created: ${step.data.id}`);
+
+    // 4) Get Simulation provider
+    const providersResponse = await page.request.get(`${app.urls.api}/providers`, {
+        headers: {
+            'Authorization': `Bearer ${guestToken}`,
+            'Content-Type': 'application/json'
+        }
+    });
+    const providers = await providersResponse.json();
+    const simulationProvider = providers.data.find(p => p.name === 'Simulation');
+    if (!simulationProvider) {
+        throw new Error('Simulation provider not found');
+    }
+    console.log(`✅ Simulation provider found: ${simulationProvider.id}`);
+
+    // 5) Build CUSTOM_PAYLOAD from minimal bank data
+    const customPayload = getBankStatementCustomPayload(userData);
+
+    // 6) Create financial verification with CUSTOM_PAYLOAD
+    const verificationData = {
+        step: step.data.id,
+        provider: simulationProvider.id,
+        simulation_type: 'CUSTOM_PAYLOAD',
+        custom_payload: customPayload
+    };
+    console.log('📋 Creating financial verification with CUSTOM_PAYLOAD...');
+    const verificationResponse = await page.request.post(`${app.urls.api}/financial-verifications`, {
+        headers: {
+            'Authorization': `Bearer ${guestToken}`,
+            'Content-Type': 'application/json'
+        },
+        data: verificationData
+    });
+    if (!verificationResponse.ok()) {
+        const errorText = await verificationResponse.text();
+        throw new Error(`Failed to create financial verification: ${verificationResponse.status()} - ${errorText}`);
+    }
+    const verification = await verificationResponse.json();
+    console.log(`✅ Financial verification created: ${verification.data.id}`);
+
+    // 7) Poll verifications until our verification is COMPLETED
+    console.log('⏳ Waiting for financial verification to complete...');
+    let verificationComplete = false;
+    let pollCount = 0;
+    const maxPolls = 15;
+    while (!verificationComplete && pollCount < maxPolls) {
+        await page.waitForTimeout(4000);
+        const verificationCheckResponse = await page.request.get(`${app.urls.api}/financial-verifications`, {
+            headers: {
+                'Authorization': `Bearer ${guestToken}`,
+                'Content-Type': 'application/json'
+            },
+            params: {
+                filters: JSON.stringify({
+                    "$has": { "step": { "id": step.data.id } },
+                    "status": { "$neq": "EXPIRED" }
+                })
+            }
+        });
+        const verifications = await verificationCheckResponse.json();
+        const currentVerification = verifications.data.find(v => v.id === verification.data.id);
+        if (currentVerification && currentVerification.status === 'COMPLETED') {
+            verificationComplete = true;
+            console.log('✅ Financial verification completed');
+            break;
+        } else if (currentVerification && currentVerification.status === 'FAILED') {
+            throw new Error('Financial verification failed');
+        }
+        pollCount++;
+        console.log(`⏳ Verification not complete yet, polling... (${pollCount}/${maxPolls})`);
+    }
+    if (!verificationComplete) {
+        throw new Error('Financial verification timed out');
+    }
+
+    // 8) Mark session step as COMPLETED
+    await page.request.patch(`${app.urls.api}/sessions/${sessionId}/steps/${step.data.id}`, {
+        headers: {
+            'Authorization': `Bearer ${guestToken}`,
+            'Content-Type': 'application/json'
+        },
+        data: { status: 'COMPLETED' }
+    });
+    console.log('✅ FINANCIAL step marked as COMPLETED');
+};
+
+/**
+ * Complete Employment Verification via API using Simulation provider with VERIDOCS_PAYLOAD
+ * @param {import('@playwright/test').Page} page - Playwright page object
+ * @param {String} sessionId - Session ID
+ * @param {String} guestToken - Guest authentication token
+ * @param {Object} userData - User data with first_name, last_name, email
+ * @returns {Promise<void>}
+ */
+const completeEmploymentStepViaAPI = async (page, sessionId, guestToken, userData) => {
+    console.log('🚀 Starting Employment Verification via API with VERIDOCS_PAYLOAD...');
+
+    // 1) Wait/poll until current step is EMPLOYMENT_VERIFICATION (in case UI hasn't advanced yet)
+    let currentStep;
+    let attempts = 0;
+    const maxAttempts = 10;
+    do {
+        const sessionResponse = await page.request.get(`${app.urls.api}/sessions/${sessionId}`, {
+            headers: {
+                'Authorization': `Bearer ${guestToken}`,
+                'Content-Type': 'application/json'
+            }
+        });
+        const session = await sessionResponse.json();
+        currentStep = session.data.state.current_step;
+        if (currentStep?.type === 'EMPLOYMENT_VERIFICATION' || currentStep?.task?.key === 'EMPLOYMENT_VERIFICATION') {
+            break;
+        }
+        console.log(`⏳ Waiting for EMPLOYMENT_VERIFICATION step... (attempt ${attempts + 1}/${maxAttempts})`);
+        await page.waitForTimeout(2000);
+        attempts++;
+    } while (attempts < maxAttempts);
+
+    if (!(currentStep?.type === 'EMPLOYMENT_VERIFICATION' || currentStep?.task?.key === 'EMPLOYMENT_VERIFICATION')) {
+        console.log(`⚠️ Current step is not EMPLOYMENT_VERIFICATION. Step: ${currentStep?.type}`);
+        throw new Error('Cannot complete employment step - not on EMPLOYMENT_VERIFICATION step');
+    }
+    console.log('✅ On EMPLOYMENT_VERIFICATION step');
+
+    // 3) Create session step
+    const stepResponse = await page.request.post(`${app.urls.api}/sessions/${sessionId}/steps`, {
+        headers: {
+            'Authorization': `Bearer ${guestToken}`,
+            'Content-Type': 'application/json'
+        },
+        data: { step: currentStep.id }
+    });
+    const step = await stepResponse.json();
+    console.log(`✅ Session step created: ${step.data.id}`);
+
+    // 4) Get Simulation provider
+    const providersResponse = await page.request.get(`${app.urls.api}/providers`, {
+        headers: {
+            'Authorization': `Bearer ${guestToken}`,
+            'Content-Type': 'application/json'
+        }
+    });
+    const providers = await providersResponse.json();
+    const simulationProvider = providers.data.find(p => p.name === 'Simulation');
+    if (!simulationProvider) {
+        throw new Error('Simulation provider not found');
+    }
+    console.log(`✅ Simulation provider found: ${simulationProvider.id}`);
+
+    // 5) Build VERIDOCS payload for paystub
+    const veridocsDoc = getPaystubVeridocsSimulation(userData);
+    const customPayload = { documents: [veridocsDoc] };
+
+    // 6) Create employment verification with VERIDOCS_PAYLOAD
+    const verificationData = {
+        step: step.data.id,
+        provider: simulationProvider.id,
+        simulation_type: 'VERIDOCS_PAYLOAD',
+        custom_payload: customPayload
+    };
+    console.log('📋 Creating employment verification with VERIDOCS_PAYLOAD...');
+    const verificationResponse = await page.request.post(`${app.urls.api}/employment-verifications`, {
+        headers: {
+            'Authorization': `Bearer ${guestToken}`,
+            'Content-Type': 'application/json'
+        },
+        data: verificationData
+    });
+    if (!verificationResponse.ok()) {
+        const errorText = await verificationResponse.text();
+        throw new Error(`Failed to create employment verification: ${verificationResponse.status()} - ${errorText}`);
+    }
+    const verification = await verificationResponse.json();
+    console.log(`✅ Employment verification created: ${verification.data.id}`);
+
+    // 7) Poll verifications until our verification is COMPLETED
+    console.log('⏳ Waiting for employment verification to complete...');
+    let verificationComplete = false;
+    let pollCount = 0;
+    const maxPolls = 15;
+    while (!verificationComplete && pollCount < maxPolls) {
+        await page.waitForTimeout(4000);
+        const verificationCheckResponse = await page.request.get(`${app.urls.api}/employment-verifications`, {
+            headers: {
+                'Authorization': `Bearer ${guestToken}`,
+                'Content-Type': 'application/json'
+            },
+            params: {
+                filters: JSON.stringify({
+                    "$has": { "step": { "id": step.data.id } },
+                    "status": { "$neq": "EXPIRED" }
+                })
+            }
+        });
+        const verifications = await verificationCheckResponse.json();
+        const currentVerification = verifications.data.find(v => v.id === verification.data.id);
+        if (currentVerification && currentVerification.status === 'COMPLETED') {
+            verificationComplete = true;
+            console.log('✅ Employment verification completed');
+            break;
+        } else if (currentVerification && currentVerification.status === 'FAILED') {
+            throw new Error('Employment verification failed');
+        }
+        pollCount++;
+        console.log(`⏳ Verification not complete yet, polling... (${pollCount}/${maxPolls})`);
+    }
+    if (!verificationComplete) {
+        throw new Error('Employment verification timed out');
+    }
+
+    // 8) Mark session step as COMPLETED
+    await page.request.patch(`${app.urls.api}/sessions/${sessionId}/steps/${step.data.id}`, {
+        headers: {
+            'Authorization': `Bearer ${guestToken}`,
+            'Content-Type': 'application/json'
+        },
+        data: { status: 'COMPLETED' }
+    });
+    console.log('✅ EMPLOYMENT step marked as COMPLETED');
+};
+
 export {
     uploadStatementFinancialStep,
     simulatorFinancialStepWithVeridocs,
     completeIdentityStepViaAPI,
+    completeFinancialStepViaAPI,
+    completeEmploymentStepViaAPI,
     completeApplicantForm,
     waitForConnectionCompletion,
     waitForPlaidConnectionCompletion,
