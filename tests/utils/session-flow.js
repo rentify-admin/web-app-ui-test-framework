@@ -1355,7 +1355,7 @@ const selectApplicantType = async (applicantPage, sessionUrl, selectorKey = '#af
  */
 const completePaystubConnection = async applicantPage => {
     await applicantPage
-        .getByRole('button', { name: 'Pay Stub' })
+        .getByTestId('document-pay_stub')
         .click({ timeout: 20000 });
     await applicantPage
         .getByTestId('directly-connect-emp-btn')
@@ -1435,7 +1435,7 @@ const completePaystubConnection = async applicantPage => {
  */
 const failPaystubConnection = async applicantPage => {
     await applicantPage
-        .getByRole('button', { name: 'Pay Stub' })
+        .getByTestId('document-pay_stub')
         .click({ timeout: 20000 });
     await applicantPage
         .getByTestId('directly-connect-emp-btn')
