@@ -2,13 +2,18 @@ import { test, expect } from '@playwright/test';
 import loginForm from '~/tests/utils/login-form';
 import { admin } from '~/tests/test_config';
 import { checkHeaderAndProfileMenu, checkSidebarMenusAndTitles } from '~/tests/utils/common';
+import { searchSessionWithText, navigateToSessionById } from '~/tests/utils/report-page';
 
 test.describe('frontend_heartbeat', () => {
     // Helper functions to reduce code duplication
     const dropdownButtons = [
         'approve-session-btn',
-        'reject-session-btn', 
-        'invite-applicant'
+        'reject-session-btn',
+        'invite-applicant',
+        'trigger-pms-upload-btn',
+        'upload-document-btn',
+        'request-additional-btn',
+        'income-source-automation-dropdown-item'
     ];
 
     const testDropdownButtons = async (page, buttons, context = '') => {
@@ -16,16 +21,10 @@ test.describe('frontend_heartbeat', () => {
         
         for (const buttonTestId of buttons) {
             const button = page.getByTestId(buttonTestId);
-            if (await button.isVisible()) {
-                console.log(`✅ Dropdown button visible${contextText}: ${buttonTestId}`);
-                await expect(button).toBeVisible();
-            } else {
-                console.log(`⚠️ Dropdown button not visible${contextText}: ${buttonTestId}`);
-            }
+            await expect(button).toBeVisible();
+            await expect(button).toBeEnabled();
+            console.log(`✅ Dropdown button visible and enabled${contextText}: ${buttonTestId}`);
         }
-        
-        // Close dropdown by clicking outside
-        await page.click('body');
     };
 
     const testViewDetailsModal = async (page) => {
@@ -64,131 +63,58 @@ test.describe('frontend_heartbeat', () => {
         await loginForm.submitAndSetLocale(page);
         await expect(page.getByTestId('household-status-alert')).toBeVisible({ timeout: 10_000 });
 
-        // 1. Test Action Button and See Details Button
-        // Check if action button is clickable and dropdown deploys
+        // Navigate deterministically to a fully populated session from the target application
+        // Applicants (sessions) page
+        const applicantsMenu = page.getByTestId('applicants-menu');
+        const isMenuOpen = await applicantsMenu.evaluate(el => el.classList.contains('sidebar-item-open'));
+        if (!isMenuOpen) {
+            await applicantsMenu.click();
+        }
+        await page.getByTestId('applicants-submenu').click();
+        await expect(page.getByTestId('household-status-alert')).toBeVisible({ timeout: 10_000 });
+
+        // Search sessions for a known app that yields full, populated sessions
+        const sessions = await searchSessionWithText(page, 'Autotest Suite - Full Test');
+        expect(sessions.length).toBeGreaterThan(0);
+        const sessionId = sessions[0].id;
+        await navigateToSessionById(page, sessionId);
+        await expect(page.getByTestId('household-status-alert')).toBeVisible({ timeout: 10_000 });
+
+        // 1) Assert action dropdown buttons exist and are enabled
         const actionButton = page.getByTestId('session-action-btn');
         await expect(actionButton).toBeVisible();
         await actionButton.click();
-        
-        // Test dropdown buttons and view details
         await testDropdownButtons(page, dropdownButtons);
+
+        // 2) Validate View Details flow
         await testViewDetailsModal(page);
 
-        // 2. Test Section Header Dropdowns
+        // 3) Strict section header dropdown tests (no conditional skips)
         const sectionHeaders = [
             'identity-section-header',
-            'income-source-section-header', 
+            'income-source-section-header',
             'files-section-header',
+            'employment-section-header',
             'financial-section-header',
             'integration-logs-section-header'
         ];
 
         for (const headerTestId of sectionHeaders) {
             const header = page.getByTestId(headerTestId);
-            
-            // Check if header is visible
-            if (await header.isVisible()) {
-                console.log(`Testing dropdown for: ${headerTestId}`);
-                
-                try {
-                    // Get the arrow using the correct selector
-                    const arrow = header.getByRole('img', { name: 'arrow' });
-                    
-                    // Check if the section content is visible
-                    const sectionName = headerTestId.replace('-header', '');
-                    const sectionContent = page.getByTestId(sectionName);
-                    
-                    if (await sectionContent.isVisible()) {
-                        console.log(`Section ${sectionName} is visible, testing dropdown functionality`);
-                        
-                        // Get initial state (closed by default)
-                        await expect(arrow).toHaveClass(/rotate-90/); // Closed state
-                        
-                        // Click header to open dropdown
-                        await header.click();
-                        
-                        // Wait for arrow rotation with proper assertion
-                        await expect(arrow).toHaveClass(/-rotate-90/, { timeout: 2000 }); // Open state
-                        
-                        // Click again to close
-                        await header.click();
-                        
-                        // Wait for arrow rotation back with proper assertion
-                        await expect(arrow).toHaveClass(/rotate-90/, { timeout: 2000 }); // Closed state
-                        
-                        console.log(`✅ Section ${sectionName} dropdown test completed`);
-                    } else {
-                        console.log(`⚠️ Section ${sectionName} content not visible, skipping dropdown test`);
-                    }
-                } catch (error) {
-                    console.log(`❌ Error testing section ${headerTestId}: ${error.message}`);
-                    console.log(`   Error details: ${error.stack}`);
-                    continue; // Skip to next section
-                }
-            } else {
-                console.log(`Header ${headerTestId} not visible, skipping test`);
-            }
-        }
+            await expect(header).toBeVisible();
 
-        // 3. Reload page and test all buttons again
-        console.log('🔄 Reloading page and testing all buttons again...');
-        await page.reload();
-        await expect(page.getByTestId('household-status-alert')).toBeVisible({ timeout: 10_000 });
+            const arrow = header.getByRole('img', { name: 'arrow' });
+            const sectionName = headerTestId.replace('-header', '');
+            const sectionContent = page.getByTestId(sectionName);
 
-        // Test action button dropdown again after reload
-        const actionButtonAfterReload = page.getByTestId('session-action-btn');
-        await expect(actionButtonAfterReload).toBeVisible();
-        await actionButtonAfterReload.click();
-        
-        // Test dropdown buttons after reload
-        await testDropdownButtons(page, dropdownButtons, 'after reload');
+            // Toggle open
+            await header.click();
+            await expect(arrow).toHaveClass(/-rotate-90/, { timeout: 2000 });
+            await expect(sectionContent).toBeVisible({ timeout: 5000 });
 
-        // 4. Test next 4 sessions to cover first 5 total
-        console.log('🔄 Testing next 4 sessions to cover first 5 total...');
-        
-        // Find all session cards on the page
-        const sessionCards = page.locator('.application-card[data-session]');
-        const sessionCardCount = await sessionCards.count();
-        console.log(`📊 Found ${sessionCardCount} session cards on the page`);
-        
-        // Test first 5 sessions (including current one)
-        const sessionsToTest = Math.min(5, sessionCardCount);
-        console.log(`🎯 Testing ${sessionsToTest} sessions total`);
-        
-        // Get session IDs from the first 5 cards
-        const sessionIds = [];
-        for (let i = 0; i < sessionsToTest; i++) {
-            const sessionCard = sessionCards.nth(i);
-            const sessionId = await sessionCard.getAttribute('data-session');
-            if (sessionId) {
-                sessionIds.push(sessionId);
-                console.log(`📋 Session ${i + 1}: ${sessionId}`);
-            }
+            // Toggle closed
+            await header.click();
+            await expect(arrow).toHaveClass(/rotate-90/, { timeout: 2000 });
         }
-        
-        // Test each session (skip first one as it's already tested)
-        for (let i = 1; i < sessionIds.length; i++) {
-            const sessionId = sessionIds[i];
-            console.log(`🔄 Testing session ${i + 1}/${sessionsToTest}: ${sessionId}`);
-            
-            // Click on the session card to navigate to it
-            const sessionCard = page.locator(`.application-card[data-session="${sessionId}"]`);
-            await sessionCard.click();
-            
-            // Wait for page to load
-            await expect(page.getByTestId('household-status-alert')).toBeVisible({ timeout: 10_000 });
-            
-            // Test action button dropdown for this session
-            const sessionActionButton = page.getByTestId('session-action-btn');
-            await expect(sessionActionButton).toBeVisible();
-            await sessionActionButton.click();
-            
-            // Test dropdown buttons for this session
-            await testDropdownButtons(page, dropdownButtons, `Session ${i + 1}`);
-            
-            console.log(`✅ Session ${i + 1} testing completed`);
-        }
-        
-        console.log('🎉 All 5 sessions tested successfully!');
     });
 });

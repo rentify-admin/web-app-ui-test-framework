@@ -26,7 +26,7 @@ const __dirname = dirname(__filename);
 test.describe('user_flags_approve_reject_test', () => {
 
     test.describe('Session Flag', () => {
-        test.describe.configure({ mode: 'default' });
+        test.describe.configure({ mode: 'serial' });
         test.setTimeout(200_000);
         const userData = {
             first_name: 'Flag Issue',
@@ -130,7 +130,7 @@ test.describe('user_flags_approve_reject_test', () => {
     });
 
     test.describe('Session Approve/Reject', () => {
-        test.describe.configure({ mode: 'default' });
+        test.describe.configure({ mode: 'serial' });
         test.setTimeout(200_000);
         const userData2 = {
             first_name: 'Approval_reject',
@@ -268,7 +268,8 @@ test.describe('user_flags_approve_reject_test', () => {
                 await page.waitForTimeout(500);
                 
                 // Fill in the reason textarea
-                const reasonTextarea = page.locator('textarea[placeholder="Enter a reason..."]');
+                // Fill the textarea within the current flag item (more robust than placeholder matching)
+                const reasonTextarea = flagItem.locator('textarea');
                 await expect(reasonTextarea).toBeVisible({ timeout: 5_000 });
                 await reasonTextarea.fill(`${flagTestId} marked as issue by automated test`);
                 

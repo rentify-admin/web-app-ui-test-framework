@@ -1149,7 +1149,7 @@ async function verifyTransactionErrorAndDeclineFlag(page, randomName) {
     await page.locator('a[href="#"].decoration-error').click();
 
     // Verify that "1 account | 1 transaction" exist in Connection Attempts modal
-    await expect(page.locator('.gap-2.justify-between > span:nth-of-type(1)'))
+    await expect(page.getByTestId('financial-row-sub-title'))
         .toHaveText('1 account | 1 transaction');
 
     // Close the modal, click 'X'
