@@ -116,12 +116,21 @@ export const updateApplicationFinancialSettings = async (page, settings = {}) =>
     await page.locator('#incomeBudget').fill(incomeBudget);
     await page.locator('#rentBudgetMin').fill(rentBudgetMin);
 
-    // Submit changes
+    // Submit changes - now auto-publishes in edit mode
     const appUrlReg = new RegExp(`${joinUrl(app.urls.api, 'applications')}.{36}`);
     await Promise.all([
+        // Wait for PATCH that auto-publishes
         page.waitForResponse(resp => appUrlReg.test(resp.url()) && resp.request().method() === 'PATCH' && resp.ok()),
+        // Also wait for GET that refreshes applications list after auto-publish
+        page.waitForResponse(resp => 
+            resp.url().includes('/applications?fields[application]') &&
+            resp.request().method() === 'GET' &&
+            resp.ok()
+        , { timeout: 30000 }),
         page.getByTestId('submit-application-setting-modal').click()
     ]);
+    
+    await page.waitForTimeout(2000); // Wait for UI to reflect changes
 };
 
 /**
@@ -177,10 +186,8 @@ export const completeApplicationEditWorkflow = async (page, applicationName, opt
     // Configure identity verification
     await configureIdentityVerification(page, identityShouldBeChecked);
     
-    // Update financial settings
+    // Update financial settings - now auto-publishes in edit mode
     await updateApplicationFinancialSettings(page, financialSettings);
     
-    // Publish to live
-    await publishApplicationToLive(page);
-    
+    // No longer need manual publish - auto-published above
 }; 

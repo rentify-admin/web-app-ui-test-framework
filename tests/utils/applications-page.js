@@ -128,23 +128,21 @@ const searchAndEditApplication = async (page, applicationName, options = {}) => 
             await page.waitForTimeout(2000); //Wait for UI animation
         }
 
-        // Handle settings modal if present (just navigation)
+        // Handle settings modal if present - now auto-publishes on submit (edit mode only)
         const settingsBtn = page.getByTestId('submit-application-setting-modal');
         if (await settingsBtn.isVisible()) {
+            // Wait for PATCH response when clicking settings submit (auto-publishes)
+            const publishResponsePromise = page.waitForResponse(resp => 
+                resp.url().includes('/applications')
+                && resp.request().method() === 'PATCH'
+                && resp.ok(), 
+                { timeout: 15000 }
+            );
+            
             await settingsBtn.click();
-            await page.waitForTimeout(2000); //Wait for UI animation
+            await publishResponsePromise;
+            await page.waitForTimeout(2000); // Wait for UI to reflect changes
         }
-
-        // Inline publish (duplicate minimal logic to avoid dependency)
-        await page.locator('h3').filter({ hasText: 'Publish Live' }).waitFor({ state: 'visible', timeout: 10000 });
-        await page.waitForSelector('[data-testid="app-publish-live-btn"]', { state: 'visible', timeout: 3000 });
-        await page.getByTestId('app-publish-live-btn').click();
-        await page.waitForTimeout(2000);
-        const publishResponsePromise = page.waitForResponse(resp => resp.url().includes('/applications')
-            && resp.request().method() === 'PATCH'
-            && resp.ok());
-        await page.getByTestId('confirm-btn').click();
-        await publishResponsePromise;
 
         return editResponse;
     }
