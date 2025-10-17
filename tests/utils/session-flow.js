@@ -1967,9 +1967,9 @@ const completeIdentityStepViaAPI = async (page, sessionId, guestToken, userData,
     
     console.log(`✅ Simulation provider found: ${simulationProvider.id}`);
     
-    // Step 5: Import persona payload function
+    // Step 5: Import persona payload function (COMPLETE version with all 32 checks)
     const { getPrimaryPersonaPayload, getCoApplicantPersonaPayloadMismatch } = 
-        await import('../test_files/persona-id-household-test.js');
+        await import('../test_files/persona-id-household-test-COMPLETE.js');
     
     // Step 6: Generate appropriate payload based on user type and mismatch
     let personaPayload;

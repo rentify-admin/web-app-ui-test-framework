@@ -413,7 +413,7 @@ test.describe('co_app_household_with_flag_errors', () => {
         console.log('✅ ASSERTION 2b (API) PASSED: Status = REJECTED (co-app invited but incomplete)');
         
         // Verify UI shows "Criteria Not Met"
-        const householdStatusAfterInvite = page.getByTestId('household-status-alert');
+        const householdStatusAfterInvite = page.getByTestId('household-status-alert').first();
         await expect(householdStatusAfterInvite).toContainText('Criteria Not Met', { timeout: 10_000 });
         console.log('✅ ASSERTION 2b (UI) PASSED: UI shows "Criteria Not Met"');
         
@@ -442,6 +442,7 @@ test.describe('co_app_household_with_flag_errors', () => {
         ]);
 
         const coAppSession = await waitForJsonResponse(coSessionResp);
+        const coAppSessionId = coAppSession.data.id;
 
         // Step 5: Select Applicant Type on Page
         await selectApplicantType(coAppPage, coAppSessionApiUrl);
@@ -513,10 +514,12 @@ test.describe('co_app_household_with_flag_errors', () => {
         await expect(idNameMismatchFlag).toBeVisible({ timeout: 10_000 });
         console.log('✅ ASSERTION 3b PASSED: IDENTITY_NAME_MISMATCH_CRITICAL flag is present');
         
-        // Verify flag shows co-applicant attribution in UI
-        const flagText = await idNameMismatchFlag.textContent();
-        expect(flagText).toContain(coapplicant.first_name);
-        console.log(`✅ FLAG ATTRIBUTION VERIFIED: Flag shows co-applicant name "${coapplicant.first_name}" in UI`);
+        // Verify flag text contains required substrings (order-independent)
+        const rawFlagText = await idNameMismatchFlag.textContent();
+        const flagText = rawFlagText ? rawFlagText.replace(/\s+/g, ' ').trim() : '';
+        expect(flagText).toContain('Identity Name Mismatch (Critical)');
+        expect(flagText).toContain('Co-Applicant: Coapplicant Household');
+        console.log('✅ FLAG TEXT VERIFIED: Contains "Identity Name Mismatch (Critical)" and "Co-Applicant: Coapplicant Household"');
         
         // ASSERTION 3c: Status should still be REJECTED (API) and "Criteria Not Met" (UI)
         console.log('🔍 ASSERTION 3c: Polling household status after co-app ID...');
@@ -556,7 +559,7 @@ test.describe('co_app_household_with_flag_errors', () => {
         console.log('🔧 Resolving IDENTITY_NAME_MISMATCH_CRITICAL flag by marking as non-issue...');
         await markFlagAsNonIssue(
             page,
-            sessionId,
+            coAppSessionId,
             'IDENTITY_NAME_MISMATCH_CRITICAL',
             'Co-applicant name mismatch resolved - marked as non-issue by automated test'
         );
@@ -565,20 +568,35 @@ test.describe('co_app_household_with_flag_errors', () => {
         
         // ASSERTION 4: After resolving flag, status should return to APPROVED (Meets Criteria)
         console.log('🔍 ASSERTION 4: Checking household status after resolving flag...');
-        const sessionAfterResolveResponse = await page.request.get(`${app.urls.api}/sessions/${sessionId}`, {
-            headers: {
-                'Authorization': `Bearer ${primaryAuthToken}`,
-                'Content-Type': 'application/json'
+        let finalApproved = false;
+        let finalStatus = 'UNKNOWN';
+        const finalMaxPollTime = 60000; // 60 seconds
+        const finalPollInterval = 2000; // 2 seconds
+        const finalMaxPolls = Math.ceil(finalMaxPollTime / finalPollInterval);
+        for (let i = 0; i < finalMaxPolls; i++) {
+            const resp = await page.request.get(`${app.urls.api}/sessions/${sessionId}`, {
+                headers: {
+                    'Authorization': `Bearer ${primaryAuthToken}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+            const json = await resp.json();
+            finalStatus = json.data.approval_status;
+            console.log(`📊 API Status after resolving flag (poll ${i + 1}/${finalMaxPolls}): ${finalStatus}`);
+            if (finalStatus === 'APPROVED') {
+                finalApproved = true;
+                break;
             }
-        });
-        const resolvedSession = await sessionAfterResolveResponse.json();
-        console.log(`📊 API Status after resolving flag: ${resolvedSession.data.approval_status}`);
-        expect(resolvedSession.data.approval_status).toBe('APPROVED');
+            if (i < finalMaxPolls - 1) {
+                await page.waitForTimeout(finalPollInterval);
+            }
+        }
+        expect(finalApproved).toBeTruthy();
         console.log('✅ ASSERTION 4 (API) PASSED: Household status restored to APPROVED after resolving flag');
         
         // Also verify UI shows "Meets Criteria"
         console.log('🔍 ASSERTION 4 (UI): Verifying household-status-alert shows "Meets Criteria"...');
-        const finalHouseholdStatusAlert = page.getByTestId('household-status-alert');
+        const finalHouseholdStatusAlert = page.getByTestId('household-status-alert').first();
         await expect(finalHouseholdStatusAlert).toContainText('Meets Criteria', { timeout: 10_000 });
         console.log('✅ ASSERTION 4 (UI) PASSED: UI shows "Meets Criteria" after resolving all flags');
         
