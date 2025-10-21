@@ -29,7 +29,7 @@ export function getPaystubVeridocsSimulation(userData = {}, options = {}) {
   const netPay = options.netPay ?? 1500.00;
 
   return {
-    id: 'sim-paystub-autogen',
+    id: 'AUTOGENERATE',
     file_name: 'paystub-simulator.pdf',
     reference_id: null,
     qualifier: 'development',

@@ -80,6 +80,7 @@ const submitAndSetLocale = async page => {
  * Also sets user locale to English
  * @param {import('@playwright/test').Page} page
  * @param {Object} adminCredentials
+ * @returns {Promise<string>} Admin authentication token for API calls
  */
 const adminLoginAndNavigate = async (page, adminCredentials) => {
     await page.goto('/');
@@ -94,12 +95,12 @@ const adminLoginAndNavigate = async (page, adminCredentials) => {
     
     await expect(page).toHaveTitle(/Applicants/, { timeout: 10_000 });
     
+    // Get token from auth response
+    const authData = await authResponse.json();
+    const authToken = authData?.data?.token;
+    
     // Set locale to English for the logged-in user
     try {
-        // Get token from auth response
-        const authData = await authResponse.json();
-        const authToken = authData?.data?.token;
-        
         // Get user ID from self response
         const selfData = await selfResponse.json();
         const userId = selfData?.data?.id;
@@ -130,6 +131,9 @@ const adminLoginAndNavigate = async (page, adminCredentials) => {
         console.log('⚠️ Failed to set locale to English:', error.message);
         // Don't fail the test if locale update fails
     }
+    
+    // Return admin token for API calls
+    return authToken;
 };
 
 export default {

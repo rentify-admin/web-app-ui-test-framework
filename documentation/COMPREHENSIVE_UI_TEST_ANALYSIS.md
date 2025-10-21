@@ -3031,6 +3031,7 @@ Based on the test files in the framework, I've identified these categories:
 ### **Files Analyzed:**
 1. `hosted_app_copy_verify_flow_plaid_id_emp_skip.spec.js` - **Hosted Application Integration Flow**
 2. `pdf_download_test.spec.js` - **PDF Download Integration Test**
+3. `request_additional_information.spec.js` - **Document Request Integration Test**
 
 ---
 
@@ -3257,9 +3258,17 @@ Based on the test files in the framework, I've identified these categories:
 
 | API Endpoint | Category | Tests Using It | What's Actually Checked |
 |--------------|----------|----------------|-------------------------|
-| `POST /auth` | Authentication | All 2 tests | Response status is OK (200), login successful |
-| `POST /identity-verifications` | Identity Verification | 1 test | Response status is OK (200), identity verification created |
-| `GET /sessions/{id}` | Session Management | 1 test | Response status is OK (200), PDF content-type application/pdf |
+| `POST /auth` | Authentication | All 3 tests | Response status is OK (200), login successful |
+| `POST /auth/guests` | Guest Authentication | 1 test | Response status is OK (200), guest token extracted |
+| `POST /identity-verifications` | Identity Verification | 2 tests | Response status is OK (200), identity verification created |
+| `GET /sessions/{id}` | Session Management | 2 tests | Response status is OK (200), session data or PDF returned |
+| `POST /sessions/{id}/invitations` | Document Requests | 1 test | Response status is 201, invitation created with SESSION_ACTION type |
+| `GET /sessions/{id}/invitations/{id}` | Document Requests | 1 test | Response status is OK (200), invitation persisted with timestamps |
+| `GET /sessions/{id}/events` | Session Events | 1 test | Response status is OK (200), events array with 2 events |
+| `POST /sessions/{id}/steps` | Session Steps | 1 test | Response status is OK (200), session steps created |
+| `POST /employment-verifications` | Employment Verification | 1 test | Response status is OK (200), employment verification created |
+| `PATCH /sessions/{id}` | Session Management | 1 test | Response status is OK (200), rent budget updated |
+| `GET /providers` | Provider Management | 1 test | Response status is OK (200), simulation provider found |
 
 ### **Business Purpose Analysis:**
 
@@ -3267,32 +3276,349 @@ Based on the test files in the framework, I've identified these categories:
 |-----------|-------------------------|-------------------|-------------------|
 | `hosted_app_copy_verify_flow_plaid_id_emp_skip.spec.js` | **Hosted Application Integration Flow** | • **Hosted application workflow**<br>• **Phone authentication system**<br>• **Multi-step verification process**<br>• **Plaid financial integration**<br>• **Skip functionality testing**<br>• **Summary status validation**<br>• **Error handling validation** | **NO OVERLAP** - Different focus, different validation approach |
 | `pdf_download_test.spec.js` | **PDF Download Integration Test** | • **PDF export functionality**<br>• **Session access validation**<br>• **Content type validation**<br>• **Modal interaction testing**<br>• **Browser compatibility**<br>• **Response validation** | **NO OVERLAP** - Different focus, different validation approach |
+| `request_additional_information.spec.js` | **Document Request Integration Test** | • **Document request creation (POST /invitations)**<br>• **Backend persistence validation (invitations + session_actions)**<br>• **Event audit trail (2 events)**<br>• **UI event timeline verification**<br>• **Step state immutability proof**<br>• **Applicant flow isolation proof**<br>• **Network request/response validation**<br>• **Negative testing (disabled button, network errors)**<br>• **Error collection pattern**<br>• **Conditional cleanup (preserves on failure)** | **NO OVERLAP** - Unique document request integration testing |
 
 ### **Key Insights:**
 
-1. **Different integration testing approaches** - Hosted application flow vs PDF export functionality
-2. **Different user types** - Admin vs Staff user testing
-3. **Different business scenarios** - Complete application flow vs Document generation
-4. **Different technical approaches** - Multi-step workflow vs Single feature testing
-5. **Different integration patterns** - External service integration vs Internal feature testing
+1. **Different integration testing approaches** - Hosted application flow vs PDF export vs Document request workflow
+2. **Different user types** - Admin vs Staff vs Guest authentication testing
+3. **Different business scenarios** - Complete application flow vs Document generation vs Document request management
+4. **Different technical approaches** - Multi-step workflow vs Single feature vs Comprehensive validation with error collection
+5. **Different integration patterns** - External service integration vs Internal feature vs Backend persistence validation
+6. **Different validation depths** - Surface-level vs Feature-specific vs Deep integration (API + DB + UI + Events)
 
 ### **Technical Setup Analysis:**
 
 #### **Common Setup Steps (Necessary for Each Test):**
-1. **User login** (`POST /auth`) - Needed to access the system
+1. **User login** (`POST /auth`) - Needed to access the system (admin or staff)
 2. **Page navigation** - Each test needs to navigate to specific pages
 3. **Specific integration validation** - Each test validates its unique integration scenario
+4. **Context management** - Some tests use multiple browser contexts for different user flows
 
 #### **These are NOT "extra steps" - they are essential setup for each test's unique integration validation**
 
 ### **Conclusion for Category 8: NO MEANINGFUL OVERLAP**
 
-**All 2 tests should be kept** because:
-- Each tests different integration aspects (hosted flow vs PDF export)
-- Each validates different business functionality
-- Each covers different user types and scenarios
+**All 3 tests should be kept** because:
+- Each tests different integration aspects (hosted flow vs PDF export vs document request)
+- Each validates different business functionality with unique depth
+- Each covers different user types and scenarios (admin, staff, guest)
 - Each tests different technical approaches and integration patterns
 - Each validates different system integration dimensions
+- The document request test provides unique comprehensive validation (API + Backend + Events + UI + State management)
+
+---
+
+### **3. request_additional_information.spec.js - Document Request Integration Test**
+
+#### **Complete Test Structure:**
+- **1 unified test** (360s timeout)
+- **Document request integration flow** with happy path and negative tests
+- **Tags**: @request-docs, @integration, @permissions, @state-safety, @document-upload, @negative, @validation, @network-error
+- **Error Collection Pattern**: Test continues running all validations and reports all errors at the end
+
+#### **Test: "Document Request: Complete validation (happy path + negative tests)"**
+
+**Test Purpose and API Endpoints Called (with line numbers):**
+
+1. **Admin Login** (Line 96):
+   - `loginForm.adminLoginAndNavigate(page, admin)` - Admin login and navigation
+   - **Response Used For**: Authentication and capturing admin auth token
+   - **What's Actually Checked**: Response status is OK (200), admin login successful, token captured
+
+2. **DataManager Authentication** (Line 75):
+   - `dataManager.authenticate(admin.email, admin.password)` - Authenticate for cleanup
+   - **Response Used For**: Enabling conditional cleanup functionality
+   - **What's Actually Checked**: Authentication successful for cleanup operations
+
+3. **Application Navigation** (Lines 100-101):
+   - `gotoApplicationsPage(page)` - Navigate to applications
+   - `findAndInviteApplication(page, applicationName)` - Find "AutoTest - Request Doc UI test"
+   - **Response Used For**: Navigation and application selection
+   - **What's Actually Checked**: Application found and invite process initiated
+
+4. **Session Generation** (Lines 104-111):
+   - `generateSessionForm.generateSessionAndExtractLink(page, {...})` - Create session
+   - **Response Used For**: Creating new session for document request testing
+   - **What's Actually Checked**: Session created successfully, sessionId and link extracted
+
+5. **Session Tracking for Cleanup** (Line 114):
+   - `cleanupHelper.trackSession({ id: sessionId }, SUITE_ID)` - Track for conditional cleanup
+   - **Response Used For**: Enabling cleanup on test pass, preservation on test fail
+   - **What's Actually Checked**: Session tracked with suite ID
+
+6. **Guest Authentication** (Lines 20-38):
+   - `authenticateGuestFromInvite(page, link)` - Custom utility function
+   - **API**: `POST /auth/guests` (Line 31)
+   - **Response Used For**: Getting guest authentication token from invitation
+   - **What's Actually Checked**: Response status OK, guest token extracted
+
+7. **State Modal Handling** (Line 127):
+   - `handleOptionalStateModal(applicantPage)` - Handle optional state modal
+   - **Response Used For**: UI state management
+   - **What's Actually Checked**: Modal handled if present
+
+8. **Rent Budget Update** (Line 130):
+   - `updateRentBudget(applicantPage, sessionId)` - Update session rent budget
+   - **API**: `PATCH /sessions/{id}` (utility function)
+   - **Response Used For**: Setting rent budget for session
+   - **What's Actually Checked**: Response status OK, PATCH successful
+
+9. **Skip Applicants Step** (Lines 133-136):
+   - Click `applicant-invite-skip-btn` if present
+   - **Response Used For**: Skipping co-applicant invitation
+   - **What's Actually Checked**: Button clicked or skipped if not present
+
+10. **Identity Verification via API** (Lines 139-145):
+    - `completeIdentityStepViaAPI(applicantPage, sessionId, primaryAuthToken, {...}, 'primary', false)` - Complete identity
+    - **API Endpoints**: 
+      - `POST /sessions/{id}/steps` - Create identity step
+      - `POST /identity-verifications` - Submit PERSONA_PAYLOAD
+      - `PATCH /sessions/{id}/steps/{stepId}` - Mark step as COMPLETED
+    - **Response Used For**: Completing identity verification with matching name
+    - **What's Actually Checked**: Identity verification successful, step completed
+
+11. **Skip Financial Step** (Lines 148-151):
+    - Wait for and click `skip-financials-btn`
+    - **Response Used For**: Skipping financial verification
+    - **What's Actually Checked**: Button visible and clicked
+
+12. **Employment Step Load** (Lines 154-156):
+    - Wait for `document-pay_stub` to appear
+    - **Response Used For**: Confirming employment step loaded
+    - **What's Actually Checked**: Employment document selector visible
+
+13. **Baseline Step State Capture** (Lines 159-167):
+    - **API**: `GET /sessions/{sessionId}` (Line 160)
+    - **Response Used For**: Capturing step state BEFORE document request
+    - **What's Actually Checked**: `current_step.id` and `current_step.type` captured
+
+14. **Document Request Creation** (Lines 176-199):
+    - `openAndSubmitRequestDialog(page)` - Custom utility (Lines 43-67)
+    - **API**: `POST /sessions/{sessionId}/invitations` (Line 177)
+    - **Request Payload Validated** (Lines 188-191):
+      - `postData.actions` is array
+      - `actions[0].action` = "employment_document"
+      - `actions[0].documents` contains "pay_stub"
+    - **Response Validated** (Lines 193-199):
+      - Status 201
+      - `data._type` = "invitation"
+      - `data.type` = "SESSION_ACTION"
+      - `invitationId` extracted
+
+15. **Invitation Persistence Verification** (Lines 212-224):
+    - **API**: `GET /sessions/{sessionId}/invitations/{invitationId}` (Line 212)
+    - **Query Params**: `fields[invitation]=id,type,created_at,updated_at`
+    - **Response Used For**: Verifying invitation persisted in database
+    - **What's Actually Checked**:
+      - `id` matches created invitation
+      - `type` = "SESSION_ACTION"
+      - `created_at` timestamp exists
+
+16. **Session Actions Verification** (Lines 228-245):
+    - **API**: `GET /sessions/{sessionId}` (Line 228)
+    - **Query Params**: `fields[session]=actions`, `fields[action]=key,documents,status,tasks,created_at`
+    - **Response Used For**: Verifying session_actions record created
+    - **What's Actually Checked**:
+      - `actions` array exists and has entries
+      - Action with `key` = "EMPLOYMENT_DOCUMENT" exists
+      - `documents` contains "pay_stub"
+      - `status` = "REQUESTED"
+      - `created_at` timestamp exists
+
+17. **Events Verification (API)** (Lines 249-285):
+    - **API**: `GET /sessions/{sessionId}/events` (Line 249)
+    - **Query Params**: `fields[user]=full_name,email,phone`, `order=created_at:asc`, `limit=1000`
+    - **Response Used For**: Verifying notification audit trail events
+    - **Event 1 Validated** (Lines 264-275): `session.information_requested`
+      - `title` = "Information requested"
+      - `description` contains "employment_document"
+      - `meta.items` = "employment_document"
+      - `created_at` exists
+      - `triggered_by._type` = "member"
+    - **Event 2 Validated** (Lines 278-285): `action.requested`
+      - `title` = "Session action requested"
+      - `description` contains "EMPLOYMENT_DOCUMENT"
+      - `meta.action` = "EMPLOYMENT_DOCUMENT"
+      - `meta.documents` contains "pay_stub"
+      - `created_at` exists
+      - `triggered_by` exists
+
+18. **Events Verification (UI)** (Lines 288-312):
+    - Navigate to session details
+    - Click `view-details-btn`
+    - Search events by "requested"
+    - **UI Validated**:
+      - h6 "Information requested" visible
+      - h6 "Session action requested" visible
+
+19. **Step State Unchanged Verification** (Lines 315-325):
+    - **API**: `GET /sessions/{sessionId}` (Line 316)
+    - **Response Used For**: Verifying step state unchanged after document request
+    - **What's Actually Checked**:
+      - `current_step.id` = baseline step ID
+      - `current_step.type` = baseline step type
+      - **Proves**: Document request does NOT change step state
+
+20. **Employment Verification via API** (Lines 333-338):
+    - `completeEmploymentStepViaAPI(applicantPage, sessionId, primaryAuthToken, {...}, false)` - Complete employment WITHOUT auto-complete
+    - **API Endpoints**:
+      - `POST /sessions/{id}/steps` - Create employment step
+      - `GET /providers` - Get simulation provider
+      - `POST /employment-verifications` - Submit VERIDOCS_PAYLOAD
+      - **NO** `PATCH /sessions/{id}/steps/{stepId}` - Auto-complete disabled
+    - **Response Used For**: Completing employment verification while preserving manual UI flow
+    - **What's Actually Checked**: Employment verification successful, step NOT auto-completed
+
+21. **Applicant Flow Continuation Verification** (Lines 341-354):
+    - Wait for `employment-step-continue` button (Line 343)
+    - Validate button visible and enabled (Lines 348-349)
+    - Click continue button (Line 353)
+    - **Response Used For**: Proving applicant can proceed after document request
+    - **What's Actually Checked**: Button available, clickable, and functional
+    - **Proves**: Document request does NOT block applicant flow
+
+22. **Negative Test 1: Submit Button Disabled** (Lines 394-402):
+    - Open request dialog without selecting document
+    - **UI Validated**: `submit-request-additional` has `aria-disabled='true'`
+
+23. **Negative Test 2: Button Stays Disabled** (Lines 405-409):
+    - Verify disabled attribute persists
+    - **UI Validated**: `aria-disabled` remains 'true'
+
+24. **Negative Test 3: Network Error Handling** (Lines 412-447):
+    - Select Pay Stub Upload document
+    - Intercept POST request with `page.route()` (Lines 427-433)
+    - Return 500 error response
+    - **UI Validated**:
+      - Error toast/alert visible
+      - Alert contains "error|failed|unable" text
+    - Unroute handler (Line 438)
+    - Close dialog (Lines 445-447)
+
+**Detailed Steps:**
+
+1. **Test Setup** (Lines 72-88):
+   - Import custom cleanup fixture: `enhanced-cleanup-fixture-conditional`
+   - Authenticate `dataManager` for cleanup (Lines 74-80)
+   - Initialize error collection array (Line 83)
+   - Define `SUITE_ID` constant for cleanup tracking (Lines 87-88)
+
+2. **PART 1: Happy Path** (Lines 90-371):
+   - **Admin Setup** (Lines 96-101):
+     - Admin login and capture token
+     - Navigate to applications
+     - Find and invite "AutoTest - Request Doc UI test"
+   
+   - **Session Creation** (Lines 104-118):
+     - Generate session for Primary applicant
+     - Extract sessionId and link
+     - Track session for conditional cleanup
+     - Log cleanup preservation notice
+   
+   - **Applicant Flow Setup** (Lines 121-156):
+     - Create new browser context
+     - Navigate to invitation URL
+     - Handle optional state modal
+     - Update rent budget
+     - Skip applicants step
+     - Complete identity via API (PERSONA simulation)
+     - Skip financial step
+     - Verify employment step loaded
+   
+   - **Baseline Capture** (Lines 159-167):
+     - Capture `current_step.id` and `current_step.type`
+     - Log baseline step state
+   
+   - **Document Request Creation** (Lines 170-199):
+     - Switch to admin page
+     - Navigate to session details
+     - Set up network request/response promises
+     - Open request dialog and select Pay Stub Upload
+     - Validate POST request payload
+     - Validate 201 response and invitation creation
+   
+   - **Backend Persistence Validation** (Lines 212-245):
+     - Verify invitation persisted (GET /invitations/{id})
+     - Verify session action created (GET /sessions/{id} with actions)
+     - Log API responses for debugging
+   
+   - **Events Validation** (Lines 248-312):
+     - API: Fetch events and validate 2 events created
+     - UI: Navigate to session, open events panel, search, verify visibility
+   
+   - **Critical Validations** (Lines 315-354):
+     - Verify step state unchanged after document request
+     - Switch to applicant context
+     - Complete employment verification (no auto-complete)
+     - Verify continue button available and clickable
+     - Click continue to prove flow not blocked
+   
+   - **Cleanup** (Line 356):
+     - Close applicant context
+
+3. **Error Handling for Happy Path** (Lines 359-371):
+   - Catch any errors during happy path
+   - Collect error details (section, message, stack, context)
+   - Push to errors array
+   - Log error without throwing (test continues)
+
+4. **PART 2: Negative Tests** (Lines 373-510):
+   - **Validation** (Lines 379-383):
+     - Check if session was created
+     - Reuse session from happy path
+   
+   - **Admin Re-login** (Lines 386-391):
+     - Re-authenticate if needed
+     - Navigate to session
+   
+   - **Negative Test 1** (Lines 394-402):
+     - Open dialog without selection
+     - Verify submit button disabled
+   
+   - **Negative Test 2** (Lines 405-409):
+     - Verify disabled state persists
+   
+   - **Negative Test 3** (Lines 412-447):
+     - Select document
+     - Intercept with 500 error
+     - Verify error toast displayed
+     - Cleanup: unroute handler, close dialog
+   
+   - **Negative Test 4** (Lines 449-495):
+     - COMMENTED OUT due to known UI bug
+     - Would test permissions enforcement
+     - User without MANAGE_APPLICANTS should not see button
+
+5. **Error Handling for Negative Tests** (Lines 499-510):
+   - Catch any errors during negative tests
+   - Collect error details (section, message, stack, context)
+   - Push to errors array
+   - Log error without throwing (test continues)
+
+6. **Final Error Reporting** (Lines 512-529):
+   - Check if any errors collected
+   - Log summary of all errors
+   - Format error report with sections and locations
+   - Throw combined error with all details
+   - Or log success if no errors
+
+#### **Key Business Validations:**
+- **Document Request Creation**: Tests complete POST /invitations workflow
+- **Backend Persistence**: Validates invitation and session_actions records
+- **Event Audit Trail**: Verifies 2 events created (information_requested, action.requested)
+- **UI Feedback**: Confirms events visible in admin timeline
+- **Step State Immutability**: Proves document request does NOT change step state
+- **Applicant Flow Isolation**: Proves document request does NOT block applicant
+- **Network Request Validation**: Captures and validates POST payload
+- **Negative Testing**: Submit disabled, network errors, permissions
+- **Error Collection Pattern**: Runs all validations regardless of failures
+- **Conditional Cleanup**: Preserves session on failure for debugging
+
+#### **Overlap Assessment:**
+- **UNIQUE**: Only test focused on document request integration with comprehensive validation
+- **NO OVERLAP**: Different from other integration tests
+- **KEEP**: Essential for document request functionality validation
 
 ---
 
@@ -4007,8 +4333,8 @@ Based on the test files in the framework, I've identified these categories:
 ### **📊 FINAL SUMMARY**
 
 **Total Categories Analyzed**: 9/9 (100% Complete)
-**Total Test Files Analyzed**: 39 files
-**Total API Endpoints Documented**: 65+ unique endpoints
+**Total Test Files Analyzed**: 40 files
+**Total API Endpoints Documented**: 75+ unique endpoints
 **Analysis Methodology**: Line-by-line analysis with exact API endpoints, utility functions, and business validations
 
 ### **✅ ALL CATEGORIES COMPLETE**
@@ -4020,12 +4346,12 @@ Based on the test files in the framework, I've identified these categories:
 5. **Category 5: Document Processing Tests** - **COMPLETE** (3 files)
 6. **Category 6: System Health Tests** - **COMPLETE** (2 files)
 7. **Category 7: Workflow Management Tests** - **COMPLETE** (2 files)
-8. **Category 8: Integration Tests** - **COMPLETE** (2 files)
+8. **Category 8: Integration Tests** - **COMPLETE** (3 files)
 9. **Category 9: Menu Heartbeat Tests** - **COMPLETE** (13 files)
 
 ### **🔍 KEY FINDINGS**
 
-- **NO MEANINGFUL OVERLAP FOUND** across all 39 test files
+- **NO MEANINGFUL OVERLAP FOUND** across all 40 test files
 - **All tests are unique** and serve different business purposes
 - **No redundant tests identified** - each test validates specific scenarios
 - **Complete API endpoint coverage** documented with exact line numbers
@@ -4034,7 +4360,7 @@ Based on the test files in the framework, I've identified these categories:
 
 ### **📋 RECOMMENDATIONS**
 
-**KEEP ALL 39 TEST FILES** because:
+**KEEP ALL 40 TEST FILES** because:
 - Each tests different business scenarios and functionality
 - Each validates different API endpoints and workflows
 - Each covers different user types and integration patterns
