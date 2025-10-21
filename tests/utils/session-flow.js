@@ -2198,9 +2198,10 @@ const completeFinancialStepViaAPI = async (page, sessionId, guestToken, userData
  * @param {String} sessionId - Session ID
  * @param {String} guestToken - Guest authentication token
  * @param {Object} userData - User data with first_name, last_name, email
+ * @param {Boolean} autoCompleteStep - If true (default), automatically marks step as COMPLETED. If false, leaves step for manual UI completion
  * @returns {Promise<void>}
  */
-const completeEmploymentStepViaAPI = async (page, sessionId, guestToken, userData) => {
+const completeEmploymentStepViaAPI = async (page, sessionId, guestToken, userData, autoCompleteStep = true) => {
     console.log('🚀 Starting Employment Verification via API with VERIDOCS_PAYLOAD...');
 
     // 1) Wait/poll until current step is EMPLOYMENT_VERIFICATION (in case UI hasn't advanced yet)
@@ -2285,9 +2286,9 @@ const completeEmploymentStepViaAPI = async (page, sessionId, guestToken, userDat
     console.log('⏳ Waiting for employment verification to complete...');
     let verificationComplete = false;
     let pollCount = 0;
-    const maxPolls = 15;
+    const maxPolls = 50;
     while (!verificationComplete && pollCount < maxPolls) {
-        await page.waitForTimeout(4000);
+        await page.waitForTimeout(700);
         const verificationCheckResponse = await page.request.get(`${app.urls.api}/employment-verifications`, {
             headers: {
                 'Authorization': `Bearer ${guestToken}`,
@@ -2316,15 +2317,19 @@ const completeEmploymentStepViaAPI = async (page, sessionId, guestToken, userDat
         throw new Error('Employment verification timed out');
     }
 
-    // 8) Mark session step as COMPLETED
-    await page.request.patch(`${app.urls.api}/sessions/${sessionId}/steps/${step.data.id}`, {
-        headers: {
-            'Authorization': `Bearer ${guestToken}`,
-            'Content-Type': 'application/json'
-        },
-        data: { status: 'COMPLETED' }
-    });
-    console.log('✅ EMPLOYMENT step marked as COMPLETED');
+    // 8) Mark session step as COMPLETED (conditional based on autoCompleteStep parameter)
+    if (autoCompleteStep) {
+        await page.request.patch(`${app.urls.api}/sessions/${sessionId}/steps/${step.data.id}`, {
+            headers: {
+                'Authorization': `Bearer ${guestToken}`,
+                'Content-Type': 'application/json'
+            },
+            data: { status: 'COMPLETED' }
+        });
+        console.log('✅ EMPLOYMENT step marked as COMPLETED');
+    } else {
+        console.log('ℹ️ EMPLOYMENT step NOT auto-completed (autoCompleteStep = false) - manual UI completion required');
+    }
 };
 
 export {
