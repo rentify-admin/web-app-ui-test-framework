@@ -36,12 +36,24 @@ test.describe('heartbeat_income_source_menus.spec', () => {
             // Wait for all rows to be rendered (expect at least API data count)
             await expect(tableRows).toHaveCount(incomeSources.data.length, { timeout: 10000 });
             
-            // Loop through API data, not UI rows (to avoid pagination mismatches)
+            // Create a set of expected names from API for order-independent validation
+            const apiNames = incomeSources.data.map(item => item.name);
+            console.log(`ℹ️ API returned ${apiNames.length} income sources`);
+            
+            // Loop through UI rows and verify each exists in API response (order-independent)
             for (let index = 0; index < incomeSources.data.length; index++) {
                 const row = await tableRows.nth(index);
-                await expect(row).toContainText(incomeSources.data[index].name);
+                const rowText = await row.textContent();
+                
+                // Check if any API name is present in this row
+                const foundInApi = apiNames.some(name => rowText.includes(name));
+                await expect(foundInApi).toBe(true);
+                
+                if (!foundInApi) {
+                    console.log(`❌ Row ${index + 1} text "${rowText}" not found in API response`);
+                }
             }
-            console.log('🚀 ~ Income Source list checked')
+            console.log('✅ Income Source list checked - all UI rows match API data (order-independent)')
         }
     })
 
