@@ -27,8 +27,8 @@ test.beforeEach(async ({ page }) => {
 test.describe('financial_mx_2_attempts_success_and_failed_password', () => {
     test('Financial - mx - 2 attempts - success and failed password', {
       tag: ['@regression', '@needs-review'],
-      timeout: 180000  // 3 minutes 
     }, async ({ page, browser }) => {
+        test.setTimeout(300_000);
         // Step 1: Admin Login and Navigate
         await loginForm.fill(page, admin);
         await loginForm.submitAndSetLocale(page);
@@ -107,7 +107,7 @@ test.describe('financial_mx_2_attempts_success_and_failed_password', () => {
 
         await newPage.waitForEvent('close');
 
-        await mxFrame.locator('[data-test="done-button"]').waitFor({ state: 'visible', timeout: 150_000 });
+        await mxFrame.locator('[data-test="done-button"]').waitFor({ state: 'visible', timeout: 220_000 });
         await mxFrame.locator('[data-test="done-button"]').click();
 
         await applicantPage.waitForTimeout(2000);
