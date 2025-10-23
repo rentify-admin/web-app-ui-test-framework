@@ -10,6 +10,7 @@ import { waitForJsonResponse } from '~/tests/utils/wait-response';
 import { gotoApplicationsPage, searchApplication } from '~/tests/utils/applications-page';
 
 const API_URL = config.app.urls.api;
+const APP_URL = config.app.urls.app;
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -25,8 +26,8 @@ test.beforeEach(async ({ page }) => {
 });
 
 test.describe('financial_mx_2_attempts_success_and_failed_password', () => {
-    test('Financial - mx - 2 attempts - success and failed password', {
-      tag: ['@regression', '@needs-review', '@external-integration'],
+    test('Financial - mx - 2 attempts + Eligibility status transitions', {
+      tag: ['@regression', '@external-integration', '@eligibility', '@core'],
     }, async ({ page, browser }) => {
         test.setTimeout(300_000);
         // Step 1: Admin Login and Navigate
@@ -107,8 +108,79 @@ test.describe('financial_mx_2_attempts_success_and_failed_password', () => {
 
         await newPage.waitForEvent('close');
 
-        await mxFrame.locator('[data-test="done-button"]').waitFor({ state: 'visible', timeout: 220_000 });
-        await mxFrame.locator('[data-test="done-button"]').click();
+        // Poll for done button or iframe closure (more robust than simple wait)
+        console.log('⏳ Polling for MX connection completion...');
+        const maxPollingAttempts = 110; // 110 attempts = 220 seconds max
+        const pollingInterval = 2000; // 2 seconds
+        let pollingAttempt = 0;
+        let connectionComplete = false;
+        let iframeClosedAutomatically = false;
+        
+        while (!connectionComplete && pollingAttempt < maxPollingAttempts) {
+            try {
+                // Check if Bank Connect iframe is still visible
+                const bankConnectFrame = applicantPage.locator('iframe[title="Bank Connect"]').contentFrame();
+                const navigationHeader = bankConnectFrame.locator('[data-test="navigation-header"]');
+                const isIframeVisible = await navigationHeader.isVisible().catch(() => false);
+                
+                if (!isIframeVisible) {
+                    // Iframe closed automatically - connection complete
+                    console.log(`✅ Bank Connect iframe closed automatically - connection complete (attempt ${pollingAttempt + 1})`);
+                    iframeClosedAutomatically = true;
+                    connectionComplete = true;
+                    break;
+                }
+                
+                // Check if done button is visible
+                const doneButton = mxFrame.locator('[data-test="done-button"]');
+                const isDoneVisible = await doneButton.isVisible({ timeout: 1000 }).catch(() => false);
+                
+                if (isDoneVisible) {
+                    console.log(`✅ Done button found - clicking (attempt ${pollingAttempt + 1})`);
+                    await doneButton.click();
+                    connectionComplete = true;
+                    break;
+                }
+                
+                pollingAttempt++;
+                if (pollingAttempt < maxPollingAttempts) {
+                    console.log(`   Attempt ${pollingAttempt}/${maxPollingAttempts}: Still processing...`);
+                    await applicantPage.waitForTimeout(pollingInterval);
+                }
+            } catch (error) {
+                pollingAttempt++;
+                if (pollingAttempt < maxPollingAttempts) {
+                    await applicantPage.waitForTimeout(pollingInterval);
+                }
+            }
+        }
+        
+        if (!connectionComplete) {
+            throw new Error(`MX connection did not complete after ${maxPollingAttempts * pollingInterval / 1000} seconds`);
+        }
+
+        // If iframe closed automatically, we need to re-open it for the second (failed) attempt
+        if (iframeClosedAutomatically) {
+            console.log('🔄 Iframe closed automatically - re-opening for second connection attempt');
+            await applicantPage.waitForTimeout(2000);
+            
+            // Click connect bank button again to re-open the MX iframe
+            const connectBankBtn = applicantPage.getByTestId('connect-bank');
+            const isConnectBtnVisible = await connectBankBtn.isVisible().catch(() => false);
+            
+            if (isConnectBtnVisible) {
+                await connectBankBtn.click();
+                console.log('   ✅ MX iframe re-opened for second attempt');
+                
+                // Wait for iframe to load
+                const mxFrameReopened = applicantPage.frameLocator('iframe[src*="int-widgets.moneydesktop.com"]');
+                await expect(mxFrameReopened.locator('[data-test="search-header"]')).toBeVisible({ timeout: 30000 });
+            } else {
+                console.log('   ⚠️ Connect button not found - iframe might still be open');
+            }
+        } else {
+            console.log('   ℹ️ Done button clicked - iframe should still be open');
+        }
 
         await applicantPage.waitForTimeout(2000);
         await mxFrame.locator('[data-test="search-input"]').fill('mx bank');
@@ -118,12 +190,103 @@ test.describe('financial_mx_2_attempts_success_and_failed_password', () => {
         await mxFrame.locator('[data-test="credentials-continue"]').click();
 
         await mxFrame.locator('[data-test="credentials-error-message-box"]').waitFor({ state: 'visible', timeout: 150_000 });
+        console.log('✅ Error message displayed for failed credentials');
+        
         // Click the close icon after error message
         await applicantPage.getByTestId('connnect-modal-cancel').click();
         await applicantPage.locator('[data-testid="financial-verification-continue-btn"]').click();
 
-        // Final assertion (example: check for summary or error message)
+        // Wait for summary page
         await expect(applicantPage.locator('h3', { hasText: 'Summary' })).toBeVisible({ timeout: 110_000 });
+        console.log('✅ Part 1 Complete: MX connections (1 success + 1 failure)');
+
+        // ===================================================================
+        // PART 2: Eligibility Status Transitions (merged from MX_1)
+        // ===================================================================
+        console.log('\n🎯 Part 2: Testing eligibility status transitions based on income/rent changes');
+        
+        // Step 6: Switch to admin report view
+        console.log('Step 6: Closing applicant page and opening admin report view');
+        await applicantPage.close();
+        const sessionUrlAdmin = `${APP_URL}/applicants/all/${sessionId}`;
+        await page.goto(sessionUrlAdmin);
+        await page.bringToFront();
+        
+        // Wait for income sources to be generated from MX connection
+        console.log('   Waiting for income source generation from MX data...');
+        await page.waitForTimeout(5000);
+        
+        const householdStatusAlert = page.getByTestId('household-status-alert');
+        await expect(householdStatusAlert).toBeVisible();
+        
+        // Step 7: Assert initial status - MX income should be sufficient for $500 rent
+        console.log('Step 7: Asserting initial status - Meets Criteria');
+        await expect(householdStatusAlert).toContainText('Meets Criteria', { timeout: 30000 });
+        console.log('   ✅ Status: Meets Criteria (MX income sufficient for $500 rent)');
+        
+        // Step 8: Increase rent to $3000 - Income should become insufficient
+        console.log('Step 8: Increasing rent to $3000 (should fail criteria)');
+        const editRentIcon = page.getByTestId('rent-budget-edit-btn');
+        await expect(editRentIcon).toBeVisible();
+        await editRentIcon.click();
+        const adminRentBudgetInput = page.locator('#rent-budget-input');
+        await adminRentBudgetInput.fill('3000');
+        const submitRentBudgetBtn = page.getByTestId('submit-rent-budget');
+        await submitRentBudgetBtn.click();
+        
+        await page.waitForTimeout(2000);
+        await page.reload();
+        await expect(householdStatusAlert).toContainText('Criteria Not Met', { timeout: 30000 });
+        console.log('   ✅ Status: Criteria Not Met (income insufficient for $3000 rent)');
+        
+        // Step 9: Add manual income source of $3000 - Should meet criteria again
+        console.log('Step 9: Adding manual income source $3000 (should meet criteria)');
+        await page.getByTestId('income-source-section-header').click();
+        await page.getByTestId('income-source-add').click();
+        
+        const incomeTypeSelect = page.locator('#income_type');
+        await incomeTypeSelect.click();
+        await incomeTypeSelect.selectOption('OTHER');
+        
+        // Uncheck 'Calculate average from transactions' if checked
+        const calculateAverageCheckbox = page.locator('label.items-center > input[type="checkbox"].form-checkbox');
+        if (await calculateAverageCheckbox.isChecked()) {
+            await calculateAverageCheckbox.click();
+        }
+        
+        // Fill in the net amount & save
+        const netAmountInput = page.locator('#net_amount');
+        await netAmountInput.click();
+        await netAmountInput.fill('3000');
+        
+        const incomeSourceUrl = joinUrl(API_URL, 'sessions', sessionId, 'income-sources');
+        const [incomeSourceResponse] = await Promise.all([
+            page.waitForResponse(resp => 
+                resp.url().includes(incomeSourceUrl) &&
+                resp.request().method() === 'POST' &&
+                resp.ok()
+            ),
+            page.locator('button[type="submit"].btn.btn-sm.btn-primary.rounded-full:has-text("Save")').click()
+        ]);
+        
+        const { data: incomeSourceData } = await waitForJsonResponse(incomeSourceResponse);
+        const incomeSourceId = incomeSourceData.id;
+        console.log(`   Created manual income source: ${incomeSourceId}`);
+        
+        // Wait for income source sync
+        await page.waitForTimeout(3000);
+        
+        // Assert income source is visible
+        const incomeSource = page.getByTestId(`income-source-${incomeSourceId}`);
+        await expect(incomeSource).toBeVisible();
+        
+        // Step 10: Verify status changed back to Meets Criteria
+        await page.reload();
+        await expect(householdStatusAlert).toContainText('Meets Criteria', { timeout: 30000 });
+        console.log('   ✅ Status: Meets Criteria (total income now sufficient for $3000 rent)');
+        
+        console.log('\n✅ Part 2 Complete: Eligibility status transitions validated');
+        console.log('🎉 Full test passed: MX connections + Eligibility logic');
 
     });
 });
