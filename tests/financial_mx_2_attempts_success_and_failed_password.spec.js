@@ -26,7 +26,7 @@ test.beforeEach(async ({ page }) => {
 
 test.describe('financial_mx_2_attempts_success_and_failed_password', () => {
     test('Financial - mx - 2 attempts - success and failed password', {
-      tag: ['@regression', '@needs-review'],
+      tag: ['@regression', '@needs-review', '@external-integration'],
     }, async ({ page, browser }) => {
         test.setTimeout(300_000);
         // Step 1: Admin Login and Navigate

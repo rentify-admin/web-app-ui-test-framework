@@ -25,7 +25,7 @@ test.setTimeout(180_000);
 
 test.describe('financial_mx_1_attempt_report_check_approve_with_conditions', () => {
     test('Should complete MX OAuth financial verification and test approval workflow with conditions', {
-      tag: ['@core', '@smoke', '@regression', '@document-upload'],
+      tag: ['@core', '@smoke', '@regression', '@document-upload', '@external-integration'],
     }, async ({ page, browser }) => {
         // Step 1: Admin Login and Navigate
         await loginForm.fill(page, admin);
