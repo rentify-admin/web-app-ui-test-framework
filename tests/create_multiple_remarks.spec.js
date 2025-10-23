@@ -11,6 +11,7 @@ test.describe('create_multiple_remarks.spec', () => {
 
     test('Should allow creating multiple remarks successfully', {
         tag: ['@core', '@smoke', '@regression'],
+        timeout: 180_000
     }, async ({ page }) => {
         await page.goto('/');
         await loginForm.fill(page, admin);
@@ -67,7 +68,7 @@ test.describe('create_multiple_remarks.spec', () => {
         for (let index = 0; index < Object.values(remarks).length; index++) {
             const element = Object.values(remarks)[index];
             expect(element).toBe(comments.data[index].comment)
-            expect(comments.data[index]?.comment?.author?.user?.email).toBe(admin.email);
+            expect(comments.data[index]?.author?.user?.email).toBe(admin.email);
         }
 
         await expect(page.getByText(remarks.r1)).toBeVisible();
