@@ -555,10 +555,9 @@ Based on the test files in the framework, I've identified these categories:
 
 ### **Files Analyzed:**
 1. `financial_plaid_one_transaction_error_decline.spec.js` - **Plaid Provider + Error Handling**
-2. `financial_mx_1_attempt_report_check_approve_with_conditions.spec.js` - **MX Provider + Approval Workflow**
-3. `financial_mx_2_attempts_success_and_failed_password.spec.js` - **MX Provider + Retry Logic**
-4. `check_coapp_income_ratio_exceede_flag.spec.js` - **Co-Applicant Income Ratio Flag Testing**
-5. `employment_skip_household_not_hidden_employment_connect.spec.js` - **Employment Verification with Household Skip**
+2. `financial_mx_2_attempts_success_and_failed_password.spec.js` - **MX Provider + Retry Logic + Eligibility Status Transitions**
+3. `check_coapp_income_ratio_exceede_flag.spec.js` - **Co-Applicant Income Ratio Flag Testing**
+4. `employment_skip_household_not_hidden_employment_connect.spec.js` - **Employment Verification with Household Skip**
 
 ---
 
@@ -629,132 +628,106 @@ Based on the test files in the framework, I've identified these categories:
 
 ---
 
-### **2. financial_mx_1_attempt_report_check_approve_with_conditions.spec.js - MX Provider + Approval Workflow**
+### **2. financial_mx_2_attempts_success_and_failed_password.spec.js - MX Provider + Retry Logic + Eligibility Status Transitions**
 
 #### **Complete Test Structure:**
-- **1 test** (180s timeout)
-- **MX integration** with approval workflow
-- **Tags**: @core, @smoke, @regression, @document-upload
+- **1 test** (300s timeout)
+- **MX integration** with retry logic AND eligibility status transitions
+- **Tags**: @regression, @external-integration, @eligibility, @core
 
-#### **Test: "Should complete MX OAuth financial verification and test approval workflow with conditions"**
-**Purpose**: Test MX integration with approval workflow and conditional logic
+#### **Test: "Financial - mx - 2 attempts + Eligibility status transitions"**
+**Purpose**: Test MX retry mechanism, password failure handling, AND eligibility status transitions based on income/rent ratio changes
 **API Endpoints Called**:
-- `POST /auth` - Admin login (via loginForm.submit, line 32)
-  - **Response Used For**: Authentication and session establishment
-  - **What's Actually Checked**: Response status is OK (200), page title contains "Applicants"
-- `GET /applications?` - Search applications (via searchApplication, line 38)
-  - **Response Used For**: Getting applications data for search
-  - **What's Actually Checked**: Response status is OK (200), applications array is returned
-- `POST /sessions` - Create session (via generateSessionForm.submit, line 51)
-  - **Response Used For**: Creating new session for applicant
-  - **What's Actually Checked**: Response status is OK (200), session data is returned
-- `PATCH /sessions/{id}` - Update session rent budget (waitForResponse, line 80)
-  - **Response Used For**: Updating session with rent budget
-  - **What's Actually Checked**: Response status is OK (200), PATCH method
-- `POST /sessions/{sessionId}/income-sources` - Create income source (waitForResponse, line 161-166)
-  - **Response Used For**: Creating new income source
-  - **What's Actually Checked**: Response status is OK (200), income source data is returned
-- `GET /sessions/{sessionId}/income-sources` - Get income sources (waitForResponse, line 171-175)
-  - **Response Used For**: Getting income sources for verification
-  - **What's Actually Checked**: Response status is OK (200), income sources data is returned
-- `PATCH /sessions/{id}` - Update rent budget (waitForResponse, line 198)
-  - **Response Used For**: Updating rent budget for conditional approval
-  - **What's Actually Checked**: Response status is OK (200), PATCH method
-- `PATCH /sessions/{id}` - Update rent budget (waitForResponse, line 209)
-  - **Response Used For**: Updating rent budget for decline scenario
-  - **What's Actually Checked**: Response status is OK (200), PATCH method
 
-**Steps**:
-1. **Admin login and navigate to applications** (via loginForm.fill and loginForm.submit)
-2. **Locate 'AutoTest Suite - Fin only' application** (via searchApplication utility)
-3. **Generate session with specific user data** (via generateSessionForm utility)
-   - Fill form with user data (alexander, sample, ignacio.martinez+playwright@verifast.com)
-   - Submit form and get session link
-4. **Applicant flow** (in new browser context):
-   - Navigate to session link
-   - Handle optional state modal
-   - Set rent budget to '555' and submit
-   - Start MX OAuth financial verification
-   - Use `connectBankOAuthFlow` utility for MX connection
-   - Wait for connection completion (30 attempts, 2s intervals)
-   - Continue financial verification
-5. **Admin workflow**:
-   - Navigate to session admin page
-   - Add income source (type: OTHER, amount: 1000)
-   - Wait for income source sync
-   - **Test approval conditions**:
-     - Edit rent budget to 755 → "Conditional Meets Criteria"
-     - Edit rent budget to 1755 → "Criteria Not Met"
-
-#### **Key Business Validations:**
-- **MX OAuth flow** ✅
-- **Approval workflow with conditions** ✅
-- **Income source management** ✅
-- **Report generation and approval** ✅
-- **Condition-based decision making** ✅
-- **Rent budget impact on approval status** ✅
-
----
-
-### **3. financial_mx_2_attempts_success_and_failed_password.spec.js - MX Provider + Retry Logic**
-
-#### **Complete Test Structure:**
-- **1 test** (180s timeout)
-- **MX integration** with retry logic
-- **Tags**: @regression, @needs-review
-
-#### **Test: "Financial - mx - 2 attempts - success and failed password"**
-**Purpose**: Test MX retry mechanism and password failure handling
-**API Endpoints Called**:
+**PART 1: MX Connection Testing**
 - `POST /auth` - Admin login (via loginForm.submit, line 34)
   - **Response Used For**: Authentication and session establishment
   - **What's Actually Checked**: Response status is OK (200), page title contains "Applicants"
-- `GET /applications?` - Search applications (via searchApplication, line 40)
+- `GET /applications?` - Search applications (via searchApplication, line 42)
   - **Response Used For**: Getting applications data for search
   - **What's Actually Checked**: Response status is OK (200), applications array is returned
-- `POST /sessions` - Create session (via generateSessionForm.submit, line 49)
+- `POST /sessions` - Create session (via generateSessionForm.submit, line 58)
   - **Response Used For**: Creating new session for applicant
   - **What's Actually Checked**: Response status is OK (200), session data is returned
-- `PATCH /sessions/{id}` - Update session rent budget (waitForResponse, line 68)
-  - **Response Used For**: Updating session with rent budget
+- `PATCH /sessions/{id}` - Update session rent budget (waitForResponse, line 77)
+  - **Response Used For**: Updating session with rent budget ($500)
   - **What's Actually Checked**: Response status is OK (200), PATCH method
-- `POST /financial-verifications` - Create financial verification (waitForResponse, line 72-77)
+- `POST /financial-verifications` - Create financial verification (waitForResponse, line 81-88)
   - **Response Used For**: Creating financial verification for MX connection
   - **What's Actually Checked**: Response status is OK (200), financial verification data is returned
 
+**PART 2: Eligibility Status Transitions**
+- `PATCH /sessions/{id}` - Update rent budget to $3000 (line 233-235)
+  - **Response Used For**: Testing status transition when income becomes insufficient
+  - **What's Actually Checked**: Response status is OK (200), PATCH method
+- `POST /sessions/{sessionId}/income-sources` - Create manual income source (waitForResponse, line 263-270)
+  - **Response Used For**: Adding $3000 OTHER income to meet increased rent criteria
+  - **What's Actually Checked**: Response status is OK (200), income source created successfully
+
 **Steps**:
+
+**PART 1: MX Connection Testing** (Lines 33-201)
 1. **Admin login and navigate to applications** (via loginForm.fill and loginForm.submit)
-2. **Locate 'AutoTest Suite - Fin' application** (via searchApplication utility)
+2. **Locate 'AutoTest Suite - Fin only' application** (via searchApplication utility)
 3. **Generate session with specific user data** (via generateSessionForm utility)
    - Fill form with user data (FinMX, Test, finmx_test@verifast.com)
    - Submit form and get session link
 4. **Applicant flow** (in new browser context):
    - Navigate to session link
-   - Set rent budget to '500' and submit
+   - Set rent budget to '$500' and submit
    - Start financial verification
    - **First attempt**: MX OAuth with 'mx bank oau' (success)
      - Search for 'mx bank oau' in MX iframe
      - Click OAuth option and authorize
-     - Wait for completion and click done
+     - **Robust polling logic** (lines 111-160):
+       - Poll every 2s for up to 220s
+       - Check if iframe closed automatically OR done button visible
+       - Handle both scenarios gracefully
    - **Second attempt**: MX with 'mx bank' using 'fail_user'/'fail_password' (failure)
+     - Re-open iframe if closed automatically
      - Search for 'mx bank' in MX iframe
      - Enter invalid credentials (fail_user/fail_password)
      - Handle error message and close modal
    - Continue financial verification
 5. **Verify summary screen is displayed** (h3 with "Summary" text)
 
+**PART 2: Eligibility Status Transitions** (Lines 203-289)
+6. **Close applicant page and open admin report view** (line 210-213)
+   - Navigate to session admin URL
+   - Wait for income sources to be generated from MX data
+7. **Assert initial status** (line 223-225)
+   - Verify "Meets Criteria" (MX income sufficient for $500 rent)
+8. **Increase rent to $3000** (line 228-240)
+   - Edit rent budget to $3000
+   - Reload and verify "Criteria Not Met" (income insufficient)
+9. **Add manual income source of $3000** (line 243-282)
+   - Click income source section
+   - Add manual income (type: OTHER, amount: $3000)
+   - Uncheck "Calculate average from transactions"
+   - Save and verify income source visible
+10. **Verify status restored to Meets Criteria** (line 284-286)
+    - Reload and verify "Meets Criteria" (total income now sufficient)
+
 #### **Key Business Validations:**
-- **MX OAuth flow** ✅
+
+**MX Connection Testing:**
+- **MX OAuth flow with polling logic** ✅
 - **Retry logic for failed attempts** ✅
 - **Password failure handling** ✅
 - **Success after retry** ✅
 - **Error message display** ✅
+- **Robust iframe handling (auto-close + re-open)** ✅
+
+**Eligibility Status Transitions:**
+- **Income-to-rent ratio calculations** ✅
+- **Status transitions: Meets Criteria → Not Met → Meets Criteria** ✅
+- **Manual income source creation** ✅
+- **Real-time status updates after income/rent changes** ✅
+- **MX-generated income integration** ✅
 
 ---
 
-
-
-### **4. check_coapp_income_ratio_exceede_flag.spec.js - Co-Applicant Income Ratio Flag Testing**
+### **3. check_coapp_income_ratio_exceede_flag.spec.js - Co-Applicant Income Ratio Flag Testing**
 
 #### **Complete Test Structure:**
 - **1 test** (400s timeout)
@@ -847,7 +820,7 @@ Based on the test files in the framework, I've identified these categories:
 
 ---
 
-### **5. employment_skip_household_not_hidden_employment_connect.spec.js - Employment Verification with Household Skip**
+### **4. employment_skip_household_not_hidden_employment_connect.spec.js - Employment Verification with Household Skip**
 
 #### **Complete Test Structure:**
 - **1 test** (no explicit timeout set)
@@ -927,9 +900,8 @@ Based on the test files in the framework, I've identified these categories:
 | Test File | Provider/Scenario | Primary Business Purpose | Unique Validations | Overlap Assessment |
 |-----------|-------------------|-------------------------|-------------------|-------------------|
 | `financial_plaid_one_transaction_error_decline.spec.js` | **Plaid + Error Scenario** | Tests Plaid integration with insufficient transactions | • Plaid OAuth flow<br>• Error handling for insufficient transactions<br>• Decline flag generation<br>• **Plaid-specific error states** | **NO OVERLAP** - Different provider, different error handling |
-| `financial_mx_1_attempt_report_check_approve_with_conditions.spec.js` | **MX + Approval Workflow** | Tests MX integration with approval conditions | • MX OAuth flow<br>• **Approval workflow with conditions**<br>• **Income source management**<br>• **Report generation and approval**<br>• **Condition-based decision making** | **NO OVERLAP** - Different provider, different business workflow |
-| `financial_mx_2_attempts_success_and_failed_password.spec.js` | **MX + Retry Logic** | Tests MX retry mechanism and password failures | • MX OAuth flow<br>• **Retry logic for failed attempts**<br>• **Password failure handling**<br>• **Success after retry** | **NO OVERLAP** - Different scenario, different retry logic |
-| `check_coapp_income_ratio_exceede_flag.spec.js` | **Co-Applicant Income Ratio Flag Testing** | Tests co-applicant income ratio calculations and flag generation/removal | • **Co-applicant income aggregation**<br>• **Income ratio calculations**<br>• **Flag generation/removal logic**<br>• **30% threshold validation**<br>• **Retry logic implementation**<br>• **Financial data consistency** | **NO OVERLAP** - Different focus on income ratio calculations and flag logic |
+| `financial_mx_2_attempts_success_and_failed_password.spec.js` | **MX + Retry Logic + Eligibility** | Tests MX retry mechanism, password failures, AND eligibility status transitions | • MX OAuth flow with robust polling<br>• **Retry logic for failed attempts**<br>• **Password failure handling**<br>• **Iframe auto-close + re-open handling**<br>• **Eligibility status transitions (Meets → Not Met → Meets)**<br>• **Income-to-rent ratio calculations**<br>• **Manual income source creation**<br>• **Real-time status updates** | **NO OVERLAP** - Comprehensive test combining retry logic + eligibility transitions |
+| `check_coapp_income_ratio_exceede_flag.spec.js` | **Co-Applicant Income Ratio Flag Testing** | Tests co-applicant income ratio calculations and flag generation/removal | • **Co-applicant income aggregation**<br>• **Income ratio calculations**<br>• **Flag generation/removal logic**<br>• **30% threshold validation**<br>• **Retry logic implementation**<br>• **Financial data consistency** | **NO OVERLAP** - Different focus on co-applicant flag logic and 30% threshold |
 | `employment_skip_household_not_hidden_employment_connect.spec.js` | **Employment Verification with Household Skip** | Tests employment verification flow while skipping household setup | • **Employment verification flow**<br>• **Household skip functionality**<br>• **AtomicFI iframe integration**<br>• **Walmart paystub processing**<br>• **Rent budget handling**<br>• **Session management** | **NO OVERLAP** - Different focus on employment verification and household skip functionality |
 
 ### **Key Insights:**
@@ -954,10 +926,11 @@ Based on the test files in the framework, I've identified these categories:
 
 ### **Conclusion for Category 2: NO MEANINGFUL OVERLAP**
 
-**All 5 tests should be kept** because:
+**All 4 tests should be kept** because:
 - Each tests different financial integration scenarios
 - Each validates different error handling and business workflows
-- Each uses different providers (Plaid vs MX) or approaches (OAuth vs document upload vs income ratio calculations vs employment verification)
+- MX_2 now combines retry logic + eligibility transitions in comprehensive test
+- Each uses different providers (Plaid vs MX) or approaches (OAuth vs income ratio calculations vs employment verification)
 - The "overlap" in setup steps is necessary for each test to validate its unique business logic
 
 ---
@@ -4333,14 +4306,14 @@ Based on the test files in the framework, I've identified these categories:
 ### **📊 FINAL SUMMARY**
 
 **Total Categories Analyzed**: 9/9 (100% Complete)
-**Total Test Files Analyzed**: 40 files
+**Total Test Files Analyzed**: 39 files
 **Total API Endpoints Documented**: 75+ unique endpoints
 **Analysis Methodology**: Line-by-line analysis with exact API endpoints, utility functions, and business validations
 
 ### **✅ ALL CATEGORIES COMPLETE**
 
 1. **Category 1: Authentication & Permission Tests** - **COMPLETE** (4 files)
-2. **Category 2: Financial Verification Tests** - **COMPLETE** (5 files)  
+2. **Category 2: Financial Verification Tests** - **COMPLETE** (4 files - MX_1 merged into MX_2)  
 3. **Category 3: Application Management Tests** - **COMPLETE** (3 files)
 4. **Category 4: Session Flow Tests** - **COMPLETE** (7 files)
 5. **Category 5: Document Processing Tests** - **COMPLETE** (3 files)
@@ -4351,8 +4324,9 @@ Based on the test files in the framework, I've identified these categories:
 
 ### **🔍 KEY FINDINGS**
 
-- **NO MEANINGFUL OVERLAP FOUND** across all 40 test files
+- **NO MEANINGFUL OVERLAP FOUND** across all 39 test files
 - **All tests are unique** and serve different business purposes
+- **Successfully merged MX_1 into MX_2** - creating comprehensive test combining retry logic + eligibility transitions
 - **No redundant tests identified** - each test validates specific scenarios
 - **Complete API endpoint coverage** documented with exact line numbers
 - **Detailed business purpose analysis** for each test
@@ -4360,7 +4334,7 @@ Based on the test files in the framework, I've identified these categories:
 
 ### **📋 RECOMMENDATIONS**
 
-**KEEP ALL 40 TEST FILES** because:
+**KEEP ALL 39 TEST FILES** because:
 - Each tests different business scenarios and functionality
 - Each validates different API endpoints and workflows
 - Each covers different user types and integration patterns

@@ -19,13 +19,31 @@ const userData = {
 const API_URL = app.urls.api;
 
 test.describe('check_ui_not_show_na_for-high_balance.spec', () => {
+    let sessionId;
+    let adminToken;
 
+    test.afterEach(async ({ page }, testInfo) => {
+        // Conditional cleanup: Only delete session if test PASSED
+        if (testInfo.status === 'passed' && sessionId && adminToken) {
+            console.log(`🧹 Test passed - cleaning up session ${sessionId}...`);
+            try {
+                await page.request.delete(joinUrl(API_URL, `sessions/${sessionId}`), {
+                    headers: { 'Authorization': `Bearer ${adminToken}` }
+                });
+                console.log(`✅ Session ${sessionId} deleted`);
+            } catch (error) {
+                console.log(`⚠️ Cleanup failed: ${error.message}`);
+            }
+        } else if (testInfo.status !== 'passed' && sessionId) {
+            console.log(`⚠️ Test failed - preserving session ${sessionId} for debugging`);
+        }
+    });
 
     test('Should check UI not shows N/A for high balance accounts', {
         tag: ['@core', '@regression'],
-    }, async ({ page }) => {
+    }, async ({ page }, testInfo) => {
 
-        await loginForm.adminLoginAndNavigate(page, admin);
+        adminToken = await loginForm.adminLoginAndNavigate(page, admin);
 
         // Step 2: Navigate to Applications Page
         await gotoApplicationsPage(page);
@@ -41,7 +59,7 @@ test.describe('check_ui_not_show_na_for-high_balance.spec', () => {
         const linkSection = page.getByTestId('session-invite-link');
         await expect(linkSection).toBeVisible();
         const link = await linkSection.getAttribute('href');
-        const sessionId = sessionData.data?.id;
+        sessionId = sessionData.data?.id; // Store in describe scope for cleanup
         const sessionUrl = joinUrl(API_URL, `sessions/${sessionId}`);
 
         // Close modal
@@ -117,6 +135,68 @@ test.describe('check_ui_not_show_na_for-high_balance.spec', () => {
             const balanceText = await balanceCols.nth(i).textContent();
             expect(balanceText.toLowerCase()).not.toContain('n/a');
         }
+
+        // Step 12: Verify Cash Flow report shows value (not N/A) with polling
+        console.log('Step 12: Verifying Cash Flow report...');
+        const cashFlowCard = page.getByTestId('report-cashflow-card');
+        await expect(cashFlowCard).toBeVisible();
+        
+        // Poll for Cash Flow value (max 5 seconds, 500ms between checks)
+        let cashFlowValue = null;
+        const maxAttempts = 10;
+        
+        for (let attempt = 0; attempt < maxAttempts; attempt++) {
+            const cashFlowText = await cashFlowCard.textContent();
+            const valueMatch = cashFlowText.match(/\$\s*([\d,]+\.\d{2})/);
+            
+            if (valueMatch && valueMatch[1] && !cashFlowText.toLowerCase().includes('n/a')) {
+                cashFlowValue = valueMatch[1];
+                console.log(`✅ Cash Flow value: $${cashFlowValue}`);
+                break;
+            }
+            
+            console.log(`⏳ Waiting for Cash Flow value (attempt ${attempt + 1}/${maxAttempts})...`);
+            await page.waitForTimeout(500);
+        }
+        
+        expect(cashFlowValue).toBeTruthy();
+
+        // Step 13: Verify Monthly Gross Income card matches backend API
+        console.log('Step 13: Verifying Monthly Gross Income matches backend...');
+        
+        // Get backend income from API
+        const apiResponse = await page.request.get(joinUrl(API_URL, `sessions/${sessionId}`), {
+            headers: { 'Authorization': `Bearer ${adminToken}` }
+        });
+        const sessionApiData = await apiResponse.json();
+        const apiIncome = sessionApiData.data?.state?.summary?.income || 0;
+        const apiIncomeFormatted = (apiIncome / 100).toFixed(2);
+        
+        console.log(`📊 Backend income (API): $${apiIncomeFormatted}`);
+        
+        // Poll for Monthly Gross Income card value (max 5 seconds)
+        const monthlyIncomeCard = page.getByTestId('report-monthly-income-card');
+        await expect(monthlyIncomeCard).toBeVisible();
+        
+        let monthlyIncomeValue = null;
+        
+        for (let attempt = 0; attempt < maxAttempts; attempt++) {
+            const incomeText = await monthlyIncomeCard.textContent();
+            const valueMatch = incomeText.match(/\$\s*([\d,]+\.\d{2})/);
+            
+            if (valueMatch && valueMatch[1] && !incomeText.toLowerCase().includes('n/a')) {
+                monthlyIncomeValue = valueMatch[1].replace(/,/g, '');
+                console.log(`✅ Monthly Gross Income value: $${valueMatch[1]}`);
+                break;
+            }
+            
+            console.log(`⏳ Waiting for Monthly Gross Income value (attempt ${attempt + 1}/${maxAttempts})...`);
+            await page.waitForTimeout(500);
+        }
+        
+        expect(monthlyIncomeValue).toBeTruthy();
+        expect(monthlyIncomeValue).toBe(apiIncomeFormatted);
+        console.log(`✅ Monthly Gross Income matches backend payload: $${apiIncomeFormatted}`);
 
     });
 });

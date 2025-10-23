@@ -1,4 +1,4 @@
-const veriDocsBankStatementData = (userData = null) => {
+const highBalanceBankStatementData = (userData = null) => {
     // --- Helper function for dynamic date generation
     const createDate = (daysAgo) => {
         const date = new Date();
@@ -30,8 +30,8 @@ const veriDocsBankStatementData = (userData = null) => {
     // ---------------------------------------------
     // --- MODIFIED FINANCIAL DATA ---
 
-    // Define the new base starting balance
-    const BASE_START_BALANCE = 200000.00;
+    // Define the new base starting balance (≥ $500,000 per ticket requirement)
+    const BASE_START_BALANCE = 550000.00;
 
     // Define the large transaction amounts (unchanged from the last modification)
     const newTransactionsData = [
