@@ -221,7 +221,7 @@ test.describe('user_flags_approve_reject_test', () => {
         await expect(acceptButton).toBeVisible();
         await acceptButton.click();
 
-        await page.waitForTimeout(2000); // wait for modal to close
+        await page.waitForTimeout(8000); // wait for modal to close and change the status of the document
 
         const pill = page.getByTestId('files-document-status-pill');
         await expect(pill.locator('.bg-success-light')).toBeVisible({ timeout: 30_000 });
