@@ -558,6 +558,7 @@ Based on the test files in the framework, I've identified these categories:
 2. `financial_mx_2_attempts_success_and_failed_password.spec.js` - **MX Provider + Retry Logic + Eligibility Status Transitions**
 3. `check_coapp_income_ratio_exceede_flag.spec.js` - **Co-Applicant Income Ratio Flag Testing**
 4. `employment_skip_household_not_hidden_employment_connect.spec.js` - **Employment Verification with Household Skip**
+5. `check_ui_shows_na_for-high_balance.spec.js` - **High Balance Account N/A Display Validation**
 
 ---
 
@@ -878,22 +879,147 @@ Based on the test files in the framework, I've identified these categories:
 
 ---
 
+### **5. check_ui_shows_na_for-high_balance.spec.js - High Balance Account N/A Display Validation**
+
+#### **Complete Test Structure:**
+- **1 test** (no explicit timeout)
+- **High balance account N/A display** validation
+- **Tags**: @core, @regression
+- **Cleanup Strategy**: Conditional cleanup (deletes session only if test PASSED, preserves on failure for debugging)
+
+#### **Test: "Should check UI not shows N/A for high balance accounts"**
+**Purpose**: Test that high balance accounts (≥ $500,000) do NOT display "N/A" in UI balance fields, and verify Monthly Gross Income matches backend API data
+**API Endpoints Called**:
+- `POST /auth` - Admin login (via loginForm.adminLoginAndNavigate, line 46)
+  - **Response Used For**: Authentication and capturing admin token for cleanup
+  - **What's Actually Checked**: Response status is OK (200), admin login successful, token returned
+- `GET /applications?` - Search applications (via findAndInviteApplication, line 52)
+  - **Response Used For**: Getting applications data for search
+  - **What's Actually Checked**: Response status is OK (200), "AutoTest - Simulation financial employment" found
+- `POST /sessions` - Create session (via generateSessionForm.submit, line 56)
+  - **Response Used For**: Creating new session for applicant
+  - **What's Actually Checked**: Response status is OK (200), session data is returned with sessionId
+- `PATCH /sessions/{id}` - Update session rent budget (lines 76-83)
+  - **Response Used For**: Updating session with rent budget ($555)
+  - **What's Actually Checked**: Response status is OK (200), PATCH method successful
+- `POST /financial-verifications` - Create financial verification (lines 86-99)
+  - **Response Used For**: Creating financial verification with VERIDOCS high balance payload
+  - **What's Actually Checked**: Response status is OK (200), financial verification created
+- `GET /sessions?fields[session]=` - Search sessions (via searchSessionWithText, line 119)
+  - **Response Used For**: Finding session by ID in admin panel
+  - **What's Actually Checked**: Response status is OK (200), sessions array returned
+- `GET /sessions/{id}?fields[session]=` - Get session details (via navigateToSessionById, line 120)
+  - **Response Used For**: Loading session data for balance validation
+  - **What's Actually Checked**: Response status is OK (200), session data returned
+- `GET /sessions/{id}` - Get session for income validation (line 168)
+  - **Response Used For**: Getting backend income value for comparison
+  - **What's Actually Checked**: Response status is OK (200), `state.summary.income` field extracted
+- `DELETE /sessions/{id}` - Delete session (conditional cleanup, lines 30-32)
+  - **Response Used For**: Cleanup only if test passed
+  - **What's Actually Checked**: Session deleted successfully or preserved on failure
+
+**Steps**:
+1. **Admin login and capture token** (line 46) - Login as admin and store token for cleanup
+2. **Navigate to applications page** (line 49) - Go to applications page
+3. **Find and invite application** (line 52) - Search for "AutoTest - Simulation financial employment"
+4. **Generate session** (lines 55-56) - Create session with user data (alexander, sample)
+5. **Extract session link and ID** (lines 59-63) - Get invite link and sessionId, store for cleanup tracking
+6. **Close modal** (line 66) - Close session generation modal
+7. **Applicant flow** (lines 69-72) - Open invite link in new context
+8. **Complete rent budget** (lines 75-83) - Fill rent budget ($555) and submit with PATCH response wait
+9. **Submit high balance financial verification** (lines 86-99):
+   - Wait for POST /financial-verifications response
+   - Use dialog handler to inject `highBalanceBankStatementData(userData)` JSON
+   - Click "Upload Statement" button
+   - Click "Connect Bank" button (simulator dialog accepts payload)
+10. **Continue financial verification** (lines 101-103) - Wait 2s, click continue button
+11. **Skip employment verification** (lines 106-110) - Wait for employment step, click skip button
+12. **Close applicant page** (line 110) - Close applicant context
+13. **Admin validation** (lines 113-120):
+    - Bring admin page to front
+    - Navigate to Applicants menu
+    - Search for session by sessionId
+    - Navigate to session details
+14. **Financial section validation** (lines 123-137):
+    - Click financial section header
+    - Get account balance column (visible filter)
+    - Extract balance text content
+    - **Assert**: Balance does NOT contain "n/a" (case-insensitive)
+    - Click transactions radio button
+    - Get all transaction balance columns
+    - **Loop through all transactions**: Assert each balance does NOT contain "n/a"
+15. **Cash Flow report validation with polling** (lines 140-162):
+    - Get Cash Flow card (`report-cashflow-card`)
+    - Poll for Cash Flow value (max 10 attempts, 500ms intervals)
+    - Extract value using regex: `/\$\s*([\d,]+\.\d{2})/`
+    - **Assert**: Value exists (not null)
+    - **Assert**: Text does NOT contain "n/a"
+    - Log extracted value
+16. **Monthly Gross Income validation with backend comparison** (lines 165-199):
+    - Get backend income via API: `GET /sessions/{id}` (line 168)
+    - Extract `state.summary.income` (cents)
+    - Convert to dollars: `(apiIncome / 100).toFixed(2)`
+    - Get Monthly Gross Income card (`report-monthly-income-card`)
+    - Poll for income value (max 10 attempts, 500ms intervals)
+    - Extract UI value using regex: `/\$\s*([\d,]+\.\d{2})/`
+    - Remove commas from UI value
+    - **Assert**: UI value exists (not null)
+    - **Assert**: UI value does NOT contain "n/a"
+    - **Assert**: UI value EXACTLY MATCHES backend value
+    - Log both values for comparison
+17. **Conditional cleanup** (lines 25-40):
+    - If test PASSED: Delete session via DELETE API
+    - If test FAILED: Log session ID for debugging, preserve session
+
+#### **Key Business Validations:**
+- **High Balance Handling** - Tests accounts with balance ≥ $550,000 (starting balance)
+- **N/A Display Prevention** - Ensures "N/A" is never shown for valid high balance data
+- **Balance Display Accuracy** - Validates all balance columns show actual values
+- **Transaction Balance Accuracy** - Validates all transaction balance rows show actual values
+- **Cash Flow Calculation** - Tests Cash Flow card displays calculated value (not N/A)
+- **Monthly Income Backend Sync** - Validates UI income EXACTLY matches backend API data
+- **Polling for Async Data** - Implements robust polling (10 attempts, 500ms) for report card values
+- **Regex Value Extraction** - Uses regex to extract dollar amounts from formatted text
+- **VERIDOCS Simulation** - Tests high balance payload via simulator dialog handler
+- **Conditional Cleanup** - Preserves session on failure for debugging
+- **Financial Section Navigation** - Tests clicking financial section and toggling to transactions view
+- **Report Card Visibility** - Tests Cash Flow and Monthly Gross Income cards are visible and populated
+
+#### **Mock Data Details (highBalanceBankStatementData):**
+- **Starting Balance**: $550,000.00
+- **Ending Balance**: $556,000.00 (calculated from transactions)
+- **Total Credits**: $53,000 (2 payroll deposits: $35k + $18k)
+- **Total Debits**: $47,000 (3 transfers/payments: $15k + $20k + $12k)
+- **Transactions**: 5 transactions with dynamic dates (last 30 days)
+- **Account Owner**: Uses userData name or defaults to "Heartbeat Test User"
+- **Institution**: Wells Fargo
+- **Account Type**: Checking
+- **Currency**: USD
+
+#### **Overlap Assessment:**
+**NO OVERLAP** - This test is unique in its focus on high balance account UI display validation and backend-frontend income synchronization with exact value matching.
+
+---
+
 ## **Category 2 Analysis Summary**
 
 ### **API Endpoints Coverage Analysis:**
 
 | API Endpoint | Category | Tests Using It | What's Actually Checked |
 |--------------|----------|----------------|-------------------------|
-| `POST /auth` | Authentication | All 7 tests | Response status is OK (200), admin login successful |
-| `GET /applications?` | Application Management | All 7 tests | Response status is OK (200), applications array is returned |
-| `POST /sessions` | Session Management | All 7 tests | Response status is OK (200), session data is returned |
-| `PATCH /sessions/{id}` | Session Management | All 7 tests | Response status is OK (200), PATCH method |
-| `GET /sessions?fields[session]=` | Session Management | 6 tests | Response status is OK (200), sessions data array is returned |
-| `POST /financial-verifications` | Financial Verification | 4 tests | Response status is OK (200), financial verification data is returned |
-| `GET /financial-verifications` | Financial Verification | 4 tests | Response status is OK (200), financial verifications array is returned |
+| `POST /auth` | Authentication | All 5 tests | Response status is OK (200), admin login successful, token captured |
+| `GET /applications?` | Application Management | All 5 tests | Response status is OK (200), applications array is returned |
+| `POST /sessions` | Session Management | All 5 tests | Response status is OK (200), session data is returned |
+| `PATCH /sessions/{id}` | Session Management | All 5 tests | Response status is OK (200), PATCH method successful |
+| `GET /sessions?fields[session]=` | Session Management | All 5 tests | Response status is OK (200), sessions data array is returned |
+| `GET /sessions/{id}?fields[session]=` | Session Management | 2 tests | Response status is OK (200), session details returned |
+| `GET /sessions/{id}` | Session Management | 2 tests | Response status is OK (200), session data or income value returned |
+| `POST /financial-verifications` | Financial Verification | All 5 tests | Response status is OK (200), financial verification data is returned |
+| `GET /financial-verifications` | Financial Verification | 1 test | Response status is OK (200), financial verifications array is returned |
 | `POST /sessions/{sessionId}/income-sources` | Income Sources | 1 test | Response status is OK (200), income source data is returned |
 | `GET /sessions/{sessionId}/income-sources` | Income Sources | 1 test | Response status is OK (200), income sources data is returned |
-| `POST /employment-verifications` | Employment Verification | 2 tests | Response status is OK (200), employment verification data is returned |
+| `POST /employment-verifications` | Employment Verification | 1 test | Response status is OK (200), employment verification data is returned |
+| `DELETE /sessions/{id}` | Session Management | 1 test | Response status is OK (200), session deleted (conditional cleanup) |
 
 ### **Business Purpose Analysis:**
 
@@ -903,15 +1029,17 @@ Based on the test files in the framework, I've identified these categories:
 | `financial_mx_2_attempts_success_and_failed_password.spec.js` | **MX + Retry Logic + Eligibility** | Tests MX retry mechanism, password failures, AND eligibility status transitions | • MX OAuth flow with robust polling<br>• **Retry logic for failed attempts**<br>• **Password failure handling**<br>• **Iframe auto-close + re-open handling**<br>• **Eligibility status transitions (Meets → Not Met → Meets)**<br>• **Income-to-rent ratio calculations**<br>• **Manual income source creation**<br>• **Real-time status updates** | **NO OVERLAP** - Comprehensive test combining retry logic + eligibility transitions |
 | `check_coapp_income_ratio_exceede_flag.spec.js` | **Co-Applicant Income Ratio Flag Testing** | Tests co-applicant income ratio calculations and flag generation/removal | • **Co-applicant income aggregation**<br>• **Income ratio calculations**<br>• **Flag generation/removal logic**<br>• **30% threshold validation**<br>• **Retry logic implementation**<br>• **Financial data consistency** | **NO OVERLAP** - Different focus on co-applicant flag logic and 30% threshold |
 | `employment_skip_household_not_hidden_employment_connect.spec.js` | **Employment Verification with Household Skip** | Tests employment verification flow while skipping household setup | • **Employment verification flow**<br>• **Household skip functionality**<br>• **AtomicFI iframe integration**<br>• **Walmart paystub processing**<br>• **Rent budget handling**<br>• **Session management** | **NO OVERLAP** - Different focus on employment verification and household skip functionality |
+| `check_ui_shows_na_for-high_balance.spec.js` | **VERIDOCS Simulation + UI Validation** | Tests high balance accounts (≥$550k) do NOT show "N/A" in UI and income matches backend | • **High balance account handling ($550k+)**<br>• **N/A display prevention**<br>• **Balance column validation (account + transactions)**<br>• **Cash Flow report polling**<br>• **Monthly Income backend-UI sync**<br>• **Regex value extraction**<br>• **VERIDOCS dialog handler**<br>• **Conditional cleanup pattern**<br>• **Exact value matching (UI = API)** | **NO OVERLAP** - Unique focus on high balance UI display validation and backend synchronization |
 
 ### **Key Insights:**
 
-1. **Different financial providers** - Plaid vs MX have different integration patterns
-2. **Different error scenarios** - Each test validates specific error handling
-3. **Different business workflows** - Approval conditions vs retry logic vs document processing vs income ratio calculations vs employment verification
-4. **Different validation approaches** - OAuth vs document upload vs parsing vs flag generation/removal vs iframe integration
-5. **Different business rules** - Each test validates specific financial integration scenarios
-6. **Different calculation logic** - Income ratio calculations vs transaction parsing vs verification workflows vs employment verification flows
+1. **Different financial providers** - Plaid vs MX vs VERIDOCS Simulation have different integration patterns
+2. **Different error scenarios** - Each test validates specific error handling (insufficient transactions, password failures, high balance edge cases)
+3. **Different business workflows** - Approval conditions vs retry logic vs document processing vs income ratio calculations vs employment verification vs UI display validation
+4. **Different validation approaches** - OAuth vs document upload vs parsing vs flag generation/removal vs iframe integration vs backend-frontend synchronization
+5. **Different business rules** - Each test validates specific financial integration scenarios (provider-specific, eligibility logic, co-applicant aggregation, employment flow, high balance handling)
+6. **Different calculation logic** - Income ratio calculations vs transaction parsing vs verification workflows vs employment verification flows vs balance display validation
+7. **Different UI validations** - N/A display prevention, polling for async data, exact value matching between API and UI
 
 ### **Technical Setup Analysis:**
 
@@ -926,11 +1054,12 @@ Based on the test files in the framework, I've identified these categories:
 
 ### **Conclusion for Category 2: NO MEANINGFUL OVERLAP**
 
-**All 4 tests should be kept** because:
-- Each tests different financial integration scenarios
+**All 5 tests should be kept** because:
+- Each tests different financial integration scenarios (Plaid errors, MX retry, co-app income, employment verification, high balance UI)
 - Each validates different error handling and business workflows
 - MX_2 now combines retry logic + eligibility transitions in comprehensive test
-- Each uses different providers (Plaid vs MX) or approaches (OAuth vs income ratio calculations vs employment verification)
+- Each uses different providers (Plaid vs MX vs VERIDOCS) or approaches (OAuth vs income ratio calculations vs employment verification vs UI validation)
+- check_ui_shows_na_for-high_balance validates critical UI edge case (high balance N/A prevention) with backend synchronization
 - The "overlap" in setup steps is necessary for each test to validate its unique business logic
 
 ---
