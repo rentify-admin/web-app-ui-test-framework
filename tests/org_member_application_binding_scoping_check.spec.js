@@ -62,10 +62,16 @@ test.describe('QA-102: org_member_application_binding_scoping_check', () => {
                 throw new Error('Organization not found in search')
             }
             
-            const expectedOrgId = orgList[0].id;
+            // Find exact match for organization name
+            const exactOrg = orgList.find(org => org.name === organizationName);
+            if (!exactOrg) {
+                throw new Error(`Exact match for organization "${organizationName}" not found`);
+            }
+            
+            const expectedOrgId = exactOrg.id;
             console.log(`ℹ️ Found organization "${organizationName}" with ID: ${expectedOrgId}`);
 
-            await page.locator(`a[href="/organizations/${orgList[0].id}/show"]`).click();
+            await page.locator(`a[href="/organizations/${exactOrg.id}/show"]`).click();
 
             await expect(page.getByTestId('users-tab')).toBeVisible({ timeout: 5000 });
 

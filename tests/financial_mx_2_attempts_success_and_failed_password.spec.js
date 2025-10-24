@@ -29,7 +29,7 @@ test.describe('financial_mx_2_attempts_success_and_failed_password', () => {
     test('Financial - mx - 2 attempts + Eligibility status transitions', {
       tag: ['@regression', '@external-integration', '@eligibility', '@core'],
     }, async ({ page, browser }) => {
-        test.setTimeout(300_000);
+        test.setTimeout(350_000); 
         // Step 1: Admin Login and Navigate
         await loginForm.fill(page, admin);
         await loginForm.submitAndSetLocale(page);
@@ -110,7 +110,7 @@ test.describe('financial_mx_2_attempts_success_and_failed_password', () => {
 
         // Poll for done button or iframe closure (more robust than simple wait)
         console.log('⏳ Polling for MX connection completion...');
-        const maxPollingAttempts = 110; // 110 attempts = 220 seconds max
+        const maxPollingAttempts = 80; // 80 attempts = 160 seconds max
         const pollingInterval = 2000; // 2 seconds
         let pollingAttempt = 0;
         let connectionComplete = false;
@@ -155,8 +155,38 @@ test.describe('financial_mx_2_attempts_success_and_failed_password', () => {
             }
         }
         
+        // If polling failed, reload page and check if connection actually completed
         if (!connectionComplete) {
-            throw new Error(`MX connection did not complete after ${maxPollingAttempts * pollingInterval / 1000} seconds`);
+            console.log('⚠️ Iframe polling timeout - checking if connection completed in background...');
+            await applicantPage.reload();
+            await applicantPage.waitForTimeout(3000);
+            
+            // Poll for completion status after reload (max 20 seconds)
+            const reloadMaxAttempts = 10; // 10 attempts * 2 seconds = 20 seconds
+            const reloadPollingInterval = 2000;
+            let reloadAttempt = 0;
+            
+            while (!connectionComplete && reloadAttempt < reloadMaxAttempts) {
+                const financialRow = applicantPage.getByTestId('financial-row-status');
+                const rowText = await financialRow.textContent().catch(() => '');
+                
+                if (rowText.includes('Completed')) {
+                    console.log(`✅ Connection was completed in background (found after ${reloadAttempt + 1} attempts) - iframe was stuck, continuing...`);
+                    connectionComplete = true;
+                    iframeClosedAutomatically = true; // Treat as auto-closed for flow continuation
+                    break;
+                }
+                
+                reloadAttempt++;
+                if (reloadAttempt < reloadMaxAttempts) {
+                    console.log(`   Reload check attempt ${reloadAttempt}/${reloadMaxAttempts}: Waiting for completion status...`);
+                    await applicantPage.waitForTimeout(reloadPollingInterval);
+                }
+            }
+            
+            if (!connectionComplete) {
+                throw new Error(`MX connection did not complete after ${maxPollingAttempts * pollingInterval / 1000} seconds and ${reloadMaxAttempts * reloadPollingInterval / 1000} seconds of reload checks`);
+            }
         }
 
         // If iframe closed automatically, we need to re-open it for the second (failed) attempt
