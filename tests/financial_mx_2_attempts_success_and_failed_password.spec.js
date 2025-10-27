@@ -273,8 +273,39 @@ test.describe('financial_mx_2_attempts_success_and_failed_password', () => {
         
         await page.waitForTimeout(2000);
         await page.reload();
-        await expect(householdStatusAlert).toContainText('Criteria Not Met', { timeout: 30000 });
-        console.log('   ✅ Status: Criteria Not Met (income insufficient for $3000 rent)');
+        
+        // Poll for "Criteria Not Met" status (max 30 seconds)
+        console.log('   ⏳ Polling for "Criteria Not Met" status...');
+        let statusFound = false;
+        const statusMaxAttempts = 15; // 15 attempts * 2 seconds = 30 seconds max
+        const statusPollInterval = 2000;
+        
+        for (let attempt = 0; attempt < statusMaxAttempts; attempt++) {
+            const statusText = await householdStatusAlert.textContent();
+            
+            if (statusText.includes('Criteria Not Met')) {
+                console.log(`   ✅ Status: Criteria Not Met (found after ${attempt + 1} attempts)`);
+                statusFound = true;
+                break;
+            }
+            
+            if (attempt < statusMaxAttempts - 1) {
+                console.log(`   Attempt ${attempt + 1}/${statusMaxAttempts}: Current status "${statusText}", waiting...`);
+                await page.waitForTimeout(statusPollInterval);
+                
+                // Reload every 3 attempts to refresh state
+                if (attempt > 0 && attempt % 3 === 0) {
+                    console.log('   🔄 Reloading page to refresh session state...');
+                    await page.reload();
+                    await page.waitForTimeout(2000);
+                }
+            }
+        }
+        
+        if (!statusFound) {
+            const finalStatus = await householdStatusAlert.textContent();
+            throw new Error(`Expected "Criteria Not Met" but got: "${finalStatus}" after 30 seconds`);
+        }
         
         // Step 9: Add manual income source of $3000 - Should meet criteria again
         console.log('Step 9: Adding manual income source $3000 (should meet criteria)');
@@ -311,7 +342,7 @@ test.describe('financial_mx_2_attempts_success_and_failed_password', () => {
         console.log(`   Created manual income source: ${incomeSourceId}`);
         
         // Wait for income source sync
-        await page.waitForTimeout(3000);
+        await page.waitForTimeout(5000);
         
         // Assert income source is visible
         const incomeSource = page.getByTestId(`income-source-${incomeSourceId}`);
