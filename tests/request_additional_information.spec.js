@@ -69,7 +69,7 @@ async function openAndSubmitRequestDialog(page) {
 test.describe('request_additional_information', () => {
     test.setTimeout(360000); // Set timeout for the suite
     
-    testWithCleanup('Document Request: Complete validation (happy path + negative tests) @request-docs @integration @permissions @state-safety @document-upload @negative @validation @network-error', async ({ page, context, cleanupHelper, dataManager }) => {
+    testWithCleanup('Document Request: Complete validation (happy path + negative tests) @request-docs @integration @permissions @state-safetys @negative @validation @network-error @regression', async ({ page, context, cleanupHelper, dataManager }) => {
         // Authenticate dataManager with admin credentials for cleanup
         console.log('🔑 Authenticating dataManager for cleanup...');
         const isAuthenticated = await dataManager.authenticate(admin.email, admin.password);
@@ -447,6 +447,10 @@ test.describe('request_additional_information', () => {
             console.log('✅ Dialog closed');
             
             // Negative Test 4: Permissions - User without MANAGE_APPLICANTS cannot see request button
+            // COMMENTED OUT - Per Ben: MANAGE_APPLICANTS permission is frontend-only (unfinished feature).
+            // Backend does not enforce this permission yet. Will need to revisit once proper permissions
+            // system is implemented to determine what restrictions apply.
+            /*
             console.log('🧪 Negative Test 4: Verify user without MANAGE_APPLICANTS cannot see request button...');
             
             // Logout current admin user
@@ -490,6 +494,7 @@ test.describe('request_additional_information', () => {
             
             expect(isRequestBtnVisible).toBe(false);
             console.log('✅ Correct: Request Additional Information button is hidden (user lacks MANAGE_APPLICANTS permission)');
+            */
             
             console.log('✅ PART 2: Negative Tests validation PASSED');
             

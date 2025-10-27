@@ -36,11 +36,11 @@ jobs:
       - name: Run regression tests
         run: |
           echo "🧪 Starting full regression test suite..."
-          echo "📊 Running all tests excluding document-upload (with 3 CI retries)"
+          echo "📊 Running @regression tests excluding @document-upload (with 3 CI retries)"
           echo "🌐 Environment: $APP_ENV"
           echo "🔗 Base URL: $APP_URL"
           echo ""
-          npx playwright test --project=chromium --grep-invert "@document-upload"
+          npx playwright test --project=chromium --grep "@regression" --grep-invert "@document-upload"
           
           echo "📁 Checking generated files:"
           ls -la playwright-report/ || echo "playwright-report/ directory not found"

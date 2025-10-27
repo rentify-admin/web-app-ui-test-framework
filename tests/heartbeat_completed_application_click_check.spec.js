@@ -7,7 +7,7 @@ import { admin } from './test_config';
 
 
 test.describe('heartbeat_completed_application_click_check', () => {
-    test('Heartbeat Test: Completed Application Clicks (frontend)', async ({ page }) => {
+    test('Heartbeat Test: Completed Application Clicks (frontend)', { tag: ['@regression'] }, async ({ page }) => {
 
         const sessionId = '0198e279-4ff3-7205-a2d1-78c3a3f7a1e0';
 

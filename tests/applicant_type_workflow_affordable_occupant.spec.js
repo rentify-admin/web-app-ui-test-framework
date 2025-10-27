@@ -8,7 +8,7 @@ import { handleOptionalStateModal, selectApplicantType, completeApplicantForm, c
 
 test.describe('applicant_type_workflow_affordable_occupant', () => {
     test('Should complete applicant flow with affordable occupant applicant type', { 
-        tag: ['@core'],
+        tag: ['@core', '@regression'],
     }, async ({ page }) => {
         // Step 1: Login as admin
         await page.goto(app.urls.app);

@@ -8,7 +8,7 @@ import { searchSessionWithText, navigateToSessionById, checkExportPdf } from '~/
 
 test.describe('pdf_download_test', () => {
     test('Should successfully export PDF for an application', { 
-        tag: ['@core'],
+        tag: ['@core', '@regression'],
     }, async ({ page, context }) => {
         // Step 1-5: Login as staff user
         await page.goto('https://dev.verifast.app/');

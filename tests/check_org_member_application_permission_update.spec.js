@@ -6,7 +6,7 @@ import { joinUrl } from './utils/helper';
 
 test.describe('check_org_member_application_permission_update', () => {
 
-    test('Admin should be able to update an organization member\'s application permissions', async ({ page }) => {
+test('Admin should be able to update an organization member\'s application permissions', { tag: ['@regression'] }, async ({ page }) => {
 
         console.log('🚀 Open Url');
         await page.goto('/');
