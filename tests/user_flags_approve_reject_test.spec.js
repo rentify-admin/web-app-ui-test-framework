@@ -295,9 +295,21 @@ test.describe('user_flags_approve_reject_test', () => {
         await expect(closeEventHistoryModal).toBeVisible({ timeout: 5_000 });
         await closeEventHistoryModal.click();
         await page.waitForTimeout(1000);
-        console.log('✅ Event history modal closed, proceeding with session approval');
+        console.log('✅ Event history modal closed');
 
-        // Step 6: Now proceed with session approve/reject flow
+
+        // Step 10: Wait for household status to NOT contain "Requires Review"
+        console.log('⏳ Waiting for session to finish processing...');
+        const householdStatusAlert = page.getByTestId('household-status-alert');
+        await expect(householdStatusAlert).toBeVisible( { timeout: 10_000 });
+        await expect(householdStatusAlert).not.toContainText('Requires Review', { 
+            timeout: 60000 
+        });
+        
+        const finalStatus = await householdStatusAlert.textContent();
+        console.log(`✅ Session ready with status: "${finalStatus}"`);
+
+        // Step 11: Now proceed with session approve/reject flow
         console.log('🚀 Starting session approve/reject flow...');
         await checkSessionApproveReject(page, sessionId);
         });

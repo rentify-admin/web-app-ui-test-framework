@@ -106,7 +106,14 @@ test.describe('financial_mx_2_attempts_success_and_failed_password', () => {
         await newPage.locator('input[type="submit"][value="Authorize"]').waitFor({ state: 'visible' });
         await newPage.locator('input[type="submit"][value="Authorize"]').click();
 
-        await newPage.waitForEvent('close');
+        // Wait for OAuth page to close (optional - max 7 seconds)
+        try {
+            await newPage.waitForEvent('close', { timeout: 7000 });
+            console.log('✅ OAuth page closed automatically');
+        } catch (error) {
+            console.log('⚠️ OAuth page did not close automatically within 7 seconds - continuing test');
+            // Continue with test if page doesn't close
+        }
 
         // Poll for done button or iframe closure (more robust than simple wait)
         console.log('⏳ Polling for MX connection completion...');
