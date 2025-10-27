@@ -7,7 +7,7 @@ import { waitForJsonResponse } from './utils/wait-response';
 
 const appName = 'Heartbeat Test - Financial';
 
-test.describe('create_multiple_remarks.spec', () => {
+test.describe('QA-191:create_multiple_remarks.spec', () => {
 
     test('Should allow creating multiple remarks successfully', {
         tag: ['@core', '@smoke', '@regression'],
@@ -38,17 +38,17 @@ test.describe('create_multiple_remarks.spec', () => {
         await page.getByTestId('income-source-detail-btn').first().click();
 
         await page.getByRole('button', { name: 'Add Remark' }).click();
-        await page.getByRole('textbox', { name: 'Enter your remark here...' }).fill(remarks.r1);
+        await page.getByTestId('add-comment-modal').getByRole('textbox', { name: 'Enter your remark here...' }).fill(remarks.r1);
         await page.getByTestId('add-comment-modal').getByRole('button', { name: 'Add Remark' }).click();
         await page.waitForTimeout(1000);
 
         await page.getByRole('button', { name: 'Add Remark' }).click();
-        await page.getByRole('textbox', { name: 'Enter your remark here...' }).fill(remarks.r2);
+        await page.getByTestId('add-comment-modal').getByRole('textbox', { name: 'Enter your remark here...' }).fill(remarks.r2);
         await page.getByTestId('add-comment-modal').getByRole('button', { name: 'Add Remark' }).click();
         await page.waitForTimeout(1000);
 
         await page.getByRole('button', { name: 'Add Remark' }).click();
-        await page.getByRole('textbox', { name: 'Enter your remark here...' }).fill(remarks.r3);
+        await page.getByTestId('add-comment-modal').getByRole('textbox', { name: 'Enter your remark here...' }).fill(remarks.r3);
         await page.getByTestId('add-comment-modal').getByRole('button', { name: 'Add Remark' }).click();
         await page.waitForTimeout(1000);
 
@@ -63,7 +63,8 @@ test.describe('create_multiple_remarks.spec', () => {
             page.getByTestId('income-source-details').getByRole('button', { name: 'View Remarks' }).click()
         ])
 
-        const comments = await waitForJsonResponse(commentResponse)
+        let comments = await waitForJsonResponse(commentResponse)
+        console.log("🚀 ~ comments:", comments)
 
         // Assert that each created remark is in the expected position in the response,
         // and each is authored by the current admin user
@@ -81,10 +82,23 @@ test.describe('create_multiple_remarks.spec', () => {
         // Get the review remarks modal and locate the remarks list inside the modal
         const reviewModal = await page.getByTestId('income-reviews-modal')
         // Select all child divs inside the review modal remarks list
-        const reviewModalList = await reviewModal.locator('.flex.flex-col.overflow-y-auto').locator('> div.rounded-lg').filter({ visible: true });
+        const reviewModalList = await reviewModal.locator('[data-testid^="remark-row"]').filter({ visible: true });
 
         // Confirm that the second remark (r2) appears in the correct position before hiding
+        await expect(reviewModalList.nth(0)).toContainText(remarks.r3);
         await expect(reviewModalList.nth(1)).toContainText(remarks.r2);
+        await expect(reviewModalList.nth(2)).toContainText(remarks.r1);
+
+        // verify timestamp and comment and author data matched
+        for (let index = 0; index < comments.data.filter(item => !item.is_hidden).length; index++) {
+            const comment = comments.data[index];
+            const element = await page.getByTestId(`remark-row-${comment.id}`);
+            await expect(element).toBeDefined();
+            console.log(formatIsoToPrettyDate(comment.created_at))
+            await expect(element).toContainText(formatIsoToPrettyDate(comment.created_at))
+            await expect(element).toContainText(comment.comment)
+            await expect(element).toContainText(comment.author?.user?.full_name)
+        }
 
         // Hide the second remark (r2) and wait for PATCH request confirming the hide action
         await Promise.all([
@@ -95,6 +109,7 @@ test.describe('create_multiple_remarks.spec', () => {
             ),
             reviewModalList.nth(1).getByTestId('hide-comment-btn').click()
         ]);
+
         await page.waitForTimeout(200);
 
         // After hiding, check that r3 and r1 are shown, r2 should be hidden
@@ -139,3 +154,26 @@ test.describe('create_multiple_remarks.spec', () => {
         await page.getByTestId('income-source-details-cancel').click();
     });
 });
+function formatIsoToPrettyDate(isoString) {
+    const date = new Date(isoString);
+    const months = [
+        'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+        'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+    ];
+    const day = date.getDate();
+    let daySuffix = 'th';
+    if (day % 10 === 1 && day !== 11) daySuffix = 'st';
+    else if (day % 10 === 2 && day !== 12) daySuffix = 'nd';
+    else if (day % 10 === 3 && day !== 13) daySuffix = 'rd';
+
+    const month = months[date.getMonth()];
+    const year = date.getFullYear();
+
+    let hour = date.getHours();
+    const minute = date.getMinutes();
+    const ampm = hour >= 12 ? 'PM' : 'AM';
+    hour = hour % 12;
+    hour = hour === 0 ? 12 : hour;
+
+    return `${month} ${day}${daySuffix} ${year}, ${hour}:${minute.toString().padStart(2, '0')} ${ampm}`;
+}
