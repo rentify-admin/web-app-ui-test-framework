@@ -302,9 +302,39 @@ test.describe('user_flags_approve_reject_test', () => {
         console.log('⏳ Waiting for session to finish processing...');
         const householdStatusAlert = page.getByTestId('household-status-alert');
         await expect(householdStatusAlert).toBeVisible( { timeout: 10_000 });
-        await expect(householdStatusAlert).not.toContainText('Requires Review', { 
-            timeout: 60000 
-        });
+        
+        // Poll for status to NOT contain "Requires Review" (max 60 seconds)
+        console.log('   ⏳ Polling for status to change from "Requires Review"...');
+        let statusChanged = false;
+        const statusMaxAttempts = 30; // 30 attempts * 2 seconds = 60 seconds max
+        const statusPollInterval = 2000;
+        
+        for (let attempt = 0; attempt < statusMaxAttempts; attempt++) {
+            const statusText = await householdStatusAlert.textContent();
+            
+            if (!statusText.includes('Requires Review')) {
+                console.log(`   ✅ Status changed from "Requires Review" (found after ${attempt + 1} attempts)`);
+                statusChanged = true;
+                break;
+            }
+            
+            if (attempt < statusMaxAttempts - 1) {
+                console.log(`   Attempt ${attempt + 1}/${statusMaxAttempts}: Current status still "${statusText}", waiting...`);
+                await page.waitForTimeout(statusPollInterval);
+                
+                // Reload every 5 attempts to refresh state
+                if (attempt > 0 && attempt % 5 === 0) {
+                    console.log('   🔄 Reloading page to refresh session state...');
+                    await page.reload();
+                    await page.waitForTimeout(2000);
+                }
+            }
+        }
+        
+        if (!statusChanged) {
+            const finalStatus = await householdStatusAlert.textContent();
+            throw new Error(`Status still contains "Requires Review" after 60 seconds: "${finalStatus}"`);
+        }
         
         const finalStatus = await householdStatusAlert.textContent();
         console.log(`✅ Session ready with status: "${finalStatus}"`);

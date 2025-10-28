@@ -258,7 +258,40 @@ test.describe('financial_mx_2_attempts_success_and_failed_password', () => {
         
         // Step 7: Assert initial status - MX income should be sufficient for $500 rent
         console.log('Step 7: Asserting initial status - Meets Criteria');
-        await expect(householdStatusAlert).toContainText('Meets Criteria', { timeout: 30000 });
+        
+        // Poll for "Meets Criteria" status (max 30 seconds)
+        console.log('   ⏳ Polling for "Meets Criteria" status...');
+        let initialStatusFound = false;
+        const initialStatusMaxAttempts = 15; // 15 attempts * 2 seconds = 30 seconds max
+        const initialStatusPollInterval = 2000;
+        
+        for (let attempt = 0; attempt < initialStatusMaxAttempts; attempt++) {
+            const statusText = await householdStatusAlert.textContent();
+            
+            if (statusText.includes('Meets Criteria')) {
+                console.log(`   ✅ Status: Meets Criteria (found after ${attempt + 1} attempts)`);
+                initialStatusFound = true;
+                break;
+            }
+            
+            if (attempt < initialStatusMaxAttempts - 1) {
+                console.log(`   Attempt ${attempt + 1}/${initialStatusMaxAttempts}: Current status "${statusText}", waiting...`);
+                await page.waitForTimeout(initialStatusPollInterval);
+                
+                // Reload every 3 attempts to refresh state
+                if (attempt > 0 && attempt % 3 === 0) {
+                    console.log('   🔄 Reloading page to refresh session state...');
+                    await page.reload();
+                    await page.waitForTimeout(2000);
+                }
+            }
+        }
+        
+        if (!initialStatusFound) {
+            const finalStatus = await householdStatusAlert.textContent();
+            throw new Error(`Expected "Meets Criteria" but got: "${finalStatus}" after 30 seconds`);
+        }
+        
         console.log('   ✅ Status: Meets Criteria (MX income sufficient for $500 rent)');
         
         // Step 8: Increase rent to $3000 - Income should become insufficient
