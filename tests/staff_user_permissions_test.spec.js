@@ -333,11 +333,11 @@ test.describe('staff_user_permissions_test', () => {
 
             const filesTable = await fileSection.locator('table').first();
 
-            const rowCount = await filesTable.getByTestId('all-tr').count();
+            const rowCount = await filesTable.locator('[data-testid^="all-tr-"]').count();
 
             await expect(rowCount).toBe(files.length);
 
-            const firstRow = filesTable.getByTestId('all-tr').first();
+            const firstRow = filesTable.locator('[data-testid^="all-tr-"]').first();
 
             await firstRow.getByTestId('all-files-view-btn').first()
                 .click();
