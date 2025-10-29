@@ -175,20 +175,27 @@ function getFailedTestNames(filePath) {
     if (!fs.existsSync(filePath)) return '';
     
     const content = fs.readFileSync(filePath, 'utf8');
-    const failedMatches = content.match(/<testcase[^>]*name="([^"]*)"[^>]*>\s*<failure/g);
-    
-    if (!failedMatches) return '';
-    
     const failedNames = [];
     const lines = content.split('\n');
+    let currentSuite = '';
     
-    for (const line of lines) {
-        const match = line.match(/<testcase[^>]*name="([^"]*)"[^>]*>/);
-        if (match) {
-            const testName = match[1];
-            const nextLine = lines[lines.indexOf(line) + 1];
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        
+        // Track current test suite (describe block)
+        const suiteMatch = line.match(/<testsuite[^>]*name="([^"]*)"[^>]*>/);
+        if (suiteMatch) {
+            currentSuite = suiteMatch[1];
+        }
+        
+        // Find test cases with failures
+        const testMatch = line.match(/<testcase[^>]*name="([^"]*)"[^>]*>/);
+        if (testMatch) {
+            const testName = testMatch[1];
+            const nextLine = lines[i + 1];
             if (nextLine && nextLine.includes('<failure')) {
-                failedNames.push(testName);
+                // Format: Describe -> Test Name (suite already includes " -> " or " › ")
+                failedNames.push(`${currentSuite}${testName}`);
             }
         }
     }
