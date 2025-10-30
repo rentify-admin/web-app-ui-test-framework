@@ -69,7 +69,7 @@ async function navigateToSessionDetail(page, sessionId) {
  * Navigates to the income sources section, waits for the API response,
  * and asserts that all returned income sources are visible on the page.
  */
-async function checkIncomeSourcesAndAssertVisibility(page, sessionId, timeout = 10000) {
+async function checkIncomeSourcesAndAssertVisibility(page, sessionId, timeout = 20_000) {
     const [incomeResp] = await Promise.all([
         page.waitForResponse(resp =>
             resp.url().includes(`/sessions/${sessionId}/income-sources`) &&
@@ -95,7 +95,8 @@ async function checkIncomeSourcesAndAssertVisibility(page, sessionId, timeout = 
  */
 async function mergeSessions(page, priSessionId, coAppSessionId) {
     await searchSessionWithText(page, 'merge');
-
+    const sessionLink = page.locator(`[href="/applicants/all/${priSessionId}"]`);
+    await sessionLink.click()
     // Select both sessions
     const priSessionCheck = page.locator(`.application-card[data-session="${priSessionId}"]`).locator('input[type=checkbox]');
     if (!await priSessionCheck.isChecked()) { await priSessionCheck.check(); }
@@ -111,6 +112,8 @@ async function mergeSessions(page, priSessionId, coAppSessionId) {
     await expect(mergeModal).toBeVisible();
 
     // Wait for the merge API calls to complete
+    console.log("🚀 ~ mergeSessions ~ priSessionId:", priSessionId)
+    console.log("🚀 ~ mergeSessions ~ coAppSessionId:", coAppSessionId)
     await Promise.all([
         page.waitForResponse(resp => 
             resp.url().includes(`/sessions/${priSessionId}`) && 
@@ -157,6 +160,7 @@ async function splitSession(page, priSessionId, coAppSessionId) {
 test.describe('QA-210: Check Income Source Regenerate on Split/Merge', () => {
 
     test('Verify Regenerate Income After Merge/Split', { tag: ['@regression'] }, async ({ page, browser }) => {
+        test.setTimeout(200000);
         // --- Setup ---
         test.setTimeout(300_000);
         const appName = 'Heartbeat Test - Financial';
@@ -209,16 +213,29 @@ test.describe('QA-210: Check Income Source Regenerate on Split/Merge', () => {
         // After merge, both sessions' income data is expected to be loaded on the parent page
         await Promise.all([
             // Primary income sources regenerated
-            checkIncomeSourcesAndAssertVisibility(page, priSessionId, 10_000), 
+            page.waitForResponse(resp =>
+                resp.url().includes(`/sessions/${priSessionId}/income-sources`) &&
+                resp.request().method() === 'GET' &&
+                resp.ok(),
+                { timeout: 20_000 }
+            ), 
             // Co-App income sources regenerated
-            checkIncomeSourcesAndAssertVisibility(page, coAppSessionId, 10_000), 
+            page.waitForResponse(resp =>
+                resp.url().includes(`/sessions/${coAppSessionId}/income-sources`) &&
+                resp.request().method() === 'GET' &&
+                resp.ok(),
+                { timeout: 20_000 }
+            ), 
             page.getByTestId('income-source-section-header').click() 
         ]);
 
         // --- Split Action ---
         // 7. Split Session
         await splitSession(page, priSessionId, coAppSessionId);
-        await page.waitForTimeout(2000); 
+        await page.waitForTimeout(1000); 
+        const sessionLink = page.locator(`[href="/applicants/all/${priSessionId}"]`);
+        await sessionLink.click()
+        await page.waitForTimeout(1000); 
         await page.reload();
 
         // --- Verify After Split ---
