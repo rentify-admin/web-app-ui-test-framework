@@ -189,25 +189,7 @@ const searchAndVerifyApplication = async (page, applicationName, applicationId =
 const findAndInviteApplication = async (page, applicationName) => {
     await searchApplication(page, applicationName);
 
-    const rows = await page.locator('table>tbody>tr');
-
-    for (let index = 0; index < await rows.count(); index++) {
-        const element = rows.nth(index);
-        const appName = await element.locator('td').nth(1)
-            .textContent();
-
-        if (appName === applicationName) {
-            // Click the invite link from the invite column without asserting link content
-            await element
-                .getByTestId('application-table-invite-col')
-                .locator('a')
-                .click();
-            
-            // Wait for the modal to be visible
-            await expect(page.locator('#generate-session-form')).toBeVisible();
-            break;
-        }
-    }
+    await openInviteModal(page, applicationName);
 };
 
 /**
@@ -330,6 +312,28 @@ const checkApplicationDeletable = async page => {
     await page.locator('[data-testid^="delete-"]').first().click();
 };
 
+async function openInviteModal(page, applicationName) {
+    const rows = await page.locator('table>tbody>tr');
+
+    for (let index = 0; index < await rows.count(); index++) {
+        const element = rows.nth(index);
+        const appName = await element.locator('td').nth(1)
+            .textContent();
+
+        if (appName === applicationName) {
+            // Click the invite link from the invite column without asserting link content
+            await element
+                .getByTestId('application-table-invite-col')
+                .locator('a')
+                .click();
+
+            // Wait for the modal to be visible
+            await expect(page.locator('#generate-session-form')).toBeVisible();
+            break;
+        }
+    }
+}
+
 // Opens the application edit modal for the first row (or by name if needed)
 export async function openApplicationEditModal(page, rowIndex = 0) {
     await page.locator('table > tbody > tr > td:nth-child(8) > div > a').nth(rowIndex).click();
@@ -446,5 +450,6 @@ export {
     extractSessionId,
     navigateToDashboard,
     generateSessionForApplication,
-    completeApplicantInitialSetup
+    completeApplicantInitialSetup,
+    openInviteModal
 };
