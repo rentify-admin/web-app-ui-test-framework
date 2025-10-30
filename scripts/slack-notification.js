@@ -194,8 +194,10 @@ function getFailedTestNames(filePath) {
             const testName = testMatch[1];
             const nextLine = lines[i + 1];
             if (nextLine && nextLine.includes('<failure')) {
-                // Format: Describe -> Test Name (suite already includes " -> " or " › ")
-                failedNames.push(`${currentSuite}${testName}`);
+                // Format: Describe -> Test Name
+                // Handle edge case: if suite already ends with " -> " or " › ", don't add another
+                const separator = (currentSuite.endsWith(' -> ') || currentSuite.endsWith(' › ')) ? '' : ' -> ';
+                failedNames.push(`${currentSuite}${separator}${testName}`);
             }
         }
     }
