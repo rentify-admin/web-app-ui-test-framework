@@ -5,7 +5,7 @@ import { admin } from './test_config';
 import { navigateToSessionById, searchSessionWithText } from './utils/report-page';
 import { waitForJsonResponse } from './utils/wait-response';
 
-const appName = 'Heartbeat Test - Financial';
+const appName = 'Autotest - Heartbeat Test - Financial';
 
 test.describe('create_multiple_remarks.spec', () => {
 
