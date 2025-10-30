@@ -163,4 +163,61 @@ const highBalanceBankStatementData = (userData = null) => {
     };
 }
 
-export { highBalanceBankStatementData };
+function getBankData(user) {
+    // Generate dynamic dates within the last 60 days
+    const fourteenDaysAgo = new Date();
+    fourteenDaysAgo.setUTCDate(fourteenDaysAgo.getUTCDate() - 14);
+    fourteenDaysAgo.setUTCHours(0, 0, 0, 0);
+
+    const twentyEightDaysAgo = new Date();
+    twentyEightDaysAgo.setUTCDate(twentyEightDaysAgo.getUTCDate() - 28);
+    twentyEightDaysAgo.setUTCHours(0, 0, 0, 0);
+
+    return {
+        id: null,
+        institutions: [{
+            name: "Test Bank",
+            accounts: [
+                {
+                    id: null,
+                    account_number: "1234567890",
+                    name: "Checking Account",
+                    type: "checking",
+                    balance: 12500.00,
+                    currency: "USD",
+                    owner: {
+                        first_name: user.first_name,
+                        last_name: user.last_name,
+                        email: user.email,
+                        address: {
+                            street: "123 Test St",
+                            city: "Test City",
+                            state: "CA",
+                            postal_code: "90210",
+                            country: "US"
+                        }
+                    },
+                    transactions: [
+                        {
+                            id: null,
+                            date: fourteenDaysAgo.toISOString().split('T')[0],
+                            amount: 6000.00,
+                            description: "Payroll Deposit",
+                            category: "income"
+                        },
+                        {
+                            id: null,
+                            date: twentyEightDaysAgo.toISOString().split('T')[0],
+                            amount: 6000.00,
+                            description: "Payroll Deposit",
+                            category: "income"
+                        }
+                    ]
+                }
+            ]
+        }]
+    }
+}
+
+
+export { highBalanceBankStatementData, getBankData };
