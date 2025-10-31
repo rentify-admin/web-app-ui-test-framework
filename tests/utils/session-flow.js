@@ -529,6 +529,12 @@ const plaidFinancialConnect = async (
         .locator('button[id="aut-button"]:has-text("Continue")')
         .click();
 
+    // Click "Allow" button
+    await expect(
+        plaidFrame.getByRole('button', { name: 'Allow' })
+    ).toBeVisible({ timeout: 10000 });
+    await plaidFrame.getByRole('button', { name: 'Allow' }).click();
+
     // Click "Finish without saving"
     await expect(
         plaidFrame.locator(
@@ -1567,6 +1573,13 @@ const completePlaidFinancialStep = async applicantPage => {
     await plaidFrame
         .locator('#aut-button:not([disabled])')
         .click({ timeout: 20000 });
+
+    // Click "Allow" button
+    await expect(
+        plaidFrame.getByRole('button', { name: 'Allow' })
+    ).toBeVisible({ timeout: 10000 });
+    await plaidFrame.getByRole('button', { name: 'Allow' }).click();
+
     await plaidFrame.locator('#aut-secondary-button').click({ timeout: 20000 });
 };
 
@@ -1638,6 +1651,12 @@ const completePlaidFinancialStepBetterment = async (applicantPage, username = 'c
     await plaidFrame
         .locator('#aut-button:not([disabled])')
         .click({ timeout: 20000 });
+
+    // Click "Allow" button
+    await expect(
+        plaidFrame.getByRole('button', { name: 'Allow' })
+    ).toBeVisible({ timeout: 10000 });
+    await plaidFrame.getByRole('button', { name: 'Allow' }).click();
 
     await plaidFrame.locator('#aut-secondary-button').click({ timeout: 20000 });
 
