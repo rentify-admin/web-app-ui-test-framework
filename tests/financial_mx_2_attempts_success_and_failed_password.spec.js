@@ -38,7 +38,7 @@ test.describe('financial_mx_2_attempts_success_and_failed_password', () => {
         await gotoApplicationsPage(page);
 
         // Step 2: Locate Target Application
-        const applicationName = 'AutoTest Suite - Fin only'
+        const applicationName = 'AutoTest - Financial Only, MX and Plaid'
         await searchApplication(page, applicationName);
 
         const appNameCol = page.getByTestId('application-table-name-col').filter({

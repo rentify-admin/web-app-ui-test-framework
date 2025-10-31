@@ -22,7 +22,7 @@ test.describe('financial_plaid_one_transaction_error_decline', () => {
         await page.getByTestId('applications-submenu').click();
 
         // Step 3-4: Generate session for application
-        const appName = 'AutoTest Suite - Fin only';
+        const appName = 'AutoTest - Financial Only, MX and Plaid';
         const randomName = `Test${Math.floor(Math.random() * 100000)}`;
         const userData = {
             first_name: randomName,

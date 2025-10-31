@@ -599,7 +599,7 @@ Based on the test files in the framework, I've identified these categories:
 1. **Login as admin** (via loginForm.fill and loginForm.submit)
 2. **Navigate to Applications** (applications-menu → applications-submenu)
 3. **Generate session for application** (via generateSessionForApplication utility)
-   - Search for 'AutoTest Suite - Fin only' application
+   - Search for 'AutoTest - Financial Only, MX and Plaid' application
    - Click invite button
    - Fill session form with user data
    - Submit form and get session link
@@ -669,7 +669,7 @@ Based on the test files in the framework, I've identified these categories:
 
 **PART 1: MX Connection Testing** (Lines 33-201)
 1. **Admin login and navigate to applications** (via loginForm.fill and loginForm.submit)
-2. **Locate 'AutoTest Suite - Fin only' application** (via searchApplication utility)
+2. **Locate 'AutoTest - Financial Only, MX and Plaid' application** (via searchApplication utility)
 3. **Generate session with specific user data** (via generateSessionForm utility)
    - Fill form with user data (FinMX, Test, finmx_test@verifast.com)
    - Submit form and get session link
