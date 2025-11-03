@@ -177,6 +177,8 @@ test.describe('QA-208: Document Rejection from Any State', () => {
     let applicantPageContext;
 
     test('Reject a Document Regardless of Processing State', async ({ page, browser }) => {
+        // Note: first_name will be auto-prefixed with 'AutoT - ' by the helper
+        // Note: email will be auto-suffixed with '+autotest' by the helper
         const user = {
             first_name: 'Test',
             last_name: 'User',

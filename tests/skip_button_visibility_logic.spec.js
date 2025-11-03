@@ -21,6 +21,8 @@ import generateSessionForm from '~/tests/utils/generate-session-form';
 
 
 // User data for session generation
+// Note: first_name will be auto-prefixed with 'AutoT - ' by the helper
+// Note: email will be auto-suffixed with '+autotest' by the helper
 const user = {
     email: 'playwright+skipbutton@verifications.com',
     first_name: 'SkipButton',

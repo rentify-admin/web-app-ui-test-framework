@@ -101,10 +101,16 @@ test('Admin should be able to update an organization member\'s application permi
             await checkbox.uncheck();
         }
 
-        await page.waitForTimeout(200);
+        await page.waitForTimeout(2000);
         console.log('✅ Checkbox state has been changed.');
 
         const updateApi = new RegExp(`${joinUrl(app.urls.api, 'organizations')}/.{36}/members/.{36}`);
+
+        console.log('🚀 Waiting for save button to be enabled...');
+        const saveBtn = page.getByTestId('save-app-permission-btn');
+        await expect(saveBtn).toBeVisible();
+        await expect(saveBtn).toBeEnabled({ timeout: 5000 });
+        console.log('✅ Save button is enabled.');
 
         console.log('🚀 Clicking save button after changing permission state...');
         await Promise.all([
@@ -116,11 +122,11 @@ test('Admin should be able to update an organization member\'s application permi
                 console.log(`matched: ${matched}`);
                 return matched;
             }),
-            page.getByTestId('save-app-permission-btn').click()
+            saveBtn.click()
         ]);
         console.log('✅ Permissions updated successfully.');
 
-        await page.waitForTimeout(200);
+        await page.waitForTimeout(2000);
         console.log('🚀 Reverting the change to clean up the test...');
 
         // Now, perform the opposite action to revert to the original state
@@ -132,6 +138,12 @@ test('Admin should be able to update an organization member\'s application permi
             await checkbox.uncheck();
         }
 
+        await page.waitForTimeout(2000);
+
+        console.log('🚀 Waiting for save button to be enabled again...');
+        await expect(saveBtn).toBeEnabled({ timeout: 5000 });
+        console.log('✅ Save button is enabled for revert.');
+
         console.log('🚀 Clicking save button again to revert permissions...');
         await Promise.all([
             page.waitForResponse(resp => {
@@ -142,7 +154,7 @@ test('Admin should be able to update an organization member\'s application permi
                 console.log(`matched: ${matched}`);
                 return matched;
             }),
-            page.getByTestId('save-app-permission-btn').click()
+            saveBtn.click()
         ]);
         console.log('✅ Permissions reverted successfully.');
 

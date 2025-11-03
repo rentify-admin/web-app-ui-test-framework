@@ -28,6 +28,8 @@ test.describe('user_flags_approve_reject_test', () => {
     test.describe('Session Flag', () => {
         test.describe.configure({ mode: 'serial' });
         test.setTimeout(200_000);
+        // Note: first_name will be auto-prefixed with 'AutoT - ' by the helper
+        // Note: email will be auto-suffixed with '+autotest' by the helper
         const userData = {
             first_name: 'Flag Issue',
             last_name: 'Testing',
@@ -132,6 +134,8 @@ test.describe('user_flags_approve_reject_test', () => {
     test.describe('Session Approve/Reject', () => {
         test.describe.configure({ mode: 'serial' });
         test.setTimeout(200_000);
+        // Note: first_name will be auto-prefixed with 'AutoT - ' by the helper
+        // Note: email will be auto-suffixed with '+autotest' by the helper
         const userData2 = {
             first_name: 'Approval_reject',
             last_name: 'Testing',

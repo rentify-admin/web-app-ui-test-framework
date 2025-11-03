@@ -4,12 +4,13 @@ import { admin } from '~/tests/test_config';
 import app from '~/tests/test_config/app';
 import { findAndInviteApplication, gotoApplicationsPage } from '~/tests/utils/applications-page';
 import generateSessionForm from '~/tests/utils/generate-session-form';
-import { handleOptionalStateModal, selectApplicantType, completeApplicantForm, completeIdVerification } from '~/tests/utils/session-flow';
+import { handleOptionalStateModal, selectApplicantType, completeApplicantForm, identityStep } from '~/tests/utils/session-flow';
 
 test.describe('applicant_type_workflow_affordable_occupant', () => {
     test('Should complete applicant flow with affordable occupant applicant type', { 
         tag: ['@core', '@regression'],
     }, async ({ page }) => {
+        test.setTimeout(450000);
         // Step 1: Login as admin
         await page.goto(app.urls.app);
         await loginForm.fill(page, admin);
@@ -25,10 +26,12 @@ test.describe('applicant_type_workflow_affordable_occupant', () => {
         await gotoApplicationsPage(page);
         
         // Step 4: Find and Invite Application
-        const appName = 'AutoTest - Applicant Flow';
+        const appName = 'AutoTest Suite - Full Test';
         await findAndInviteApplication(page, appName);
 
         // Step 3: Fill session generation form
+        // Note: first_name will be auto-prefixed with 'AutoT - ' by the helper
+        // Note: email will be auto-suffixed with '+autotest' (affordable@verifast.com → affordable+autotest@verifast.com)
         const userData = {
             first_name: 'Affordable',
             last_name: 'Test',
@@ -50,19 +53,29 @@ test.describe('applicant_type_workflow_affordable_occupant', () => {
         await page.goto(link);
         await page.waitForTimeout(8000);
 
-        // Step 6: Handle state modal if it appears
-        await handleOptionalStateModal(page);
-
-        // Step 7: Select Affordable Occupant applicant type
+        // Step 6: Select Affordable Occupant applicant type
         await selectApplicantType(page, sessionData.data?.id, '#affordable_occupant');
+
+        // Step 7: Handle state modal if it appears (AFTER applicant type selection)
+        await handleOptionalStateModal(page);
 
         // Step 8: Complete applicant form with rent budget
         await completeApplicantForm(page, '555', sessionData.data?.id);
 
         await page.waitForTimeout(4000);
         
-        // Step 9: Complete ID verification in Persona iframe (skip upload)
-        await completeIdVerification(page, false);
+        // Step 9: Skip applicants step to proceed to ID verification
+        console.log('🚀 Skipping applicant invite step');
+        await expect(page.getByTestId('applicant-invite-skip-btn')).toBeVisible({ timeout: 10_000 });
+        await page.getByTestId('applicant-invite-skip-btn').click();
+        console.log('✅ Applicant invite step skipped');
+        
+        // Step 10: Wait for ID verification step to be visible
+        await expect(page.getByTestId('start-id-verification')).toBeVisible({ timeout: 10_000 });
+        console.log('✅ On ID verification step');
+        
+        // Step 11: Complete ID verification in Persona iframe (camera-based flow)
+        await identityStep(page);
 
         console.log('✅ Applicant Type Workflow Affordable Occupant test completed successfully');
     });

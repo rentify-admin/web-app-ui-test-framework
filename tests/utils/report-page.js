@@ -911,12 +911,13 @@ const checkMergeWithDragAndDrop = async (page, sessions) => {
  * Navigate to a specific session by ID
  * @param {import('@playwright/test').Page} page
  * @param {String} sessionId
+ * @param {String} submenu - Optional submenu path (default: 'all', options: 'all', 'reviewed', 'in-review', 'rejected')
  */
-const navigateToSessionById = async (page, sessionId) => {
+const navigateToSessionById = async (page, sessionId, submenu = 'all') => {
 
     // Navigate directly to the session without clicking applicants-submenu again
     // since we're already on the applications page
-    const sessionLink = page.locator(`[href="/applicants/all/${sessionId}"]`);
+    const sessionLink = page.locator(`[href="/applicants/${submenu}/${sessionId}"]`);
 
     // Wait for the session link to be visible and clickable
     await expect(sessionLink).toBeVisible({ timeout: 10000 });
@@ -927,7 +928,7 @@ const navigateToSessionById = async (page, sessionId) => {
     // Verify the element exists and is clickable
     const count = await sessionLink.count();
     if (count === 0) {
-        throw new Error(`Session link with href="/applicants/all/${sessionId}" not found`);
+        throw new Error(`Session link with href="/applicants/${submenu}/${sessionId}" not found`);
     } else {
         console.log('🚀 ~ Session link found!!!!!!!!!!!!:', sessionId);
     }

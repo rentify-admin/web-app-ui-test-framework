@@ -6,11 +6,14 @@ import generateSessionForm from "./utils/generate-session-form";
 import { joinUrl } from "./utils/helper";
 import { navigateToSessionById, searchSessionWithText } from "./utils/report-page";
 import { highBalanceBankStatementData } from "./mock-data/high-balance-financial-payload";
+import { handleOptionalStateModal } from "./utils/session-flow";
 
 
 
 const appName = 'AutoTest - Simulation financial employment';
 
+// Note: first_name will be auto-prefixed with 'AutoT - ' by the helper
+// Note: email will be auto-suffixed with '+autotest' by the helper
 const userData = {
     first_name: 'alexander',
     last_name: 'sample',
@@ -70,6 +73,9 @@ test.describe('check_ui_not_show_na_for-high_balance.spec', () => {
         const applicantPage = await context.newPage();
         await applicantPage.goto(link);
         await applicantPage.waitForTimeout(2000);
+
+        // Handle state modal if it appears (needed for new emails)
+        await handleOptionalStateModal(applicantPage);
 
         // Step 7: complet rent budget step.
         await applicantPage.locator('input#rent_budget').fill('555');

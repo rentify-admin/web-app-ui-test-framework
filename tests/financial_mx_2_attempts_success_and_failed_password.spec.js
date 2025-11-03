@@ -8,6 +8,7 @@ import config from '~/tests/test_config';
 import { joinUrl } from '~/tests/utils/helper.js';
 import { waitForJsonResponse } from '~/tests/utils/wait-response';
 import { gotoApplicationsPage, searchApplication } from '~/tests/utils/applications-page';
+import { handleOptionalStateModal } from '~/tests/utils/session-flow';
 
 const API_URL = config.app.urls.api;
 const APP_URL = config.app.urls.app;
@@ -15,6 +16,8 @@ const APP_URL = config.app.urls.app;
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
+// Note: first_name will be auto-prefixed with 'AutoT - ' by the helper
+// Note: email will be auto-suffixed with '+autotest' by the helper
 const userData = {
     first_name: 'FinMX',
     last_name: 'Test',
@@ -70,6 +73,9 @@ test.describe('financial_mx_2_attempts_success_and_failed_password', () => {
         const context = await browser.newContext();
         const applicantPage = await context.newPage();
         await applicantPage.goto(link);
+
+        // Handle state modal if it appears (needed for new emails)
+        await handleOptionalStateModal(applicantPage);
 
         await applicantPage.locator('input#rent_budget').fill('500');
         await applicantPage.locator('button[type="submit"]').click();

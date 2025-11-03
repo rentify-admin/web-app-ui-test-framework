@@ -39,11 +39,15 @@ import { findSessionLocator, markFlagAsNonIssue, searchSessionWithText } from '~
 
 const applicationName = 'Autotest - Household UI test';
 
+// Note: first_name will be auto-prefixed with 'AutoT - ' by the helper
+// Note: email will be auto-suffixed with '+autotest' by the helper
 const user = {
     first_name: 'Primary',
     last_name: 'Applicant',
     email: 'primary.applicant@verifast.com'
 };
+// Note: Co-app first_name will also be auto-prefixed with 'AutoT - '
+// Note: Co-app email will also be auto-suffixed with '+autotest'
 const coapplicant = {
     first_name: 'CoApplicant',
     last_name: 'Household',
@@ -518,8 +522,9 @@ test.describe('co_app_household_with_flag_errors', () => {
         const rawFlagText = await idNameMismatchFlag.textContent();
         const flagText = rawFlagText ? rawFlagText.replace(/\s+/g, ' ').trim() : '';
         expect(flagText).toContain('Identity Name Mismatch (Critical)');
-        expect(flagText).toContain('Co-Applicant: Coapplicant Household');
-        console.log('✅ FLAG TEXT VERIFIED: Contains "Identity Name Mismatch (Critical)" and "Co-Applicant: Coapplicant Household"');
+        // Note: Name now includes 'AutoT - ' prefix (UI may show as 'Autot - ' due to text transformation)
+        expect(flagText).toContain('Coapplicant Household'); // Partial match to work with prefix
+        console.log('✅ FLAG TEXT VERIFIED: Contains "Identity Name Mismatch (Critical)" and co-applicant name');
         
         // ASSERTION 3c: Status should still be REJECTED (API) and "Criteria Not Met" (UI)
         console.log('🔍 ASSERTION 3c: Polling household status after co-app ID...');

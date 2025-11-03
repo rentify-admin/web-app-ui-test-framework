@@ -7,6 +7,7 @@ import { fileURLToPath } from 'url';
 import config from '~/tests/test_config';
 import { joinUrl } from '~/tests/utils/helper.js';
 import { gotoApplicationsPage, searchApplication } from '~/tests/utils/applications-page';
+import { handleOptionalStateModal } from '~/tests/utils/session-flow';
 
 const API_URL = config.app.urls.api;
 
@@ -56,6 +57,9 @@ test.describe('application_flow_with_id_only', () => {
         const context = await browser.newContext();
         const applicantPage = await context.newPage();
         await applicantPage.goto(link);
+
+        // Handle state modal if it appears (needed for new emails)
+        await handleOptionalStateModal(applicantPage);
 
         // Step 4.1: Complete Initial Application Form
         await applicantPage.locator('input#rent_budget').fill('500');

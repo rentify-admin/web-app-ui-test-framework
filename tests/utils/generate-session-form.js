@@ -2,6 +2,7 @@ import { expect } from '@playwright/test';
 import { joinUrl } from '~/tests/utils/helper';
 import { app } from '~/tests/test_config';
 import { waitForJsonResponse } from '~/tests/utils/wait-response';
+import { addPrefix, addEmailSuffix } from '~/tests/utils/naming-helper';
 
 const API_URL = app.urls.api;
 
@@ -23,9 +24,18 @@ const fill = async (page, userData = {}) => {
         ...userData // Override defaults with provided values
     };
 
-    await page.locator('#first_name').fill(defaultUserData.first_name);
+    // Auto-prefix first name with 'AutoT - ' (idempotent - won't double-prefix)
+    const prefixedFirstName = addPrefix(defaultUserData.first_name);
+    // Auto-suffix email with '+autotest' (since app uses email to determine guest name)
+    const modifiedEmail = addEmailSuffix(defaultUserData.email);
+    
+    console.log(`🏷️  Naming Helper:`);
+    console.log(`   First Name: '${defaultUserData.first_name}' → '${prefixedFirstName}'`);
+    console.log(`   Email: '${defaultUserData.email}' → '${modifiedEmail}'`);
+
+    await page.locator('#first_name').fill(prefixedFirstName);
     await page.locator('#last_name').fill(defaultUserData.last_name);
-    await page.locator('#email_address').fill(defaultUserData.email);
+    await page.locator('#email_address').fill(modifiedEmail);
 
     // Note: No password field in this form
 };

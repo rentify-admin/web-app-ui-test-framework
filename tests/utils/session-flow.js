@@ -3,6 +3,7 @@ import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 import { waitForJsonResponse } from '~/tests/utils/wait-response';
 import { fillMultiselect } from './common';
+import { addPrefix, addEmailSuffix } from './naming-helper.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -1033,11 +1034,20 @@ const createSessionWithSimulator = async (
 
     // Step 3: Create session via API
     console.log('🔍 Creating session via API...');
+    
+    // Apply prefix and email suffix (same as UI helpers)
+    const prefixedFirstName = addPrefix(userData.first_name);
+    const modifiedEmail = addEmailSuffix(userData.email);
+    
+    console.log(`🏷️  Naming Helper (API):`);
+    console.log(`   First Name: '${userData.first_name}' → '${prefixedFirstName}'`);
+    console.log(`   Email: '${userData.email}' → '${modifiedEmail}'`);
+    
     const sessionData = {
         application: application.id,
-        first_name: userData.first_name,
+        first_name: prefixedFirstName,
         last_name: userData.last_name,
-        email: userData.email,
+        email: modifiedEmail,
         invite: true
     };
 
@@ -1310,9 +1320,14 @@ const updateStateModal = async (page, state = 'FLORIDA') => {
 const fillhouseholdForm = async (page, user) => {
     const step = await page.getByTestId('applicant-invite-step');
 
-    await step.locator('#first_name').fill(user.first_name);
+    // Auto-prefix first name with 'AutoT - ' (idempotent - won't double-prefix)
+    const prefixedFirstName = addPrefix(user.first_name);
+    // Auto-suffix email with '+autotest' (since app uses email to determine guest name)
+    const modifiedEmail = addEmailSuffix(user.email);
+
+    await step.locator('#first_name').fill(prefixedFirstName);
     await step.locator('#last_name').fill(user.last_name);
-    await step.locator('#email_address').fill(user.email);
+    await step.locator('#email_address').fill(modifiedEmail);
 
     const [response] = await Promise.all([
         page.waitForResponse(

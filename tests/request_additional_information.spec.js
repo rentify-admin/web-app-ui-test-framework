@@ -101,6 +101,8 @@ test.describe('request_additional_information', () => {
         await findAndInviteApplication(page, applicationName);
 
         // Generate session and capture IDs/links
+            // Note: first_name will be auto-prefixed with 'AutoT - ' by the helper
+            // Note: email will be auto-suffixed with '+autotest' by the helper
             const sessionData = await generateSessionForm.generateSessionAndExtractLink(page, {
             email: 'playwright+reqdocs@verifast.com',
             first_name: 'ReqDocs',
@@ -136,6 +138,7 @@ test.describe('request_additional_information', () => {
             } catch (_) { /* if not present, continue */ }
 
             // Complete Identity via API (PERSONA payload, name matches)
+            // Note: Mock data generator will apply 'AutoT - ' prefix to first_name
             primaryAuthToken = await authenticateGuestFromInvite(applicantPage, link);
             await completeIdentityStepViaAPI(applicantPage, sessionId, primaryAuthToken, {
                 first_name: 'ReqDocs',
@@ -330,6 +333,7 @@ test.describe('request_additional_information', () => {
 
             // State-safety: Complete employment verification via API WITHOUT auto-completing the step
             console.log('🚀 Completing employment verification via Simulation API (no auto-complete)...');
+            // Note: Mock data generator will apply 'AutoT - ' prefix to first_name
             await completeEmploymentStepViaAPI(applicantPage, sessionId, primaryAuthToken, {
                 first_name: 'ReqDocs',
             last_name: 'Primary',

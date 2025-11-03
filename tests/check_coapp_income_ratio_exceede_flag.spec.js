@@ -11,12 +11,16 @@ import { waitForJsonResponse } from '~/tests/utils/wait-response';
 
 const applicationName = 'AutoTest Suite - Full Test';
 
+// Note: first_name will be auto-prefixed with 'AutoT - ' by the helper
+// Note: email will be auto-suffixed with '+autotest' by the helper
 const user = {
     first_name: 'Playwright',
     last_name: 'Ratio',
     email: 'playwright+ratio@verifast.com'
 };
 
+// Note: Co-app first_name will also be auto-prefixed with 'AutoT - '
+// Note: Co-app email will also be auto-suffixed with '+autotest'
 const coapplicant = {
     first_name: 'Playwright',
     last_name: 'CoApp',

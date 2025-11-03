@@ -20,13 +20,14 @@ Based on the test files in the framework, I've identified these categories:
 
 1. **Authentication & Permission Tests** (4 files)
 2. **Financial Verification Tests** (5 files) 
-3. **Application Management Tests** (3 files)
+3. **Application Management Tests** (4 files)
 4. **Session Flow Tests** (7 files)
-5. **Document Processing Tests** (3 files)
+5. **Document Processing Tests** (4 files)
 6. **System Health Tests** (2 files)
 7. **Workflow Management Tests** (2 files)
-8. **Integration Tests** (2 files)
+8. **Integration Tests** (3 files)
 9. **Menu Heartbeat Tests** (13 files)
+10. **Data Management Tests** (1 file)
 
 ---
 
@@ -1070,6 +1071,7 @@ Based on the test files in the framework, I've identified these categories:
 1. `application_create_delete_test.spec.js` - **Application Lifecycle Management**
 2. `application_edit_id_template_settings.spec.js` - **Application ID Template Configuration**
 3. `verify_application_edit_id_step_edit.spec.js` - **Application Edit ID Step Edit**
+4. `approval_condition_search_verify.spec.js` - **Approval Conditions Search Functionality**
 
 ---
 
@@ -1303,6 +1305,135 @@ Based on the test files in the framework, I've identified these categories:
 
 ---
 
+### **4. approval_condition_search_verify.spec.js - Approval Conditions Search Functionality**
+
+#### **Complete Test Structure:**
+- **1 test** (no timeout specified)
+- **Approval conditions (flag collections) search** functionality
+- **Tags**: @regression
+
+#### **Test: "Approval Conditions — Search by Name, Description, and BE Name"**
+
+**Test Purpose and API Endpoints Called (with line numbers):**
+
+1. **Admin Login** (Lines 17-20):
+   - `loginForm.fill(page, admin)` - Fill login form
+   - `loginForm.submitAndSetLocale(page)` - Submit login form and set locale
+   - **Response Used For**: Authentication and session establishment
+   - **What's Actually Checked**: Response status is OK (200), applicants-menu is visible
+
+2. **Navigate to Approval Conditions** (Line 29):
+   - `gotoPage(page, 'applications-menu', 'approval-conditions-submenu', '/flag-collections?')` - Navigate to flag collections
+   - **API**: `GET /flag-collections?` (via gotoPage utility)
+   - **Response Used For**: Getting flag collections data
+   - **What's Actually Checked**: Response status is OK (200), flag collections array is returned
+
+3. **Open Flag Collection** (Line 37):
+   - Click view button for first flag collection
+   - Navigate to flag collection detail page
+
+4. **Search by Name** (Lines 40-41):
+   - `searchAndValidateFlags(page, 'Mismatch', 'flag-name-col')` - Search by "Mismatch" in name column
+   - **API**: `GET /flags` with filters parameter (Line 68-75)
+   - **Response Used For**: Getting filtered flags data
+   - **What's Actually Checked**: 
+     - Response status is OK (200)
+     - URL params include `filters` with search term "Mismatch"
+     - GET method successful
+     - Flags data array is returned
+
+5. **Search by Description** (Lines 44-45):
+   - `searchAndValidateFlags(page, 'computed cadence', 'flag-description-col')` - Search by "computed cadence" in description
+   - **API**: `GET /flags` with filters parameter
+   - **Response Used For**: Getting filtered flags data
+   - **What's Actually Checked**: Same as above with "computed cadence" search term
+
+6. **Search by BE Name (Exact Match)** (Lines 48-50):
+   - `searchAndValidateFlags(page, 'EMPLOYMENT_LETTER_UPLOADED', 'flag-key-col', {exactMatch: true})` - Search by BE name
+   - **API**: `GET /flags` with filters parameter
+   - **Response Used For**: Getting filtered flags data with exact match validation
+   - **What's Actually Checked**: Same as above with exact match validation for flag key
+
+**Detailed Steps:**
+
+1. **Page Navigation** (Line 14):
+   - Navigate to application URL
+
+2. **Admin Login** (Lines 17-20):
+   - Fill login form with admin credentials
+   - Submit and set locale
+   - Verify applicants menu is visible
+
+3. **Navigate to Applications Menu** (Line 26):
+   - Click applications menu
+
+4. **Navigate to Approval Conditions** (Line 29):
+   - Click approval conditions submenu
+   - Wait for flag collections API response
+   - Get flag collections data
+
+5. **Open First Flag Collection** (Lines 31-37):
+   - Get first flag collection from response
+   - Verify flag collections exist
+   - Click view button to open details
+
+6. **Search Test 1: Name Search** (Lines 40-41):
+   - Search for "Mismatch" in flag name column
+   - **searchAndValidateFlags function** (Lines 65-96):
+     - Fill search input with "Mismatch"
+     - Wait for GET /flags response with filters parameter
+     - Parse response to get flags data
+     - Loop through all returned flags
+     - For each flag, find corresponding UI row
+     - Verify flag name column contains "Mismatch" (case-insensitive)
+
+7. **Search Test 2: Description Search** (Lines 44-45):
+   - Search for "computed cadence" in flag description column
+   - Same validation process as above, checking description column
+
+8. **Search Test 3: BE Name Exact Match** (Lines 48-50):
+   - Search for "EMPLOYMENT_LETTER_UPLOADED" in flag key column
+   - Same validation process but with exact match (not just contains)
+   - **Exact Match Validation** (Lines 90-94):
+     - Use `toHaveText` instead of `toContainText`
+     - Ensures complete match, not partial
+
+**Helper Function Analysis (searchAndValidateFlags):**
+
+Lines 65-96 show the complete search validation logic:
+- **Input**: page, search term, column test ID, options (exactMatch boolean)
+- **Process**:
+  1. Fill search input and trigger API call
+  2. Wait for response with URL validation:
+     - Check `/flags` in pathname
+     - Verify `filters` param includes search term (case-insensitive)
+     - Ensure GET method and OK status
+  3. Parse JSON response to get flags array
+  4. For each flag in response:
+     - Find UI row by flag ID
+     - Find column by column test ID
+     - Validate column text contains (or equals) search term
+- **Output**: All flags in UI match search criteria
+
+**Key Business Validations:**
+- **Search by Name**: Tests flag name search functionality
+- **Search by Description**: Tests flag description search functionality
+- **Search by BE Name**: Tests backend name (key) search functionality
+- **Exact Match vs Contains**: Tests both partial and exact match search
+- **API-UI Consistency**: Validates UI results match API response
+- **Case-Insensitive Search**: Tests search ignores case
+- **Real-time Search**: Tests search triggers API calls dynamically
+- **Row-Column Mapping**: Tests correct data display in table cells
+- **URL Parameter Validation**: Tests search term is properly encoded in URL
+- **Multiple Search Criteria**: Tests searching across different columns
+
+**Overlap Assessment:**
+- **UNIQUE**: Only test focused on approval conditions (flag collections) search functionality
+- **NO OVERLAP**: Different from other application management tests
+- **KEEP**: Essential for flag collection search and filtering validation
+
+---
+
 ## **Category 3 Analysis Summary**
 
 ### **API Endpoints Coverage Analysis:**
@@ -1327,6 +1458,8 @@ Based on the test files in the framework, I've identified these categories:
 | `GET /financial-verifications` | Financial Verification | 1 test | Response status is OK (200), financial verifications array is returned |
 | `GET /sessions/{id}/income-sources` | Income Sources | 1 test | Response status is OK (200), income sources array is returned |
 | `POST /identity-verifications` | Identity Verification | 1 test | Response status is OK (200), identity verification data is returned |
+| `GET /flag-collections?` | Flag Collections | 1 test | Response status is OK (200), flag collections array is returned |
+| `GET /flags` | Flag Management | 1 test | Response status is OK (200), filtered flags array is returned with search params |
 
 ### **Business Purpose Analysis:**
 
@@ -1335,14 +1468,16 @@ Based on the test files in the framework, I've identified these categories:
 | `application_create_delete_test.spec.js` | **Application Lifecycle Management** | • **Application creation**<br>• **Multiple applicant types support**<br>• **Workflow template configuration**<br>• **Flag collection settings**<br>• **Minimum amount configuration**<br>• **Application publishing**<br>• **Application deletion** | **NO OVERLAP** - Different business process, different admin functionality |
 | `application_edit_id_template_settings.spec.js` | **Application ID Template Configuration** | • **Application editing**<br>• **ID template configuration**<br>• **Persona integration**<br>• **Workflow identity setup**<br>• **Template ID updates**<br>• **Value persistence**<br>• **Template restoration** | **NO OVERLAP** - Different configuration aspect, different integration |
 | `verify_application_edit_id_step_edit.spec.js` | **Application Edit ID Step Edit** | • **Application edit workflow**<br>• **Identity verification toggle**<br>• **Financial settings management**<br>• **Guarantor value updates**<br>• **Settings persistence validation**<br>• **Application publishing**<br>• **Value verification and reversion**<br>• **Workflow state management** | **NO OVERLAP** - Different focus on application editing workflows with identity and financial settings |
+| `approval_condition_search_verify.spec.js` | **Approval Conditions Search Functionality** | • **Search by flag name**<br>• **Search by flag description**<br>• **Search by BE name (key)**<br>• **Exact match vs contains search**<br>• **API-UI consistency**<br>• **Case-insensitive search**<br>• **Real-time search**<br>• **URL parameter validation**<br>• **Multiple search criteria** | **NO OVERLAP** - Unique focus on approval conditions search functionality |
 
 ### **Key Insights:**
 
 1. **Different user types** - Admin vs Staff vs Applicant flows have different permissions and capabilities
-2. **Different business processes** - Application management vs session flow vs document processing
+2. **Different business processes** - Application management vs session flow vs document processing vs search functionality
 3. **Different integration scenarios** - Plaid vs MX vs Persona vs document upload
-4. **Different validation approaches** - E2E flow vs specific functionality vs configuration management
+4. **Different validation approaches** - E2E flow vs specific functionality vs configuration management vs search validation
 5. **Different business rules** - Each test validates specific application management scenarios
+6. **Different search criteria** - Flag name vs description vs BE key with exact/partial matching
 
 ### **Technical Setup Analysis:**
 
@@ -1356,12 +1491,13 @@ Based on the test files in the framework, I've identified these categories:
 
 ### **Conclusion for Category 3: NO MEANINGFUL OVERLAP**
 
-**All 3 tests should be kept** because:
+**All 4 tests should be kept** because:
 - Each tests different application management scenarios
 - Each validates different user types and permissions
 - Each covers different business processes and workflows
 - Each tests different integrations and configurations
 - Each validates different UI interactions and user flows
+- Each covers different search and filtering functionality
 
 ---
 
@@ -2198,6 +2334,7 @@ Based on the test files in the framework, I've identified these categories:
 1. `bank_statement_transaction_parsing.spec.js` - **Bank Statement Upload + Transaction Parsing**
 2. `document_upload_verifications_core_flow.spec.js` - **Document Upload Core Flow**  
 3. `report_update_bank_statement_test.spec.js` - **Report Update Bank Statement**
+4. `document_rejection_from_any_state.spec.js` - **Document Rejection from Any Processing State**
 
 ---
 
@@ -2487,17 +2624,190 @@ Based on the test files in the framework, I've identified these categories:
 
 ---
 
+### **4. document_rejection_from_any_state.spec.js - Document Rejection from Any Processing State**
+
+#### **Complete Test Structure:**
+- **1 test** (180s timeout)
+- **Document rejection workflow** from any processing state
+- **Tags**: None specified
+
+#### **Test: "Reject a Document Regardless of Processing State"**
+
+**Test Purpose and API Endpoints Called (with line numbers):**
+
+1. **Admin Login** (Line 190):
+   - `adminLoginAndNavigateToApplications(page, admin)` - Admin login and navigation
+   - **Response Used For**: Authentication and session establishment
+   - **What's Actually Checked**: Response status is OK (200), admin login successful
+
+2. **Application Navigation** (Line 191):
+   - `findAndInviteApplication(page, appName)` - Find and invite "AutoTest Suite - Full Test"
+   - **Response Used For**: Finding application and initiating session generation
+   - **What's Actually Checked**: Application found successfully
+
+3. **Session Generation** (Line 193):
+   - `generateSessionForm.generateSessionAndExtractLink(page, user)` - Create session
+   - **Response Used For**: Creating new session for applicant
+   - **What's Actually Checked**: Response status is OK (200), session data returned with sessionId and link
+
+4. **Applicant Type Selection** (Line 221):
+   - `selectApplicantType(applicantPage, sessionInfo.sessionUrl, '#affordable_occupant')` - Select applicant type
+   - **API**: `PATCH /sessions/{id}` (via selectApplicantType utility)
+   - **Response Used For**: Updating session with selected applicant type
+   - **What's Actually Checked**: Response status is OK (200), PATCH method successful
+
+5. **State Modal Update** (Line 222):
+   - `updateStateModal(applicantPage, 'ALABAMA')` - Select state
+   - **Response Used For**: Updating session with state selection
+   - **What's Actually Checked**: State modal handled and state selected
+
+6. **Rent Budget Update** (Line 223):
+   - `updateRentBudget(applicantPage, sessionId, '1500')` - Set rent budget
+   - **API**: `PATCH /sessions/{id}` (via updateRentBudget utility)
+   - **Response Used For**: Updating session with rent budget
+   - **What's Actually Checked**: Response status is OK (200), rent budget updated
+
+7. **Skip Steps** (Lines 226-229):
+   - Skip applicant invite step
+   - Skip identity verification step
+   - **Response Used For**: Progressing to financial step
+   - **What's Actually Checked**: Skip buttons clicked successfully
+
+8. **Upload Financial Statement** (Line 231):
+   - `uploadFinancialStatement(applicantPage)` - Upload bank statement via manual upload
+   - **API Endpoints**:
+     - `POST /financial-verifications` (Line 42) - Create financial verification
+     - `GET /financial-verifications` (Line 45) - Get financial verifications
+   - **Response Used For**: Creating financial verification with document upload
+   - **What's Actually Checked**: 
+     - Response status is OK (200)
+     - Financial verification created
+     - Verifications array returned
+
+9. **Files Section Navigation** (Lines 254-255):
+   - `navigateToFilesTabAndReload(page, sessionId)` - Navigate to files tab
+   - **API**: `GET /sessions/${sessionId}/files?fields[file]` (Line 72)
+   - **Response Used For**: Getting uploaded files data
+   - **What's Actually Checked**: Response status is OK (200), files data returned
+
+10. **Document Rejection from Pre-Processed State** (Lines 257-269):
+    - Iterate through files with pre-processed statuses (PENDING, CLASSIFIED, CLASSIFYING, UPLOADED)
+    - `failDocument(row, page, sessionId)` - Reject document
+    - **API**: `GET /sessions/${sessionId}/files?fields[file]` (Line 111)
+    - **Response Used For**: Reloading files after rejection
+    - **What's Actually Checked**: Document status changed to "Failed"
+
+11. **Upload Second Document** (Lines 272-275):
+    - Upload second financial statement
+    - `waitForConnectionCompletion(applicantPage)` - Wait for processing
+    - **Response Used For**: Getting fully processed document
+    - **What's Actually Checked**: Document processing completed
+
+12. **Document Rejection from Processed State** (Lines 278-305):
+    - Navigate to files tab again
+    - Wait for document status to show "Rejected"
+    - `acceptDocument(fileRowLocator, page, sessionId)` - Accept document
+    - **API**: `GET /sessions/{sessionId}/files?fields[file]` (Line 159)
+    - **Response Used For**: Reloading files after acceptance
+    - **What's Actually Checked**: Document status changed to "Accepted"
+    - `rejectDocument(fileRowLocator, page, sessionId)` - Reject document
+    - **API**: `GET /sessions/{sessionId}/files?fields[file]` (Line 136)
+    - **Response Used For**: Reloading files after rejection
+    - **What's Actually Checked**: Document status changed to "Rejected"
+
+**Detailed Steps:**
+
+1. **Admin Setup** (Lines 190-191):
+   - Admin login and navigation
+   - Find and invite application
+
+2. **Session Generation** (Lines 182-194):
+   - Define user data with random email
+   - Generate session and extract link
+
+3. **Applicant Context Setup** (Lines 197-208):
+   - Create new browser context with camera permissions
+   - Navigate to session link
+   - Set up response listener for session data
+
+4. **Applicant Flow** (Lines 220-230):
+   - Select applicant type (affordable_occupant)
+   - Update state modal (ALABAMA)
+   - Update rent budget ($1500)
+   - Skip applicant invite step
+   - Skip identity verification
+   - Confirm financial verification step is visible
+
+5. **Admin Session Navigation** (Lines 234-247):
+   - Bring admin page to front
+   - Navigate to applicants menu
+   - Search for session by ID
+   - Click on session card to open details
+
+6. **First Document Upload and Rejection** (Lines 250-269):
+   - Upload first document from applicant page
+   - Navigate to files tab on admin page
+   - Reload to get latest file status
+   - Find files in pre-processed states
+   - Reject documents in pre-processed states
+   - Verify status changed to "Failed"
+
+7. **Second Document Upload and Processing** (Lines 272-275):
+   - Upload second document
+   - Wait for document processing to complete
+
+8. **Document Status Management Workflow** (Lines 278-305):
+   - Navigate to files tab and reload
+   - Wait for document status (polling with reload)
+   - Verify document shows "Rejected" initially
+   - **Accept Document**:
+     - Click status pill link
+     - Open decision modal
+     - Click accept button
+     - Wait for files reload
+     - Verify status is "Accepted"
+   - **Reject Document**:
+     - Click status pill link
+     - Open decision modal
+     - Click reject button
+     - Wait for files reload
+     - Verify status is "Rejected"
+
+9. **Cleanup** (Line 308):
+   - Close applicant page context
+
+**Key Business Validations:**
+- **Document Upload Workflow**: Tests complete financial statement upload process
+- **Pre-Processed State Rejection**: Validates rejection from PENDING, CLASSIFIED, CLASSIFYING, UPLOADED states
+- **Processed State Management**: Tests accept/reject cycle on fully processed documents
+- **Decision Modal Workflow**: Validates decision modal appears and functions correctly
+- **Status Persistence**: Ensures document status changes persist across page reloads
+- **Files Tab Navigation**: Tests files section navigation and reload functionality
+- **Multi-Upload Scenario**: Tests multiple document uploads in sequence
+- **Status Transition Validation**: Verifies status transitions: Rejected → Accepted → Rejected
+- **Processing State Polling**: Implements polling logic to wait for document processing
+- **Browser Context Management**: Tests using multiple browser contexts (admin + applicant)
+
+**Overlap Assessment:**
+- **UNIQUE**: Only test focused on document rejection from ANY processing state
+- **NO OVERLAP**: Different from other document tests - focuses on rejection workflow
+- **KEEP**: Essential for document status management and decision workflow validation
+
+---
+
 ## **Category 5 Analysis Summary**
 
 ### **API Endpoints Coverage Analysis:**
 
 | API Endpoint | Category | Tests Using It | What's Actually Checked |
 |--------------|----------|----------------|-------------------------|
-| `POST /auth` | Authentication | All 3 tests | Response status is OK (200), admin login successful |
-| `GET /applications?` | Application Management | All 3 tests | Response status is OK (200), applications array is returned |
-| `POST /sessions` | Session Management | All 3 tests | Response status is OK (200), session data is returned |
-| `PATCH /sessions/{id}` | Session Management | All 3 tests | Response status is OK (200), PATCH method successful |
-| `POST /financial-verifications` | Financial Verification | All 3 tests | Response status is OK (200), financial verification data is returned |
+| `POST /auth` | Authentication | All 4 tests | Response status is OK (200), admin login successful |
+| `GET /applications?` | Application Management | All 4 tests | Response status is OK (200), applications array is returned |
+| `POST /sessions` | Session Management | All 4 tests | Response status is OK (200), session data is returned |
+| `PATCH /sessions/{id}` | Session Management | All 4 tests | Response status is OK (200), PATCH method successful |
+| `POST /financial-verifications` | Financial Verification | All 4 tests | Response status is OK (200), financial verification data is returned |
+| `GET /financial-verifications` | Financial Verification | 1 test | Response status is OK (200), financial verifications array is returned |
+| `GET /sessions/{id}/files?fields[file]` | File Management | 1 test | Response status is OK (200), files data returned with status updates |
 | `POST /employment-verifications` | Employment Verification | 1 test | Response status is OK (200), employment verification data is returned |
 | `GET /sessions/{id}?fields[session]` | Session Management | 1 test | Response status is OK (200), session details returned |
 
@@ -2508,14 +2818,16 @@ Based on the test files in the framework, I've identified these categories:
 | `bank_statement_transaction_parsing.spec.js` | **Bank Statement Upload + Parsing** | • **Document upload functionality**<br>• **Transaction parsing logic**<br>• **Bank statement processing**<br>• **Data extraction validation**<br>• **Connection completion handling** | **NO OVERLAP** - Different approach, different validation |
 | `document_upload_verifications_core_flow.spec.js` | **Document Upload Core Flow** | • **Document upload workflow**<br>• **Verification process**<br>• **Document processing pipeline**<br>• **Verification status tracking**<br>• **Multiple document types** (bank statement + paystub)<br>• **Report flags validation** | **NO OVERLAP** - Different verification approach |
 | `report_update_bank_statement_test.spec.js` | **Admin Document Upload** | • **Admin-side document upload**<br>• **Plaid OAuth integration**<br>• **Document status management**<br>• **Decision modal workflow**<br>• **Rejection/acceptance process**<br>• **Institution verification** | **NO OVERLAP** - Different upload approach, different user perspective |
+| `document_rejection_from_any_state.spec.js` | **Document Rejection from Any State** | • **Pre-processed state rejection**<br>• **Processed state management**<br>• **Accept/Reject cycle testing**<br>• **Decision modal workflow**<br>• **Status transition validation** (Rejected → Accepted → Rejected)<br>• **Processing state polling**<br>• **Multi-upload scenario**<br>• **Browser context management** | **NO OVERLAP** - Unique focus on rejection workflow from any state |
 
 ### **Key Insights:**
 
 1. **Different upload approaches** - Applicant-side vs Admin-side document upload
 2. **Different document types** - Bank statements vs Paystubs vs Transaction parsing
-3. **Different verification workflows** - Core flow vs Parsing vs Status management
+3. **Different verification workflows** - Core flow vs Parsing vs Status management vs Rejection workflow
 4. **Different integration patterns** - Plaid OAuth vs Direct upload vs Processing pipeline
 5. **Different business rules** - Each test validates specific document processing scenarios
+6. **Different state management** - Upload testing vs Processing state testing vs Rejection/Acceptance cycle
 
 ### **Technical Setup Analysis:**
 
@@ -2530,12 +2842,13 @@ Based on the test files in the framework, I've identified these categories:
 
 ### **Conclusion for Category 5: NO MEANINGFUL OVERLAP**
 
-**All 3 tests should be kept** because:
+**All 4 tests should be kept** because:
 - Each tests different document upload approaches (applicant vs admin)
 - Each validates different document processing workflows
 - Each covers different document types and verification methods
-- Each tests different business scenarios (parsing vs core flow vs status management)
+- Each tests different business scenarios (parsing vs core flow vs status management vs rejection workflow)
 - Each validates different integration patterns and user perspectives
+- Each validates different document state transitions and management
 
 ---
 
@@ -4430,40 +4743,317 @@ Based on the test files in the framework, I've identified these categories:
 
 ---
 
+## **Category 10: Data Management Tests - COMPLETE ANALYSIS**
+
+### **Files Analyzed:**
+1. `create_multiple_remarks.spec.js` - **Income Source Remarks Management**
+
+---
+
+### **1. create_multiple_remarks.spec.js - Income Source Remarks Management**
+
+#### **Complete Test Structure:**
+- **1 test** (180s timeout)
+- **Income source remarks (comments)** creation, visibility, and state management
+- **Tags**: @core, @smoke, @regression
+
+#### **Test: "Should allow creating multiple remarks successfully"**
+
+**Test Purpose and API Endpoints Called (with line numbers):**
+
+1. **Admin Login** (Lines 17-18):
+   - `loginForm.fill(page, admin)` - Fill login form
+   - `loginForm.submit(page)` - Submit login form
+   - **Response Used For**: Authentication and session establishment
+   - **What's Actually Checked**: Response status is OK (200), household-status-alert is visible
+
+2. **Session Search** (Line 22):
+   - `searchSessionWithText(page, appName)` - Search for "Autotest - Heartbeat Test - Financial" application
+   - **API**: `GET /sessions?` with search filters (via searchSessionWithText utility)
+   - **Response Used For**: Finding existing session from heartbeat application
+   - **What's Actually Checked**: Response status is OK (200), sessions array is returned
+
+3. **Session Navigation** (Lines 24-28):
+   - Get first session tile from search results
+   - Extract session ID from data-session attribute
+   - `navigateToSessionById(page, sessionID)` - Navigate to session details
+   - **Response Used For**: Loading session data for remarks testing
+   - **What's Actually Checked**: Session navigated successfully
+
+4. **Remarks Creation** (Lines 37-53):
+   - Click income source section header
+   - Click first income source detail button
+   - **For each of 3 remarks** (r1, r2, r3):
+     - Click "Add Remark" button
+     - Fill remark textbox with timestamped text
+     - Click "Add Remark" button in modal
+     - Wait 1000ms for creation to complete
+   - **Note**: No explicit API call monitoring during creation (modal POST happens in background)
+
+5. **Fetch Comments via API** (Lines 55-64):
+   - Click "View Remarks" button
+   - **API**: `GET /income-sources/{id}/comments?order=created_at:desc&limit=20&page=1&fields[income_source]=comments&fields[member]=user` (Lines 55-62)
+   - **Response Used For**: Getting all comments for validation
+   - **What's Actually Checked**: 
+     - Response status is OK (200)
+     - URL matches expected pattern
+     - GET method successful
+     - Comments data array is returned
+
+6. **Validate Comments Data** (Lines 66-75):
+   - Parse JSON response to get comments array
+   - Loop through all 3 created remarks
+   - For each remark:
+     - Verify comment text matches expected value
+     - Verify author email matches admin.email
+
+7. **Validate Comments UI Visibility** (Lines 77-80):
+   - Verify all 3 remarks are visible on screen
+
+8. **Validate Comments Order** (Lines 82-90):
+   - Get income reviews modal
+   - Get all visible remark rows
+   - Verify remarks appear in correct order (r3, r2, r1 - newest first)
+
+9. **Validate Comment Metadata** (Lines 92-101):
+   - Loop through all non-hidden comments
+   - For each comment:
+     - Find UI element by comment ID
+     - Verify element is defined
+     - Verify element contains formatted timestamp
+     - Verify element contains comment text
+     - Verify element contains author full name
+
+10. **Hide Comment** (Lines 104-111):
+    - Click hide button on second remark (r2)
+    - **API**: `PATCH /income-sources/{id}/comments/{id}` (Line 106)
+    - **Response Used For**: Updating comment visibility status
+    - **What's Actually Checked**: 
+      - Response status is OK (200)
+      - PATCH method successful
+      - URL matches comment update pattern
+
+11. **Verify Hidden State** (Lines 113-117):
+    - Wait 200ms for UI update
+    - Verify only r3 and r1 are visible (r2 is hidden)
+
+12. **Toggle Hidden Comments On** (Lines 119-123):
+    - Click toggle hidden comments button
+    - Verify r2 is now visible in correct position
+
+13. **Toggle Hidden Comments Off** (Lines 125-128):
+    - Click toggle hidden comments button
+    - Verify r2 is hidden again (only r3, r1 visible)
+
+14. **Toggle Hidden Comments On Again** (Lines 130-134):
+    - Click toggle hidden comments button
+    - Verify all 3 remarks are visible (r3, r2 hidden, r1)
+
+15. **Unhide Comment** (Lines 137-144):
+    - Click unhide button on r2
+    - **API**: `PATCH /income-sources/{id}/comments/{id}` (Line 139)
+    - **Response Used For**: Updating comment visibility back to visible
+    - **What's Actually Checked**: 
+      - Response status is OK (200)
+      - PATCH method successful
+      - Comment visibility restored
+
+16. **Toggle After Unhide** (Line 145):
+    - Click toggle hidden comments button
+    - Verify UI state after unhide
+
+17. **Final Validation** (Lines 147-150):
+    - Verify all remarks are visible in correct order
+    - Confirm all 3 remarks displayed properly
+
+18. **Close Modals** (Lines 153-154):
+    - Close income reviews modal
+    - Close income source details
+
+**Detailed Steps:**
+
+1. **Admin Authentication** (Lines 16-20):
+   - Navigate to root page
+   - Fill and submit login form
+   - Verify household status alert visible
+
+2. **Session Search and Navigation** (Lines 22-28):
+   - Search for "Autotest - Heartbeat Test - Financial"
+   - Get first session tile
+   - Extract session ID from data attribute
+   - Navigate to session details
+
+3. **Navigate to Income Source** (Lines 37-38):
+   - Click income source section header
+   - Click first income source detail button
+
+4. **Create Three Remarks** (Lines 30-53):
+   - Define 3 remarks with ISO timestamps (r1, r2, r3)
+   - For each remark:
+     - Click "Add Remark" button
+     - Fill remark textbox
+     - Submit remark
+     - Wait for creation
+
+5. **Open Remarks Review** (Lines 55-66):
+   - Click "View Remarks" button
+   - Wait for API response
+   - Parse comments data
+
+6. **Validate Remark Data** (Lines 71-75):
+   - Verify each remark text matches expected
+   - Verify each remark author is admin
+
+7. **Validate UI Visibility** (Lines 77-80):
+   - Verify all remarks visible on screen
+
+8. **Validate Remark Order** (Lines 82-90):
+   - Verify remarks display newest first (r3, r2, r1)
+
+9. **Validate Metadata Display** (Lines 92-101):
+   - Verify timestamps formatted correctly
+   - Verify comment text displayed
+   - Verify author names displayed
+
+10. **Hide Workflow** (Lines 104-117):
+    - Hide second remark (r2)
+    - Wait for PATCH response
+    - Verify r2 removed from visible list
+
+11. **Toggle Hidden Comments** (Lines 119-134):
+    - Toggle on → r2 visible
+    - Toggle off → r2 hidden
+    - Toggle on → r2 visible again
+
+12. **Unhide Workflow** (Lines 137-150):
+    - Unhide r2
+    - Wait for PATCH response
+    - Toggle hidden comments
+    - Verify all remarks visible
+
+13. **Cleanup** (Lines 153-154):
+    - Close modals
+
+**Helper Function Analysis (formatIsoToPrettyDate):**
+
+Lines 157-179 show custom date formatting logic:
+- **Input**: ISO timestamp string
+- **Process**:
+  1. Parse ISO date
+  2. Extract day, month, year
+  3. Calculate day suffix (st, nd, rd, th)
+  4. Extract hour, minute
+  5. Convert to 12-hour format with AM/PM
+  6. Format as "Mon DDth YYYY, H:MM AM/PM"
+- **Output**: Human-readable timestamp string
+- **Example**: "Nov 3rd 2025, 10:30 AM"
+
+**Key Business Validations:**
+- **Multiple Remarks Creation**: Tests creating 3 sequential remarks on income source
+- **Remark Ordering**: Validates remarks display newest-first (descending created_at)
+- **Remark Visibility Management**: Tests hide/unhide functionality for individual remarks
+- **Toggle Hidden Comments**: Tests toggle button to show/hide all hidden remarks
+- **API Response Validation**: Validates GET /comments returns correct data
+- **UI-API Consistency**: Ensures UI displays match API response data
+- **Author Attribution**: Validates remarks show correct author (admin full name and email)
+- **Timestamp Formatting**: Tests custom date formatting matches backend timestamps
+- **Modal Management**: Tests opening/closing remarks modal and income source details
+- **State Persistence**: Ensures hidden state persists during toggle operations
+- **PATCH Request Validation**: Tests hide/unhide API calls succeed
+- **Dynamic Timestamp Generation**: Uses ISO timestamps to ensure unique remarks
+- **Remarks Order Stability**: Tests order remains consistent after hide/unhide operations
+- **Metadata Display**: Validates created_at, comment text, and author display correctly
+
+**Overlap Assessment:**
+- **UNIQUE**: Only test focused on income source remarks (comments) management
+- **NO OVERLAP**: Different from other income source tests - focuses on comment CRUD operations
+- **KEEP**: Essential for income source remarks feature validation
+
+---
+
+## **Category 10 Analysis Summary**
+
+### **API Endpoints Coverage Analysis:**
+
+| API Endpoint | Category | Tests Using It | What's Actually Checked |
+|--------------|----------|----------------|-------------------------|
+| `POST /auth` | Authentication | 1 test | Response status is OK (200), admin login successful |
+| `GET /sessions?` | Session Management | 1 test | Response status is OK (200), sessions array is returned with search filters |
+| `GET /income-sources/{id}/comments?order=created_at:desc&limit=20&page=1&fields[income_source]=comments&fields[member]=user` | Comments Management | 1 test | Response status is OK (200), comments data with author and timestamp returned |
+| `PATCH /income-sources/{id}/comments/{id}` | Comments Management | 1 test | Response status is OK (200), comment visibility updated (hide/unhide) |
+
+### **Business Purpose Analysis:**
+
+| Test File | Primary Business Purpose | Unique Validations | Overlap Assessment |
+|-----------|-------------------------|-------------------|-------------------|
+| `create_multiple_remarks.spec.js` | **Income Source Remarks Management** | • **Multiple remarks creation**<br>• **Remark ordering (newest first)**<br>• **Hide/unhide functionality**<br>• **Toggle hidden comments**<br>• **Author attribution**<br>• **Timestamp formatting**<br>• **Modal management**<br>• **State persistence**<br>• **UI-API consistency** | **NO OVERLAP** - Unique focus on remarks management |
+
+### **Key Insights:**
+
+1. **Remarks Management** - Tests complete CRUD operations for income source comments
+2. **Visibility Control** - Tests hide/unhide functionality with state persistence
+3. **Toggle Functionality** - Tests showing/hiding all hidden comments at once
+4. **Data Consistency** - Validates API data matches UI display
+5. **Author Tracking** - Ensures remarks properly attribute to creating user
+6. **Timestamp Handling** - Tests custom date formatting and display
+
+### **Technical Setup Analysis:**
+
+#### **Common Setup Steps (Necessary for Each Test):**
+1. **Admin login** (`POST /auth`) - Needed to access sessions
+2. **Session search** (`GET /sessions?`) - Find existing session with income sources
+3. **Session navigation** - Navigate to session with income sources
+4. **Remarks management** - Create, hide, unhide, toggle visibility
+
+#### **These are NOT "extra steps" - they are essential setup for remarks management validation**
+
+### **Conclusion for Category 10: NO MEANINGFUL OVERLAP**
+
+**The 1 test should be kept** because:
+- Tests unique income source remarks (comments) management functionality
+- Validates complete hide/unhide workflow
+- Covers toggle functionality for hidden comments
+- Tests author attribution and timestamp formatting
+- Validates UI-API consistency for comments
+
+---
+
 ## **🎉 COMPREHENSIVE UI TEST ANALYSIS - COMPLETE**
 
 ### **📊 FINAL SUMMARY**
 
-**Total Categories Analyzed**: 9/9 (100% Complete)
-**Total Test Files Analyzed**: 39 files
-**Total API Endpoints Documented**: 75+ unique endpoints
+**Total Categories Analyzed**: 10/10 (100% Complete)
+**Total Test Files Analyzed**: 42 files
+**Total API Endpoints Documented**: 80+ unique endpoints
 **Analysis Methodology**: Line-by-line analysis with exact API endpoints, utility functions, and business validations
 
 ### **✅ ALL CATEGORIES COMPLETE**
 
 1. **Category 1: Authentication & Permission Tests** - **COMPLETE** (4 files)
 2. **Category 2: Financial Verification Tests** - **COMPLETE** (4 files - MX_1 merged into MX_2)  
-3. **Category 3: Application Management Tests** - **COMPLETE** (3 files)
+3. **Category 3: Application Management Tests** - **COMPLETE** (4 files)
 4. **Category 4: Session Flow Tests** - **COMPLETE** (7 files)
-5. **Category 5: Document Processing Tests** - **COMPLETE** (3 files)
+5. **Category 5: Document Processing Tests** - **COMPLETE** (4 files)
 6. **Category 6: System Health Tests** - **COMPLETE** (2 files)
 7. **Category 7: Workflow Management Tests** - **COMPLETE** (2 files)
 8. **Category 8: Integration Tests** - **COMPLETE** (3 files)
 9. **Category 9: Menu Heartbeat Tests** - **COMPLETE** (13 files)
+10. **Category 10: Data Management Tests** - **COMPLETE** (1 file)
 
 ### **🔍 KEY FINDINGS**
 
-- **NO MEANINGFUL OVERLAP FOUND** across all 39 test files
+- **NO MEANINGFUL OVERLAP FOUND** across all 42 test files
 - **All tests are unique** and serve different business purposes
 - **Successfully merged MX_1 into MX_2** - creating comprehensive test combining retry logic + eligibility transitions
 - **No redundant tests identified** - each test validates specific scenarios
 - **Complete API endpoint coverage** documented with exact line numbers
 - **Detailed business purpose analysis** for each test
 - **Technical setup analysis** showing essential vs redundant steps
+- **Added 3 new tests**: approval_condition_search_verify, document_rejection_from_any_state, create_multiple_remarks
 
 ### **📋 RECOMMENDATIONS**
 
-**KEEP ALL 39 TEST FILES** because:
+**KEEP ALL 42 TEST FILES** because:
 - Each tests different business scenarios and functionality
 - Each validates different API endpoints and workflows
 - Each covers different user types and integration patterns

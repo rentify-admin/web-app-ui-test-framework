@@ -3,6 +3,9 @@
  * Matches heartbeat-financial-step-mock-data-result-url.js structure
  */
 
+// Import naming helper to ensure consistent prefixing
+import { addPrefix } from '../../utils/naming-helper.js';
+
 function daysAgo(n) {
   const d = new Date();
   d.setUTCDate(d.getUTCDate() - n);
@@ -29,7 +32,7 @@ export function getBankStatementCustomPayload(user = {}) {
             balance: 12500.0,
             currency: 'USD',
             owner: {
-              first_name: user.first_name || 'Primary',
+              first_name: addPrefix(user.first_name || 'Primary'),
               last_name: user.last_name || 'Applicant',
               email: user.email || 'primary@applicant@test',
               address: {

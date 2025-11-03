@@ -4,6 +4,9 @@
  * Structure modeled after API test: paystub-policy-name-validation-mock-data.js
  */
 
+// Import naming helper to ensure consistent prefixing
+import { addPrefix } from '../../utils/naming-helper.js';
+
 function formatMmDdYyyy(date) {
   const m = String(date.getUTCMonth() + 1).padStart(2, '0');
   const d = String(date.getUTCDate()).padStart(2, '0');
@@ -19,7 +22,7 @@ function daysAgo(n) {
 }
 
 export function getPaystubVeridocsSimulation(userData = {}, options = {}) {
-  const firstName = userData.first_name || 'Primary';
+  const firstName = addPrefix(userData.first_name || 'Primary');
   const lastName = userData.last_name || 'Applicant';
   const employeeName = `${firstName} ${lastName}`; // match to avoid flags
 

@@ -7,6 +7,9 @@
  * in co_app_household_with_flag_errors.spec.js
  */
 
+// Import naming helper to ensure consistent prefixing
+import { addPrefix } from '../utils/naming-helper.js';
+
 /**
  * Generate COMPLETE PERSONA_PAYLOAD for Primary Applicant (Name Match - PASSES)
  * @param {Object} userData - User data with first_name, last_name, email
@@ -49,8 +52,8 @@ export const getPrimaryPersonaPayload = (userData = {}) => {
 
     const { subMinutes, dateAfter2Years, dateBefore1Year, dateBefore20Years } = getDates();
     
-    // Extract user data with defaults
-    const firstName = userData.first_name || "Primary";
+    // Extract user data with defaults and apply prefix
+    const firstName = addPrefix(userData.first_name || "Primary");
     const lastName = userData.last_name || "Applicant";
     
     // IDs

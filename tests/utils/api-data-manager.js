@@ -1,4 +1,5 @@
 import { expect } from '@playwright/test';
+import { addPrefix } from './naming-helper.js';
 
 export class ApiDataManager {
   constructor(api) {
@@ -40,7 +41,7 @@ export class ApiDataManager {
   static getDefaultUserData(prefix) {
     return {
       email: `${prefix}@verifast.com`,
-      first_name: 'Auto',
+      first_name: addPrefix('Auto'), // Auto-prefix with 'AutoT - '
       last_name: 'User',
       password: 'password',
       password_confirmation: 'password',

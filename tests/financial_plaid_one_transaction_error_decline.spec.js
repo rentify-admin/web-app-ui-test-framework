@@ -22,6 +22,8 @@ test.describe('financial_plaid_one_transaction_error_decline', () => {
         await page.getByTestId('applications-submenu').click();
 
         // Step 3-4: Generate session for application
+        // Note: first_name will be auto-prefixed with 'AutoT - ' by the helper
+        // Note: email will be auto-suffixed with '+autotest' by the helper
         const appName = 'AutoTest - Financial Only, MX and Plaid';
         const randomName = `Test${Math.floor(Math.random() * 100000)}`;
         const userData = {

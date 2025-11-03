@@ -70,14 +70,22 @@ test.describe('frontend_heartbeat', () => {
         if (!isMenuOpen) {
             await applicantsMenu.click();
         }
-        await page.getByTestId('applicants-submenu').click();
+        
+        // Click "Meets Criteria" submenu (approved + conditionally_approved sessions)
+        const meetCriteriaMenu = page.getByTestId('reviewed-submenu');
+        await Promise.all([
+            page.waitForResponse(resp => resp.url().includes('/sessions?') && resp.ok()),
+            meetCriteriaMenu.click()
+        ]);
         await expect(page.getByTestId('household-status-alert')).toBeVisible({ timeout: 10_000 });
+
+        await page.waitForTimeout(5000);    
 
         // Search sessions for a known app that yields full, populated sessions
         const sessions = await searchSessionWithText(page, 'Autotest Suite - Full Test');
         expect(sessions.length).toBeGreaterThan(0);
         const sessionId = sessions[0].id;
-        await navigateToSessionById(page, sessionId);
+        await navigateToSessionById(page, sessionId, 'reviewed');
         await expect(page.getByTestId('household-status-alert')).toBeVisible({ timeout: 10_000 });
 
         // 1) Assert action dropdown buttons exist and are enabled

@@ -10,6 +10,8 @@ test.describe('application_step_should_skip_properly', () => {
     test('Check Application step skip works propertly', async ({ page, browser }) => {
         test.setTimeout(300_000)
     
+        // Note: first_name will be auto-prefixed with 'AutoT - ' by the helper
+        // Note: email will be auto-suffixed with '+autotest' by the helper
         const user = {
             email: getRandomEmail(),
             first_name: 'Playwright',
@@ -17,6 +19,8 @@ test.describe('application_step_should_skip_properly', () => {
             password: 'password'
         };
     
+        // Note: Co-app first_name will also be auto-prefixed with 'AutoT - '
+        // Note: Co-app email will also be auto-suffixed with '+autotest'
         const coApp = {
             email: getRandomEmail(),
             first_name: 'Playwright',

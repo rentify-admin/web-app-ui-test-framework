@@ -9,6 +9,8 @@ import { admin } from '~/tests/test_config';
 import { handleOptionalStateModal } from '~/tests/utils/session-flow';
 import { employmentVerificationWalmartPayStub } from '~/tests/utils/session-flow';
 
+// Note: first_name will be auto-prefixed with 'AutoT - ' by the helper
+// Note: email will be auto-suffixed with '+autotest' by the helper
 const userData = {
     first_name: 'alexander',
     last_name: 'sample',
