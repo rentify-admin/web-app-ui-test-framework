@@ -68,8 +68,9 @@ test.describe('heartbeat-applicant-inbox-menus.spec', () => {
                 page.waitForResponse(resp => {
                     const link = new URL(resp.url())
                     const params = new URLSearchParams(link.search)
+                    const filters = params.get('filters') && JSON.parse(params.get('filters')) || {};
                     return resp.url().includes('/sessions?')
-                        && params.get('filters').includes('"awaiting_review"')
+                        && filters?.$has?.flags?.$and?.some(item => !item.ignored && item.severity === 'ERROR')
                         && resp.request().method() === 'GET'
                         && resp.ok()
                 }),
