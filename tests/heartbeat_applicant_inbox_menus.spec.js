@@ -69,8 +69,17 @@ test.describe('heartbeat-applicant-inbox-menus.spec', () => {
                     const link = new URL(resp.url())
                     const params = new URLSearchParams(link.search)
                     const filters = params.get('filters') && JSON.parse(params.get('filters')) || {};
+                    
+                    // Check for the correct structure: $and → $has → flags → $and
+                    const hasErrorFlags = filters?.$and?.some(condition => {
+                        const flagsCondition = condition?.$has?.flags?.$and;
+                        return flagsCondition && 
+                               flagsCondition.some(f => f.ignored?.$eq === 0) && 
+                               flagsCondition.some(f => f.severity === 'ERROR');
+                    });
+                    
                     return resp.url().includes('/sessions?')
-                        && filters?.$has?.flags?.$and?.some(item => !item.ignored && item.severity === 'ERROR')
+                        && hasErrorFlags
                         && resp.request().method() === 'GET'
                         && resp.ok()
                 }),
