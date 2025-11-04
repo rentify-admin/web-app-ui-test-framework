@@ -1,9 +1,14 @@
 
 import { test, expect } from '@playwright/test';
 import loginForm from './utils/login-form';
-import { admin } from './test_config';
+import { admin, app } from './test_config';
 import { navigateToSessionById, searchSessionWithText } from './utils/report-page';
 import { waitForJsonResponse } from './utils/wait-response';
+import { findAndInviteApplication, gotoApplicationsPage } from './utils/applications-page';
+import generateSessionForm from './utils/generate-session-form';
+import { handleOptionalStateModal, simulatorFinancialStepWithVeridocs, updateRentBudget } from './utils/session-flow';
+import { joinUrl } from './utils/helper';
+import { veriDocsBankStatementData } from './mock-data/bank-statement-veridocs-payload';
 
 const appName = 'Autotest - Heartbeat Test - Financial';
 
@@ -12,20 +17,61 @@ test.describe('QA-191:create_multiple_remarks.spec', () => {
     test('Should allow creating multiple remarks successfully', {
         tag: ['@core', '@smoke', '@regression'],
         timeout: 180_000
-    }, async ({ page }) => {
-        await page.goto('/');
-        await loginForm.fill(page, admin);
-        await loginForm.submit(page);
+    }, async ({ page, context }) => {
+        let adminToken, sessionId, link, applicantCtx;
+
+        adminToken = await loginForm.adminLoginAndNavigate(page, admin);
+        await expect(adminToken).toBeDefined();
+        console.log('✅ Admin token captured for API calls');
+
+        await gotoApplicationsPage(page);
+
+        await findAndInviteApplication(page, appName);
+
+
+        const userData = {
+            email: 'playwright+remarks@verifast.com',
+            first_name: 'Remarks',
+            last_name: 'Primary',
+            password: 'password'
+        }
+        const payload = veriDocsBankStatementData(userData);
+
+        const sessionData = await generateSessionForm.generateSessionAndExtractLink(page, userData);
+
+        sessionId = sessionData.sessionId;
+        link = sessionData.link;
+
+        applicantCtx = await context.browser().newContext();
+        const applicantPage = await applicantCtx.newPage();
+        const inviteUrl = new URL(link);
+        await applicantPage.goto(joinUrl(app.urls.app, `${inviteUrl.pathname}${inviteUrl.search}`));
+
+        await handleOptionalStateModal(applicantPage);
+
+        await updateRentBudget(applicantPage, sessionId);
+
+        // Skip question step
+        await expect(applicantPage.getByTestId('pre-screening-step')).toBeVisible();
+        await applicantPage.getByTestId('pre-screening-skip-btn').click();
+
+        await simulatorFinancialStepWithVeridocs(applicantPage, payload)
+
+        await page.bringToFront();
+
+        await page.getByTestId('applicants-menu').click();
+        await page.getByTestId('applicants-submenu').click();
 
         await expect(page.getByTestId('household-status-alert')).toBeVisible({ timeout: 10_000 });
 
-        await searchSessionWithText(page, appName);
+        await searchSessionWithText(page, sessionId);
 
-        const sessionTile = await page.locator('.application-card').first();
+        // const sessionTile = await page.locator('.application-card').first();
 
-        const sessionID = await sessionTile.getAttribute('data-session');
+        // const sessionID = await sessionTile.getAttribute('data-session');
 
-        await navigateToSessionById(page, sessionID);
+        await navigateToSessionById(page, sessionId);
+
 
         const remarks = {
             r3: `R3 - third remark – ${new Date().toISOString()}`,
