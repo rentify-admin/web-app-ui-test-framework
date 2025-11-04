@@ -211,7 +211,7 @@ test.describe('frontend-session-heartbeat', () => {
                 // Look for the counter text inside the SVG in the income source section header
                 const incomeSourceHeader = page.getByTestId('income-source-section-header');
                 const counterText = incomeSourceHeader.locator('svg text');
-                const counterValue = await counterText.textContent();
+                const counterValue = await counterText.textContent({ timeout: 5000 });
                 incomeSourcesCount = parseInt(counterValue) || 0;
                 console.log(`🚀 ~ Attempt ${attempts + 1}: Income sources counter:`, incomeSourcesCount);
             } catch (error) {
