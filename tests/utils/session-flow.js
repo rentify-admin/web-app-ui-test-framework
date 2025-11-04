@@ -1897,25 +1897,25 @@ const simulatorFinancialStepWithVeridocs = async (page, veridocsPayload) => {
     // Convert the payload to JSON string
     const payloadString = JSON.stringify(veridocsPayload);
     console.log(`📋 Payload ready: ${payloadString.length} characters`);
-    
+
+    page.on('dialog', async dialog => {
+        // Step 2: Wait for dialog to appear and handle it
+        console.log('✅ Browser prompt detected!');
+        console.log(`📋 Dialog type: ${dialog.type()}`);
+        console.log(`📋 Dialog message: ${dialog.message()}`);
+        await page.waitForTimeout(500);
+        // Step 3: Accept the prompt with the payload
+        console.log('📋 Sending payload to dialog...');
+        await dialog.accept(payloadString);
+        console.log('✅ Payload sent to browser prompt');
+    });
+
     // Step 1: Click Connect Bank button first (manual flow)
     console.log('🔍 Clicking Connect Bank button...');
     await connectBankBtn.click();
     console.log('✅ Connect Bank clicked');
-    
-    // Step 2: Wait for dialog to appear and handle it
     console.log('🔍 Waiting for dialog to appear...');
-    const dialog = await page.waitForEvent('dialog', { timeout: 10000 });
-    
-    console.log('✅ Browser prompt detected!');
-    console.log(`📋 Dialog type: ${dialog.type()}`);
-    console.log(`📋 Dialog message: ${dialog.message()}`);
-    
-    // Step 3: Accept the prompt with the payload
-    console.log('📋 Sending payload to dialog...');
-    await dialog.accept(payloadString);
-    console.log('✅ Payload sent to browser prompt');
-    
+
     // Step 4: Wait for simulator to process
     console.log('⏳ Waiting for simulator to process payload...');
     await page.waitForTimeout(5000);
