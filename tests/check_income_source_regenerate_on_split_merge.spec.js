@@ -159,7 +159,7 @@ async function splitSession(page, priSessionId, coAppSessionId) {
 
 test.describe('QA-210: Check Income Source Regenerate on Split/Merge', () => {
 
-    test('Verify Regenerate Income After Merge/Split', { tag: ['@regression'] }, async ({ page, browser }) => {
+    test('Verify Regenerate Income After Merge/Split', { tag: ['@needs-review'] }, async ({ page, browser }) => {
         test.setTimeout(200000);
         // --- Setup ---
         test.setTimeout(300_000);

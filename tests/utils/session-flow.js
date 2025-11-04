@@ -571,8 +571,8 @@ const completeApplicantRegistrationForm = async (
     { firstName = 'teset', lastName = 'testrelogin', state = 'ALASKA' } = {}
 ) => {
 
-    // Fill first name
-    await page.locator('#first_name').fill(firstName);
+    // Fill first name with 'AutoT - ' prefix
+    await page.locator('#first_name').fill(addPrefix(firstName));
 
     // Fill last name
     await page.locator('#last_name').fill(lastName);
