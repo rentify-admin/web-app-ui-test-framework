@@ -3,18 +3,21 @@ import user from './user.js';
 import admin from './admin.js';
 import test_org_admin from './test_org_admin.js';
 import staff from './staff.js';
+import session from './session.js';
 
 export default {
     app,
     user,
     admin,
     test_org_admin,
-    staff
+    staff,
+    session
 };
 export {
     app,
     user,
     admin,
     test_org_admin,
-    staff
+    staff,
+    session
 };
