@@ -1,4 +1,4 @@
-name: Daily Regression Tests - Develop
+name: Daily Regression Tests
 
 on:
   schedule:
