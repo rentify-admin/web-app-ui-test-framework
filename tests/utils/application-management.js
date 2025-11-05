@@ -122,19 +122,21 @@ export const submitApplicationSetup = async (page, config = {}) => {
 };
 
 /**
- * Configure application settings (flag collection and minimum amount)
+ * Configure application settings (flag collection, minimum and maximum amount)
  * @param {import('@playwright/test').Page} page
  * @param {Object} config
  * @param {string} config.flagCollection
  * @param {string} config.minimumAmount
+ * @param {string} [config.maximumAmount] - Optional maximum amount
  */
 export const configureApplicationSettings = async (page, config) => {
 
-    // Configure flag collection and minimum amount
+    // Configure flag collection and rent budget range
     await page.getByText('Select option').click();
     await page.locator('#flag_collection').fill(config.flagCollection || 'High Risk');
     await page.locator('#flag_collection-0').click();
-    await page.locator('input[placeholder="Minimum"]').fill(config.minimumAmount || '500');
+    await page.getByTestId('rent-budget-min').fill(config.minimumAmount || '500');
+    await page.getByTestId('rent-budget-max').fill(config.maximumAmount || '10000');
 
     await page.waitForTimeout(1000);
 
