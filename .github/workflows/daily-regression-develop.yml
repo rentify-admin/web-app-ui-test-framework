@@ -4,15 +4,25 @@ on:
   schedule:
     # Daily at 8:00 AM UTC (1 hour earlier than previous 9:00 AM)
     - cron: '0 8 * * *'
-  workflow_dispatch: # Allow manual trigger
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment'
+        required: true
+        type: choice
+        options:
+          - development
+          - staging
+        default: 'development'
 
 env:
-  APP_ENV: development
+  APP_ENV: ${{ github.event.inputs.environment || 'development' }}
   NODE_ENV: test
   CI: true
 
 jobs:
   regression-tests:
+    name: UI Regression Tests / ${{ github.event.inputs.environment || 'development' }}
     runs-on: ubuntu-latest
     
     steps:
@@ -39,6 +49,7 @@ jobs:
           echo "📊 Running @regression tests excluding @document-upload (with 3 CI retries)"
           echo "🌐 Environment: $APP_ENV"
           echo "🔗 Base URL: $APP_URL"
+          echo "🔗 API URL: $API_URL"
           echo ""
           npx playwright test --project=chromium --grep "@regression" --grep-invert "@document-upload"
           
@@ -46,9 +57,9 @@ jobs:
           ls -la playwright-report/ || echo "playwright-report/ directory not found"
           find . -name "*.xml" -type f || echo "No XML files found"
         env:
-          APP_ENV: ${{ vars.APP_ENV || 'development' }}
-          APP_URL: ${{ vars.APP_URL || 'https://dev.verifast.app' }}
-          API_URL: ${{ vars.API_URL || 'https://api-dev.verifast.app' }}
+          APP_ENV: ${{ github.event.inputs.environment || 'development' }}
+          APP_URL: ${{ github.event.inputs.environment == 'staging' && 'https://staging.verifast.app' || vars.APP_URL || 'https://dev.verifast.app' }}
+          API_URL: ${{ github.event.inputs.environment == 'staging' && 'https://api-staging.verifast.app' || vars.API_URL || 'https://api-dev.verifast.app' }}
           TESTRAIL_HOST: ${{ secrets.TESTRAIL_HOST }}
           TESTRAIL_PROJECT_ID: ${{ secrets.TESTRAIL_PROJECT_ID }}
           TESTRAIL_SUITE_ID: ${{ secrets.TESTRAIL_SUITE_ID }}
@@ -61,7 +72,7 @@ jobs:
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: playwright-report-develop
+          name: playwright-report-${{ github.event.inputs.environment || 'development' }}
           path: |
             playwright-report/
             test-results/
@@ -87,8 +98,8 @@ jobs:
           ls -la playwright-report/ || echo "❌ playwright-report directory not found"
           ls -la playwright-report/results.xml || echo "❌ results.xml not found"
           
-          # Generate TestRail test run title with current date
-          TEST_RUN_TITLE="Full Regression Suite: development - Browser: chromium - Date $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+          # Generate TestRail test run title with current date and environment
+          TEST_RUN_TITLE="Full Regression Suite: ${{ github.event.inputs.environment || 'development' }} - Browser: chromium - Date $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
           echo "📝 Test run title: $TEST_RUN_TITLE"
           
           # Create TestRail test run and upload results
@@ -102,7 +113,7 @@ jobs:
             --title "$TEST_RUN_TITLE" \
             --suite-id $TESTRAIL_SUITE_ID \
             --case-matcher "name" \
-            --case-fields "custom_environment:development" \
+            --case-fields "custom_environment:${{ github.event.inputs.environment || 'development' }}" \
             --result-fields "custom_browser:chromium" \
             --file playwright-report/results.xml 2>&1)
           
@@ -201,7 +212,7 @@ jobs:
         if: always()
         run: |
           echo "📤 Sending Slack notification with attachments..."
-          node scripts/slack-notification.js "Full Regression Suite" "develop" "${{ github.run_id }}" "playwright-report/results.xml" "${{ env.TESTRAIL_RUN_ID }}" "flaky-analysis.json"
+          node scripts/slack-notification.js "Full Regression Suite" "${{ github.event.inputs.environment || 'development' }}" "${{ github.run_id }}" "playwright-report/results.xml" "${{ env.TESTRAIL_RUN_ID }}" "flaky-analysis.json"
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
