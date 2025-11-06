@@ -425,33 +425,3 @@ jobs:
             test-results/
             flaky-analysis.json
           retention-days: 30
-
-        run: |
-          # Determine which tag was run based on environment
-          if [ "${{ github.event.inputs.environment }}" == "staging" ]; then
-            SUITE_NAME="Multi-Env-Ready Tests"
-          else
-            SUITE_NAME="Full Regression Suite"
-          fi
-          
-          echo "📤 Sending Slack notification with attachments..."
-          node scripts/slack-notification.js "$SUITE_NAME" "${{ github.event.inputs.environment || 'development' }}" "${{ github.run_id }}" "playwright-report/results.xml" "${{ env.TESTRAIL_RUN_ID }}" "flaky-analysis.json"
-        env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
-          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
-          SLACK_UPLOAD_CHANNEL: ${{ vars.SLACK_UPLOAD_CHANNEL || '' }}
-          GITHUB_SERVER_URL: ${{ github.server_url }}
-          GITHUB_REPOSITORY: ${{ github.repository }}
-          GITHUB_ACTOR: ${{ github.actor }}
-          TESTRAIL_HOST: ${{ secrets.TESTRAIL_HOST }}
-          TESTRAIL_PROJECT_NAME: ${{ secrets.TESTRAIL_PROJECT_NAME }}
-
-      - name: Upload merged test results
-        uses: actions/upload-artifact@v4
-        with:
-          name: playwright-report-merged-${{ github.event.inputs.environment || 'development' }}
-          path: |
-            playwright-report/
-            test-results/
-            flaky-analysis.json
-          retention-days: 30
