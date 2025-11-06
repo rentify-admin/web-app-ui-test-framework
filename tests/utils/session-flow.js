@@ -66,13 +66,34 @@ const waitForConnectionCompletion = async (page, options = {}) => {
         onFailure = null
     } = options;
 
-    // Use custom locator if provided, otherwise wait for element and get locator
+    // Use custom locator if provided, otherwise poll for element to be visible (max 20 seconds)
     let connectionRows;
     if (customLocator) {
         connectionRows = customLocator;
     } else {
-        await page.waitForSelector(selector, { timeout: 20000 });
-        connectionRows = page.locator(selector);
+        const locator = page.locator(selector);
+        let elementFound = false;
+        const maxAttempts = 40; // 40 attempts * 500ms = 20 seconds max
+        const pollInterval = 500;
+        
+        for (let attempt = 0; attempt < maxAttempts; attempt++) {
+            const count = await locator.count();
+            
+            if (count > 0) {
+                elementFound = true;
+                break;
+            }
+            
+            if (attempt < maxAttempts - 1) {
+                await page.waitForTimeout(pollInterval);
+            }
+        }
+        
+        if (!elementFound) {
+            throw new Error(`Element with selector "${selector}" not found after 20 seconds`);
+        }
+        
+        connectionRows = locator;
     }
 
     const connectionCount = await connectionRows.count();

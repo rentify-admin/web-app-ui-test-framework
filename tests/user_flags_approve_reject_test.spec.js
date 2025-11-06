@@ -36,7 +36,7 @@ test.describe('user_flags_approve_reject_test', () => {
             email: 'FlagIssueTesting@verifast.com'
         };
 
-        let flagIssueSession = '01985a2c-c3f3-71fa-bc3d-f5a11279d36a';
+        let flagIssueSession = null;
 
         test('Should create applicant session for flag issue', { tag: [ '@core', '@smoke', '@regression' ] }, async ({
         page,
@@ -225,10 +225,33 @@ test.describe('user_flags_approve_reject_test', () => {
         await expect(acceptButton).toBeVisible();
         await acceptButton.click();
 
-        await page.waitForTimeout(8000); // wait for modal to close and change the status of the document
-
+        // Step 4.5: Poll for document status to change to approved (check for "Accepted" text)
+        console.log('⏳ Waiting for document approval to complete...');
         const pill = page.getByTestId('files-document-status-pill');
-        await expect(pill.locator('.bg-success-light')).toBeVisible({ timeout: 30_000 });
+        
+        let documentApproved = false;
+        const maxAttempts = 45; // 45 attempts * 1 second = 45 seconds max
+        const pollInterval = 1000;
+        
+        for (let attempt = 0; attempt < maxAttempts; attempt++) {
+            const pillText = await pill.textContent();
+            
+            if (pillText && pillText.includes('Accepted')) {
+                console.log(`   ✅ Document approved ("Accepted" text found after ${attempt + 1} attempts)`);
+                documentApproved = true;
+                break;
+            }
+            
+            if (attempt < maxAttempts - 1) {
+                console.log(`   Attempt ${attempt + 1}/${maxAttempts}: Current status "${pillText?.trim()}", waiting for "Accepted"...`);
+                await page.waitForTimeout(pollInterval);
+            }
+        }
+        
+        if (!documentApproved) {
+            const finalStatus = await pill.textContent();
+            throw new Error(`Document approval failed: "Accepted" text not found after 45 seconds. Final status: "${finalStatus?.trim()}"`);
+        }
 
         console.log('✅ Document approval completed');
         
@@ -278,7 +301,7 @@ test.describe('user_flags_approve_reject_test', () => {
                 await reasonTextarea.fill(`${flagTestId} marked as issue by automated test`);
                 
                 // Click confirm button
-                const confirmBtn = page.getByRole('button', { name: 'Confirm' });
+                const confirmBtn = page.getByRole('button', { name: 'Mark as Issue' })
                 await expect(confirmBtn).toBeVisible();
                 await confirmBtn.click();
                 
