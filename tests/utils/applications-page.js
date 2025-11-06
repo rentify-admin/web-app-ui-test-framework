@@ -313,7 +313,8 @@ const checkApplicationDeletable = async page => {
 };
 
 async function openInviteModal(page, applicationName) {
-    const rows = await page.locator('table>tbody>tr');
+    const applicationTable = await page.getByTestId('application-table');
+    const rows = await applicationTable.locator('tbody>tr');
 
     for (let index = 0; index < await rows.count(); index++) {
         const element = rows.nth(index);

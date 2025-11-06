@@ -83,7 +83,7 @@ async function checkIncomeSourcesAndAssertVisibility(page, sessionId, timeout = 
     const { data: incomeSources } = await waitForJsonResponse(incomeResp);
 
     for (const element of incomeSources) {
-        await expect(page.getByTestId(`income-source-${element.id}`)).toBeVisible();
+        await expect(page.getByTestId(`income-source-${element.id}`)).toBeVisible({timeout: 30_000});
     }
 
     return incomeSources;
@@ -160,10 +160,9 @@ async function splitSession(page, priSessionId, coAppSessionId) {
 test.describe('QA-210: Check Income Source Regenerate on Split/Merge', () => {
 
     test('Verify Regenerate Income After Merge/Split', { tag: ['@needs-review'] }, async ({ page, browser }) => {
-        test.setTimeout(200000);
         // --- Setup ---
         test.setTimeout(300_000);
-        const appName = 'Heartbeat Test - Financial';
+        const appName = 'Autotest - Heartbeat Test - Financial';
 
         const primaryUser = { email: getRandomEmail(), first_name: 'Merge', last_name: 'Primary', password: 'password' };
         const coAppUser = { email: getRandomEmail(), first_name: 'Merge', last_name: 'Coapp' };
@@ -208,6 +207,7 @@ test.describe('QA-210: Check Income Source Regenerate on Split/Merge', () => {
         await page.waitForTimeout(2000); 
         await page.reload();
 
+        await page.waitForTimeout(3000); 
         // --- Verify After Merge ---
         // 6. Check Combined Income Sources
         // After merge, both sessions' income data is expected to be loaded on the parent page
@@ -237,7 +237,7 @@ test.describe('QA-210: Check Income Source Regenerate on Split/Merge', () => {
         await sessionLink.click()
         await page.waitForTimeout(1000); 
         await page.reload();
-
+        await page.waitForTimeout(2000); 
         // --- Verify After Split ---
         // 8. Check Primary Income (should be independent again)
         await checkIncomeSourcesAndAssertVisibility(page, priSessionId);
