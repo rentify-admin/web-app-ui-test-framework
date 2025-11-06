@@ -8,7 +8,7 @@ import config from '~/tests/test_config';
 import { joinUrl } from '~/tests/utils/helper.js';
 import { waitForJsonResponse } from '~/tests/utils/wait-response';
 import { gotoApplicationsPage, searchApplication } from '~/tests/utils/applications-page';
-import { handleOptionalStateModal } from '~/tests/utils/session-flow';
+import { handleOptionalStateModal, handleOptionalTermsCheckbox } from '~/tests/utils/session-flow';
 
 const API_URL = config.app.urls.api;
 const APP_URL = config.app.urls.app;
@@ -76,6 +76,9 @@ test.describe('financial_mx_2_attempts_success_and_failed_password', () => {
 
         // Handle state modal if it appears (needed for new emails)
         await handleOptionalStateModal(applicantPage);
+
+        // Handle terms modal if it appears (MUST be AFTER state modal)
+        await handleOptionalTermsCheckbox(applicantPage);
 
         await applicantPage.locator('input#rent_budget').fill('500');
         await applicantPage.locator('button[type="submit"]').click();

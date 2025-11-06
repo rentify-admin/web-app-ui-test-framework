@@ -14,6 +14,7 @@ import {
     completePlaidFinancialStepBetterment,
     fillhouseholdForm,
     handleOptionalStateModal,
+		handleOptionalTermsCheckbox,
     selectApplicantType,
     updateRentBudget,
     waitForPlaidConnectionCompletion
@@ -69,6 +70,9 @@ test.describe('co_applicant_effect_on_session_test', () => {
         await applicantPage.goto(
             joinUrl(`${app.urls.app}`, `${linkUrl.pathname}${linkUrl.search}`)
         );
+		
+		// Handle terms modal if present (before applicant type)
+		await handleOptionalTermsCheckbox(applicantPage);
     
         // Step 5: Select Applicant Type on Page
         await selectApplicantType(applicantPage, sessionUrl);
@@ -227,6 +231,9 @@ test.describe('co_applicant_effect_on_session_test', () => {
     
         const coAppSession = await waitForJsonResponse(coSessionResp);
     
+		// Handle terms modal if present (before applicant type)
+		await handleOptionalTermsCheckbox(coAppPage);
+	
         await selectApplicantType(coAppPage, coAppSessionApiUrl);
     
         await handleOptionalStateModal(coAppPage);

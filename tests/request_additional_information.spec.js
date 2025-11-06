@@ -6,6 +6,7 @@ import { gotoApplicationsPage, findAndInviteApplication } from '~/tests/utils/ap
 import generateSessionForm from '~/tests/utils/generate-session-form';
 import {
     handleOptionalStateModal,
+	handleOptionalTermsCheckbox,
     updateRentBudget,
     completeIdentityStepViaAPI,
     completeEmploymentStepViaAPI
@@ -127,6 +128,8 @@ test.describe('request_additional_information', () => {
 
             // Handle state modal if present
             await handleOptionalStateModal(applicantPage);
+			// Handle optional terms checkbox/modal (no applicant type in this flow)
+			await handleOptionalTermsCheckbox(applicantPage);
 
             // Rent budget step
             await updateRentBudget(applicantPage, sessionId);

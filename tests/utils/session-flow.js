@@ -375,6 +375,87 @@ const uploadStatementFinancialStep = async (
  * Optionally handle state modal if present
  * @param {import('@playwright/test').Page} page
  */
+/**
+ * Handle optional terms checkbox (appears for some users before session flow)
+ * @param {import('@playwright/test').Page} page
+ */
+const handleOptionalTermsCheckbox = async page => {
+    console.log('🔍 Polling for optional terms checkbox...');
+    
+    // Wait for page to be ready first
+    await page.waitForLoadState('domcontentloaded');
+    await page.waitForTimeout(1000);
+    
+    const termsCheckbox = page.getByTestId('user-terms');
+    
+    // Poll for terms checkbox to appear (max 10 seconds)
+    let checkboxFound = false;
+    const maxAttempts = 20; // 20 attempts * 500ms = 10 seconds max
+    const pollInterval = 500;
+    
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+        try {
+            const isVisible = await termsCheckbox.isVisible();
+            
+            if (isVisible) {
+                checkboxFound = true;
+                console.log(`✅ Terms checkbox found (after ${attempt + 1} attempts)`);
+                break;
+            }
+        } catch (error) {
+            // Continue polling
+        }
+        
+        if (attempt < maxAttempts - 1) {
+            await page.waitForTimeout(pollInterval);
+        }
+    }
+    
+    if (!checkboxFound) {
+        console.log('⏭️ Terms checkbox not found after polling, continuing...');
+        return;
+    }
+    
+    // Checkbox found - proceed with checking and clicking
+    try {
+        const isChecked = await termsCheckbox.isChecked();
+        
+        if (!isChecked) {
+            console.log('📝 Checking terms checkbox...');
+            await termsCheckbox.click();
+            await page.waitForTimeout(500);
+            console.log('✅ Terms checkbox checked');
+        } else {
+            console.log('✅ Terms checkbox already checked');
+        }
+        
+        // Click "Continue to Verifast" button and wait for page transition
+        console.log('🚀 Clicking "Continue to Verifast" button...');
+        const continueButton = page.getByRole('button', { name: 'Continue to Verifast' });
+        
+        // Wait for button to be enabled (not just visible)
+        await continueButton.waitFor({ state: 'visible', timeout: 5000 });
+        const isEnabled = await continueButton.isEnabled();
+        if (!isEnabled) {
+            console.log('⏳ Button not enabled yet, waiting...');
+            await page.waitForTimeout(1000);
+        }
+        
+        await continueButton.click();
+        console.log('✅ Continue button clicked, waiting for page transition...');
+        
+        // Wait for terms checkbox to disappear (indicates page navigated)
+        await termsCheckbox.waitFor({ state: 'hidden', timeout: 10000 });
+        console.log('✅ Page transition completed');
+        
+        // Additional wait for page to stabilize
+        await page.waitForLoadState('domcontentloaded');
+        await page.waitForTimeout(1000);
+    } catch (error) {
+        console.log(`⚠️ Error during terms handling: ${error.message}, continuing...`);
+    }
+};
+
 const handleOptionalStateModal = async page => {
     // Wait for page to be fully loaded before checking for modal
     await page.waitForLoadState('domcontentloaded');
@@ -2395,6 +2476,7 @@ export {
     createSessionForUser,
     createSessionWithSimulator,
     handleOptionalStateModal,
+    handleOptionalTermsCheckbox,
     employmentVerificationWalmartPayStub,
     skipEmploymentVerification,
     plaidFinancialConnect,

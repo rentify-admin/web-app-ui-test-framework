@@ -7,7 +7,7 @@ import { findAndInviteApplication } from "./utils/applications-page";
 import generateSessionForm from "./utils/generate-session-form";
 import { getRandomEmail, joinUrl } from "./utils/helper";
 import { waitForJsonResponse } from "./utils/wait-response";
-import { selectApplicantType, updateRentBudget, updateStateModal, waitForConnectionCompletion } from "./utils/session-flow";
+import { selectApplicantType, updateRentBudget, handleOptionalStateModal, handleOptionalTermsCheckbox, waitForConnectionCompletion } from "./utils/session-flow";
 import { gotoPage } from "./utils/common";
 import { findSessionLocator, searchSessionWithText } from "./utils/report-page";
 
@@ -230,8 +230,17 @@ test.describe('QA-208: Document Rejection from Any State', () => {
 
         // 2. Complete Applicant Flow Steps
         console.log('➡️ Starting applicant flow...');
+        
+        console.log('🚀 Handling optional terms checkbox (appears FIRST)');
+        await handleOptionalTermsCheckbox(applicantPage);
+        console.log('✅ Done handling terms checkbox');
+        
         await selectApplicantType(applicantPage, sessionInfo.sessionUrl, '#affordable_occupant');
-        await updateStateModal(applicantPage, 'ALABAMA');
+        
+        console.log('🚀 Handling optional state modal (appears AFTER applicant type)');
+        await handleOptionalStateModal(applicantPage);
+        console.log('✅ Done handling state modal');
+        
         await updateRentBudget(applicantPage, sessionId, '1500');
 
 

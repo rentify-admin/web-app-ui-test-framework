@@ -4,7 +4,7 @@ import { admin, app } from '~/tests/test_config';
 import { findAndInviteApplication, gotoApplicationsPage } from '~/tests/utils/applications-page';
 import generateSessionForm from '~/tests/utils/generate-session-form';
 import { getCentsToDollarsSafe, joinUrl } from '~/tests/utils/helper';
-import { completePaystubConnection, fillhouseholdForm, selectApplicantType, updateRentBudget, updateStateModal, identityStep, waitForPlaidConnectionCompletion, completePlaidFinancialStepBetterment } from '~/tests/utils/session-flow';
+import { completePaystubConnection, fillhouseholdForm, handleOptionalTermsCheckbox, selectApplicantType, updateRentBudget, updateStateModal, identityStep, waitForPlaidConnectionCompletion, completePlaidFinancialStepBetterment } from '~/tests/utils/session-flow';
 import { gotoPage } from '~/tests/utils/common';
 import { findSessionLocator, searchSessionWithText } from '~/tests/utils/report-page';
 import { waitForJsonResponse } from '~/tests/utils/wait-response';
@@ -81,6 +81,9 @@ test.describe('check_coapp_income_ratio_exceede_flag', () => {
         
         const applicantPage = await context.newPage();
         await applicantPage.goto(joinUrl(`${app.urls.app}`, `${linkUrl.pathname}${linkUrl.search}`));
+		
+		// Handle terms modal if present (before applicant type selection)
+		await handleOptionalTermsCheckbox(applicantPage);
         
         let session;
         
@@ -221,6 +224,9 @@ test.describe('check_coapp_income_ratio_exceede_flag', () => {
     
         const coAppSession = await waitForJsonResponse(coSessionResp);
     
+		// Handle terms modal if present (before applicant type selection)
+		await handleOptionalTermsCheckbox(coAppPage);
+		
         await selectApplicantType(coAppPage, coAppSessionApiUrl, '#other');
     
         await identityStep(coAppPage);

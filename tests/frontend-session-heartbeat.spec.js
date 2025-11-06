@@ -3,7 +3,7 @@ import { adminLoginAndNavigateToApplications, findSessionLocator, loginWith } fr
 import { findAndInviteApplication } from '~/tests/utils/applications-page';
 import { admin, app } from './test_config';
 import generateSessionForm from '~/tests/utils/generate-session-form';
-import { completePaystubConnection, fillhouseholdForm, selectApplicantType, updateRentBudget, updateStateModal, waitForButtonOrAutoAdvance } from '~/tests/utils/session-flow';
+import { completePaystubConnection, fillhouseholdForm, handleOptionalTermsCheckbox, selectApplicantType, updateRentBudget, updateStateModal, waitForButtonOrAutoAdvance } from '~/tests/utils/session-flow';
 import { getRandomEmail, joinUrl } from '~/tests/utils/helper';
 import { searchSessionWithText } from '~/tests/utils/report-page';
 import { waitForJsonResponse } from './utils/wait-response';
@@ -49,6 +49,10 @@ test.describe('frontend-session-heartbeat', () => {
         console.log('🚀 Open invite URL')
         await page.goto(link);
         console.log('✅ Done Open invite URL')
+
+        console.log('🚀 Handling optional terms modal')
+        await handleOptionalTermsCheckbox(page);
+        console.log('✅ Done handling terms modal')
 
         console.log('🚀 Selecting Applicant type employed')
         await selectApplicantType(page, sessionUrl, '#employed');

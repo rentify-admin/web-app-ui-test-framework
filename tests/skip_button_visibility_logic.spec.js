@@ -5,6 +5,7 @@ import { joinUrl } from '~/tests/utils/helper';
 import { waitForJsonResponse } from '~/tests/utils/wait-response';
 import { 
     handleOptionalStateModal,
+    handleOptionalTermsCheckbox,
     skipApplicants,
     selectApplicantType,
     updateRentBudget,
@@ -63,6 +64,9 @@ test.describe('skip_button_visibility_logic', () => {
         const context = await browser.newContext({ permissions: ['camera'] });
         const applicantPage = await context.newPage();
         await applicantPage.goto(joinUrl(`${app.urls.app}`, `${linkUrl.pathname}${linkUrl.search}`));
+
+        // Handle terms modal if present (MUST be BEFORE applicant type selection)
+        await handleOptionalTermsCheckbox(applicantPage);
 
         // Step 5: Select Applicant Type on Page
         console.log('🚀 Step 5: Select Applicant Type on Page');

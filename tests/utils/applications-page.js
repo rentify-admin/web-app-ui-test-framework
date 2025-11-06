@@ -3,7 +3,7 @@ import { customUrlDecode, joinUrl } from '~/tests/utils/helper';
 import { app } from '~/tests/test_config';
 import { waitForJsonResponse } from '~/tests/utils/wait-response';
 import generateSessionForm from '~/tests/utils/generate-session-form';
-import { handleOptionalStateModal } from '~/tests/utils/session-flow';
+import { handleOptionalStateModal, handleOptionalTermsCheckbox } from '~/tests/utils/session-flow';
 
 const applicationUrl = joinUrl(app.urls.api, 'applications');
 
@@ -416,6 +416,9 @@ async function completeApplicantInitialSetup(page, link, rentBudget = '555') {
     
     // Handle state modal if it appears
     await handleOptionalStateModal(page);
+	
+	// Handle optional terms modal/checkbox (no applicant type in this flow)
+	await handleOptionalTermsCheckbox(page);
     
     // Extract session URL from link and use environment config
     const sessionUrl = new URL(link).pathname.replace('/sessions/', '');

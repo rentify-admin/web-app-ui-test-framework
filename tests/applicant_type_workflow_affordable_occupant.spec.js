@@ -4,7 +4,7 @@ import { admin } from '~/tests/test_config';
 import app from '~/tests/test_config/app';
 import { findAndInviteApplication, gotoApplicationsPage } from '~/tests/utils/applications-page';
 import generateSessionForm from '~/tests/utils/generate-session-form';
-import { handleOptionalStateModal, selectApplicantType, completeApplicantForm, identityStep } from '~/tests/utils/session-flow';
+import { handleOptionalStateModal, handleOptionalTermsCheckbox, selectApplicantType, completeApplicantForm, identityStep } from '~/tests/utils/session-flow';
 
 test.describe('applicant_type_workflow_affordable_occupant', () => {
     test('Should complete applicant flow with affordable occupant applicant type', { 
@@ -53,11 +53,18 @@ test.describe('applicant_type_workflow_affordable_occupant', () => {
         await page.goto(link);
         await page.waitForTimeout(8000);
 
+        // Step 5.5: Handle optional terms checkbox (appears FIRST)
+        console.log('🚀 Handling optional terms checkbox (appears FIRST)');
+        await handleOptionalTermsCheckbox(page);
+        console.log('✅ Done handling terms checkbox');
+
         // Step 6: Select Affordable Occupant applicant type
         await selectApplicantType(page, sessionData.data?.id, '#affordable_occupant');
 
         // Step 7: Handle state modal if it appears (AFTER applicant type selection)
+        console.log('🚀 Handling optional state modal (appears AFTER applicant type)');
         await handleOptionalStateModal(page);
+        console.log('✅ Done handling state modal');
 
         // Step 8: Complete applicant form with rent budget
         await completeApplicantForm(page, '555', sessionData.data?.id);

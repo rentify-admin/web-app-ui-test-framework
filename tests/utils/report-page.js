@@ -336,17 +336,17 @@ const canUploadListOfDocuments = async (page, documents = []) => {
     console.log('Should Allow User to Upload Bank Statement and Paystub');
 
     const btn = await page.getByTestId('upload-document-btn');
-    await page.waitForTimeout(700);
+    await page.waitForTimeout(2000);
     if (!await btn.isVisible()) {
         await page.getByTestId('session-action-btn').click();
     }
-    await page.waitForTimeout(600);
+    await page.waitForTimeout(1000);
     await btn.click();
 
     await page.getByTestId('select-applicant').click();
-
+    await page.waitForTimeout(1000);
     await page.locator('#select-applicant-0').click();
-
+    await page.waitForTimeout(1000);
     await page.getByTestId('select-document').click();
 
     const documentOptions = await page.locator('[id*="select-document-"]');
