@@ -364,4 +364,65 @@ export class ApiDataManager {
       throw error;
     }
   }
+
+  /**
+   * Get all organizations from the API
+   * @returns {Promise<Array>} Array of organization objects
+   */
+  async getOrganizations() {
+    try {
+      if (!this.authToken) {
+        throw new Error('Authentication required. Call authenticate() first.');
+      }
+
+      const baseURL = process.env.API_URL;
+      const fullUrl = `${baseURL}/organizations`;
+      
+      console.log('🔍 Fetching organizations from:', fullUrl);
+      
+      const response = await this.api.get(fullUrl, {
+        headers: this.getHeaders()
+      });
+
+      if (!response.ok()) {
+        const errorText = await response.text();
+        console.error('Failed to fetch organizations:', response.status(), errorText);
+        throw new Error(`Failed to fetch organizations: ${response.status()}`);
+      }
+
+      const orgsData = await response.json();
+      const organizations = orgsData.data;
+      console.log(`✅ Fetched ${organizations.length} organizations`);
+      
+      return organizations;
+    } catch (error) {
+      console.error('❌ Error fetching organizations:', error.message);
+      throw error;
+    }
+  }
+
+  /**
+   * Get an organization by name
+   * @param {string} organizationName - The name of the organization to find
+   * @returns {Promise<Object|undefined>} Organization object if found, undefined otherwise
+   */
+  async getOrganizationByName(organizationName) {
+    try {
+      console.log(`🔍 Searching for organization: "${organizationName}"`);
+      
+      const organizations = await this.getOrganizations();
+      const organization = organizations.find(o => o.name === organizationName);
+      
+      if (organization) {
+        console.log(`✅ Found organization "${organizationName}" with ID: ${organization.id}`);
+        return organization;
+      } else {
+        console.warn(`⚠️ Organization "${organizationName}" not found`);
+        return undefined;
+      }
+    } catch (error) {
+      console.error(`❌ Error finding organization "${organizationName}":`, error.message);
+      throw error;
+    }
+  }
 }

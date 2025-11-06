@@ -18,6 +18,9 @@ const __dirname = dirname(__filename);
 // Load environment-specific config
 const env = process.env.APP_ENV || 'development';
 const envFile = env === 'staging' ? '.env.staging' : '.env.develop';
+console.log(`🔧 Environment: ${env}`);
+console.log(`📄 Loading config from: ${envFile}`);
+console.log(`🌐 APP_URL will be: ${env === 'staging' ? 'staging.verifast.app' : 'dev.verifast.app'}`);
 dotenv.config({ path: resolve(__dirname, envFile) });
 
 /**

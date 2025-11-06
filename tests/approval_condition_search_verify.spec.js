@@ -7,7 +7,7 @@ import { customUrlDecode } from './utils/helper';
 test.describe('QA-211: Approval Conditions — Search by Name, Description, and BE Name', () => {
 
     test('Approval Conditions — Search by Name, Description, and BE Name', {
-        tags: ['@regression']
+        tag: ['@regression']
     }, async ({ page }) => {
 
         console.log('🚀 Step 1: Navigating to app URL');

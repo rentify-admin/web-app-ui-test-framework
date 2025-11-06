@@ -10,7 +10,7 @@ test.beforeEach(async ({ page }) => {
 
 test.describe('application_create_delete_test', () => {
     test('Should create and delete an application with multiple applicant types', { 
-        tag: [ '@core', '@regression' ],
+        tag: [ '@core', '@regression', '@multi-env-ready' ],
     }, async ({ page }) => {
         // Step 1-5: Login as admin (dhaval)
         await loginForm.fill(page, admin);

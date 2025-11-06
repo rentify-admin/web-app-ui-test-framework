@@ -22,8 +22,12 @@ env:
 
 jobs:
   regression-tests:
-    name: UI Regression Tests / ${{ github.event.inputs.environment || 'development' }}
-    runs-on: ubuntu-latest
+    name: UI Tests Shard ${{ matrix.shard }}/4 / ${{ github.event.inputs.environment || 'development' }}
+    runs-on: ubuntu-latest-large
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
     
     steps:
       - name: Checkout code
@@ -45,13 +49,23 @@ jobs:
 
       - name: Run regression tests
         run: |
-          echo "🧪 Starting full regression test suite..."
-          echo "📊 Running @regression tests excluding @document-upload (with 3 CI retries)"
-          echo "🌐 Environment: $APP_ENV"
+          # Determine which tag to run based on environment
+          if [ "${{ github.event.inputs.environment }}" == "staging" ]; then
+            TEST_TAG="@multi-env-ready"
+            TAG_DESCRIPTION="multi-env-ready tests (staging-safe)"
+          else
+            TEST_TAG="@regression"
+            TAG_DESCRIPTION="regression tests"
+          fi
+          
+          echo "🧪 Starting test suite (Shard ${{ matrix.shard }}/4)..."
+          echo "🏷️  Tag: $TEST_TAG ($TAG_DESCRIPTION)"
+          echo "🌐 Environment: ${{ github.event.inputs.environment || 'development' }}"
           echo "🔗 Base URL: $APP_URL"
           echo "🔗 API URL: $API_URL"
+          echo "🔀 Shard: ${{ matrix.shard }}/4"
           echo ""
-          npx playwright test --project=chromium --grep "@regression" --grep-invert "@document-upload"
+          npx playwright test --project=chromium --grep "$TEST_TAG" --grep-invert "@document-upload" --shard=${{ matrix.shard }}/4
           
           echo "📁 Checking generated files:"
           ls -la playwright-report/ || echo "playwright-report/ directory not found"
@@ -72,14 +86,58 @@ jobs:
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: playwright-report-${{ github.event.inputs.environment || 'development' }}
+          name: playwright-report-${{ github.event.inputs.environment || 'development' }}-shard-${{ matrix.shard }}
           path: |
             playwright-report/
             test-results/
           retention-days: 30
 
+  merge-and-report:
+    name: Merge Results & Report / ${{ github.event.inputs.environment || 'development' }}
+    runs-on: ubuntu-latest
+    needs: regression-tests
+    if: always()
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Download all shard artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: all-reports
+          pattern: playwright-report-${{ github.event.inputs.environment || 'development' }}-shard-*
+
+      - name: Merge test results
+        run: |
+          echo "📊 Merging test results from all shards..."
+          mkdir -p playwright-report
+          mkdir -p test-results
+          
+          # Merge JUnit XML files
+          echo "🔀 Merging JUnit XML files..."
+          find all-reports -name "results.xml" -exec cat {} \; > merged-results.xml || true
+          
+          # Copy merged results
+          cp merged-results.xml playwright-report/results.xml || true
+          
+          # Merge test-results directories
+          echo "📹 Merging test-results directories..."
+          find all-reports -type d -name "test-results" -exec cp -r {}/* test-results/ \; || true
+          
+          echo "✅ Merge completed"
+          ls -la playwright-report/
+          ls -la test-results/ | head -20
+
+      - name: Install dependencies
+        run: npm ci
+
       - name: Install trcli
-        if: always()
         run: |
           echo "Installing trcli..."
           pip install trcli
@@ -87,7 +145,6 @@ jobs:
           which trcli || echo "❌ trcli not found in PATH"
 
       - name: Create TestRail test run
-        if: always()
         run: |
           echo "🔧 Debugging TestRail setup..."
           echo "Checking trcli installation:"
@@ -98,8 +155,15 @@ jobs:
           ls -la playwright-report/ || echo "❌ playwright-report directory not found"
           ls -la playwright-report/results.xml || echo "❌ results.xml not found"
           
+          # Determine which tag was run based on environment
+          if [ "${{ github.event.inputs.environment }}" == "staging" ]; then
+            TEST_TAG="@multi-env-ready"
+          else
+            TEST_TAG="@regression"
+          fi
+          
           # Generate TestRail test run title with current date and environment
-          TEST_RUN_TITLE="Full Regression Suite: ${{ github.event.inputs.environment || 'development' }} - Browser: chromium - Date $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+          TEST_RUN_TITLE="$TEST_TAG Tests (4 Shards): ${{ github.event.inputs.environment || 'development' }} - Browser: chromium - Date $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
           echo "📝 Test run title: $TEST_RUN_TITLE"
           
           # Create TestRail test run and upload results
@@ -136,7 +200,6 @@ jobs:
           TESTRAIL_API_KEY: ${{ secrets.TESTRAIL_API_KEY }}
 
       - name: Generate TestRail report via TRCLI (optional)
-        if: always()
         run: |
           if [ -n "${{ secrets.TESTRAIL_REPORT_ID }}" ]; then
             echo "🧾 Generating TestRail report via TRCLI (report_id=${{ secrets.TESTRAIL_REPORT_ID }})"
@@ -161,7 +224,6 @@ jobs:
           TESTRAIL_API_KEY: ${{ secrets.TESTRAIL_API_KEY }}
 
       - name: Export TestRail report and prepare attachments
-        if: always()
         run: |
           echo "📊 Exporting TestRail report and preparing attachments..."
           if [ -n "${{ env.TESTRAIL_RUN_ID }}" ]; then
@@ -194,7 +256,6 @@ jobs:
 
 
       - name: Analyze flaky tests
-        if: always()
         run: |
           echo "🔍 Analyzing test results for flakiness..."
           node scripts/flaky_analysis/flaky-test-analyzer.js "playwright-report/results.xml" "flaky-analysis.json" "20" "2"
@@ -209,10 +270,16 @@ jobs:
           echo "✅ Flaky test analysis and tagging completed"
 
       - name: Send Slack notification
-        if: always()
         run: |
+          # Determine which tag was run based on environment
+          if [ "${{ github.event.inputs.environment }}" == "staging" ]; then
+            SUITE_NAME="Multi-Env-Ready Tests"
+          else
+            SUITE_NAME="Full Regression Suite"
+          fi
+          
           echo "📤 Sending Slack notification with attachments..."
-          node scripts/slack-notification.js "Full Regression Suite" "${{ github.event.inputs.environment || 'development' }}" "${{ github.run_id }}" "playwright-report/results.xml" "${{ env.TESTRAIL_RUN_ID }}" "flaky-analysis.json"
+          node scripts/slack-notification.js "$SUITE_NAME" "${{ github.event.inputs.environment || 'development' }}" "${{ github.run_id }}" "playwright-report/results.xml" "${{ env.TESTRAIL_RUN_ID }}" "flaky-analysis.json"
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
@@ -222,3 +289,13 @@ jobs:
           GITHUB_ACTOR: ${{ github.actor }}
           TESTRAIL_HOST: ${{ secrets.TESTRAIL_HOST }}
           TESTRAIL_PROJECT_NAME: ${{ secrets.TESTRAIL_PROJECT_NAME }}
+
+      - name: Upload merged test results
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-merged-${{ github.event.inputs.environment || 'development' }}
+          path: |
+            playwright-report/
+            test-results/
+            flaky-analysis.json
+          retention-days: 30

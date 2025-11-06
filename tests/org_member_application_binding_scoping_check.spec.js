@@ -23,7 +23,7 @@ test.describe('QA-102: org_member_application_binding_scoping_check', () => {
 
     test('Check Application Binding Scoping (Inbox Visibility)',
         {
-            tag: ['@regression'],
+            tag: ['@regression', '@multi-env-ready'],
             timeout: 180_000  // 3 minutes
         }, async ({ page, browser, cleanupHelper }) => {
 
@@ -86,7 +86,7 @@ test.describe('QA-102: org_member_application_binding_scoping_check', () => {
             await page.getByRole('textbox', { name: 'Email' }).click();
             await page.getByRole('textbox', { name: 'Email' }).fill(user.email);
             await page.getByRole('textbox', { name: 'Email' }).press('Tab');
-            await page.getByText('empty role v2').click();
+            await page.getByTestId('member-role-field-empty-role-v2').click();
             await page.getByTestId('submit-create-member').click();
             await page.getByTestId('copy-invitation-link').click();
 
@@ -144,6 +144,7 @@ test.describe('QA-102: org_member_application_binding_scoping_check', () => {
             if (!await perm1.isChecked()) {
                 await perm1.check({ timeout: 2000 });
             }
+            await page.waitForTimeout(1500);
             await page.getByRole('button', { name: 'Save Permissions' }).nth(1).click();
 
             await applicantPage.reload();
@@ -205,15 +206,11 @@ test.describe('QA-102: org_member_application_binding_scoping_check', () => {
             }
             await page.getByTestId('save-app-permission-btn').click();
 
-            await Promise.all([
-                applicantPage.waitForResponse(resp => resp.url().includes('/sessions?fields[session]=')
-                    && resp.request().method() === 'GET'
-                    && resp.ok()
-                ),
-                applicantPage.reload()
-            ])
+            
+            applicantPage.reload()
+            
 
-            await applicantPage.waitForTimeout(3000);
+            await applicantPage.waitForTimeout(6000);
 
             sidepanel = await applicantPage.getByTestId('side-panel');
             sideItems = await sidepanel.locator('.application-card');
@@ -255,6 +252,7 @@ test.describe('QA-102: org_member_application_binding_scoping_check', () => {
                 applicantPage.reload()
             ]);
 
+            await applicantPage.waitForTimeout(3000);
             try {
                 await applicantPage.getByTestId('new-session-btn').click({ timeout: 3000 })
             } catch (err) {

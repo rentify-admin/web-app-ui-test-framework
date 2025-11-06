@@ -15,7 +15,7 @@ test.describe('verify_application_edit_id_step_edit', () => {
     test.describe.configure({ mode: 'default' });
 
     test('Should login user and edit ID only application', {
-      tag: ['@regression'],
+      tag: ['@regression', '@multi-env-ready'],
     }, async ({ page }) => {
         await page.goto('/');
         await loginWith(page, admin);
@@ -27,8 +27,8 @@ test.describe('verify_application_edit_id_step_edit', () => {
             {
                 identityShouldBeChecked: true, // Expect checkbox to be checked initially
                 financialSettings: {
-                    guarantorValue: '1000', // Verify current value
-                    newGuarantorValue: '1500', // Change to new value
+                    guarantorValue: '3', // Verify current value
+                    newGuarantorValue: '5', // Change to new value
                     incomeBudget: '1',
                     rentBudgetMin: '500'
                 }
@@ -49,8 +49,8 @@ test.describe('verify_application_edit_id_step_edit', () => {
             {
                 identityShouldBeChecked: false, // Expect checkbox to be unchecked (previous test disabled it)
                 financialSettings: {
-                    guarantorValue: '1500', // Verify the value from previous test
-                    newGuarantorValue: '1000', // Revert back to original value
+                    guarantorValue: '5', // Verify the value from previous test
+                    newGuarantorValue: '3', // Revert back to original value
                     incomeBudget: '1',
                     rentBudgetMin: '500'
                 }
