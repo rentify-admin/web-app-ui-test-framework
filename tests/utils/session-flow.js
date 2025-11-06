@@ -1394,6 +1394,8 @@ const fillhouseholdForm = async (page, user) => {
 const selectApplicantType = async (applicantPage, sessionUrl, selectorKey = '#affordable_primary') => {
     await expect(applicantPage.getByTestId('applicant-type-page')).toBeVisible({timeout: 20000});
 
+    // Wait for the specific applicant type button to be visible and ready
+    await applicantPage.locator(selectorKey).waitFor({ state: 'visible', timeout: 10000 });
     await applicantPage.locator(selectorKey).click();
 
     const [sessionResp] = await Promise.all([

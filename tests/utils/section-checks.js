@@ -84,6 +84,7 @@ const checkIncomeSourceSection = async (page, sessionId) => {
     await reasonField.selectOption('Not Income');
     let delistResponse;
     let relistResponse;
+    await page.waitForTimeout(2000);
     [ delistResponse, incomeSourceResponse ] = await Promise.all([
         page.waitForResponse(resp => resp.url().includes(`/sessions/${sessionId}/income-sources/${incomeSourceId}`)
             && resp.request().method() === 'PATCH'
@@ -104,7 +105,7 @@ const checkIncomeSourceSection = async (page, sessionId) => {
     await page.getByTestId(`income-source-${incomeSourceId}`)
         .getByTestId('income-source-relist-btn')
         .click();
-
+    await page.waitForTimeout(2000);
     // Step 2: Click the submit button in the modal and wait for responses
     const [ relistResponse2, incomeSourceResponse2 ] = await Promise.all([
         page.waitForResponse(resp => resp.url().includes(`/sessions/${sessionId}/income-sources/${incomeSourceId}`)

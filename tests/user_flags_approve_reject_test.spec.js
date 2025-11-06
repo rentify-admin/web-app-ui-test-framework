@@ -38,7 +38,7 @@ test.describe('user_flags_approve_reject_test', () => {
 
         let flagIssueSession = null;
 
-        test('Should create applicant session for flag issue', { tag: [ '@core', '@smoke', '@regression' ] }, async ({
+        test('Should create applicant session for flag issue', { tag: [ '@core', '@smoke', '@regression', '@staging-ready' ] }, async ({
         page,
         browser
     }) => {
@@ -58,7 +58,7 @@ test.describe('user_flags_approve_reject_test', () => {
         flagIssueSession = sessionId;
         });
 
-        test('Check Session Flag', { tag: [ '@core', '@smoke', '@regression' ] }, async ({ page }) => {
+        test('Check Session Flag', { tag: [ '@core', '@smoke', '@regression', '@staging-ready' ] }, async ({ page }) => {
         const sessionId = flagIssueSession;
 
         // Step 1: Login and navigate to session
@@ -142,9 +142,9 @@ test.describe('user_flags_approve_reject_test', () => {
             email: 'ApprovalRejecttesting@verifast.com'
         };
 
-        let approveRejectSession = '01976921-a4d1-729f-9212-6f88ac9a189c';
+        let approveRejectSession = 'null';
 
-        test('Should create applicant session for approve reject', { tag: [ '@core', '@smoke', '@regression' ] }, async ({
+        test('Should create applicant session for approve reject', { tag: [ '@core', '@smoke', '@regression' ,'@staging-ready'] }, async ({
         page,
         browser
     }) => {
@@ -164,7 +164,7 @@ test.describe('user_flags_approve_reject_test', () => {
         approveRejectSession = sessionId;
         });
 
-        test('Check session by Approving and Rejecting', { tag: [ '@core', '@smoke', '@regression' ] }, async ({ page }) => {
+        test('Check session by Approving and Rejecting', { tag: [ '@core', '@smoke', '@regression' , '@staging-ready'] }, async ({ page }) => {
         const sessionId = approveRejectSession;
 
         // Login and navigate to session

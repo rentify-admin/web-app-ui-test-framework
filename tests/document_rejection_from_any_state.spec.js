@@ -100,7 +100,12 @@ async function navigateToFilesTabAndReload(page, sessionId) {
  * Fail a document from a given row and verifies the status is 'Failed'.
  */
 async function failDocument(rowLocator, page, sessionId) {
-    await rowLocator.getByTestId('files-document-status-pill').locator('a').click();
+    const pillLink = rowLocator.getByTestId('files-document-status-pill').locator('a');
+    
+    // Scroll into view and wait for it to be visible and clickable
+    await pillLink.scrollIntoViewIfNeeded();
+    await pillLink.waitFor({ state: 'visible', timeout: 10000 });
+    await pillLink.click();
 
     await expect(page.getByTestId('decision-modal')).toBeVisible();
     const decisionModal = page.getByTestId('decision-modal');
@@ -123,7 +128,12 @@ async function failDocument(rowLocator, page, sessionId) {
  * Reject a document from a given row and verifies the status is 'Rejected'.
  */
 async function rejectDocument(rowLocator, page, sessionId) {
-    await rowLocator.getByTestId('files-document-status-pill').locator('a').click();
+    const pillLink = rowLocator.getByTestId('files-document-status-pill').locator('a');
+    
+    // Scroll into view and wait for it to be visible and clickable
+    await pillLink.scrollIntoViewIfNeeded();
+    await pillLink.waitFor({ state: 'visible', timeout: 10000 });
+    await pillLink.click();
 
     await expect(page.getByTestId('decision-modal')).toBeVisible();
     const decisionModal = page.getByTestId('decision-modal');
@@ -172,7 +182,7 @@ test.describe('QA-208: Document Rejection from Any State', () => {
         timeout: 180000
     });
 
-    const appName = 'AutoTest Suite - Full Test';
+    const appName = 'AutoTest - Doc Rejec for any state test';
     let sessionId;
     let applicantPageContext;
 
@@ -224,11 +234,7 @@ test.describe('QA-208: Document Rejection from Any State', () => {
         await updateStateModal(applicantPage, 'ALABAMA');
         await updateRentBudget(applicantPage, sessionId, '1500');
 
-        // Skip other steps
-        await expect(applicantPage.getByTestId('applicant-invite-step')).toBeVisible();
-        await applicantPage.getByTestId('applicant-invite-skip-btn').click({ timeout: 10_000 });
-        await expect(applicantPage.getByTestId('identify-step')).toBeVisible();
-        await applicantPage.getByTestId('skip-id-verification-btn').click();
+
         await expect(applicantPage.getByTestId('financial-verification-step')).toBeVisible();
         console.log('✅ Applicant flow navigated to financial verification step.');
 

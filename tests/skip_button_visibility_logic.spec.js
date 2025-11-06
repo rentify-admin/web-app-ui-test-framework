@@ -38,7 +38,7 @@ test.describe('skip_button_visibility_logic', () => {
 
 
     test('Should ensure skip button visibility logic across verification steps using existing application', {
-        tag: ['@regression', '@external-integration'],
+        tag: ['@regression', '@external-integration', '@staging-ready'],
     }, async ({ page, browser }) => {
         
         // Step 1: Admin login and navigate to applications

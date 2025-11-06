@@ -242,6 +242,27 @@ test.describe('financial_mx_2_attempts_success_and_failed_password', () => {
         // Wait for summary page
         await expect(applicantPage.locator('h3', { hasText: 'Summary' })).toBeVisible({ timeout: 110_000 });
         console.log('✅ Part 1 Complete: MX connections (1 success + 1 failure)');
+        
+        // ===================================================================
+        // PART 1.5: Additional Bank Connect Modal (from applicant summary)
+        // ===================================================================
+        console.log('\n🎯 Part 1.5: Testing additional bank connect modal from applicant summary');
+        
+        console.log('🚀 Opening additional bank connect modal...');
+        await applicantPage.getByTestId('financial-verification-row-expand-toggle').click();
+        await applicantPage.waitForTimeout(500);
+        
+        await applicantPage.getByTestId('additional-connect-bank').click();
+        console.log('   ✅ Additional connect button clicked');
+        
+        const additionalMxFrame = applicantPage.frameLocator('[src*="int-widgets.moneydesktop.com"]');
+        await expect(additionalMxFrame.locator('[data-test="MX-Bank-tile"]')).toBeVisible({ timeout: 20_000 });
+        console.log('   ✅ MX iframe loaded successfully');
+        
+        await applicantPage.getByTestId('bank-connect-modal-cancel').click();
+        console.log('   ✅ Modal cancelled successfully');
+        
+        console.log('✅ Part 1.5 Complete: Additional bank connect modal validated');
 
         // ===================================================================
         // PART 2: Eligibility Status Transitions (merged from MX_1)
@@ -393,7 +414,7 @@ test.describe('financial_mx_2_attempts_success_and_failed_password', () => {
         console.log('   ✅ Status: Meets Criteria (total income now sufficient for $3000 rent)');
         
         console.log('\n✅ Part 2 Complete: Eligibility status transitions validated');
-        console.log('🎉 Full test passed: MX connections + Eligibility logic');
+        console.log('🎉 Full test passed: MX connections + Additional connect modal + Eligibility logic');
 
     });
 });

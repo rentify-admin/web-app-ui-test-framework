@@ -11,7 +11,7 @@ import { waitForJsonResponse } from './utils/wait-response';
 test.describe('frontend-session-heartbeat', () => {
     // Test includes improved state modal handling and uses utility function
     // for intelligent button interaction (handles manual clicks and auto-advance)
-    test('Verify Frontend session heartbeat', { tag: ['@regression'] }, async ({ page }) => {
+    test('Verify Frontend session heartbeat', { tag: ['@regression', '@staging-ready'] }, async ({ page }) => {
         test.setTimeout(250_000)
 
         const user = {

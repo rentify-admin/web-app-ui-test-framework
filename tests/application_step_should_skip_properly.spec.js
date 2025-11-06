@@ -7,7 +7,9 @@ import { completePaystubConnection, fillhouseholdForm, identityStep, selectAppli
 import generateSessionForm from '~/tests/utils/generate-session-form';
 
 test.describe('application_step_should_skip_properly', () => {
-    test('Check Application step skip works propertly', async ({ page, browser }) => {
+    test('Check Application step skip works propertly', {
+        tag: ['@regression', '@staging-ready']
+    }, async ({ page, browser }) => {
         test.setTimeout(300_000)
     
         // Note: first_name will be auto-prefixed with 'AutoT - ' by the helper
