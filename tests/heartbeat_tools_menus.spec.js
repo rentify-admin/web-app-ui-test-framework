@@ -6,7 +6,7 @@ import { admin, app } from './test_config';
 test.describe('heartbeat_tools_menus.spec', () => {
 
     test('Should check Tools menu heartbeat', {
-        tag: ['@core', '@smoke', '@regression', '@critical'],
+        tag: ['@core', '@smoke', '@regression', '@critical', '@multi-env-ready'],
     }, async ({ page }) => {
 
         await page.goto('/');

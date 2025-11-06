@@ -8,7 +8,7 @@ import { customUrlDecode, kebabToTitleCase } from './utils/helper';
 test.describe('heartbeat_applications_menus.spec', () => {
 
     test('Should check Applications menu heartbeat', {
-        tag: ['@core', '@smoke', '@regression', '@critical'],
+        tag: ['@core', '@smoke', '@regression', '@critical', '@multi-env-ready'],
     }, async ({ page }) => {
 
         await page.goto('/');
@@ -82,7 +82,7 @@ test.describe('heartbeat_applications_menus.spec', () => {
             const portfolioTableRows = await page.locator('table').locator('tbody>tr');
             for (let index = 0; index < portfolios.data.length; index++) {
                 const row = await portfolioTableRows.nth(index);
-                await expect(row).toContainText(portfolios.data[index]);
+                await expect(row).toContainText(portfolios.data[index].name);
             }
         }
 

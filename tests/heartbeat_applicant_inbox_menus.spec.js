@@ -8,7 +8,7 @@ import { customUrlDecode } from './utils/helper';
 test.describe('heartbeat-applicant-inbox-menus.spec', () => {
 
     test('Should check Applicant Inbox heartbeat', {
-        tag: ['@core', '@smoke', '@regression', '@critical'],
+        tag: ['@core', '@smoke', '@regression', '@critical', '@multi-env-ready'],
     }, async ({ page }) => {
 
         await page.goto('/');

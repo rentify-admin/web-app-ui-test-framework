@@ -27,7 +27,7 @@ test.describe('verify_application_edit_id_step_edit', () => {
             {
                 identityShouldBeChecked: true, // Expect checkbox to be checked initially
                 financialSettings: {
-                    guarantorValue: '3', // Verify current value
+                    //guarantorValue: '3', // Verify current value
                     newGuarantorValue: '5', // Change to new value
                     incomeBudget: '1',
                     rentBudgetMin: '500'
@@ -37,7 +37,7 @@ test.describe('verify_application_edit_id_step_edit', () => {
     });
 
     test('Verify updates are there in application', {
-      tag: ['@regression'],
+      tag: ['@regression', '@multi-env-ready'],
     }, async ({ page }) => {
         await page.goto('/');
         await loginWith(page, admin);

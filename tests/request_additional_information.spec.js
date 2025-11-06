@@ -69,7 +69,7 @@ async function openAndSubmitRequestDialog(page) {
 test.describe('request_additional_information', () => {
     test.setTimeout(360000); // Set timeout for the suite
     
-    testWithCleanup('Document Request: Complete validation (happy path + negative tests) @request-docs @integration @permissions @state-safetys @negative @validation @network-error @regression', async ({ page, context, cleanupHelper, dataManager }) => {
+    testWithCleanup('Document Request: Complete validation (happy path + negative tests) @request-docs @integration @permissions @state-safetys @negative @validation @network-error @regression @multi-env-ready', async ({ page, context, cleanupHelper, dataManager }) => {
         // Authenticate dataManager with admin credentials for cleanup
         console.log('🔑 Authenticating dataManager for cleanup...');
         const isAuthenticated = await dataManager.authenticate(admin.email, admin.password);

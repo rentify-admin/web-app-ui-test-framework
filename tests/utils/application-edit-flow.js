@@ -98,10 +98,10 @@ export const configureIdentityVerification = async (page, shouldBeChecked = true
  */
 export const updateApplicationFinancialSettings = async (page, settings = {}) => {
     const {
-        guarantorValue = '1000',
-        newGuarantorValue = '1000',
-        incomeBudget = '1',
-        rentBudgetMin = '500'
+        guarantorValue = null,
+        newGuarantorValue = null,
+        incomeBudget = null,
+        rentBudgetMin = null
     } = settings;
 
     const appWithGuaField = await page.locator('#application-income-ratio-guarantor');

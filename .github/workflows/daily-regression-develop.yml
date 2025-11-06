@@ -119,20 +119,61 @@ jobs:
           mkdir -p playwright-report
           mkdir -p test-results
           
-          # Merge JUnit XML files
-          echo "🔀 Merging JUnit XML files..."
-          find all-reports -name "results.xml" -exec cat {} \; > merged-results.xml || true
+          # Install junitparser for proper XML merging
+          echo "📦 Installing junitparser..."
+          pip install junitparser
           
-          # Copy merged results
-          cp merged-results.xml playwright-report/results.xml || true
+          # Merge JUnit XML files properly
+          echo "🔀 Merging JUnit XML files from all shards..."
+          python3 << 'EOF'
+          import os
+          from junitparser import JUnitXml
+          from pathlib import Path
           
-          # Merge test-results directories
+          # Find all results.xml files
+          xml_files = list(Path('all-reports').rglob('results.xml'))
+          print(f"Found {len(xml_files)} XML files to merge:")
+          for f in xml_files:
+              print(f"  - {f}")
+          
+          if not xml_files:
+              print("❌ No XML files found!")
+              exit(1)
+          
+          # Load first file
+          merged = JUnitXml.fromfile(str(xml_files[0]))
+          print(f"\n✅ Loaded base file: {xml_files[0]}")
+          print(f"   Tests: {merged.tests}, Failures: {merged.failures}, Errors: {merged.errors}")
+          
+          # Merge remaining files
+          for xml_file in xml_files[1:]:
+              xml = JUnitXml.fromfile(str(xml_file))
+              print(f"\n✅ Merging: {xml_file}")
+              print(f"   Tests: {xml.tests}, Failures: {xml.failures}, Errors: {xml.errors}")
+              merged += xml
+          
+          # Save merged file
+          merged.write('playwright-report/results.xml')
+          print(f"\n✅ Merged XML saved to playwright-report/results.xml")
+          print(f"   Total Tests: {merged.tests}")
+          print(f"   Total Failures: {merged.failures}")
+          print(f"   Total Errors: {merged.errors}")
+          print(f"   Total Skipped: {merged.skipped}")
+          EOF
+          
+          # Merge test-results directories (videos, screenshots, traces)
+          echo ""
           echo "📹 Merging test-results directories..."
-          find all-reports -type d -name "test-results" -exec cp -r {}/* test-results/ \; || true
+          find all-reports -type d -name "test-results" -exec cp -r {}/* test-results/ \; 2>/dev/null || true
           
+          echo ""
           echo "✅ Merge completed"
-          ls -la playwright-report/
-          ls -la test-results/ | head -20
+          echo "📁 playwright-report contents:"
+          ls -lh playwright-report/
+          echo ""
+          echo "📹 test-results summary:"
+          find test-results -type f | wc -l | xargs echo "Total files:"
+          echo ""
 
       - name: Install dependencies
         run: npm ci
@@ -145,15 +186,65 @@ jobs:
           which trcli || echo "❌ trcli not found in PATH"
 
       - name: Create TestRail test run
+        continue-on-error: true
         run: |
-          echo "🔧 Debugging TestRail setup..."
-          echo "Checking trcli installation:"
-          which trcli || echo "❌ trcli not found"
-          trcli --version || echo "❌ trcli version check failed"
+          # Check if TestRail credentials are configured
+          echo "🔧 Validating TestRail configuration..."
+          if [ -z "$TESTRAIL_HOST" ]; then
+            echo "❌ TESTRAIL_HOST is not set"
+          else
+            echo "✅ TESTRAIL_HOST: $TESTRAIL_HOST"
+          fi
           
-          echo "Checking JUnit XML file:"
+          if [ -z "$TESTRAIL_PROJECT_NAME" ]; then
+            echo "❌ TESTRAIL_PROJECT_NAME is not set"
+          else
+            echo "✅ TESTRAIL_PROJECT_NAME: $TESTRAIL_PROJECT_NAME"
+          fi
+          
+          if [ -z "$TESTRAIL_SUITE_ID" ]; then
+            echo "❌ TESTRAIL_SUITE_ID is not set"
+          else
+            echo "✅ TESTRAIL_SUITE_ID: $TESTRAIL_SUITE_ID"
+          fi
+          
+          if [ -z "$TESTRAIL_USER" ]; then
+            echo "❌ TESTRAIL_USER is not set"
+          else
+            echo "✅ TESTRAIL_USER is configured"
+          fi
+          
+          if [ -z "$TESTRAIL_API_KEY" ]; then
+            echo "❌ TESTRAIL_API_KEY is not set"
+          else
+            echo "✅ TESTRAIL_API_KEY is configured"
+          fi
+          
+          if [ -z "$TESTRAIL_HOST" ] || [ -z "$TESTRAIL_PROJECT_NAME" ] || [ -z "$TESTRAIL_USER" ] || [ -z "$TESTRAIL_API_KEY" ]; then
+            echo "⚠️ TestRail credentials not fully configured. Skipping TestRail upload."
+            echo "TESTRAIL_RUN_ID=" >> $GITHUB_ENV
+            exit 0
+          fi
+          
+          echo ""
+          echo "🔧 Checking trcli installation:"
+          which trcli || echo "❌ trcli not found"
+          trcli -h 2>&1 | head -5 || echo "❌ trcli check failed"
+          
+          echo ""
+          echo "📁 Checking JUnit XML file:"
           ls -la playwright-report/ || echo "❌ playwright-report directory not found"
           ls -la playwright-report/results.xml || echo "❌ results.xml not found"
+          
+          if [ ! -f "playwright-report/results.xml" ]; then
+            echo "❌ results.xml not found. Cannot upload to TestRail."
+            echo "TESTRAIL_RUN_ID=" >> $GITHUB_ENV
+            exit 0
+          fi
+          
+          echo ""
+          echo "📊 JUnit XML preview:"
+          head -20 playwright-report/results.xml || true
           
           # Determine which tag was run based on environment
           if [ "${{ github.event.inputs.environment }}" == "staging" ]; then
@@ -166,8 +257,13 @@ jobs:
           TEST_RUN_TITLE="$TEST_TAG Tests (4 Shards): ${{ github.event.inputs.environment || 'development' }} - Browser: chromium - Date $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
           echo "📝 Test run title: $TEST_RUN_TITLE"
           
-          # Create TestRail test run and upload results
+          # Create TestRail test run and upload results (non-blocking)
+          echo ""
           echo "🚀 Running trcli command..."
+          echo "Command: trcli -y -h [HOST] --project \"$TESTRAIL_PROJECT_NAME\" --username [USER] --key [HIDDEN] parse_junit --title \"$TEST_RUN_TITLE\" --suite-id $TESTRAIL_SUITE_ID --case-matcher name --file playwright-report/results.xml"
+          echo ""
+          
+          set +e  # Don't fail on error
           TESTRAIL_OUTPUT=$(trcli -y \
             -h $TESTRAIL_HOST \
             --project "$TESTRAIL_PROJECT_NAME" \
@@ -180,8 +276,25 @@ jobs:
             --case-fields "custom_environment:${{ github.event.inputs.environment || 'development' }}" \
             --result-fields "custom_browser:chromium" \
             --file playwright-report/results.xml 2>&1)
+          TRCLI_EXIT_CODE=$?
+          set -e
           
-          echo "TestRail Output: $TESTRAIL_OUTPUT"
+          echo "📋 TestRail Output:"
+          echo "$TESTRAIL_OUTPUT"
+          echo ""
+          
+          if [ $TRCLI_EXIT_CODE -ne 0 ]; then
+            echo "❌ TestRail upload failed with exit code $TRCLI_EXIT_CODE"
+            echo ""
+            echo "💡 Common issues:"
+            echo "  - Check TESTRAIL_PROJECT_NAME matches exactly in TestRail"
+            echo "  - Verify TESTRAIL_SUITE_ID exists in the project"
+            echo "  - Confirm API key has proper permissions"
+            echo "  - Check network connectivity to TestRail host"
+            echo ""
+            echo "TESTRAIL_RUN_ID=" >> $GITHUB_ENV
+            exit 0  # Continue workflow even if TestRail fails
+          fi
           
           # Extract TestRail run ID from output
           TESTRAIL_RUN_ID=$(echo "$TESTRAIL_OUTPUT" | grep -o "Test run: .*/runs/view/[0-9]*" | head -1 | sed 's/.*\/runs\/view\///')
@@ -189,7 +302,7 @@ jobs:
             echo "TESTRAIL_RUN_ID=$TESTRAIL_RUN_ID" >> $GITHUB_ENV
             echo "✅ TestRail run created with ID: $TESTRAIL_RUN_ID"
           else
-            echo "❌ Could not extract TestRail run ID"
+            echo "⚠️ Could not extract TestRail run ID from output"
             echo "TESTRAIL_RUN_ID=" >> $GITHUB_ENV
           fi
         env:
@@ -200,7 +313,13 @@ jobs:
           TESTRAIL_API_KEY: ${{ secrets.TESTRAIL_API_KEY }}
 
       - name: Generate TestRail report via TRCLI (optional)
+        continue-on-error: true
         run: |
+          if [ -z "${{ env.TESTRAIL_RUN_ID }}" ]; then
+            echo "⚠️ No TestRail run ID available. Skipping report generation."
+            exit 0
+          fi
+          
           if [ -n "${{ secrets.TESTRAIL_REPORT_ID }}" ]; then
             echo "🧾 Generating TestRail report via TRCLI (report_id=${{ secrets.TESTRAIL_REPORT_ID }})"
             mkdir -p testrail_reports
@@ -224,7 +343,13 @@ jobs:
           TESTRAIL_API_KEY: ${{ secrets.TESTRAIL_API_KEY }}
 
       - name: Export TestRail report and prepare attachments
+        continue-on-error: true
         run: |
+          if [ -z "${{ env.TESTRAIL_RUN_ID }}" ]; then
+            echo "⚠️ No TestRail run ID available. Skipping export."
+            exit 0
+          fi
+          
           echo "📊 Exporting TestRail report and preparing attachments..."
           if [ -n "${{ env.TESTRAIL_RUN_ID }}" ]; then
             # Export TestRail report as PDF
@@ -270,6 +395,37 @@ jobs:
           echo "✅ Flaky test analysis and tagging completed"
 
       - name: Send Slack notification
+        continue-on-error: true
+        run: |
+          # Determine which tag was run based on environment
+          if [ "${{ github.event.inputs.environment }}" == "staging" ]; then
+            SUITE_NAME="Multi-Env-Ready Tests"
+          else
+            SUITE_NAME="Full Regression Suite"
+          fi
+          
+          echo "📤 Sending Slack notification with attachments..."
+          node scripts/slack-notification.js "$SUITE_NAME" "${{ github.event.inputs.environment || 'development' }}" "${{ github.run_id }}" "playwright-report/results.xml" "${{ env.TESTRAIL_RUN_ID }}" "flaky-analysis.json"
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+          SLACK_UPLOAD_CHANNEL: ${{ vars.SLACK_UPLOAD_CHANNEL || '' }}
+          GITHUB_SERVER_URL: ${{ github.server_url }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_ACTOR: ${{ github.actor }}
+          TESTRAIL_HOST: ${{ secrets.TESTRAIL_HOST }}
+          TESTRAIL_PROJECT_NAME: ${{ secrets.TESTRAIL_PROJECT_NAME }}
+
+      - name: Upload merged test results
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-merged-${{ github.event.inputs.environment || 'development' }}
+          path: |
+            playwright-report/
+            test-results/
+            flaky-analysis.json
+          retention-days: 30
+
         run: |
           # Determine which tag was run based on environment
           if [ "${{ github.event.inputs.environment }}" == "staging" ]; then

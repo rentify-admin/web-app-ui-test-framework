@@ -7,7 +7,7 @@ import { joinUrl } from './utils/helper';
 test.describe('heartbeat_logout_menu.spec.spec', () => {
 
     test('Should check Logout flow heartbeat', {
-        tag: ['@core', '@smoke', '@regression', '@critical'],
+        tag: ['@core', '@smoke', '@regression', '@critical', '@multi-env-ready'],
     }, async ({ page }) => {
 
         await page.goto('/');

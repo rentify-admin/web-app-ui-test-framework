@@ -7,7 +7,7 @@ import { navigateToSubMenu, verifyListContent } from './utils/heartbeat-helper';
 test.describe('heartbeat_transactions_menus.spec', () => {
 
     test('Should check Transactions menu heartbeat', {
-        tag: ['@core', '@smoke', '@regression', '@critical'],
+        tag: ['@core', '@smoke', '@regression', '@critical', '@multi-env-ready'],
     }, async ({ page }) => {
 
         await page.goto('/');
