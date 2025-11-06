@@ -23,7 +23,7 @@ env:
 jobs:
   regression-tests:
     name: UI Tests Shard ${{ matrix.shard }}/4 / ${{ github.event.inputs.environment || 'development' }}
-    runs-on: ubuntu-latest-large
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
