@@ -364,7 +364,7 @@ test.describe('financial_mx_2_attempts_success_and_failed_password', () => {
         // Fill in the net amount & save
         const netAmountInput = page.locator('#net_amount');
         await netAmountInput.click();
-        await netAmountInput.fill('3000');
+        await netAmountInput.fill('6000');
         
         const incomeSourceUrl = joinUrl(API_URL, 'sessions', sessionId, 'income-sources');
         const [incomeSourceResponse] = await Promise.all([

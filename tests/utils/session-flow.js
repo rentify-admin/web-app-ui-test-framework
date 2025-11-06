@@ -451,15 +451,31 @@ const employmentVerificationWalmartPayStub = async (
  */
 const skipEmploymentVerification = async page => {
 
-    // Wait for employment verification step to be visible
-    await expect(
-        page.locator('button:has-text("Skip Employment Verification")')
-    ).toBeVisible({ timeout: 20000 });
+    // Poll for employment verification skip button to be visible (max 30 seconds)
+    const skipButton = page.locator('button:has-text("Skip Employment Verification")');
+    let buttonFound = false;
+    const maxAttempts = 60; // 60 attempts * 500ms = 30 seconds max
+    const pollInterval = 500;
+    
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+        const isVisible = await skipButton.isVisible();
+        
+        if (isVisible) {
+            buttonFound = true;
+            break;
+        }
+        
+        if (attempt < maxAttempts - 1) {
+            await page.waitForTimeout(pollInterval);
+        }
+    }
+    
+    if (!buttonFound) {
+        throw new Error('Skip Employment Verification button not found after 30 seconds');
+    }
 
     // Click skip employment verification button
-    await page
-        .locator('button:has-text("Skip Employment Verification")')
-        .click();
+    await skipButton.click();
 
     // Wait for confirmation if needed
     await page.waitForTimeout(1000);
