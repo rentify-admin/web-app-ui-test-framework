@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 import { loginWith } from "~/tests/utils/session-utils";
 import { searchSessionWithText, findSessionLocator } from "~/tests/utils/report-page";
 import { waitForJsonResponse } from "~/tests/utils/wait-response";
-import { updateRentBudget } from './utils/session-flow';
+import { updateRentBudget, handleOptionalTermsCheckbox } from './utils/session-flow';
 import { admin } from './test_config';
 
 
@@ -44,9 +44,14 @@ test.describe('heartbeat_completed_application_click_check', () => {
             page.waitForEvent("popup"),
             await childRaw.getByTestId('view-applicant-session-btn').click()
         ]);
-
+        
         await newPage.waitForLoadState();
         console.log('✅ Session openned in the new page')
+
+        // Handle optional terms checkbox if it appears
+        console.log('🚀 Handling optional terms checkbox (if present)...');
+        await handleOptionalTermsCheckbox(newPage);
+        console.log('✅ Terms checkbox handled (or skipped if not present)');
 
         console.log('🚀 Checking summary page opened')
         await expect(newPage.getByTestId('summary-step')).toBeVisible({ timeout: 10_000 })
