@@ -8,7 +8,7 @@ import { waitForJsonResponse } from '~/tests/utils/wait-response';
 
 test.describe('pdf_download_test', () => {
     test('Should successfully export PDF for an application', { 
-        tag: ['@core', '@regression', '@staging-correct', '@multi-env-ready'],
+        tag: ['@core', '@regression', '@staging-correct', '@staging-ready'],
     }, async ({ page, context }) => {
         // Staff user credentials for testing
         const staff = {

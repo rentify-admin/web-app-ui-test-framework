@@ -49,7 +49,7 @@ const checkDollarText = async (rentBudget, rentLocator) => {
 
 test.describe('check_coapp_income_ratio_exceede_flag', () => {
     test('Should confirm co-applicant income is considered when generating/removing Gross Income Ratio Exceeded flag', { 
-        tag: ['@smoke', '@external-integration', '@regression', '@multi-env-ready'],
+        tag: ['@smoke', '@external-integration', '@regression', '@staging-ready'],
     }, async ({ page, browser }) => {
         test.setTimeout(450000);
         

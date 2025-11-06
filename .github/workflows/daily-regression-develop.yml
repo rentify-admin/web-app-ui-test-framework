@@ -51,8 +51,8 @@ jobs:
         run: |
           # Determine which tag to run based on environment
           if [ "${{ github.event.inputs.environment }}" == "staging" ]; then
-            TEST_TAG="@multi-env-ready"
-            TAG_DESCRIPTION="multi-env-ready tests (staging-safe)"
+            TEST_TAG="@staging-ready"
+            TAG_DESCRIPTION="staging-ready tests (staging-safe)"
           else
             TEST_TAG="@regression"
             TAG_DESCRIPTION="regression tests"
@@ -248,7 +248,7 @@ jobs:
           
           # Determine which tag was run based on environment
           if [ "${{ github.event.inputs.environment }}" == "staging" ]; then
-            TEST_TAG="@multi-env-ready"
+            TEST_TAG="@staging-ready"
           else
             TEST_TAG="@regression"
           fi
@@ -399,7 +399,7 @@ jobs:
         run: |
           # Determine which tag was run based on environment
           if [ "${{ github.event.inputs.environment }}" == "staging" ]; then
-            SUITE_NAME="Multi-Env-Ready Tests"
+            SUITE_NAME="Staging-Ready Tests"
           else
             SUITE_NAME="Full Regression Suite"
           fi

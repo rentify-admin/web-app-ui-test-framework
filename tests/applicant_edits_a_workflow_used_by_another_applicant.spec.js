@@ -20,7 +20,7 @@ test.describe('applicant_edits_a_workflow_used_by_another_applicant', () => {
     });
 
     test('Should edit a workflow used by another applicant and only reflects changes to current', { 
-        tag: ['@core', '@regression', '@multi-env-ready'],
+        tag: ['@core', '@regression', '@staging-ready'],
     }, async ({ page }) => {
         test.setTimeout(200000);
         // Step 1-5: Login as admin and navigate to applications

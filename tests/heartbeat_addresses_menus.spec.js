@@ -6,7 +6,7 @@ import { admin } from './test_config';
 test.describe('heartbeat-address-menus.spec', () => {
 
     test('Should check Address heartbeat', {
-        tag: ['@core', '@smoke', '@regression', '@critical', '@multi-env-ready'],
+        tag: ['@core', '@smoke', '@regression', '@critical', '@staging-ready'],
     }, async ({ page }) => {
 
         await page.goto('/');

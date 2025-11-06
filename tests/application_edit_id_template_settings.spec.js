@@ -6,7 +6,7 @@ import { openApplicationEditModal, openWorkflowIdentitySetup, setPersonaTemplate
 
 test.describe('application_edit_id_template_settings', () => {
     test('Should edit an application ID template settings', {
-      tag: ['@regression', '@multi-env-ready'],
+      tag: ['@regression', '@staging-ready'],
     }, async ({ page }) => {
       // Step 1: Login as admin
       await page.goto('/');

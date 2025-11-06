@@ -41,7 +41,7 @@ test.describe('frontend_heartbeat', () => {
     };
 
     test('Should check frontend heartbeat', {
-        tag: ['@core', '@smoke', '@regression', '@multi-env-ready'],
+        tag: ['@core', '@smoke', '@regression', '@staging-ready'],
     }, async ({ page }) => {
         await page.goto('/');
         await loginForm.fill(page, admin);

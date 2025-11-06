@@ -45,7 +45,7 @@ const coapplicant = {
 
 test.describe('co_applicant_effect_on_session_test', () => {
     test('Should complete applicant flow with co-applicant effect on session', {
-        tag: ['@regify', '@external-integration', '@regression', '@multi-env-ready'],
+        tag: ['@regify', '@external-integration', '@regression', '@staging-ready'],
     }, async ({ page, browser }) => {
         test.setTimeout(380000); 
         

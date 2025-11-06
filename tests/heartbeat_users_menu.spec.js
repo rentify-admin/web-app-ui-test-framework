@@ -6,7 +6,7 @@ import { navigateToSubMenu, verifyListContent } from './utils/heartbeat-helper';
 test.describe('heartbeat_users_menu.spec', () => {
 
     test('Should check User menu heartbeat', {
-        tag: ['@core', '@smoke', '@regression', '@critical', '@multi-env-ready'],
+        tag: ['@core', '@smoke', '@regression', '@critical', '@staging-ready'],
     }, async ({ page }) => {
 
         // 1. Setup and Login

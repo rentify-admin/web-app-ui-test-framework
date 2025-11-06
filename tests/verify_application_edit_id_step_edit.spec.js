@@ -15,7 +15,7 @@ test.describe('verify_application_edit_id_step_edit', () => {
     test.describe.configure({ mode: 'default' });
 
     test('Should login user and edit ID only application', {
-      tag: ['@regression', '@multi-env-ready'],
+      tag: ['@regression', '@staging-ready'],
     }, async ({ page }) => {
         await page.goto('/');
         await loginWith(page, admin);
@@ -37,7 +37,7 @@ test.describe('verify_application_edit_id_step_edit', () => {
     });
 
     test('Verify updates are there in application', {
-      tag: ['@regression', '@multi-env-ready'],
+      tag: ['@regression', '@staging-ready'],
     }, async ({ page }) => {
         await page.goto('/');
         await loginWith(page, admin);

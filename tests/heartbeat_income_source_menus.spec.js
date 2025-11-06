@@ -7,7 +7,7 @@ import { navigateToSubMenu } from './utils/heartbeat-helper';
 test.describe('heartbeat_income_source_menus.spec', () => {
 
     test('Should check Income Sources menu heartbeat', {
-        tag: ['@core', '@smoke', '@regression', '@critical', '@multi-env-ready'],
+        tag: ['@core', '@smoke', '@regression', '@critical', '@staging-ready'],
     }, async ({ page }) => {
 
         await page.goto('/');
