@@ -298,8 +298,14 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     }
   }
 
+  // Ensure TESTRAIL_HOST includes /index.php? for API v2
+  let testrailHost = process.env.TESTRAIL_HOST;
+  if (testrailHost && !testrailHost.includes('/index.php')) {
+    testrailHost = testrailHost.replace(/\/$/, '') + '/index.php?';
+  }
+  
   const config = {
-    host: process.env.TESTRAIL_HOST,
+    host: testrailHost,
     username: process.env.TESTRAIL_USER,
     apiKey: process.env.TESTRAIL_API_KEY,
     projectId: process.env.TESTRAIL_PROJECT_ID,
