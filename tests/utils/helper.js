@@ -78,6 +78,13 @@ const generateUUID = () => {
     });
 };
 
+/**
+ * Utility function to pause execution.
+ * @param {number} ms - Milliseconds to wait.
+ * @returns {Promise<void>}
+ */
+const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
 export {
     joinUrl,
     escapeRegex,
@@ -88,5 +95,6 @@ export {
     getSafeAmount,
     getCentsToDollarsSafe,
     kebabToTitleCase,
-    generateUUID
+    generateUUID,
+    wait
 };
