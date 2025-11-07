@@ -113,8 +113,8 @@ class UIResultsPublisher {
   }
 
   /**
-   * Find or create test cases using EXACT title matching
-   * Groups cases by file (section)
+   * Find or create test cases using EXACT title matching WITHIN sections
+   * Only checks for duplicates within the same section (by file name)
    */
   async findOrCreateCases(tag, testResults) {
     console.log(`🔍 Finding/creating test cases for tag: ${tag}`);
@@ -125,15 +125,9 @@ class UIResultsPublisher {
     if (executedTests.length === 0) return new Map();
 
     console.log(`📡 Fetching existing cases from TestRail...`);
-    
-    // Use existing API method
     const response = await this.api.getCases(this.config.suiteId);
     const existingCases = response.cases || [];
-    console.log(`✅ Found ${existingCases.length} existing cases`);
-
-    // Create exact match map (key = exact title)
-    const existingCaseMap = new Map();
-    existingCases.forEach(tc => existingCaseMap.set(tc.title, tc));
+    console.log(`✅ Found ${existingCases.length} total existing cases`);
 
     const caseIdMap = new Map();
     const casesToCreate = [];
@@ -141,63 +135,55 @@ class UIResultsPublisher {
     console.log('\n📋 Processing tests:');
     for (const testResult of executedTests) {
       const testName = testResult.name;
+      const fileName = testResult.classname;
       console.log(`  • ${testName} (${testResult.status})`);
+      console.log(`    📁 File: ${fileName}`);
 
-      // EXACT match - no fuzzy logic
-      if (existingCaseMap.has(testName)) {
-        const existingCase = existingCaseMap.get(testName);
-        caseIdMap.set(testName, existingCase.id);
-        console.log(`    ✅ Matched existing case ID: ${existingCase.id}`);
-        // ℹ️ Tag updates skipped - custom_tags field not available in TestRail config
+      // 1. Get or create section for this file
+      const sectionId = await this.getOrCreateSection(fileName);
+      
+      // 2. Filter cases to ONLY those in this section
+      const casesInThisSection = existingCases.filter(tc => tc.section_id === sectionId);
+      console.log(`    📊 Found ${casesInThisSection.length} cases in this section`);
+      
+      // 3. Check for duplicate ONLY within this section
+      const existingCaseInSection = casesInThisSection.find(tc => tc.title === testName);
+      
+      if (existingCaseInSection) {
+        // ✅ Found case with same title in SAME section - reuse it
+        caseIdMap.set(testName, existingCaseInSection.id);
+        console.log(`    ✅ Matched existing case ID: ${existingCaseInSection.id} (in correct section)`);
       } else {
-        console.log(`    ➕ Will create new case`);
+        // ➕ No duplicate in this section - create new case
+        console.log(`    ➕ Will create new case in section`);
         casesToCreate.push({
           name: testName,
-          classname: testResult.classname
+          classname: fileName,
+          sectionId: sectionId  // ✅ Already have section ID
         });
       }
     }
 
-    // Tag updates disabled - custom_tags field not configured in TestRail
     console.log(`\nℹ️  Skipping tag updates (custom_tags field not available)`);
 
-    // Create new cases (organized by section/file)
+    // Create new cases (section ID already assigned)
     if (casesToCreate.length > 0) {
       console.log(`\n➕ Creating ${casesToCreate.length} new cases...`);
       
-      // Group cases by file (classname)
-      const casesByFile = {};
-      casesToCreate.forEach(caseToCreate => {
-        const fileName = caseToCreate.classname || 'uncategorized';
-        if (!casesByFile[fileName]) {
-          casesByFile[fileName] = [];
-        }
-        casesByFile[fileName].push(caseToCreate);
-      });
-      
-      // Create cases organized by section
-      for (const [fileName, cases] of Object.entries(casesByFile)) {
-        console.log(`\n  📁 Processing file: ${fileName} (${cases.length} cases)`);
-        
-        // Get or create section for this file
-        const sectionId = await this.getOrCreateSection(fileName);
-        
-        // Create all cases in this section
-        for (const caseToCreate of cases) {
-          try {
-            const newCase = await this.api.addCase(this.config.suiteId, {
-              title: caseToCreate.name,  // Format: "describe › testName"
-              type_id: 1,
-              priority_id: 2,
-              section_id: sectionId,  // ✅ Add case to specific section
-              refs: caseToCreate.classname || '',
-              custom_description: `UI test: ${caseToCreate.name}`
-            });
-            caseIdMap.set(caseToCreate.name, newCase.id);
-            console.log(`     ✅ Created: ${caseToCreate.name} (ID: ${newCase.id})`);
-          } catch (err) {
-            console.error(`     ❌ Error creating "${caseToCreate.name}": ${err.message}`);
-          }
+      for (const caseToCreate of casesToCreate) {
+        try {
+          const newCase = await this.api.addCase(this.config.suiteId, {
+            title: caseToCreate.name,  // Format: "describe › testName"
+            type_id: 1,
+            priority_id: 2,
+            section_id: caseToCreate.sectionId,  // ✅ Already determined in matching phase
+            refs: caseToCreate.classname || '',
+            custom_description: `UI test from ${caseToCreate.classname}`
+          });
+          caseIdMap.set(caseToCreate.name, newCase.id);
+          console.log(`  ✅ Created: ${caseToCreate.name} (ID: ${newCase.id})`);
+        } catch (err) {
+          console.error(`  ❌ Error creating "${caseToCreate.name}": ${err.message}`);
         }
       }
     }
@@ -278,7 +264,7 @@ class UIResultsPublisher {
     if (testResults.total === 0) {
       const output = {
         runIds: [],
-        reportUrl: `${this.config.host}/index.php?/runs/view/`,
+        reportUrl: `${this.config.host}/runs/view/`,
         testType,
         tag,
         totalRuns: 0,
@@ -298,7 +284,7 @@ class UIResultsPublisher {
 
     const output = {
       runIds: [run.id],
-      reportUrl: `${this.config.host}/index.php?/runs/view/${run.id}`,
+      reportUrl: `${this.config.host}/runs/view/${run.id}`,
       testType,
       tag,
       totalRuns: 1,
