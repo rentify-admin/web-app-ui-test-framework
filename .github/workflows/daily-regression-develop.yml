@@ -211,19 +211,34 @@ jobs:
           EXIT_CODE=$?
           set -e
           
+          echo "📊 Script exit code: $EXIT_CODE"
+          echo "📁 Checking for testrail_output.json..."
+          ls -la testrail_output.json 2>/dev/null || echo "⚠️ File not found"
+          
           if [ $EXIT_CODE -ne 0 ]; then
             echo "❌ TestRail upload failed with exit code $EXIT_CODE"
+            echo "📄 Last 20 lines of output:"
+            tail -20 testrail_publish.log || true
             echo "TESTRAIL_RUN_ID=" >> $GITHUB_ENV
             exit 0
           fi
           
           # Extract run ID from output
           if [ -f "testrail_output.json" ]; then
+            echo "📄 testrail_output.json contents:"
+            cat testrail_output.json
             TESTRAIL_RUN_ID=$(cat testrail_output.json | grep -oE '"runIds":[^]]*[0-9]+' | grep -oE '[0-9]+$')
+            echo "🔍 Extracted run ID: [$TESTRAIL_RUN_ID]"
             if [ -n "$TESTRAIL_RUN_ID" ]; then
               echo "TESTRAIL_RUN_ID=$TESTRAIL_RUN_ID" >> $GITHUB_ENV
               echo "✅ TestRail run created: $TESTRAIL_RUN_ID"
+            else
+              echo "⚠️ Run ID extraction failed - setting empty"
+              echo "TESTRAIL_RUN_ID=" >> $GITHUB_ENV
             fi
+          else
+            echo "❌ testrail_output.json not found"
+            echo "TESTRAIL_RUN_ID=" >> $GITHUB_ENV
           fi
         env:
           TESTRAIL_HOST: ${{ secrets.TESTRAIL_HOST }}

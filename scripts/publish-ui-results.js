@@ -297,7 +297,10 @@ class UIResultsPublisher {
       }
     };
 
-    fs.writeFileSync('testrail_output.json', JSON.stringify(output, null, 2));
+    const outputJson = JSON.stringify(output, null, 2);
+    fs.writeFileSync('testrail_output.json', outputJson);
+    console.log(`\n💾 Saved testrail_output.json:`);
+    console.log(outputJson);
     console.log(`\n✅ SUCCESS! Run: ${run.id}`);
     console.log(`📊 URL: ${output.reportUrl}`);
 
@@ -331,16 +334,23 @@ if (import.meta.url === `file://${process.argv[1]}`) {
 
   const publisher = new UIResultsPublisher(config);
   
-  publisher.publish({
-    tag: options.tag || 'untagged',
-    testType: options['test-type'] || 'UI Tests',
-    runName: options['run-name']
-  }).then(() => {
-    process.exit(0);  // ✅ Exit cleanly on success
-  }).catch(error => {
-    console.error('\n💥 Fatal error:', error.message);
-    process.exit(1);
-  });
+  // Use async IIFE for proper error handling
+  (async () => {
+    try {
+      const result = await publisher.publish({
+        tag: options.tag || 'untagged',
+        testType: options['test-type'] || 'UI Tests',
+        runName: options['run-name']
+      });
+      console.log('🎉 Publishing completed successfully');
+      console.log('🔍 Final check - testrail_output.json exists:', fs.existsSync('testrail_output.json'));
+      process.exit(0);  // ✅ Exit cleanly on success
+    } catch (error) {
+      console.error('\n💥 Fatal error:', error.message);
+      console.error('Stack:', error.stack);
+      process.exit(1);
+    }
+  })();
 }
 
 export { UIResultsPublisher };
