@@ -202,29 +202,18 @@ function getFailedTestNames(filePath) {
     
     const content = fs.readFileSync(filePath, 'utf8');
     const failedNames = [];
-    const lines = content.split('\n');
-    let currentSuite = '';
     
-    for (let i = 0; i < lines.length; i++) {
-        const line = lines[i];
+    // Extract testcase elements with failures
+    const testcaseRegex = /<testcase[^>]+name="([^"]+)"[^>]*>([\s\S]*?)<\/testcase>/g;
+    let match;
+    
+    while ((match = testcaseRegex.exec(content)) !== null) {
+        const testName = match[1];  // Already has "describe › testName" format
+        const testContent = match[2];
         
-        // Track current test suite (describe block)
-        const suiteMatch = line.match(/<testsuite[^>]*name="([^"]*)"[^>]*>/);
-        if (suiteMatch) {
-            currentSuite = suiteMatch[1];
-        }
-        
-        // Find test cases with failures
-        const testMatch = line.match(/<testcase[^>]*name="([^"]*)"[^>]*>/);
-        if (testMatch) {
-            const testName = testMatch[1];
-            const nextLine = lines[i + 1];
-            if (nextLine && nextLine.includes('<failure')) {
-                // Format: Describe -> Test Name
-                // Handle edge case: if suite already ends with " -> " or " › ", don't add another
-                const separator = (currentSuite.endsWith(' -> ') || currentSuite.endsWith(' › ')) ? '' : ' -> ';
-                failedNames.push(`${currentSuite}${separator}${testName}`);
-            }
+        // Check if this testcase has a failure
+        if (testContent.includes('<failure')) {
+            failedNames.push(testName);
         }
     }
     
