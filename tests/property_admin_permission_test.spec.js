@@ -63,7 +63,7 @@ test.describe('property_admin_permission_test', () => {
         applicantContextForCleanup = applicantContext;  // ✅ Will close in afterAll
     });
 
-    test('Should create property admin role user via API', { tag: [ '@regression' , '@staging-correct'] }, async({ page, dataManager }) => {
+    test('Should create property admin role user via API', { tag: [ '@regression' , '@staging-ready'] }, async({ page, dataManager }) => {
         try {
         // Store global references for other tests
         globalDataManager = dataManager;
@@ -134,7 +134,7 @@ test.describe('property_admin_permission_test', () => {
         }
     });
 
-    test('Verify property admin user permissions', { tag: [ '@regression', '@staging-correct' ] }, async ({ page, context, dataManager }) => {
+    test('Verify property admin user permissions', { tag: [ '@regression', '@staging-ready' ] }, async ({ page, context, dataManager }) => {
         try {
             // Use the globally created user
             if (!globalPropertyAdminUser) {
@@ -297,7 +297,7 @@ test.describe('property_admin_permission_test', () => {
         // Note: No cleanup here - user is needed for the next test
     });
 
-    test('Check applicant inbox permissions', { tag: [ '@regression', '@staging-correct' ] }, async ({ page, context, dataManager }) => {
+    test('Check applicant inbox permissions', { tag: [ '@regression', '@staging-ready' ] }, async ({ page, context, dataManager }) => {
         let testFailed = false;
         
         try {

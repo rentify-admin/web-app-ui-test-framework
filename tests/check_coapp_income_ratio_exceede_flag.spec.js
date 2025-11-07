@@ -8,8 +8,14 @@ import { completePaystubConnection, fillhouseholdForm, setupInviteLinkSession, u
 import { gotoPage } from '~/tests/utils/common';
 import { findSessionLocator, searchSessionWithText } from '~/tests/utils/report-page';
 import { waitForJsonResponse } from '~/tests/utils/wait-response';
+import { cleanupSession } from './utils/cleanup-helper';
 
 const applicationName = 'AutoTest Suite - Full Test';
+
+let createdSessionId = null;
+let primaryContext = null;
+let coAppContext = null;
+let allTestsPassed = true;
 
 // Note: first_name will be auto-prefixed with 'AutoT - ' by the helper
 // Note: email will be auto-suffixed with '+autotest' by the helper
@@ -53,7 +59,8 @@ test.describe('check_coapp_income_ratio_exceede_flag', () => {
     }, async ({ page, browser }) => {
         test.setTimeout(450000);
         
-        // Step 1: Admin Login and Navigate to Applications
+        try {
+            // Step 1: Admin Login and Navigate to Applications
         await loginForm.adminLoginAndNavigate(page, admin);
 
         // Step 2: Navigate to Applications Page
@@ -64,11 +71,12 @@ test.describe('check_coapp_income_ratio_exceede_flag', () => {
         
         // Step 4: Generate Session and Extract Link
         const { sessionId, sessionUrl, link } = await generateSessionForm.generateSessionAndExtractLink(page, user);
+        createdSessionId = sessionId;  // Store for cleanup
         
         const linkUrl = new URL(link);
         
         // Step 5: Open Invite link
-        const context = await browser.newContext({ 
+        primaryContext = await browser.newContext({ 
             permissions: ['camera', 'microphone'],
             // Use the same camera setup as e2e-ui config
             launchOptions: {
@@ -79,7 +87,7 @@ test.describe('check_coapp_income_ratio_exceede_flag', () => {
             }
         });
         
-        const applicantPage = await context.newPage();
+        const applicantPage = await primaryContext.newPage();
         await applicantPage.goto(joinUrl(`${app.urls.app}`, `${linkUrl.pathname}${linkUrl.search}`));
 		
         let session;
@@ -198,7 +206,7 @@ test.describe('check_coapp_income_ratio_exceede_flag', () => {
     
         const coAppLinkUrl = new URL(copiedLink);
     
-                const newPageContext = await browser.newContext({ 
+        coAppContext = await browser.newContext({ 
             permissions: ['camera', 'microphone'],
             // Use the same camera setup as e2e-ui config
             launchOptions: {
@@ -209,7 +217,7 @@ test.describe('check_coapp_income_ratio_exceede_flag', () => {
             }
         });
         
-        const coAppPage = await newPageContext.newPage();
+        const coAppPage = await coAppContext.newPage();
     
         const coAppSessionApiUrl = joinUrl(app.urls.api, coAppLinkUrl.pathname);
     
@@ -348,5 +356,39 @@ test.describe('check_coapp_income_ratio_exceede_flag', () => {
         await page.getByTestId('close-event-history-modal').click({ timeout: 5_000 });
         page.off('response', responseSession);
         await page.waitForTimeout(1000);
+        
+        } catch (error) {
+            allTestsPassed = false;
+            throw error;
+        }
+    });
+    
+    // ✅ Conditional cleanup: Keep session on failure for debugging
+    test.afterAll(async ({ request }) => {
+        console.log('🧹 Starting cleanup...');
+        console.log(`   Session ID: ${createdSessionId || 'none'}`);
+        console.log(`   All tests passed: ${allTestsPassed}`);
+        
+        // Clean up session (conditional - only if tests passed)
+        await cleanupSession(request, createdSessionId, allTestsPassed);
+        
+        // Close contexts (always)
+        if (primaryContext) {
+            try {
+                await primaryContext.close();
+                console.log('✅ Primary context closed');
+            } catch (error) {
+                // Silent
+            }
+        }
+        
+        if (coAppContext) {
+            try {
+                await coAppContext.close();
+                console.log('✅ Co-applicant context closed');
+            } catch (error) {
+                // Silent
+            }
+        }
     });
 });
