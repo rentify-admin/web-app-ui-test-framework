@@ -227,9 +227,10 @@ jobs:
           if [ -f "testrail_output.json" ]; then
             echo "📄 testrail_output.json contents:"
             cat testrail_output.json
-            TESTRAIL_RUN_ID=$(cat testrail_output.json | grep -oE '"runIds":[^]]*[0-9]+' | grep -oE '[0-9]+$')
+            # Extract run ID (simple approach that works everywhere)
+            TESTRAIL_RUN_ID=$(grep "runIds" testrail_output.json -A 2 | grep -E "[0-9]+" -o | head -1 || echo "")
             echo "🔍 Extracted run ID: [$TESTRAIL_RUN_ID]"
-            if [ -n "$TESTRAIL_RUN_ID" ]; then
+            if [ -n "$TESTRAIL_RUN_ID" ] && [ "$TESTRAIL_RUN_ID" != "" ]; then
               echo "TESTRAIL_RUN_ID=$TESTRAIL_RUN_ID" >> $GITHUB_ENV
               echo "✅ TestRail run created: $TESTRAIL_RUN_ID"
             else
