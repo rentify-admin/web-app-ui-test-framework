@@ -163,12 +163,38 @@ function determineStatus(results) {
     }
 }
 
-function calculateDuration(results) {
-    // Simple duration calculation - in a real scenario you might want to parse actual timing
-    if (results.total === 0) return '< 1s';
-    if (results.total <= 5) return '~5s';
-    if (results.total <= 10) return '~10s';
-    return `~${Math.ceil(results.total * 2)}s`;
+function calculateDuration(resultsFile) {
+    // Parse actual duration from JUnit XML (sum of individual test times)
+    try {
+        if (!fs.existsSync(resultsFile)) return '< 1s';
+        
+        const content = fs.readFileSync(resultsFile, 'utf8');
+        
+        // Extract ONLY testcase times (not testsuite to avoid double-counting)
+        const testcaseRegex = /<testcase[^>]+time="([0-9.]+)"/g;
+        let totalSeconds = 0;
+        let match;
+        
+        while ((match = testcaseRegex.exec(content)) !== null) {
+            totalSeconds += parseFloat(match[1]);
+        }
+        
+        if (totalSeconds === 0) return '< 1s';
+        
+        // Format duration nicely
+        if (totalSeconds < 1) return '< 1s';
+        if (totalSeconds < 60) return `${Math.ceil(totalSeconds)}s`;
+        
+        const minutes = Math.floor(totalSeconds / 60);
+        const seconds = Math.ceil(totalSeconds % 60);
+        
+        if (seconds === 0) return `${minutes}m`;
+        return `${minutes}m ${seconds}s`;
+        
+    } catch (error) {
+        console.error('Error calculating duration:', error.message);
+        return '< 1s';
+    }
 }
 
 function getFailedTestNames(filePath) {
@@ -462,7 +488,7 @@ async function main() {
     const results = parseTestResults(resultsFile);
     const status = determineStatus(results);
     const visualDots = generateVisualDots(results);
-    const duration = calculateDuration(results);
+    const duration = calculateDuration(resultsFile);  // ✅ Pass file path, not results object
     const failedTestNames = getFailedTestNames(resultsFile);
     
     console.log('📈 Test Results:', results);
