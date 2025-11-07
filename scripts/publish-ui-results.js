@@ -85,8 +85,8 @@ class UIResultsPublisher {
    * Get or create section based on file name
    */
   async getOrCreateSection(fileName) {
-    // Remove .spec.js extension to get clean section name
-    const sectionName = fileName.replace(/\.spec\.js$/, '').replace(/_/g, ' ');
+    // Use EXACT file name as section name (no formatting!)
+    const sectionName = fileName;
     
     console.log(`📁 Looking for section: "${sectionName}"`);
     
@@ -94,7 +94,7 @@ class UIResultsPublisher {
     const sectionsResponse = await this.api.getSections(this.config.suiteId);
     const sections = sectionsResponse.sections || [];
     
-    // Find existing section by name
+    // Find existing section by EXACT name
     const existingSection = sections.find(s => s.name === sectionName);
     
     if (existingSection) {
@@ -102,7 +102,7 @@ class UIResultsPublisher {
       return existingSection.id;
     }
     
-    // Create new section
+    // Create new section with EXACT file name
     console.log(`   ➕ Creating new section: "${sectionName}"`);
     const newSection = await this.api.addSection(this.config.suiteId, {
       name: sectionName,
@@ -172,16 +172,17 @@ class UIResultsPublisher {
       
       for (const caseToCreate of casesToCreate) {
         try {
-          const newCase = await this.api.addCase(this.config.suiteId, {
+          // ✅ Pass section_id as URL parameter (first arg), NOT in body!
+          const newCase = await this.api.addCase(caseToCreate.sectionId, {
             title: caseToCreate.name,  // Format: "describe › testName"
             type_id: 1,
             priority_id: 2,
-            section_id: caseToCreate.sectionId,  // ✅ Already determined in matching phase
+            // NO section_id in body - it goes in URL!
             refs: caseToCreate.classname || '',
             custom_description: `UI test from ${caseToCreate.classname}`
           });
           caseIdMap.set(caseToCreate.name, newCase.id);
-          console.log(`  ✅ Created: ${caseToCreate.name} (ID: ${newCase.id})`);
+          console.log(`  ✅ Created: ${caseToCreate.name} (ID: ${newCase.id}) in section ${caseToCreate.sectionId}`);
         } catch (err) {
           console.error(`  ❌ Error creating "${caseToCreate.name}": ${err.message}`);
         }
@@ -334,6 +335,8 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     tag: options.tag || 'untagged',
     testType: options['test-type'] || 'UI Tests',
     runName: options['run-name']
+  }).then(() => {
+    process.exit(0);  // ✅ Exit cleanly on success
   }).catch(error => {
     console.error('\n💥 Fatal error:', error.message);
     process.exit(1);

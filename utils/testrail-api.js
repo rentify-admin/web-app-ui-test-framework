@@ -116,8 +116,10 @@ export class TestRailAPI {
     return this.request(endpoint);
   }
 
-  async addCase(suiteId, caseData) {
-    return this.request(`add_case/${suiteId}`, 'POST', caseData);
+  async addCase(sectionId, caseData) {
+    // TestRail API: POST add_case/{section_id}
+    // section_id in URL, NOT in body!
+    return this.request(`add_case/${sectionId}`, 'POST', caseData);
   }
 
   async updateCase(caseId, caseData) {
