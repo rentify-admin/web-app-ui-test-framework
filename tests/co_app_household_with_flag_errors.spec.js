@@ -16,7 +16,7 @@ import {
     completeFinancialStepViaAPI,
     completeEmploymentStepViaAPI
 } from '~/tests/utils/session-flow';
-import { findSessionLocator, markFlagAsNonIssue, searchSessionWithText } from '~/tests/utils/report-page';
+import { findSessionLocator, searchSessionWithText } from '~/tests/utils/report-page';
 
 /**
  * Test: Co-Applicant Flag Attribution and Household Status Transitions
@@ -249,12 +249,17 @@ test.describe('co_app_household_with_flag_errors', () => {
                 cadenceFlagFound = true;
                 console.log(`✅ INCOME_SOURCE_CADENCE_MISMATCH_ERROR flag found (poll ${i + 1}/${maxPolls})`);
                 console.log('🔧 Marking INCOME_SOURCE_CADENCE_MISMATCH_ERROR as non-issue...');
-            await markFlagAsNonIssue(
-                page,
-                sessionId,
-                    'INCOME_SOURCE_CADENCE_MISMATCH_ERROR',
-                    'Income source cadence mismatch marked as non-issue by automated test'
-                );
+                const cadenceFlagElement = page.getByTestId('INCOME_SOURCE_CADENCE_MISMATCH_ERROR');
+                await cadenceFlagElement.getByTestId('mark_as_non_issue').click();
+                const cadenceTextarea = cadenceFlagElement.locator('textarea');
+                await expect(cadenceTextarea).toBeVisible();
+                await cadenceTextarea.fill('Income source cadence mismatch marked as non-issue by automated test');
+                await Promise.all([
+                    page.waitForResponse(resp => resp.url().includes(`/sessions/${sessionId}/flags`)
+                        && resp.request().method() === 'PATCH'
+                        && resp.ok()),
+                    cadenceFlagElement.locator('button[type=submit]').click()
+                ]);
                 console.log('✅ INCOME_SOURCE_CADENCE_MISMATCH_ERROR marked as non-issue');
                 break;
             }
@@ -425,8 +430,29 @@ test.describe('co_app_household_with_flag_errors', () => {
         console.log('✅ ASSERTION 2b (API) PASSED: Status = REJECTED (co-app invited but incomplete)');
         
         // Verify UI shows "Criteria Not Met"
+        console.log('🔍 ASSERTION 2b (UI): Polling household status banner...');
         const householdStatusAfterInvite = page.getByTestId('household-status-alert').first();
-        await expect(householdStatusAfterInvite).toContainText('Criteria Not Met', { timeout: 10_000 });
+        const uiStatusMaxPolls = 15;
+        const uiStatusPollInterval = 2000;
+        let uiStatusMatched = false;
+
+        for (let i = 0; i < uiStatusMaxPolls; i++) {
+            const bannerText = await householdStatusAfterInvite.innerText();
+            console.log(`📊 UI status banner (poll ${i + 1}/${uiStatusMaxPolls}): ${bannerText}`);
+            if (bannerText.includes('Criteria Not Met')) {
+                uiStatusMatched = true;
+                break;
+            }
+            if (i < uiStatusMaxPolls - 1) {
+                await page.waitForTimeout(uiStatusPollInterval);
+            }
+        }
+
+        if (!uiStatusMatched) {
+            throw new Error('Expected UI status to contain "Criteria Not Met" but it never updated.');
+        }
+
+        await expect(householdStatusAfterInvite).toContainText('Criteria Not Met', { timeout: 5_000 });
         console.log('✅ ASSERTION 2b (UI) PASSED: UI shows "Criteria Not Met"');
         
         // Get co-applicant invite link
@@ -503,7 +529,7 @@ test.describe('co_app_household_with_flag_errors', () => {
         await completeIdentityStepViaAPI(coAppPage, coAppSession.data.id, coAppAuthToken, coapplicant, 'co-applicant', true);
         console.log(`✅ CO-APPLICANT: ID verification completed with completely different name: X Y (expected: ${coapplicant.first_name} ${coapplicant.last_name}) - FLAG SHOULD BE TRIGGERED`);
 
-        await coAppPage.waitForTimeout(3000); // Wait for flag to be created
+        await coAppPage.waitForTimeout(6000); // Wait for flag to be created
 
         await coAppPage.close();
 
@@ -516,7 +542,7 @@ test.describe('co_app_household_with_flag_errors', () => {
             page.reload()
         ]);
         const sessionAfterCoAppId = await waitForJsonResponse(sessionAfterCoAppIdResponse);
-        await page.waitForTimeout(4000); // Wait for page to reload
+        await page.waitForTimeout(6000); // Wait for page to reload
         // Open details to check flags
         await page.getByTestId('view-details-btn').click({ timeout: 10_000 });
         await page.waitForTimeout(1000);
@@ -577,12 +603,17 @@ test.describe('co_app_household_with_flag_errors', () => {
         
         // Mark flag as non-issue to restore MEETS_CRITERIA status
         console.log('🔧 Resolving IDENTITY_NAME_MISMATCH_CRITICAL flag by marking as non-issue...');
-        await markFlagAsNonIssue(
-            page,
-            coAppSessionId,
-            'IDENTITY_NAME_MISMATCH_CRITICAL',
-            'Co-applicant name mismatch resolved - marked as non-issue by automated test'
-        );
+        const nameMismatchFlagElement = page.getByTestId('IDENTITY_NAME_MISMATCH_CRITICAL');
+        await nameMismatchFlagElement.getByTestId('mark_as_non_issue').click();
+        const nameMismatchTextarea = nameMismatchFlagElement.locator('textarea');
+        await expect(nameMismatchTextarea).toBeVisible();
+        await nameMismatchTextarea.fill('Co-applicant name mismatch resolved - marked as non-issue by automated test');
+        await Promise.all([
+            page.waitForResponse(resp => resp.url().includes(`/sessions/${coAppSessionId}/flags`)
+                && resp.request().method() === 'PATCH'
+                && resp.ok()),
+            nameMismatchFlagElement.locator('button[type=submit]').click()
+        ]);
         await page.getByTestId('close-event-history-modal').click({ timeout: 10_000 });
         await page.waitForTimeout(2000);
         

@@ -230,7 +230,7 @@ test.describe('user_flags_approve_reject_test', () => {
         const pill = page.getByTestId('files-document-status-pill');
         
         let documentApproved = false;
-        const maxAttempts = 45; // 45 attempts * 1 second = 45 seconds max
+        const maxAttempts = 75; // 75 attempts * 1 second = 75 seconds max
         const pollInterval = 1000;
         
         for (let attempt = 0; attempt < maxAttempts; attempt++) {

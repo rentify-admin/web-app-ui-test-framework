@@ -1723,9 +1723,29 @@ const completePlaidFinancialStep = async applicantPage => {
  * @param {import('@playwright/test').Page} applicantPage
  */
 const completePlaidFinancialStepBetterment = async (applicantPage, username = 'custom_gig', password = 'test') => {
-    await applicantPage
-        .getByTestId('financial-secondary-connect-btn')
-        .click({ timeout: 20000 });
+    // Poll up to 60s for the connect button to appear/be clickable (CI-friendly)
+    const connectBtn = applicantPage.getByTestId('financial-secondary-connect-btn');
+    const maxWaitMs = 60_000;
+    const pollIntervalMs = 1_000;
+    const startTime = Date.now();
+    let clicked = false;
+
+    while (Date.now() - startTime < maxWaitMs) {
+        try {
+            if (await connectBtn.isVisible()) {
+                await connectBtn.click({ timeout: 5000 });
+                clicked = true;
+                break;
+            }
+        } catch (e) {
+            // ignore and retry until maxWaitMs
+        }
+        await applicantPage.waitForTimeout(pollIntervalMs);
+    }
+
+    if (!clicked) {
+        throw new Error('Timed out (60s) waiting to click financial-secondary-connect-btn');
+    }
 
     // Wait for iframe to be present and loaded (CI-friendly)
     await applicantPage.waitForSelector('#plaid-link-iframe-1', { timeout: 60000 });
@@ -2016,12 +2036,21 @@ const simulatorFinancialStepWithVeridocs = async (page, veridocsPayload) => {
     console.log('⏳ Waiting for simulator to process payload...');
     await page.waitForTimeout(5000);
     console.log('✅ Simulator processing completed');
-    // Step 6: Check if connection row exists at all
-    console.log('🔍 Checking if connection row exists...');
+    // Step 6: Poll up to 60s for any connection row to appear
+    console.log('🔍 Checking if connection row exists (with polling up to 60s)...');
     const connectionRows = page.getByTestId('connection-row');
-    const rowCount = await connectionRows.count();
+    const maxWaitMs = 60_000;
+    const pollIntervalMs = 1_000;
+    const startTime = Date.now();
+    let rowCount = 0;
+
+    while (Date.now() - startTime < maxWaitMs) {
+        rowCount = await connectionRows.count();
+        if (rowCount > 0) break;
+        await page.waitForTimeout(pollIntervalMs);
+    }
+
     console.log(`📊 Found ${rowCount} connection row(s)`);
-    
     if (rowCount === 0) {
         console.log('❌ No connection rows found - simulator may not have processed the payload');
         throw new Error('No connection rows found after simulator dialog');

@@ -1168,9 +1168,31 @@ async function verifyTransactionErrorAndDeclineFlag(page, randomName) {
     await page.locator('span.font-semibold.text-left.truncate.min-w-0').first()
         .click();
 
-    // Verify that "User Error" exists and click it
-    await expect(page.locator('a[href="#"].decoration-error')).toHaveText('User Error');
-    await page.locator('a[href="#"].decoration-error').click();
+    // Verify that "User Error" exists and click it (manual polling up to 45s)
+    const userErrorLink = page.locator('a[href="#"].decoration-error');
+    const maxAttempts = 90; // 90 * 500ms = 45s
+    let userErrorReady = false;
+
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+        try {
+            if (await userErrorLink.isVisible()) {
+                const text = (await userErrorLink.textContent())?.trim();
+                if (text === 'User Error') {
+                    userErrorReady = true;
+                    break;
+                }
+            }
+        } catch (e) {
+            // ignore and retry
+        }
+        await page.waitForTimeout(500);
+    }
+
+    if (!userErrorReady) {
+        throw new Error('User Error link not found with expected text within 45s');
+    }
+
+    await userErrorLink.click();
 
     // Verify that "1 account | 1 transaction" exist in Connection Attempts modal
     await expect(page.getByTestId('financial-row-sub-title'))

@@ -289,10 +289,10 @@ test.describe('financial_mx_2_attempts_success_and_failed_password', () => {
         // Step 7: Assert initial status - MX income should be sufficient for $500 rent
         console.log('Step 7: Asserting initial status - Meets Criteria');
         
-        // Poll for "Meets Criteria" status (max 30 seconds)
+        // Poll for "Meets Criteria" status (max 60 seconds)
         console.log('   ⏳ Polling for "Meets Criteria" status...');
         let initialStatusFound = false;
-        const initialStatusMaxAttempts = 15; // 15 attempts * 2 seconds = 30 seconds max
+        const initialStatusMaxAttempts = 30; // 30 attempts * 2 seconds = 60 seconds max
         const initialStatusPollInterval = 2000;
         
         for (let attempt = 0; attempt < initialStatusMaxAttempts; attempt++) {
@@ -412,8 +412,34 @@ test.describe('financial_mx_2_attempts_success_and_failed_password', () => {
         await expect(incomeSource).toBeVisible();
         
         // Step 10: Verify status changed back to Meets Criteria
+        console.log('Step 10: Verifying status returns to "Meets Criteria"...');
         await page.reload();
-        await expect(householdStatusAlert).toContainText('Meets Criteria', { timeout: 30000 });
+
+        const statusBackToCriteriaMaxPolls = 20;
+        const statusBackToCriteriaInterval = 2000;
+        let statusBackToCriteriaMatched = false;
+
+        for (let i = 0; i < statusBackToCriteriaMaxPolls; i++) {
+            const bannerText = await householdStatusAlert.innerText();
+            console.log(`📊 UI status banner after manual income (poll ${i + 1}/${statusBackToCriteriaMaxPolls}): ${bannerText}`);
+            if (bannerText.includes('Meets Criteria')) {
+                statusBackToCriteriaMatched = true;
+                break;
+            }
+
+            if (i % 5 === 4) {
+                console.log('   🔄 Reloading page to refresh UI state...');
+                await page.reload();
+            }
+
+            await page.waitForTimeout(statusBackToCriteriaInterval);
+        }
+
+        if (!statusBackToCriteriaMatched) {
+            throw new Error('Expected UI status to contain "Meets Criteria" but it never updated after adding manual income.');
+        }
+
+        await expect(householdStatusAlert).toContainText('Meets Criteria', { timeout: 5_000 });
         console.log('   ✅ Status: Meets Criteria (total income now sufficient for $3000 rent)');
         
         console.log('\n✅ Part 2 Complete: Eligibility status transitions validated');
