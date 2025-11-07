@@ -49,14 +49,9 @@ jobs:
 
       - name: Run regression tests
         run: |
-          # Determine which tag to run based on environment
-          if [ "${{ github.event.inputs.environment }}" == "staging" ]; then
-            TEST_TAG="@staging-ready"
-            TAG_DESCRIPTION="staging-ready tests (staging-safe)"
-          else
-            TEST_TAG="@regression"
-            TAG_DESCRIPTION="regression tests"
-          fi
+          # TEMPORARY: Run only @try-test-rail-names tests for TestRail integration testing
+          TEST_TAG="@try-test-rail-names"
+          TAG_DESCRIPTION="TestRail integration test cases"
           
           echo "🧪 Starting test suite (Shard ${{ matrix.shard }}/4)..."
           echo "🏷️  Tag: $TEST_TAG ($TAG_DESCRIPTION)"
@@ -65,7 +60,7 @@ jobs:
           echo "🔗 API URL: $API_URL"
           echo "🔀 Shard: ${{ matrix.shard }}/4"
           echo ""
-          npx playwright test --project=chromium --grep "$TEST_TAG" --grep-invert "@document-upload" --shard=${{ matrix.shard }}/4
+          npx playwright test --project=chromium --grep "$TEST_TAG" --shard=${{ matrix.shard }}/4
           
           echo "📁 Checking generated files:"
           ls -la playwright-report/ || echo "playwright-report/ directory not found"
@@ -178,136 +173,87 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Install trcli
+      - name: Normalize JUnit XML (fix special characters)
         run: |
-          echo "Installing trcli..."
-          pip install trcli
-          echo "✅ trcli installation completed"
-          which trcli || echo "❌ trcli not found in PATH"
+          echo "🔧 Normalizing JUnit XML for TestRail compatibility..."
+          if [ ! -f "playwright-report/results.xml" ]; then
+            echo "⚠️ No results.xml found, skipping normalization"
+            exit 0
+          fi
+          
+          # Backup original
+          cp playwright-report/results.xml playwright-report/results.xml.backup
+          
+          # Normalize special characters that cause TestRail mismatches
+          sed -i.tmp \
+            -e 's/—/-/g' \
+            -e 's/–/-/g' \
+            -e 's/→/->/g' \
+            -e 's/←/<-/g' \
+            -e 's/"/"/g' \
+            -e 's/"/"/g' \
+            -e 's/'/'"'"'/g' \
+            -e 's/'/'"'"'/g' \
+            playwright-report/results.xml
+          
+          rm -f playwright-report/results.xml.tmp
+          
+          echo "✅ XML normalization completed"
+          echo "📊 Preview normalized XML:"
+          head -20 playwright-report/results.xml || true
 
-      - name: Create TestRail test run
+      - name: Publish to TestRail (Custom Script)
         continue-on-error: true
         run: |
-          # Check if TestRail credentials are configured
           echo "🔧 Validating TestRail configuration..."
-          if [ -z "$TESTRAIL_HOST" ]; then
-            echo "❌ TESTRAIL_HOST is not set"
-          else
-            echo "✅ TESTRAIL_HOST: $TESTRAIL_HOST"
-          fi
-          
-          if [ -z "$TESTRAIL_PROJECT_NAME" ]; then
-            echo "❌ TESTRAIL_PROJECT_NAME is not set"
-          else
-            echo "✅ TESTRAIL_PROJECT_NAME: $TESTRAIL_PROJECT_NAME"
-          fi
-          
-          if [ -z "$TESTRAIL_SUITE_ID" ]; then
-            echo "❌ TESTRAIL_SUITE_ID is not set"
-          else
-            echo "✅ TESTRAIL_SUITE_ID: $TESTRAIL_SUITE_ID"
-          fi
-          
-          if [ -z "$TESTRAIL_USER" ]; then
-            echo "❌ TESTRAIL_USER is not set"
-          else
-            echo "✅ TESTRAIL_USER is configured"
-          fi
-          
-          if [ -z "$TESTRAIL_API_KEY" ]; then
-            echo "❌ TESTRAIL_API_KEY is not set"
-          else
-            echo "✅ TESTRAIL_API_KEY is configured"
-          fi
-          
-          if [ -z "$TESTRAIL_HOST" ] || [ -z "$TESTRAIL_PROJECT_NAME" ] || [ -z "$TESTRAIL_USER" ] || [ -z "$TESTRAIL_API_KEY" ]; then
-            echo "⚠️ TestRail credentials not fully configured. Skipping TestRail upload."
+          if [ -z "$TESTRAIL_HOST" ] || [ -z "$TESTRAIL_PROJECT_ID" ] || [ -z "$TESTRAIL_USER" ] || [ -z "$TESTRAIL_API_KEY" ]; then
+            echo "⚠️ TestRail credentials not configured. Skipping."
             echo "TESTRAIL_RUN_ID=" >> $GITHUB_ENV
             exit 0
           fi
-          
-          echo ""
-          echo "🔧 Checking trcli installation:"
-          which trcli || echo "❌ trcli not found"
-          trcli -h 2>&1 | head -5 || echo "❌ trcli check failed"
-          
-          echo ""
-          echo "📁 Checking JUnit XML file:"
-          ls -la playwright-report/ || echo "❌ playwright-report directory not found"
-          ls -la playwright-report/results.xml || echo "❌ results.xml not found"
           
           if [ ! -f "playwright-report/results.xml" ]; then
-            echo "❌ results.xml not found. Cannot upload to TestRail."
+            echo "❌ results.xml not found. Cannot upload."
             echo "TESTRAIL_RUN_ID=" >> $GITHUB_ENV
             exit 0
           fi
           
-          echo ""
-          echo "📊 JUnit XML preview:"
-          head -20 playwright-report/results.xml || true
-          
-          # Determine which tag was run based on environment
-          if [ "${{ github.event.inputs.environment }}" == "staging" ]; then
-            TEST_TAG="@staging-ready"
-          else
-            TEST_TAG="@regression"
-          fi
-          
-          # Generate TestRail test run title with current date and environment
-          TEST_RUN_TITLE="$TEST_TAG Tests (4 Shards): ${{ github.event.inputs.environment || 'development' }} - Browser: chromium - Date $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
-          echo "📝 Test run title: $TEST_RUN_TITLE"
-          
-          # Create TestRail test run and upload results (non-blocking)
-          echo ""
-          echo "🚀 Running trcli command..."
-          echo "Command: trcli -y -h [HOST] --project \"$TESTRAIL_PROJECT_NAME\" --username [USER] --key [HIDDEN] parse_junit --title \"$TEST_RUN_TITLE\" --suite-id $TESTRAIL_SUITE_ID --case-matcher name --file playwright-report/results.xml"
+          echo "✅ TESTRAIL_HOST: $TESTRAIL_HOST"
+          echo "✅ TESTRAIL_PROJECT_ID: $TESTRAIL_PROJECT_ID"
+          echo "✅ TESTRAIL_SUITE_ID: $TESTRAIL_SUITE_ID"
           echo ""
           
-          set +e  # Don't fail on error
-          TESTRAIL_OUTPUT=$(trcli -y \
-            -h $TESTRAIL_HOST \
-            --project "$TESTRAIL_PROJECT_NAME" \
-            --username $TESTRAIL_USER \
-            --key $TESTRAIL_API_KEY \
-            parse_junit \
-            --title "$TEST_RUN_TITLE" \
-            --suite-id $TESTRAIL_SUITE_ID \
-            --case-matcher "name" \
-            --case-fields "custom_environment:${{ github.event.inputs.environment || 'development' }}" \
-            --result-fields "custom_browser:chromium" \
-            --file playwright-report/results.xml 2>&1)
-          TRCLI_EXIT_CODE=$?
+          # Run custom TestRail publisher
+          TEST_TAG="@try-test-rail-names"
+          TEST_RUN_TITLE="UI Tests - $TEST_TAG - $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+          
+          echo "🚀 Running custom TestRail publisher..."
+          echo "Tag: $TEST_TAG"
+          echo "Title: $TEST_RUN_TITLE"
+          echo ""
+          
+          set +e
+          node scripts/ui-publish-reports.js --tag "$TEST_TAG" --test-type "UI Tests" --run-name "$TEST_RUN_TITLE" 2>&1 | tee testrail_publish.log
+          EXIT_CODE=$?
           set -e
           
-          echo "📋 TestRail Output:"
-          echo "$TESTRAIL_OUTPUT"
-          echo ""
-          
-          if [ $TRCLI_EXIT_CODE -ne 0 ]; then
-            echo "❌ TestRail upload failed with exit code $TRCLI_EXIT_CODE"
-            echo ""
-            echo "💡 Common issues:"
-            echo "  - Check TESTRAIL_PROJECT_NAME matches exactly in TestRail"
-            echo "  - Verify TESTRAIL_SUITE_ID exists in the project"
-            echo "  - Confirm API key has proper permissions"
-            echo "  - Check network connectivity to TestRail host"
-            echo ""
+          if [ $EXIT_CODE -ne 0 ]; then
+            echo "❌ TestRail upload failed with exit code $EXIT_CODE"
             echo "TESTRAIL_RUN_ID=" >> $GITHUB_ENV
-            exit 0  # Continue workflow even if TestRail fails
+            exit 0
           fi
           
-          # Extract TestRail run ID from output
-          TESTRAIL_RUN_ID=$(echo "$TESTRAIL_OUTPUT" | grep -o "Test run: .*/runs/view/[0-9]*" | head -1 | sed 's/.*\/runs\/view\///')
-          if [ -n "$TESTRAIL_RUN_ID" ]; then
-            echo "TESTRAIL_RUN_ID=$TESTRAIL_RUN_ID" >> $GITHUB_ENV
-            echo "✅ TestRail run created with ID: $TESTRAIL_RUN_ID"
-          else
-            echo "⚠️ Could not extract TestRail run ID from output"
-            echo "TESTRAIL_RUN_ID=" >> $GITHUB_ENV
+          # Extract run ID from output
+          if [ -f "testrail_output.json" ]; then
+            TESTRAIL_RUN_ID=$(cat testrail_output.json | grep -o '"runIds":\s*\[\s*[0-9]*' | grep -o '[0-9]*$')
+            if [ -n "$TESTRAIL_RUN_ID" ]; then
+              echo "TESTRAIL_RUN_ID=$TESTRAIL_RUN_ID" >> $GITHUB_ENV
+              echo "✅ TestRail run created: $TESTRAIL_RUN_ID"
+            fi
           fi
         env:
           TESTRAIL_HOST: ${{ secrets.TESTRAIL_HOST }}
-          TESTRAIL_PROJECT_NAME: ${{ secrets.TESTRAIL_PROJECT_NAME }}
+          TESTRAIL_PROJECT_ID: ${{ secrets.TESTRAIL_PROJECT_ID }}
           TESTRAIL_SUITE_ID: ${{ secrets.TESTRAIL_SUITE_ID }}
           TESTRAIL_USER: ${{ secrets.TESTRAIL_USER }}
           TESTRAIL_API_KEY: ${{ secrets.TESTRAIL_API_KEY }}
