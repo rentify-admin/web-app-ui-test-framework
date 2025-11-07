@@ -82,7 +82,39 @@ class UIResultsPublisher {
   }
 
   /**
+   * Get or create section based on file name
+   */
+  async getOrCreateSection(fileName) {
+    // Remove .spec.js extension to get clean section name
+    const sectionName = fileName.replace(/\.spec\.js$/, '').replace(/_/g, ' ');
+    
+    console.log(`📁 Looking for section: "${sectionName}"`);
+    
+    // Get all sections
+    const sectionsResponse = await this.api.getSections(this.config.suiteId);
+    const sections = sectionsResponse.sections || [];
+    
+    // Find existing section by name
+    const existingSection = sections.find(s => s.name === sectionName);
+    
+    if (existingSection) {
+      console.log(`   ✅ Found existing section: "${sectionName}" (ID: ${existingSection.id})`);
+      return existingSection.id;
+    }
+    
+    // Create new section
+    console.log(`   ➕ Creating new section: "${sectionName}"`);
+    const newSection = await this.api.addSection(this.config.suiteId, {
+      name: sectionName,
+      description: `Test cases from ${fileName}`
+    });
+    console.log(`   ✅ Section created (ID: ${newSection.id})`);
+    return newSection.id;
+  }
+
+  /**
    * Find or create test cases using EXACT title matching
+   * Groups cases by file (section)
    */
   async findOrCreateCases(tag, testResults) {
     console.log(`🔍 Finding/creating test cases for tag: ${tag}`);
@@ -105,7 +137,6 @@ class UIResultsPublisher {
 
     const caseIdMap = new Map();
     const casesToCreate = [];
-    const casesToUpdate = [];
 
     console.log('\n📋 Processing tests:');
     for (const testResult of executedTests) {
@@ -117,16 +148,7 @@ class UIResultsPublisher {
         const existingCase = existingCaseMap.get(testName);
         caseIdMap.set(testName, existingCase.id);
         console.log(`    ✅ Matched existing case ID: ${existingCase.id}`);
-
-        // Check if tag needs to be added
-        const currentTags = existingCase.custom_tags || '';
-        if (!currentTags.includes(tag)) {
-          casesToUpdate.push({
-            id: existingCase.id,
-            tags: currentTags ? `${currentTags},${tag}` : tag
-          });
-          console.log(`    🏷️  Will add tag: ${tag}`);
-        }
+        // ℹ️ Tag updates skipped - custom_tags field not available in TestRail config
       } else {
         console.log(`    ➕ Will create new case`);
         casesToCreate.push({
@@ -136,38 +158,46 @@ class UIResultsPublisher {
       }
     }
 
-    // Update existing cases with tags
-    if (casesToUpdate.length > 0) {
-      console.log(`\n🔄 Updating ${casesToUpdate.length} cases...`);
-      for (const caseToUpdate of casesToUpdate) {
-        try {
-          await this.api.updateCase(caseToUpdate.id, {
-            custom_tags: caseToUpdate.tags
-          });
-          console.log(`  ✅ Updated case ${caseToUpdate.id}`);
-        } catch (err) {
-          console.error(`  ❌ Error updating case ${caseToUpdate.id}: ${err.message}`);
-        }
-      }
-    }
+    // Tag updates disabled - custom_tags field not configured in TestRail
+    console.log(`\nℹ️  Skipping tag updates (custom_tags field not available)`);
 
-    // Create new cases
+    // Create new cases (organized by section/file)
     if (casesToCreate.length > 0) {
       console.log(`\n➕ Creating ${casesToCreate.length} new cases...`);
-      for (const caseToCreate of casesToCreate) {
-        try {
-          const newCase = await this.api.addCase(this.config.suiteId, {
-            title: caseToCreate.name,
-            type_id: 1,
-            priority_id: 2,
-            custom_tags: tag,
-            refs: caseToCreate.classname || '',
-            custom_description: `UI test: ${caseToCreate.name}`
-          });
-          caseIdMap.set(caseToCreate.name, newCase.id);
-          console.log(`  ✅ Created: ${caseToCreate.name} (ID: ${newCase.id})`);
-        } catch (err) {
-          console.error(`  ❌ Error creating "${caseToCreate.name}": ${err.message}`);
+      
+      // Group cases by file (classname)
+      const casesByFile = {};
+      casesToCreate.forEach(caseToCreate => {
+        const fileName = caseToCreate.classname || 'uncategorized';
+        if (!casesByFile[fileName]) {
+          casesByFile[fileName] = [];
+        }
+        casesByFile[fileName].push(caseToCreate);
+      });
+      
+      // Create cases organized by section
+      for (const [fileName, cases] of Object.entries(casesByFile)) {
+        console.log(`\n  📁 Processing file: ${fileName} (${cases.length} cases)`);
+        
+        // Get or create section for this file
+        const sectionId = await this.getOrCreateSection(fileName);
+        
+        // Create all cases in this section
+        for (const caseToCreate of cases) {
+          try {
+            const newCase = await this.api.addCase(this.config.suiteId, {
+              title: caseToCreate.name,  // Format: "describe › testName"
+              type_id: 1,
+              priority_id: 2,
+              section_id: sectionId,  // ✅ Add case to specific section
+              refs: caseToCreate.classname || '',
+              custom_description: `UI test: ${caseToCreate.name}`
+            });
+            caseIdMap.set(caseToCreate.name, newCase.id);
+            console.log(`     ✅ Created: ${caseToCreate.name} (ID: ${newCase.id})`);
+          } catch (err) {
+            console.error(`     ❌ Error creating "${caseToCreate.name}": ${err.message}`);
+          }
         }
       }
     }

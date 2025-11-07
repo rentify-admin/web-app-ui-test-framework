@@ -25,7 +25,7 @@ export class TestRailAPI {
     const options = {
       method,
       headers,
-      body: data
+      body: data && !isFormData ? JSON.stringify(data) : data
     };
 
     try {
@@ -122,6 +122,14 @@ export class TestRailAPI {
 
   async updateCase(caseId, caseData) {
     return this.request(`update_case/${caseId}`, 'POST', caseData);
+  }
+
+  async getSections(suiteId) {
+    return this.request(`get_sections/${this.projectId}&suite_id=${suiteId}`);
+  }
+
+  async addSection(suiteId, sectionData) {
+    return this.request(`add_section/${this.projectId}`, 'POST', { ...sectionData, suite_id: suiteId });
   }
 
   async getResultsForRun(runId) {
