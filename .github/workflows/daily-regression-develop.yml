@@ -49,9 +49,14 @@ jobs:
 
       - name: Run regression tests
         run: |
-          # TEMPORARY: Run only @try-test-rail-names tests for TestRail integration testing
-          TEST_TAG="@try-test-rail-names"
-          TAG_DESCRIPTION="TestRail integration test cases"
+          # Determine which tag to run based on environment
+          if [ "${{ github.event.inputs.environment }}" == "staging" ]; then
+            TEST_TAG="@staging-ready"
+            TAG_DESCRIPTION="staging-ready tests (staging-safe)"
+          else
+            TEST_TAG="@regression"
+            TAG_DESCRIPTION="regression tests"
+          fi
           
           echo "🧪 Starting test suite (Shard ${{ matrix.shard }}/4)..."
           echo "🏷️  Tag: $TEST_TAG ($TAG_DESCRIPTION)"
@@ -60,7 +65,7 @@ jobs:
           echo "🔗 API URL: $API_URL"
           echo "🔀 Shard: ${{ matrix.shard }}/4"
           echo ""
-          npx playwright test --project=chromium --grep "$TEST_TAG" --shard=${{ matrix.shard }}/4
+          npx playwright test --project=chromium --grep "$TEST_TAG" --grep-invert "@document-upload" --shard=${{ matrix.shard }}/4
           
           echo "📁 Checking generated files:"
           ls -la playwright-report/ || echo "playwright-report/ directory not found"
@@ -197,9 +202,14 @@ jobs:
           echo "✅ TESTRAIL_SUITE_ID: $TESTRAIL_SUITE_ID"
           echo ""
           
-          # Run custom TestRail publisher
-          TEST_TAG="@try-test-rail-names"
-          TEST_RUN_TITLE="UI Tests - $TEST_TAG - $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+          # Determine which tag was run (same as test execution step)
+          if [ "${{ github.event.inputs.environment }}" == "staging" ]; then
+            TEST_TAG="@staging-ready"
+          else
+            TEST_TAG="@regression"
+          fi
+          
+          TEST_RUN_TITLE="$TEST_TAG Tests (4 Shards): ${{ github.event.inputs.environment || 'development' }} - Browser: chromium - Date $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
           
           echo "🚀 Running custom TestRail publisher..."
           echo "Tag: $TEST_TAG"

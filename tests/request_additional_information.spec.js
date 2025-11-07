@@ -1,4 +1,4 @@
-import { test, testWithCleanup, expect } from './fixtures/enhanced-cleanup-fixture-conditional';
+import { test, expect } from '@playwright/test';
 import loginForm from '~/tests/utils/login-form';
 import { admin, app } from '~/tests/test_config';
 import { joinUrl } from '~/tests/utils/helper';
@@ -10,9 +10,14 @@ import {
     completeIdentityStepViaAPI,
     completeEmploymentStepViaAPI
 } from '~/tests/utils/session-flow';
+import { cleanupSession } from './utils/cleanup-helper';
 
 // Test configuration
 const applicationName = 'AutoTest - Request Doc UI test';
+
+let createdSessionId = null;
+let applicantContext = null;
+let allTestsPassed = true;
 
 /**
  * Utility: Authenticate a guest using an invitation link and return a bearer token
@@ -69,23 +74,12 @@ async function openAndSubmitRequestDialog(page) {
 test.describe('request_additional_information', () => {
     test.setTimeout(360000); // Set timeout for the suite
     
-    testWithCleanup('Document Request: Complete validation (happy path + negative tests) @request-docs @integration @permissions @state-safetys @negative @validation @network-error @regression @staging-ready', async ({ page, context, cleanupHelper, dataManager }) => {
-        // Authenticate dataManager with admin credentials for cleanup
-        console.log('🔑 Authenticating dataManager for cleanup...');
-        const isAuthenticated = await dataManager.authenticate(admin.email, admin.password);
-        if (!isAuthenticated) {
-            console.warn('⚠️ Could not authenticate dataManager - cleanup may fail');
-        } else {
-            console.log('✅ DataManager authenticated for cleanup');
-        }
-
-        // Error collection for comprehensive validation
-        const errors = [];
-        let sessionId, link, primaryAuthToken, applicantCtx, adminToken;
+    test('Document Request: Complete validation (happy path + negative tests) @request-docs @integration @permissions @state-safetys @negative @validation @network-error @regression @staging-ready', async ({ page, context }) => {
         
-        // Define suite ID constant to ensure consistency between tracking and cleanup
-        const SUITE_ID = 'suite_request_additional_information';
-        console.log(`🔑 Using Suite ID for cleanup tracking: ${SUITE_ID}`);
+        try {
+            // Error collection for comprehensive validation
+            const errors = [];
+            let sessionId, link, primaryAuthToken, applicantCtx, adminToken;
         
         // =================================================================
         // PART 1: HAPPY PATH - Document Request Flow
@@ -111,17 +105,14 @@ test.describe('request_additional_information', () => {
         });
             sessionId = sessionData.sessionId;
             link = sessionData.link;
+            createdSessionId = sessionId;  // Store for cleanup
             
-            // Track session for conditional cleanup
-            cleanupHelper.trackSession({ id: sessionId }, SUITE_ID);
-            console.log(`✅ Session created and tracked for cleanup:`);
-            console.log(`   Session ID: ${sessionId}`);
-            console.log(`   Suite ID: ${SUITE_ID}`);
-            console.log(`   ⚠️ Session will be PRESERVED on test failure for debugging`);
+            console.log(`✅ Session created: ${sessionId}`);
 
             // Open applicant flow in separate context and advance to Employment step
-            applicantCtx = await context.browser().newContext();
-            const applicantPage = await applicantCtx.newPage();
+            applicantContext = await context.browser().newContext();
+            applicantCtx = applicantContext;  // Keep local variable for test code
+            const applicantPage = await applicantContext.newPage();
             const inviteUrl = new URL(link);
             await applicantPage.goto(joinUrl(app.urls.app, `${inviteUrl.pathname}${inviteUrl.search}`));
 
@@ -533,6 +524,31 @@ test.describe('request_additional_information', () => {
         }
         
         console.log('\n✅ ALL VALIDATIONS PASSED (Happy Path + Negative Tests)');
+        
+        } catch (error) {
+            allTestsPassed = false;
+            throw error;
+        }
+    });
+    
+    // ✅ Conditional cleanup: Keep session on failure for debugging
+    test.afterAll(async ({ request }) => {
+        console.log('🧹 Starting cleanup...');
+        console.log(`   Session ID: ${createdSessionId || 'none'}`);
+        console.log(`   All tests passed: ${allTestsPassed}`);
+        
+        // Clean up session (conditional - only if tests passed)
+        await cleanupSession(request, createdSessionId, allTestsPassed);
+        
+        // Close context (always)
+        if (applicantContext) {
+            try {
+                await applicantContext.close();
+                console.log('✅ Applicant context closed');
+            } catch (error) {
+                // Silent
+            }
+        }
     });
 });
 

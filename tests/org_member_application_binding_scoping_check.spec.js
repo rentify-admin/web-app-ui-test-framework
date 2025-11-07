@@ -2,19 +2,14 @@ import { admin, app } from '~/tests/test_config';
 import loginForm from '~/tests/utils/login-form';
 import { customUrlDecode, getRandomEmail } from './utils/helper';
 import { waitForJsonResponse } from './utils/wait-response';
-import { expect, test } from './fixtures/enhanced-cleanup-fixture';
+import { expect, test } from '@playwright/test';
+import { randomUUID } from 'crypto';
+
+let createdUser = null;
+let applicantContext = null;
+let allTestsPassed = true;
 
 test.describe('QA-102: org_member_application_binding_scoping_check', () => {
-
-    test.afterAll(async ({ cleanupHelper }) => {
-        console.log(`🧹 Suite Cleanup: Running afterAll cleanup`);
-        try {
-            await cleanupHelper.cleanupNow();
-            console.log(`✅ Suite Cleanup: Completed`);
-        } catch (error) {
-            console.log(`ℹ️ Global Cleanup: Cleanup already completed`);
-        }
-    });
 
     const organizationName = 'Permissions Test Org';
     const firstAppName = 'Test App P1';
@@ -23,11 +18,12 @@ test.describe('QA-102: org_member_application_binding_scoping_check', () => {
 
     test('Check Application Binding Scoping (Inbox Visibility)',
         {
-            tag: ['@regression'],
+            tag: ['@regression', '@staging-ready'],
             timeout: 180_000  // 3 minutes
-        }, async ({ page, browser, cleanupHelper }) => {
-
-            user = {
+        }, async ({ page, browser }) => {
+            
+            try {
+                user = {
                 first_name: 'Test',
                 last_name: 'User',
                 email: getRandomEmail(),
@@ -94,8 +90,8 @@ test.describe('QA-102: org_member_application_binding_scoping_check', () => {
 
             await page.getByTestId('org-user-create-modal-cancel').click();
 
-            const context = await browser.newContext();
-            const applicantPage = await context.newPage();
+            applicantContext = await browser.newContext();
+            const applicantPage = await applicantContext.newPage();
             await applicantPage.goto(invitationUrl);
             await applicantPage.waitForTimeout(2000);
             await applicantPage.getByRole('textbox', { name: 'First Name' }).fill(user.first_name);
@@ -136,10 +132,12 @@ test.describe('QA-102: org_member_application_binding_scoping_check', () => {
             }
             await page.getByTestId(`edit-${responseLIst[0].id}`).click();
 
-            cleanupHelper.trackUser(responseLIst[0].user)
+            // Store user for cleanup
+            createdUser = responseLIst[0].user;
 
             await page.getByRole('textbox', { name: 'Search Permissions' }).click();
             await page.getByRole('textbox', { name: 'Search Permissions' }).fill('view sessions');
+            await page.waitForTimeout(1000);
             const perm1 = await page.getByRole('checkbox', { name: 'View Sessions' });
             if (!await perm1.isChecked()) {
                 await perm1.check({ timeout: 2000 });
@@ -279,8 +277,62 @@ test.describe('QA-102: org_member_application_binding_scoping_check', () => {
                 await expect(combinedLocator).toBeVisible();
             }
             console.log(`✅ Verified: All ${sideItemsCount} sessions belong to ${firstAppName} OR ${secondAppName}`);
-
-        })
-
-
-})  
+            
+            } catch (error) {
+                allTestsPassed = false;
+                throw error;
+            }
+        });
+    
+    // ✅ Cleanup user and context after test
+    test.afterAll(async ({ request }) => {
+        console.log('🧹 Starting cleanup...');
+        console.log(`   User: ${createdUser?.email || 'none'}`);
+        console.log(`   All tests passed: ${allTestsPassed}`);
+        
+        // Clean up user (always delete)
+        if (createdUser?.id) {
+            try {
+                console.log('🧹 Deleting test user...');
+                const authResponse = await request.post(`${app.urls.api}/auth`, {
+                    data: {
+                        email: admin.email,
+                        password: admin.password,
+                        uuid: randomUUID(),
+                        os: 'web'
+                    }
+                });
+                
+                if (authResponse.ok()) {
+                    const auth = await authResponse.json();
+                    const token = auth.data.token;
+                    
+                    const deleteResponse = await request.delete(
+                        `${app.urls.api}/users/${createdUser.id}`,
+                        {
+                            headers: { Authorization: `Bearer ${token}` }
+                        }
+                    );
+                    
+                    if (deleteResponse.ok()) {
+                        console.log('✅ User deleted');
+                    } else {
+                        console.log(`⚠️ Failed to delete user: ${deleteResponse.status()}`);
+                    }
+                }
+            } catch (error) {
+                console.error('❌ User cleanup failed:', error.message);
+            }
+        }
+        
+        // Close context
+        if (applicantContext) {
+            try {
+                await applicantContext.close();
+                console.log('✅ Applicant context closed');
+            } catch (error) {
+                // Silent
+            }
+        }
+    });
+});  

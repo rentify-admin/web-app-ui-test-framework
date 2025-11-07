@@ -5,12 +5,18 @@ import { findAndInviteApplication } from '~/tests/utils/applications-page';
 import { getRandomEmail } from '~/tests/utils/helper';
 import { completePaystubConnection, fillhouseholdForm, identityStep, setupInviteLinkSession, updateRentBudget, completePlaidFinancialStepBetterment, waitForPlaidConnectionCompletion } from '~/tests/utils/session-flow';
 import generateSessionForm from '~/tests/utils/generate-session-form';
+import { cleanupSession } from './utils/cleanup-helper';
+
+let createdSessionId = null;
+let allTestsPassed = true;
 
 test.describe('application_step_should_skip_properly', () => {
     test('Check Application step skip works propertly', {
         tag: ['@regression', '@staging-ready']
     }, async ({ page, browser }) => {
-        test.setTimeout(300_000)
+        test.setTimeout(300_000);
+        
+        try {
     
         // Note: first_name will be auto-prefixed with 'AutoT - ' by the helper
         // Note: email will be auto-suffixed with '+autotest' by the helper
@@ -41,6 +47,7 @@ test.describe('application_step_should_skip_properly', () => {
     
         console.log('🚀 Invite Applicant')
         const { sessionId, sessionUrl, link } = await generateSessionForm.generateSessionAndExtractLink(page, user);
+        createdSessionId = sessionId;  // Store for cleanup
         console.log('✅ Done Invite Applicant')
     
         await page.getByTestId('user-dropdown-toggle-btn').click();
@@ -182,8 +189,18 @@ test.describe('application_step_should_skip_properly', () => {
         await expect(page.getByTestId('summary-completed-section')).toBeVisible({ timeout: 10_000 });
         console.log('✅ On summary page')
     
-        await page.close()
-    })
-})
+        await page.close();
+        
+        } catch (error) {
+            allTestsPassed = false;
+            throw error;
+        }
+    });
+    
+    // ✅ Conditional cleanup: Keep session on failure for debugging
+    test.afterAll(async ({ request }) => {
+        await cleanupSession(request, createdSessionId, allTestsPassed);
+    });
+});
 
 
