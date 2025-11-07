@@ -83,6 +83,9 @@ test.describe('heartbeat_completed_application_click_check', () => {
         await newPage.waitForLoadState();
         console.log('✅ Session openned in the new page')
 
+        await handleOptionalTermsCheckbox(newPage);
+        console.log('✅ Optional terms checkbox handled')
+
         console.log('🚀 Checking summary page opened')
         await expect(newPage.getByTestId('summary-step')).toBeVisible({ timeout: 10_000 })
 
