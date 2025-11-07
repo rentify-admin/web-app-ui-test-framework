@@ -340,13 +340,13 @@ const canUploadListOfDocuments = async (page, documents = []) => {
     if (!await btn.isVisible()) {
         await page.getByTestId('session-action-btn').click();
     }
-    await page.waitForTimeout(1000);
     await btn.click();
+    await page.waitForTimeout(1000);
 
     await page.getByTestId('select-applicant').click();
-    await page.waitForTimeout(1000);
+    await page.waitForTimeout(500);
     await page.locator('#select-applicant-0').click();
-    await page.waitForTimeout(1000);
+    await page.waitForTimeout(500);
     await page.getByTestId('select-document').click();
 
     const documentOptions = await page.locator('[id*="select-document-"]');

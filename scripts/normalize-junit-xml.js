@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-const fs = require('fs');
+import fs from 'fs';
 
 const xmlPath = 'playwright-report/results.xml';
 
@@ -39,4 +39,3 @@ fs.writeFileSync(xmlPath, content, 'utf8');
 console.log('✅ XML normalization completed');
 console.log('📊 Preview normalized XML:');
 console.log(content.split('\n').slice(0, 20).join('\n'));
-

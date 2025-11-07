@@ -207,7 +207,7 @@ jobs:
           echo ""
           
           set +e
-          node scripts/ui-publish-reports.js --tag "$TEST_TAG" --test-type "UI Tests" --run-name "$TEST_RUN_TITLE" 2>&1 | tee testrail_publish.log
+          node scripts/publish-ui-results.js --tag "$TEST_TAG" --test-type "UI Tests" --run-name "$TEST_RUN_TITLE" 2>&1 | tee testrail_publish.log
           EXIT_CODE=$?
           set -e
           
