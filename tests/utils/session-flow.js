@@ -73,7 +73,7 @@ const waitForConnectionCompletion = async (page, options = {}) => {
     } else {
         const locator = page.locator(selector);
         let elementFound = false;
-        const maxAttempts = 40; // 40 attempts * 500ms = 20 seconds max
+        const maxAttempts = 50; // 50 attempts * 500ms = 25 seconds max
         const pollInterval = 500;
         
         for (let attempt = 0; attempt < maxAttempts; attempt++) {

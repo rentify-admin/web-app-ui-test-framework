@@ -174,33 +174,7 @@ jobs:
         run: npm ci
 
       - name: Normalize JUnit XML (fix special characters)
-        run: |
-          echo "🔧 Normalizing JUnit XML for TestRail compatibility..."
-          if [ ! -f "playwright-report/results.xml" ]; then
-            echo "⚠️ No results.xml found, skipping normalization"
-            exit 0
-          fi
-          
-          # Backup original
-          cp playwright-report/results.xml playwright-report/results.xml.backup
-          
-          # Normalize special characters that cause TestRail mismatches
-          sed -i.tmp \
-            -e 's/—/-/g' \
-            -e 's/–/-/g' \
-            -e 's/→/->/g' \
-            -e 's/←/<-/g' \
-            -e 's/"/"/g' \
-            -e 's/"/"/g' \
-            -e 's/'/'"'"'/g' \
-            -e 's/'/'"'"'/g' \
-            playwright-report/results.xml
-          
-          rm -f playwright-report/results.xml.tmp
-          
-          echo "✅ XML normalization completed"
-          echo "📊 Preview normalized XML:"
-          head -20 playwright-report/results.xml || true
+        run: node scripts/normalize-junit-xml.js
 
       - name: Publish to TestRail (Custom Script)
         continue-on-error: true
