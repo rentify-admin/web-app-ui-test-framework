@@ -4,10 +4,8 @@ import { app, admin } from '~/tests/test_config';
 import { joinUrl } from '~/tests/utils/helper';
 import { waitForJsonResponse } from '~/tests/utils/wait-response';
 import { 
-    handleOptionalStateModal,
-    handleOptionalTermsCheckbox,
+    setupInviteLinkSession,
     skipApplicants,
-    selectApplicantType,
     updateRentBudget,
     fillhouseholdForm,
     completePlaidFinancialStep,
@@ -65,22 +63,13 @@ test.describe('skip_button_visibility_logic', () => {
         const applicantPage = await context.newPage();
         await applicantPage.goto(joinUrl(`${app.urls.app}`, `${linkUrl.pathname}${linkUrl.search}`));
 
-        // Handle terms modal if present (MUST be BEFORE applicant type selection)
-        await handleOptionalTermsCheckbox(applicantPage);
-
-        // Step 5: Select Applicant Type on Page
-        console.log('🚀 Step 5: Select Applicant Type on Page');
-        await selectApplicantType(applicantPage, sessionUrl, '#affordable_occupant');
-        console.log('✅ Applicant type selected successfully');
-        
-        // Step 5.5: Wait for page transition and verify we're on the next step
-        console.log('🚀 Step 5.5: Wait for page transition and verify we\'re on the next step');
-        await applicantPage.waitForTimeout(2000); // Wait for page transition
-        console.log('✅ Page transition completed');
-
-        // Step 6: Select state in the state modal
-        console.log('🚀 Step 6: Select state in the state modal');
-        await handleOptionalStateModal(applicantPage);
+        // Step 5: Setup session flow (terms → applicant type → state)
+        console.log('🚀 Step 5: Setup session flow');
+        await setupInviteLinkSession(applicantPage, {
+            sessionUrl,
+            applicantTypeSelector: '#affordable_occupant'
+        });
+        console.log('✅ Session setup complete');
 
         // Step 6.5: Verify we're on the rent budget step
         console.log('🚀 Step 6.5: Verify we\'re on the rent budget step');

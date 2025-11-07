@@ -6,7 +6,7 @@ import { navigateToSessionById, searchSessionWithText } from './utils/report-pag
 import { waitForJsonResponse } from './utils/wait-response';
 import { findAndInviteApplication, gotoApplicationsPage } from './utils/applications-page';
 import generateSessionForm from './utils/generate-session-form';
-import { handleOptionalStateModal, handleOptionalTermsCheckbox, simulatorFinancialStepWithVeridocs, updateRentBudget } from './utils/session-flow';
+import { setupInviteLinkSession, simulatorFinancialStepWithVeridocs, updateRentBudget } from './utils/session-flow';
 import { joinUrl } from './utils/helper';
 import { veriDocsBankStatementData } from './mock-data/bank-statement-veridocs-payload';
 
@@ -47,13 +47,8 @@ test.describe('QA-191:create_multiple_remarks.spec', () => {
         const inviteUrl = new URL(link);
         await applicantPage.goto(joinUrl(app.urls.app, `${inviteUrl.pathname}${inviteUrl.search}`));
 
-        console.log('🚀 Handling optional state modal (appears first for this app)');
-        await handleOptionalStateModal(applicantPage);
-        console.log('✅ Done handling state modal');
-
-        console.log('🚀 Handling optional terms checkbox (appears after state modal)');
-        await handleOptionalTermsCheckbox(applicantPage);
-        console.log('✅ Done handling terms checkbox');
+        // Setup session flow (no applicant type)
+        await setupInviteLinkSession(applicantPage);
 
         await updateRentBudget(applicantPage, sessionId);
 

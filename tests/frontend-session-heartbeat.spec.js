@@ -3,7 +3,7 @@ import { adminLoginAndNavigateToApplications, findSessionLocator, loginWith } fr
 import { findAndInviteApplication } from '~/tests/utils/applications-page';
 import { admin, app } from './test_config';
 import generateSessionForm from '~/tests/utils/generate-session-form';
-import { completePaystubConnection, fillhouseholdForm, handleOptionalTermsCheckbox, selectApplicantType, updateRentBudget, updateStateModal, waitForButtonOrAutoAdvance } from '~/tests/utils/session-flow';
+import { completePaystubConnection, fillhouseholdForm, setupInviteLinkSession, updateRentBudget, waitForButtonOrAutoAdvance } from '~/tests/utils/session-flow';
 import { getRandomEmail, joinUrl } from '~/tests/utils/helper';
 import { searchSessionWithText } from '~/tests/utils/report-page';
 import { waitForJsonResponse } from './utils/wait-response';
@@ -50,32 +50,10 @@ test.describe('frontend-session-heartbeat', () => {
         await page.goto(link);
         console.log('✅ Done Open invite URL')
 
-        console.log('🚀 Handling optional terms modal')
-        await handleOptionalTermsCheckbox(page);
-        console.log('✅ Done handling terms modal')
-
-        console.log('🚀 Selecting Applicant type employed')
-        await selectApplicantType(page, sessionUrl, '#employed');
-        console.log('✅ Selected Applicant type employed')
-
-        // Wait for state modal to appear after selecting applicant type
-        console.log('🚀 Waiting for state modal to appear')
-        try {
-            // Wait for the page to stabilize after applicant type selection
-            await page.waitForTimeout(3000);
-
-            // Wait for the state modal with the correct test ID
-            await page.waitForSelector('[data-testid="state-modal"]', {
-                timeout: 10000,
-                state: 'visible'
-            });
-
-            console.log('✅ State modal appeared, filling state modal')
-            await updateStateModal(page, 'ALABAMA');
-            console.log('✅ Done filling state modal')
-        } catch (error) {
-            console.log('⚠️ State modal did not appear, continuing with test...');
-        }
+        await setupInviteLinkSession(page, {
+            sessionUrl,
+            applicantTypeSelector: '#employed'
+        });
 
         console.log('🚀 Filing rent budget')
         await updateRentBudget(page, sessionId, '500');

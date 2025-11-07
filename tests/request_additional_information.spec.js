@@ -5,8 +5,7 @@ import { joinUrl } from '~/tests/utils/helper';
 import { gotoApplicationsPage, findAndInviteApplication } from '~/tests/utils/applications-page';
 import generateSessionForm from '~/tests/utils/generate-session-form';
 import {
-    handleOptionalStateModal,
-	handleOptionalTermsCheckbox,
+    setupInviteLinkSession,
     updateRentBudget,
     completeIdentityStepViaAPI,
     completeEmploymentStepViaAPI
@@ -126,10 +125,8 @@ test.describe('request_additional_information', () => {
             const inviteUrl = new URL(link);
             await applicantPage.goto(joinUrl(app.urls.app, `${inviteUrl.pathname}${inviteUrl.search}`));
 
-            // Handle state modal if present
-            await handleOptionalStateModal(applicantPage);
-			// Handle optional terms checkbox/modal (no applicant type in this flow)
-			await handleOptionalTermsCheckbox(applicantPage);
+            // Setup session flow (no applicant type)
+            await setupInviteLinkSession(applicantPage);
 
             // Rent budget step
             await updateRentBudget(applicantPage, sessionId);

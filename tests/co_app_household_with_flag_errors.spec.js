@@ -8,10 +8,7 @@ import { waitForJsonResponse } from '~/tests/utils/wait-response';
 import { gotoPage } from '~/tests/utils/common';
 import {
     fillhouseholdForm,
-    handleOptionalStateModal,
-    handleOptionalTermsCheckbox,
-    selectApplicantType,
-    updateStateModal,
+    setupInviteLinkSession,
     completeIdentityStepViaAPI,
     completeFinancialStepViaAPI,
     completeEmploymentStepViaAPI
@@ -90,18 +87,11 @@ test.describe('co_app_household_with_flag_errors', () => {
         const applicantPage = await context.newPage();
         await applicantPage.goto(joinUrl(`${app.urls.app}`, `${linkUrl.pathname}${linkUrl.search}`));
 
-        // Step 4.5: Handle optional terms checkbox (appears FIRST)
-        console.log('🚀 Handling optional terms checkbox (appears FIRST)');
-        await handleOptionalTermsCheckbox(applicantPage);
-        console.log('✅ Done handling terms checkbox');
-
-        // Step 5: Select Applicant Type on Page
-        await selectApplicantType(applicantPage, sessionUrl);
-
-        // Step 6: Select state in the state modal (appears AFTER applicant type)
-        console.log('🚀 Handling optional state modal (appears AFTER applicant type)');
-        await handleOptionalStateModal(applicantPage);
-        console.log('✅ Done handling state modal');
+        // Step 4.5-6: Setup session flow (terms → applicant type → state)
+        await setupInviteLinkSession(applicantPage, {
+            sessionUrl,
+            applicantTypeSelector: '#affordable_primary'
+        });
 
         // Step 7: Complete rent budget step
         await updateRentBudget(applicantPage, sessionId);
@@ -482,18 +472,13 @@ test.describe('co_app_household_with_flag_errors', () => {
         const coAppSession = await waitForJsonResponse(coSessionResp);
         const coAppSessionId = coAppSession.data.id;
 
-        // CO-APP: Handle optional terms checkbox (appears FIRST)
-        console.log('🚀 CO-APP: Handling optional terms checkbox (appears FIRST)');
-        await handleOptionalTermsCheckbox(coAppPage);
-        console.log('✅ CO-APP: Done handling terms checkbox');
-
-        // Step 5: Select Applicant Type on Page
-        await selectApplicantType(coAppPage, coAppSessionApiUrl);
-
-        // Step 6: Select state in the state modal (appears AFTER applicant type)
-        console.log('🚀 CO-APP: Handling optional state modal (appears AFTER applicant type)');
-        await updateStateModal(coAppPage);
-        console.log('✅ CO-APP: Done handling state modal');
+        // CO-APP: Setup session flow (terms → applicant type → state)
+        console.log('🚀 CO-APP: Setting up session flow');
+        await setupInviteLinkSession(coAppPage, {
+            sessionUrl: coAppSessionApiUrl,
+            applicantTypeSelector: '#affordable_primary'
+        });
+        console.log('✅ CO-APP: Session setup complete');
 
         await coAppPage.waitForTimeout(1000);
 

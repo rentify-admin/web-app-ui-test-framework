@@ -13,9 +13,7 @@ import {
     completePaystubConnection,
     completePlaidFinancialStepBetterment,
     fillhouseholdForm,
-    handleOptionalStateModal,
-		handleOptionalTermsCheckbox,
-    selectApplicantType,
+    setupInviteLinkSession,
     updateRentBudget,
     waitForPlaidConnectionCompletion
 } from '~/tests/utils/session-flow';
@@ -71,14 +69,11 @@ test.describe('co_applicant_effect_on_session_test', () => {
             joinUrl(`${app.urls.app}`, `${linkUrl.pathname}${linkUrl.search}`)
         );
 		
-		// Handle terms modal if present (before applicant type)
-		await handleOptionalTermsCheckbox(applicantPage);
-    
-        // Step 5: Select Applicant Type on Page
-        await selectApplicantType(applicantPage, sessionUrl);
-    
-        // Step 6: Select state in the state modal
-        await handleOptionalStateModal(applicantPage);
+        // Step 5-6: Setup session flow (terms → applicant type → state)
+        await setupInviteLinkSession(applicantPage, {
+            sessionUrl,
+            applicantTypeSelector: '#affordable_primary'
+        });
         await applicantPage.waitForTimeout(500);
     
         // Step 7: Complete rent budget step
@@ -231,12 +226,11 @@ test.describe('co_applicant_effect_on_session_test', () => {
     
         const coAppSession = await waitForJsonResponse(coSessionResp);
     
-		// Handle terms modal if present (before applicant type)
-		await handleOptionalTermsCheckbox(coAppPage);
-	
-        await selectApplicantType(coAppPage, coAppSessionApiUrl);
-    
-        await handleOptionalStateModal(coAppPage);
+		// CO-APP: Setup session flow (terms → applicant type → state)
+		await setupInviteLinkSession(coAppPage, {
+            sessionUrl: coAppSessionApiUrl,
+            applicantTypeSelector: '#affordable_primary'
+        });
     
         await coAppPage.waitForTimeout(1000);
     

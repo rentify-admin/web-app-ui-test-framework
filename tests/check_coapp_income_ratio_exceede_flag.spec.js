@@ -4,7 +4,7 @@ import { admin, app } from '~/tests/test_config';
 import { findAndInviteApplication, gotoApplicationsPage } from '~/tests/utils/applications-page';
 import generateSessionForm from '~/tests/utils/generate-session-form';
 import { getCentsToDollarsSafe, joinUrl } from '~/tests/utils/helper';
-import { completePaystubConnection, fillhouseholdForm, handleOptionalTermsCheckbox, selectApplicantType, updateRentBudget, updateStateModal, identityStep, waitForPlaidConnectionCompletion, completePlaidFinancialStepBetterment } from '~/tests/utils/session-flow';
+import { completePaystubConnection, fillhouseholdForm, setupInviteLinkSession, updateRentBudget, identityStep, waitForPlaidConnectionCompletion, completePlaidFinancialStepBetterment } from '~/tests/utils/session-flow';
 import { gotoPage } from '~/tests/utils/common';
 import { findSessionLocator, searchSessionWithText } from '~/tests/utils/report-page';
 import { waitForJsonResponse } from '~/tests/utils/wait-response';
@@ -49,7 +49,7 @@ const checkDollarText = async (rentBudget, rentLocator) => {
 
 test.describe('check_coapp_income_ratio_exceede_flag', () => {
     test('Should confirm co-applicant income is considered when generating/removing Gross Income Ratio Exceeded flag', { 
-        tag: ['@smoke', '@external-integration', '@regression', '@staging-ready'],
+        tag: ['@smoke', '@external-integration', '@regression', '@staging-ready', '@try-test-rail-names'],
     }, async ({ page, browser }) => {
         test.setTimeout(450000);
         
@@ -82,9 +82,6 @@ test.describe('check_coapp_income_ratio_exceede_flag', () => {
         const applicantPage = await context.newPage();
         await applicantPage.goto(joinUrl(`${app.urls.app}`, `${linkUrl.pathname}${linkUrl.search}`));
 		
-		// Handle terms modal if present (before applicant type selection)
-		await handleOptionalTermsCheckbox(applicantPage);
-        
         let session;
         
         const responseSession = async response => {
@@ -98,10 +95,11 @@ test.describe('check_coapp_income_ratio_exceede_flag', () => {
 
         page.on('response', responseSession);
     
-        // Step 6: Select Applicant Type on Page
-        await selectApplicantType(applicantPage, sessionUrl, '#employed');
-    
-        await updateStateModal(applicantPage, 'ALABAMA');
+        // Step 6: Setup session flow (terms → applicant type → state)
+        await setupInviteLinkSession(applicantPage, {
+            sessionUrl,
+            applicantTypeSelector: '#employed'
+        });
     
         await updateRentBudget(applicantPage, sessionId, '1500');
     
@@ -224,10 +222,11 @@ test.describe('check_coapp_income_ratio_exceede_flag', () => {
     
         const coAppSession = await waitForJsonResponse(coSessionResp);
     
-		// Handle terms modal if present (before applicant type selection)
-		await handleOptionalTermsCheckbox(coAppPage);
-		
-        await selectApplicantType(coAppPage, coAppSessionApiUrl, '#other');
+		// CO-APP: Setup session flow (terms → applicant type → state)
+		await setupInviteLinkSession(coAppPage, {
+            sessionUrl: coAppSessionApiUrl,
+            applicantTypeSelector: '#other'
+        });
     
         await identityStep(coAppPage);
     
@@ -322,9 +321,31 @@ test.describe('check_coapp_income_ratio_exceede_flag', () => {
         await expect(calculatedRatioNew).toBeLessThanOrEqual(30); // Should be below 30% threshold
         await page.getByTestId('view-details-btn').click({ timeout: 20_000 });
     
-        await expect(page.getByTestId('GROSS_INCOME_RATIO_EXCEEDED')).toHaveCount(0, { timeout: 20_000 });
-    
-        await page.getByTestId('close-event-history-modal').click({ timeout: 20_000 });
+        // Poll for flag to clear (backend needs time to recalculate)
+        console.log('🔍 Polling for GROSS_INCOME_RATIO_EXCEEDED flag to clear...');
+        let flagCleared = false;
+        const maxFlagPolls = 10; // 10 attempts * 2s = 20s max
+        for (let i = 0; i < maxFlagPolls; i++) {
+            const flagCount = await page.getByTestId('GROSS_INCOME_RATIO_EXCEEDED').count();
+            console.log(`🔍 Attempt ${i + 1}/${maxFlagPolls}: GROSS_INCOME_RATIO_EXCEEDED count = ${flagCount}`);
+            
+            if (flagCount === 0) {
+                flagCleared = true;
+                console.log(`✅ Flag cleared after ${i + 1} attempts`);
+                break;
+            }
+            
+            // Close and reopen modal to refresh flag list
+            if (i < maxFlagPolls - 1) {
+                await page.getByTestId('close-event-history-modal').click({ timeout: 5_000 });
+                await page.waitForTimeout(2000);
+                await page.getByTestId('view-details-btn').click({ timeout: 5_000 });
+                await page.waitForTimeout(1000);
+            }
+        }
+
+        expect(flagCleared).toBe(true);
+        await page.getByTestId('close-event-history-modal').click({ timeout: 5_000 });
         page.off('response', responseSession);
         await page.waitForTimeout(1000);
     });

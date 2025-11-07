@@ -456,6 +456,92 @@ const handleOptionalTermsCheckbox = async page => {
     }
 };
 
+/**
+ * Setup session flow after navigating to invite link
+ * Handles optional modals in correct order based on presence of applicant type selection
+ * 
+ * @param {import('@playwright/test').Page} page - Playwright page object
+ * @param {Object} options - Configuration options
+ * @param {string} [options.sessionUrl] - Required if applicantTypeSelector is provided
+ * @param {string} [options.applicantTypeSelector] - CSS selector for applicant type (e.g., '#employed', '#affordable_occupant', '#affordable_primary')
+ * @param {boolean} [options.skipTerms=false] - Skip terms modal handling
+ * @param {boolean} [options.skipState=false] - Skip state modal handling
+ * @returns {Promise<void>}
+ * 
+ * @example
+ * // With applicant type selection:
+ * await setupInviteLinkSession(page, {
+ *     sessionUrl: 'https://api.../sessions/123',
+ *     applicantTypeSelector: '#employed'
+ * });
+ * 
+ * @example
+ * // Without applicant type (financial-only apps):
+ * await setupInviteLinkSession(page);
+ * 
+ * @example
+ * // Co-applicant with explicit default:
+ * await setupInviteLinkSession(coAppPage, {
+ *     sessionUrl: coAppSessionApiUrl,
+ *     applicantTypeSelector: '#affordable_primary'
+ * });
+ */
+const setupInviteLinkSession = async (page, options = {}) => {
+    const {
+        sessionUrl = null,
+        applicantTypeSelector = null,
+        skipTerms = false,
+        skipState = false
+    } = options;
+
+    // PATTERN 1: WITH applicant type selection
+    // Order: Terms → ApplicantType → State
+    if (applicantTypeSelector !== null) {
+        if (!sessionUrl) {
+            throw new Error('setupInviteLinkSession: sessionUrl is required when applicantTypeSelector is provided');
+        }
+        
+        console.log('🚀 Session setup: WITH applicant type selection');
+        
+        // Step 1: Terms modal (appears FIRST, before applicant type)
+        if (!skipTerms) {
+            console.log('  → [1/3] Handling optional terms checkbox');
+            await handleOptionalTermsCheckbox(page);
+        }
+        
+        // Step 2: Applicant type selection
+        console.log(`  → [2/3] Selecting applicant type: ${applicantTypeSelector}`);
+        await selectApplicantType(page, sessionUrl, applicantTypeSelector);
+        
+        // Step 3: State modal (appears AFTER applicant type selection)
+        if (!skipState) {
+            console.log('  → [3/3] Handling optional state modal');
+            await handleOptionalStateModal(page);
+        }
+        
+        console.log('✅ Session setup complete (with applicant type)');
+    } 
+    // PATTERN 2: NO applicant type selection
+    // Order: State → Terms
+    else {
+        console.log('🚀 Session setup: NO applicant type selection');
+        
+        // Step 1: State modal (appears FIRST, before terms)
+        if (!skipState) {
+            console.log('  → [1/2] Handling optional state modal');
+            await handleOptionalStateModal(page);
+        }
+        
+        // Step 2: Terms modal
+        if (!skipTerms) {
+            console.log('  → [2/2] Handling optional terms checkbox');
+            await handleOptionalTermsCheckbox(page);
+        }
+        
+        console.log('✅ Session setup complete (no applicant type)');
+    }
+};
+
 const handleOptionalStateModal = async page => {
     // Wait for page to be fully loaded before checking for modal
     await page.waitForLoadState('domcontentloaded');
@@ -2506,6 +2592,7 @@ export {
     createSessionWithSimulator,
     handleOptionalStateModal,
     handleOptionalTermsCheckbox,
+    setupInviteLinkSession,
     employmentVerificationWalmartPayStub,
     skipEmploymentVerification,
     plaidFinancialConnect,

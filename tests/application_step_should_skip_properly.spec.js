@@ -3,7 +3,7 @@ import { adminLoginAndNavigateToApplications } from '~/tests/utils/session-utils
 import { admin } from '~/tests/test_config';
 import { findAndInviteApplication } from '~/tests/utils/applications-page';
 import { getRandomEmail } from '~/tests/utils/helper';
-import { completePaystubConnection, fillhouseholdForm, identityStep, selectApplicantType, updateRentBudget, handleOptionalStateModal, handleOptionalTermsCheckbox, completePlaidFinancialStepBetterment, waitForPlaidConnectionCompletion } from '~/tests/utils/session-flow';
+import { completePaystubConnection, fillhouseholdForm, identityStep, setupInviteLinkSession, updateRentBudget, completePlaidFinancialStepBetterment, waitForPlaidConnectionCompletion } from '~/tests/utils/session-flow';
 import generateSessionForm from '~/tests/utils/generate-session-form';
 
 test.describe('application_step_should_skip_properly', () => {
@@ -54,17 +54,10 @@ test.describe('application_step_should_skip_properly', () => {
         await page.goto(link);
         console.log('✅ Done Open invite URL')
     
-        console.log('🚀 Handling optional terms checkbox (appears FIRST)')
-        await handleOptionalTermsCheckbox(page);
-        console.log('✅ Done handling terms checkbox')
-    
-        console.log('🚀 Selecting Applicant type employed')
-        await selectApplicantType(page, sessionUrl, '#employed');
-        console.log('✅ Selected Applicant type employed')
-    
-        console.log('🚀 Handling optional state modal (appears AFTER applicant type)')
-        await handleOptionalStateModal(page);
-        console.log('✅ Done handling state modal')
+        await setupInviteLinkSession(page, {
+            sessionUrl,
+            applicantTypeSelector: '#employed'
+        });
     
         console.log('🚀 Filing rent budget')
         await updateRentBudget(page, sessionId, '500');

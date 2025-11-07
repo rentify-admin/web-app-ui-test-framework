@@ -6,7 +6,7 @@ import generateSessionForm from "./utils/generate-session-form";
 import { joinUrl } from "./utils/helper";
 import { navigateToSessionById, searchSessionWithText } from "./utils/report-page";
 import { highBalanceBankStatementData } from "./mock-data/high-balance-financial-payload";
-import { handleOptionalStateModal, handleOptionalTermsCheckbox } from "./utils/session-flow";
+import { setupInviteLinkSession } from "./utils/session-flow";
 
 
 
@@ -74,10 +74,8 @@ test.describe('check_ui_not_show_na_for-high_balance.spec', () => {
         await applicantPage.goto(link);
         await applicantPage.waitForTimeout(2000);
 
-        // Handle state modal if it appears (needed for new emails)
-        await handleOptionalStateModal(applicantPage);
-        // Handle optional terms checkbox/modal (no applicant type in this flow)
-        await handleOptionalTermsCheckbox(applicantPage);
+        // Setup session flow (no applicant type)
+        await setupInviteLinkSession(applicantPage);
 
         // Step 7: complet rent budget step.
         await applicantPage.locator('input#rent_budget').fill('555');
