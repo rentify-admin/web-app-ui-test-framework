@@ -67,9 +67,12 @@ function parseTestResults(filePath) {
     // Count from flaky tests
     analysis.flakyTests.forEach(test => {
         totalTests++;
-        totalPassed += test.passes;
-        totalFailed += test.fails;
-        totalSkipped += test.skipped;
+        // Count test as passed if it passed at least once
+        if (test.passes > 0) totalPassed++;
+        // Count test as failed if it never passed
+        else if (test.fails > 0) totalFailed++;
+        // Count test as skipped if it was only skipped
+        else if (test.skipped > 0) totalSkipped++;
     });
     
     // Count from stable tests (we need to get this from the analyzer)
@@ -85,9 +88,12 @@ function parseTestResults(filePath) {
         
         const testAnalysis = analyzer.analyzeTestGroup(testName, cases);
         totalTests++;
-        totalPassed += testAnalysis.passes;
-        totalFailed += testAnalysis.fails;
-        totalSkipped += testAnalysis.skipped;
+        // Count test as passed if it passed at least once
+        if (testAnalysis.passes > 0) totalPassed++;
+        // Count test as failed if it never passed
+        else if (testAnalysis.fails > 0) totalFailed++;
+        // Count test as skipped if it was only skipped
+        else if (testAnalysis.skipped > 0) totalSkipped++;
     }
     
     return {
