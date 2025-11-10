@@ -31,1473 +31,1629 @@ Based on the test files in the framework, I've identified these categories:
 
 ---
 
-## Category 1: Authentication & Permission Tests - COMPLETE ANALYSIS
+## Category 1: Authentication & Permission Tests
 
-### **Files Analyzed:**
-1. `user_permissions_verify.spec.js` - **Centralized Leasing Role**
-2. `staff_user_permissions_test.spec.js` - **Staff Role** 
-3. `property_admin_permission_test.spec.js` - **Property Admin Role**
-4. `check_org_member_application_permission_update.spec.js` - **Organization Member Role**
+**Purpose**: Validates role-based permissions and access control across different user types
+
+**Tests in this Category**:
+1. `user_permissions_verify.spec.js` - Centralized Leasing role (full session management)
+2. `staff_user_permissions_test.spec.js` - Staff role (read-only access)
+3. `property_admin_permission_test.spec.js` - Property Admin role (property management with workflow restrictions)
+4. `check_org_member_application_permission_update.spec.js` - Member permission management
+5. `org_member_application_binding_scoping_check.spec.js` - Application binding scoping (inbox visibility)
 
 ---
 
-### **1. user_permissions_verify.spec.js - Centralized Leasing Role**
+### **1. user_permissions_verify.spec.js**
 
-#### **Complete Test Structure:**
-- **3 sequential tests** (serial mode, 180s timeout)
-- **Global state management** for test isolation
-- **API-based user creation** (not UI-based)
+**Purpose**: Validates comprehensive permissions for users with the "Autotest - Centralized Leasing" role
+
+**Configuration**:
+- **Role**: "Autotest - Centralized Leasing" (fetched dynamically)
+- **Organization**: "Permissions Test Org" (fetched dynamically)
+- **Application**: "Autotest - UI permissions tests"
+- **Tags**: @regression, @staging-ready
+- **Execution**: 3 sequential tests (serial mode, 240s timeout)
+- **Shared Resources**: Session created once in `beforeAll`, reused across all tests
+
+---
 
 #### **Test 1: "Should allow admin to create user via API"**
-**Purpose**: Create a Centralized Leasing user via API
-**API Endpoints Called**:
-- `POST /auth` - Admin authentication (via dataManager.authenticate, line 130)
-  - **Response Used For**: Getting authentication token for API access
-  - **What's Actually Checked**: `response.ok()` is true, `authData.token` is extracted and stored
-- `POST /users` - User creation via API (via dataManager.createEntities, line 179)
-  - **Response Used For**: Getting created user data for verification
-  - **What's Actually Checked**: `response.ok()` is true, `createdUserData.id` exists, `createdUserData` is stored in `this.created.users`
 
-**Steps**:
-1. Authenticate admin user for API access
-2. Create user with role `0196f6c9-da5e-7074-9e6e-c35ac8f1818e` (Centralized Leasing)
-3. Verify user creation
-4. Store user globally for other tests
-5. Track for cleanup
+**Purpose**: Create a test user with Centralized Leasing role via API for subsequent permission testing
+
+**Test Flow**:
+1. **Setup Phase**
+   - Authenticate as admin via API
+   - Fetch role by name: "Autotest - Centralized Leasing"
+   - Fetch organization by name: "Permissions Test Org"
+
+2. **User Creation**
+   - Generate unique email prefix
+   - Create user data with:
+     - First name: "User"
+     - Last name: "Playwright"  
+     - Role: Centralized Leasing (dynamically fetched ID)
+     - Organization: Permissions Test Org (dynamically fetched ID)
+   - Create user via API
+
+3. **Validation**
+   - Verify user ID exists
+   - Verify email matches expected value
+   - Store user globally for subsequent tests
+
+4. **Cleanup Preparation**
+   - User tracked by ApiDataManager for afterAll cleanup
+
+**Key API Endpoints**:
+- `POST /auth` - Admin authentication
+- `GET /roles` - Fetch role by name
+- `GET /organizations` - Fetch organization by name
+- `POST /users` - Create user
+
+**Business Validations**:
+- ✅ Admin can create users via API
+- ✅ Roles can be fetched dynamically by name
+- ✅ Organizations can be fetched dynamically by name
+- ✅ User creation returns valid ID
+
+---
 
 #### **Test 2: "Should allow user to edit the application"**
-**Purpose**: Test Centralized Leasing user can edit applications
-**API Endpoints Called**:
-- `POST /auth` - User login (via loginForm.submit, line 23)
-  - **Response Used For**: Authentication and session establishment
-  - **What's Actually Checked**: Response status is OK (200), page title changes to "Applicants", household-status-alert is visible
-- `GET /sessions?fields[session]=` - Load sessions for user (waitForResponse, line 142)
-  - **Response Used For**: Triggering login completion (no data validation)
-  - **What's Actually Checked**: Response status is OK (200)
-- `GET /applications` - Load applications list (waitForResponse, line 163)
-  - **Response Used For**: Getting applications array for UI display
-  - **What's Actually Checked**: Response status is OK (200), `applications?.length || 0` is greater than 0 (only checks count)
 
-**Steps**:
-1. Login with created user
-2. Navigate to applications menu
-3. Verify applications are visible
-4. Click edit button on first application
-5. Verify URL changes to edit page
-6. Verify application name input is populated
-7. Click cancel button
+**Purpose**: Verify Centralized Leasing role users can view and access application edit functionality
+
+**Test Flow**:
+1. **Setup Phase**
+   - Login with created test user
+   - Wait for sessions to load
+
+2. **Navigation**
+   - Verify applications menu and submenu are visible
+   - Click applications menu
+   - Click applications submenu
+   - Wait for applications list to load
+
+3. **Application Edit Access**
+   - Verify applications list is populated (count > 0)
+   - Verify edit button is visible on first application
+   - Click edit button
+   - Verify URL changes to application edit page
+   - Wait for application name input to populate
+   - Verify input has non-empty value
+
+4. **Cleanup**
+   - Click cancel to close edit page
+
+**Key API Endpoints**:
+- `POST /auth` - User login
+- `GET /sessions?fields[session]=` - Load user sessions
+- `GET /applications` - Load applications list
+
+**Business Validations**:
+- ✅ Centralized Leasing users can access applications menu
+- ✅ Users can view applications list
+- ✅ Edit button is visible and accessible
+- ✅ Application edit page loads correctly
+- ✅ Application data populates in edit form
+
+---
 
 #### **Test 3: "Should allow user to perform permited actions"**
-**Purpose**: Test comprehensive permissions for Centralized Leasing role
-**API Endpoints Called**:
-- `POST /auth` - User login (via loginWith → loginForm.submit, line 23)
-  - **Response Used For**: Authentication and session establishment
-  - **What's Actually Checked**: Response status is OK (200), page title changes to "Applicants", household-status-alert is visible
-- `GET /sessions?fields[session]=` - Load sessions (waitForResponse, line 239)
-  - **Response Used For**: Triggering login completion (no data validation)
-  - **What's Actually Checked**: Response status is OK (200)
-- `GET /sessions?fields[session]=` - Search sessions (via searchSessionWithText, line 166)
-  - **Response Used For**: Getting filtered sessions data
-  - **What's Actually Checked**: Response status is OK (200), sessions data array is returned
-- `GET /sessions/{id}/employments` - Get employment data (waitForResponse, line 271)
-  - **Response Used For**: Getting employment data for UI display
-  - **What's Actually Checked**: Response status is OK (200), data passed to utility functions
-- `GET /sessions/{id}/files` - Get files data (waitForResponse, line 276)
-  - **Response Used For**: Getting files data for UI display
-  - **What's Actually Checked**: Response status is OK (200), data passed to utility functions
-- `GET /sessions/{id}?fields[session]=` - Get specific session (waitForResponse, line 281)
-  - **Response Used For**: Getting session data for UI display
-  - **What's Actually Checked**: Response status is OK (200), data passed to utility functions
-- **Additional API calls from utility functions**:
-  - `PATCH /sessions/{id}` - Update session rent budget (via checkRentBudgetEdit, line 201)
-    - **What's Actually Checked**: Response status is OK (200), response data is not null
-  - `PATCH /sessions/{id}` - Approve session (via checkSessionApproveReject, line 80-91)
-    - **What's Actually Checked**: Response status is OK (200), response data is parsed
-  - `PATCH /sessions/{id}` - Reject session (via checkSessionApproveReject, line 105-116)
-    - **What's Actually Checked**: Response status is OK (200), response data is parsed
-  - `GET /sessions/{sessionId}` - Export PDF (via checkExportPdf, line 240)
-    - **What's Actually Checked**: Response status is OK (200), content-type is 'application/pdf'
-  - `GET /sessions/{sessionId}/income-sources` - Get income sources (via checkIncomeSourceSection, line 12-15)
-    - **What's Actually Checked**: Response status is OK (200), income sources data array length > 0
-  - `PATCH /sessions/{sessionId}/income-sources/{id}` - Delist income source (via checkIncomeSourceSection, line 87-90)
-    - **What's Actually Checked**: Response status is OK (200), income sources data contains DELISTED state
-  - `PATCH /sessions/{sessionId}/income-sources/{id}` - Relist income source (via checkIncomeSourceSection, line 109-112)
-    - **What's Actually Checked**: Response status is OK (200), income sources data contains LISTED state
-  - `GET /financial-verifications` - Get financial verifications (via checkFinancialSectionData, line 194)
-    - **What's Actually Checked**: Response status is OK (200), financial data is processed
 
-**Steps**:
-1. Login with created user
-2. Navigate to applicants menu
-3. Search for specific session
-4. Click on session
-5. **Comprehensive permission checks**:
-   - View session flags
-   - Edit rent budget
-   - Approve/reject session
-   - Export PDF
-   - Request additional documents
-   - Invite applicants
-   - Upload bank statements and paystubs
-   - Merge sessions
-   - Delete applicants
-   - View identity details
-   - Check income source section
-   - Check employment section data
-   - Check files section data
-   - Check financial section data
+**Purpose**: Comprehensive validation of all permissions granted to Centralized Leasing role
 
-#### **Key Business Validations:**
-- **Can edit applications** ✅
-- **Can access all sessions** ✅
-- **Can approve/reject sessions** ✅
-- **Can export PDFs** ✅
-- **Can request additional documents** ✅
-- **Can invite/remove co-applicants** ✅
-- **Can upload session documents** ✅
-- **Can merge sessions** ✅
-- **Can delete applicants** ✅
+**Test Flow**:
+1. **Setup Phase**
+   - Login with created test user
+   - Wait for sessions to load
+   - Verify applicants menu and submenus are visible
+
+2. **Session Selection**
+   - Click applicants submenu
+   - Use shared session (created in beforeAll via `createPermissionTestSession`)
+   - Prepare session for fresh selection (deselect + search pattern)
+   - Click session and wait for all data to load (employments, files, session details)
+
+3. **Flag Resolution Before Testing**
+   - Open view details modal
+   - Check for flags requiring review
+   - Mark all flags as non-issue (if any exist)
+   - Close event history modal
+   - Reload page to refresh state
+
+4. **Permission Validation Actions**
+   - **Flags Section**: View session flags in detail modal
+   - **Rent Budget**: Edit rent budget (change to $500)
+   - **Session Actions**: Approve session, then reject session
+   - **PDF Export**: Export session as PDF (verify content-type)
+   - **Document Requests**: Request additional documents (verify available options: financial_connection, pay_stub, bank_statement, identity_verification, employment_connection)
+   - **Invite Applicant**: Open invite modal, verify role options (Co-App, Guarantor)
+   - **Upload Documents**: Open upload modal, verify document types (Paystub, Bank Statement)
+   - **Merge Sessions**: Select multiple sessions, verify merge button appears
+   - **Delete Applicant**: Open remove from household modal for child applicant
+   - **Identity Section**: View identity details (name, DOB, address, verification checks)
+   - **Income Source Section**: View income sources, delist/relist income source
+   - **Employment Section**: View employment data with pay cadence and employer
+   - **Files Section**: View uploaded files and document statuses
+   - **Financial Section**: View financial verifications and transaction data for all household members
+
+**Key API Endpoints**:
+- `POST /auth` - User authentication
+- `GET /sessions?fields[session]=` - Search and load sessions
+- `GET /sessions/{id}/employments` - Load employment data
+- `GET /sessions/{id}/files` - Load files data
+- `GET /sessions/{id}?fields[session]=` - Load session details
+- `PATCH /sessions/{id}` - Update rent budget, approve/reject
+- `GET /sessions/{id}` - Export PDF
+- `GET /sessions/{id}/income-sources` - Load income sources
+- `PATCH /sessions/{id}/income-sources/{id}` - Delist/relist income sources
+- `GET /financial-verifications` - Load financial verifications
+
+**Business Validations**:
+- ✅ Can view session flags and details
+- ✅ Can edit rent budget
+- ✅ Can approve and reject sessions
+- ✅ Can export session PDF
+- ✅ Can request additional documents (5 types available)
+- ✅ Can invite co-applicants (Co-App or Guarantor roles)
+- ✅ Can upload bank statements and paystubs
+- ✅ Can merge multiple sessions
+- ✅ Can remove applicants from household
+- ✅ Can view complete identity details
+- ✅ Can manage income sources (delist/relist)
+- ✅ Can view employment data
+- ✅ Can view files and document statuses
+- ✅ Can view financial data for all household members
+
+**Unique Aspects**:
+- Uses shared session created once in `beforeAll` (not per-test)
+- Implements smart session selection pattern (deselect → search → click) to ensure fresh API calls
+- Resolves all flags before approval testing to prevent test failures
+- Tests complete permission matrix for Centralized Leasing role
+- Validates permissions across all major session sections (flags, income, employment, files, financial, identity)
 
 ---
 
-### **2. staff_user_permissions_test.spec.js - Staff Role**
+### **2. staff_user_permissions_test.spec.js**
 
-#### **Complete Test Structure:**
-- **2 sequential tests** (serial mode, 180s timeout)
-- **Global state management** for test isolation
-- **API-based user creation**
+**Purpose**: Validates limited read-only permissions for users with the "Autotest - Staff" role
+
+**Configuration**:
+- **Role**: "Autotest - Staff" (fetched dynamically)
+- **Organization**: "Permissions Test Org" (fetched dynamically)
+- **Application**: "Autotest - UI permissions tests"
+- **Tags**: @regression, @staging-ready
+- **Execution**: 2 sequential tests (serial mode, 240s timeout)
+- **Shared Resources**: Session created once in `beforeAll`, reused across tests
+
+---
 
 #### **Test 1: "Should create member record and assign it to the Staff role"**
-**Purpose**: Create a Staff user via API
-**API Endpoints Called**:
-- `POST /auth` - Admin authentication (via dataManager.authenticate, line 130)
-  - **Response Used For**: Getting authentication token for API access
-  - **What's Actually Checked**: `response.ok()` is true, `authData.token` is extracted and stored
-- `POST /users` - User creation via API (via dataManager.createEntities, line 179)
-  - **Response Used For**: Getting created user data for verification
-  - **What's Actually Checked**: `response.ok()` is true, `createdUserData.id` exists, `createdUserData` is stored in `this.created.users`
 
-**Steps**:
-1. Authenticate admin user for API access
-2. Create user with role `0196f6c9-da51-7337-bbde-ca7d0efd7f84` (Staff)
-3. Verify user creation
-4. Store user globally for other tests
-5. Track for cleanup
+**Purpose**: Create a test user with Staff role via API for permission testing
+
+**Test Flow**:
+1. **Setup Phase**
+   - Authenticate as admin via API
+   - Fetch role by name: "Autotest - Staff"
+   - Fetch organization by name: "Permissions Test Org"
+
+2. **User Creation**
+   - Generate unique email prefix
+   - Create user data with:
+     - First name: "Staff"
+     - Last name: "Playwright"
+     - Role: Staff (dynamically fetched ID)
+     - Organization: Permissions Test Org (dynamically fetched ID)
+   - Create user via API
+
+3. **Validation**
+   - Verify user ID exists
+   - Verify email matches expected value
+   - Store user globally for subsequent test
+
+4. **Cleanup Preparation**
+   - User tracked by ApiDataManager for afterAll cleanup
+
+**Key API Endpoints**:
+- `POST /auth` - Admin authentication
+- `GET /roles` - Fetch role by name
+- `GET /organizations` - Fetch organization by name
+- `POST /users` - Create user
+
+**Business Validations**:
+- ✅ Admin can create staff users via API
+- ✅ Staff role can be assigned dynamically
+- ✅ User creation returns valid ID
+
+---
 
 #### **Test 2: "Verify permission of Staff role"**
-**Purpose**: Test limited permissions for Staff role
-**API Endpoints Called**:
-- `POST /auth` - User login (via loginWith → loginForm.submit, line 23)
-  - **Response Used For**: Authentication and session establishment
-  - **What's Actually Checked**: Response status is OK (200), page title changes to "Applicants", household-status-alert is visible
-- `GET /applications` - Load applications list (waitForResponse, line 123)
-  - **Response Used For**: Getting applications array for UI display
-  - **What's Actually Checked**: Response status is OK (200), applications table is visible, table rows match application names
-- `GET /sessions?.*${sessionID}` - Search sessions by ID (waitForResponse with regex, line 156)
-  - **Response Used For**: Getting filtered sessions data
-  - **What's Actually Checked**: Response status is OK (200), sessions data array is returned
-- `GET /sessions/${sessionID}/employments` - Get employment data (waitForResponse, line 171)
-  - **Response Used For**: Getting employment data for UI display
-  - **What's Actually Checked**: Response status is OK (200), employment section row count matches API response length
-- `GET /sessions/${sessionID}/files` - Get files data (waitForResponse, line 176)
-  - **Response Used For**: Getting files data for UI display
-  - **What's Actually Checked**: Response status is OK (200), files section row count matches API response length
-- `GET /sessions/${sessionID}/flags` - Get session flags (waitForResponse, line 181)
-  - **Response Used For**: Getting flags data for UI display
-  - **What's Actually Checked**: Response status is OK (200), flags section is visible and has flag count > 0
-- `GET /sessions/${sessionID}/events` - Get session events (waitForResponse, line 192)
-  - **Response Used For**: Getting events data for UI display
-  - **What's Actually Checked**: Response status is OK (200), session activity elements are visible
-- `GET /sessions/${sessionID}/income-sources` - Get income sources (waitForResponse, line 247)
-  - **Response Used For**: Getting income sources data for UI display
-  - **What's Actually Checked**: Response status is OK (200), income source buttons are visible but disabled (pointer-events-none class)
-- **Additional API calls from utility functions**:
-  - `GET /sessions/${sessionID}` - Export PDF (via checkExportPdf, line 240)
-    - **What's Actually Checked**: Response status is OK (200), content-type is 'application/pdf'
 
-**Steps**:
-1. Login with created staff user
-2. Verify menu visibility (applicants, applications)
-3. Navigate to applications and verify data loads
-4. Verify NO edit icons are present (staff limitation)
-5. Navigate to applicants and search for session
-6. Click on session and verify data loads
-7. **Permission verification**:
-   - View details modal works
-   - Flags section is populated
-   - Session events are visible
-   - PDF export works
-   - Identity section is visible but limited (no show images/more details)
-   - Income source section is visible but buttons are disabled
-   - Employment section shows data but limited functionality
-   - Files section shows data but limited functionality
+**Purpose**: Validate that Staff role has read-only access with limited functionality
 
-#### **Key Business Validations:**
-- **Can view applications (read-only)** ✅
-- **CANNOT edit applications** ❌
-- **Can view session details** ✅
-- **Can export PDFs** ✅
-- **Limited session access** ✅
-- **Buttons are disabled (pointer-events-none)** ❌
+**Test Flow**:
+1. **Setup Phase**
+   - Login with created staff user
+   - Verify applicants and applications menus are visible
+
+2. **Applications Section Validation**
+   - Click applications menu
+   - Click applications submenu
+   - Wait for applications list to load
+   - Verify applications table displays correctly (table rows match API data)
+   - **CRITICAL CHECK**: Verify NO edit icons are present (staff limitation)
+
+3. **Session Access Validation**
+   - Navigate to applicants submenu
+   - Use shared session (created in beforeAll)
+   - Prepare session for fresh selection
+   - Click session and wait for all data (employments, files, flags)
+
+4. **Limited Permission Checks**
+   - **View Details**: Open view details modal, verify all flag sections load correctly
+   - **Flag Sections**: Verify flags are organized by severity (decline, review, warning, info, reviewed)
+   - **Session Events**: Verify session activity timeline is visible (time + data elements)
+   - **PDF Export**: Can export session as PDF (limited action allowed)
+   - **Identity Section**: View identification details and verifications (but NO "show images" or "more details" buttons visible)
+   - **Income Source Section**: View income sources list, but detail and delist buttons are disabled (pointer-events-none class)
+   - **Employment Section**: View employment data with statements modal, verify row count matches API data
+   - **Files Section**: View files list, row count matches API data, can open view document modal
+
+**Key API Endpoints**:
+- `POST /auth` - User authentication
+- `GET /applications` - Load applications list
+- `GET /sessions/{id}/employments` - Load employment data
+- `GET /sessions/{id}/files` - Load files data
+- `GET /sessions/{id}/flags` - Load session flags
+- `GET /sessions/{id}/events` - Load session events
+- `GET /sessions/{id}/income-sources` - Load income sources
+- `GET /sessions/{id}` - Export PDF
+
+**Business Validations**:
+- ✅ Can view applications (read-only access)
+- ❌ CANNOT edit applications (no edit icons)
+- ✅ Can view session details and all sections
+- ✅ Can view flags organized by severity
+- ✅ Can view session events timeline
+- ✅ Can export session PDF
+- ✅ Can view identity details (limited - no images/more details)
+- ❌ CANNOT manage income sources (buttons disabled)
+- ✅ Can view employment data and statements
+- ✅ Can view files and open document viewer
+
+**Unique Aspects**:
+- Tests **read-only** permissions specifically (no edit/delete/manage actions)
+- Validates buttons are visible but disabled (pointer-events-none CSS class)
+- Confirms staff role cannot edit applications (edit icons completely absent)
+- Verifies limited identity access (no sensitive image viewing)
+- Uses shared session for consistent testing across permission checks
 
 ---
 
-### **3. property_admin_permission_test.spec.js - Property Admin Role**
+### **3. property_admin_permission_test.spec.js**
 
-#### **Complete Test Structure:**
-- **3 sequential tests** (serial mode, 180s timeout)
-- **Global state management** for test isolation
-- **API-based user creation**
+**Purpose**: Validates property-specific admin permissions with organization management capabilities
+
+**Configuration**:
+- **Role**: "Autotest - Property Admin" (fetched dynamically)
+- **Organization**: "Permissions Test Org" (fetched dynamically)
+- **Application**: "Autotest - UI permissions tests"
+- **Tags**: @regression, @staging-ready
+- **Execution**: 3 sequential tests (serial mode, 240s timeout)
+- **Shared Resources**: Session created once in `beforeAll`, reused across tests
+
+---
 
 #### **Test 1: "Should create property admin role user via API"**
-**Purpose**: Create a Property Admin user via API
-**API Endpoints Called**:
-- `POST /auth` - Admin authentication (via dataManager.authenticate, line 130)
-  - **Response Used For**: Getting authentication token for API access
-  - **What's Actually Checked**: `response.ok()` is true, `authData.token` is extracted and stored
-- `POST /users` - User creation via API (via dataManager.createEntities, line 179)
-  - **Response Used For**: Getting created user data for verification
-  - **What's Actually Checked**: `response.ok()` is true, `createdUserData.id` exists, `createdUserData` is stored in `this.created.users`
 
-**Steps**:
-1. Authenticate admin user for API access
-2. Create user with role `0196f6c9-da56-7358-84bc-56f0f80b4c19` (Property Admin)
-3. Verify user creation
-4. Store user globally for other tests
+**Purpose**: Create a test user with Property Admin role via API
+
+**Test Flow**:
+1. **Setup Phase**
+   - Authenticate as admin via API
+   - Fetch role by name: "Autotest - Property Admin"
+   - Fetch organization by name: "Permissions Test Org"
+
+2. **User Creation**
+   - Generate unique email prefix
+   - Create user data with:
+     - First name: "Property Admin"
+     - Last name: "Playwright"
+     - Role: Property Admin (dynamically fetched ID)
+     - Organization: Permissions Test Org (dynamically fetched ID)
+   - Create user via API
+
+3. **Validation**
+   - Verify user ID exists
+   - Verify email matches expected value
+   - Store user globally for subsequent tests
+
+4. **Cleanup Preparation**
+   - User tracked by ApiDataManager for afterAll cleanup
+
+**Key API Endpoints**:
+- `POST /auth` - Admin authentication
+- `GET /roles` - Fetch role by name
+- `GET /organizations` - Fetch organization by name
+- `POST /users` - Create user
+
+**Business Validations**:
+- ✅ Admin can create property admin users via API
+- ✅ Property Admin role can be assigned dynamically
+- ✅ User creation returns valid ID
+
+---
 
 #### **Test 2: "Verify property admin user permissions"**
-**Purpose**: Test Property Admin role permissions and limitations
-**API Endpoints Called**:
-- `POST /auth` - User login (via loginWith → loginForm.submit, line 23)
-  - **Response Used For**: Authentication and session establishment
-  - **What's Actually Checked**: Response status is OK (200), page title changes to "Applicants", household-status-alert is visible
-- `GET /applications?fields[application]` - Load applications (via gotoPage, line 28-44)
-  - **Response Used For**: Getting applications data for UI display
-  - **What's Actually Checked**: Response status is OK (200), applications array length > 0
-- `GET /workflows?fields[workflow]` - Load workflows (via gotoPage, line 28-44)
-  - **Response Used For**: Getting workflows data for UI display
-  - **What's Actually Checked**: Response status is OK (200), 403 error page is shown for edit attempts
-- `GET /flag-collections?` - Load approval conditions (via gotoPage, line 28-44)
-  - **Response Used For**: Getting flag collections data for UI display
-  - **What's Actually Checked**: Response status is OK (200), approval conditions table is visible
-- `GET /flag-collections/{id}` - Get specific approval condition (waitForResponse, line 149)
-  - **Response Used For**: Getting specific flag collection data
-  - **What's Actually Checked**: Response status is OK (200), no edit links are visible
-- `PATCH /organizations/{id}` - Update organization (waitForResponse, line 172)
-  - **Response Used For**: Updating organization information
-  - **What's Actually Checked**: Response status is OK (200), success toast is visible
-- `GET /organizations/self` - Get organization info (via gotoPage, line 28-44)
-  - **Response Used For**: Getting organization data for UI display
-  - **What's Actually Checked**: Response status is OK (200), organization edit modal is visible
-- `GET /roles` - Load roles (waitForResponse, line 188)
-  - **Response Used For**: Getting roles data for member creation
-  - **What's Actually Checked**: Response status is OK (200), roles dropdown is populated
-- `POST /organizations/{id}/members` - Create organization member (via addOrganizationMember, line 147)
-  - **Response Used For**: Creating new organization member
-  - **What's Actually Checked**: Response status is OK (200), member appears in table
-- `DELETE /organizations/{id}/members/{id}` - Delete organization member (via deleteMember, line 125)
-  - **Response Used For**: Removing organization member
-  - **What's Actually Checked**: Response status is OK (200), "No Record Found" message is visible
-- `GET /roles?` - Load roles for roles page (via gotoPage, line 28-44)
-  - **Response Used For**: Getting roles data for roles table
-  - **What's Actually Checked**: Response status is OK (200), roles table is visible
 
-**Steps**:
-1. Login with created property admin user
-2. Verify all main menus are visible (applicants, applications, organization, users)
-3. **Applications permissions**:
-   - View applications list
-   - Edit applications (allowed)
-   - Delete applications (allowed)
-   - Generate sessions (allowed)
-4. **Workflows permissions**:
-   - View workflows list
-   - Edit workflows (forbidden - 403 error)
-   - Delete workflows (forbidden)
-5. **Approval conditions permissions**:
-   - View approval conditions
-   - Open specific conditions (read-only)
-6. **Organization management**:
-   - Edit organization info (allowed)
-   - Create applications (allowed)
-   - Manage organization members (add, edit permissions, delete)
-   - View roles table
+**Purpose**: Validate Property Admin has full application/organization management with workflow restrictions
 
-**Key Business Validations:**
-- **Can view and edit applications** ✅
-- **Can delete applications** ✅
-- **Can generate sessions** ✅
-- **CANNOT edit workflows** ❌
-- **CANNOT delete workflows** ❌
-- **Can view approval conditions (read-only)** ✅
-- **Can edit organization info** ✅
-- **Can create applications** ✅
-- **Can manage organization members** ✅
-- **Can view roles table** ✅
+**Test Flow**:
+1. **Setup Phase**
+   - Login with created property admin user
+   - Verify all main menus visible (applicants, applications, organization, users)
+
+2. **Applications Management**
+   - Navigate to applications list
+   - Verify applications load (count > 0)
+   - Verify edit and delete buttons are visible
+   - Test generate session flow (open modal, then cancel)
+
+3. **Workflows Management (Restricted)**
+   - Navigate to workflows list
+   - Attempt to edit workflow → Expect 403 Forbidden error page
+   - Attempt to delete workflow in READY status → Expect "Forbidden" alert
+   - **Validates**: Property Admin CANNOT manage workflows
+
+4. **Approval Conditions (Read-Only)**
+   - Navigate to approval conditions list
+   - Find and open "high risk" approval condition
+   - Verify condition details load
+   - Verify NO edit links are visible (read-only access)
+
+5. **Organization Management**
+   - Navigate to organization self page
+   - Edit organization city (toggle between "Townsville" and "Groverville")
+   - Verify success toast appears after each update
+   - Test application creation flow (navigate to create page, then cancel)
+
+6. **Organization Members Management**
+   - Navigate to organization members tab
+   - **Add Member**: Create new member with "Autotest - Staff" role (fetched dynamically)
+   - Verify member appears in table
+   - **Edit Permissions**: Add "Manage Applications" permission
+   - **Delete Member**: Remove member from organization
+   - Verify "No Record Found" message after deletion
+   - **Repeat**: Test alternative members submenu with same CRUD operations
+
+7. **Roles Validation**
+   - Navigate to roles table
+   - Verify roles list displays correctly
+
+**Key API Endpoints**:
+- `POST /auth` - User authentication
+- `GET /applications?fields[application]` - Load applications
+- `GET /workflows?fields[workflow]` - Load workflows
+- `GET /flag-collections?` - Load approval conditions
+- `GET /flag-collections/{id}` - Load specific condition
+- `PATCH /organizations/{id}` - Update organization
+- `GET /organizations/self` - Load organization info
+- `GET /roles` - Load roles
+- `POST /organizations/{id}/members` - Create member
+- `PATCH /organizations/{id}/members/{id}` - Update member permissions
+- `DELETE /organizations/{id}/members/{id}` - Delete member
+
+**Business Validations**:
+- ✅ Can view and edit applications
+- ✅ Can delete applications
+- ✅ Can generate sessions
+- ❌ CANNOT edit workflows (403 Forbidden)
+- ❌ CANNOT delete workflows (Forbidden alert)
+- ✅ Can view approval conditions (read-only)
+- ✅ Can edit organization information
+- ✅ Can create applications
+- ✅ Can manage organization members (add, edit, delete)
+- ✅ Can view roles table
+
+---
 
 #### **Test 3: "Check applicant inbox permissions"**
-**Purpose**: Test Property Admin permissions for applicant inbox and session management
-**API Endpoints Called**:
-- `POST /auth` - User login (via loginWith → loginForm.submit, line 23)
-  - **Response Used For**: Authentication and session establishment
-  - **What's Actually Checked**: Response status is OK (200), page title changes to "Applicants", household-status-alert is visible
-- `GET /sessions?fields[session]=` - Search sessions (via searchSessionWithText, line 166)
-  - **Response Used For**: Getting filtered sessions data
-  - **What's Actually Checked**: Response status is OK (200), sessions data array is returned
-- `GET /sessions/{id}/files` - Get files data (waitForResponse, line 277)
-  - **Response Used For**: Getting files data for multiple sessions
-  - **What's Actually Checked**: Response status is OK (200), files data is processed
-- `GET /financial-verifications` - Get financial data (waitForResponse, line 280)
-  - **Response Used For**: Getting financial verification data for multiple sessions
-  - **What's Actually Checked**: Response status is OK (200), financial data is processed
-- `GET /sessions/{id}/employments` - Get employment data (waitForResponse, line 288)
-  - **Response Used For**: Getting employment data for UI display
-  - **What's Actually Checked**: Response status is OK (200), employment data is processed
-- `GET /sessions/{id}/flags` - Get flags data (waitForResponse, line 291)
-  - **Response Used For**: Getting flags data for UI display
-  - **What's Actually Checked**: Response status is OK (200), flags data is processed
-- `GET /sessions/{id}/events` - Get events data (waitForResponse, line 305)
-  - **Response Used For**: Getting events data for UI display
-  - **What's Actually Checked**: Response status is OK (200), session activity elements are visible
-- **Additional API calls from utility functions**:
-  - `PATCH /sessions/{id}` - Update session rent budget (via checkRentBudgetEdit, line 201)
-    - **What's Actually Checked**: Response status is OK (200), response data is not null
-  - `PATCH /sessions/{id}` - Approve session (via checkSessionApproveReject, line 80-91)
-    - **What's Actually Checked**: Response status is OK (200), response data is parsed
-  - `PATCH /sessions/{id}` - Reject session (via checkSessionApproveReject, line 105-116)
-    - **What's Actually Checked**: Response status is OK (200), response data is parsed
-  - `GET /sessions/{id}` - Export PDF (via checkExportPdf, line 240)
-    - **What's Actually Checked**: Response status is OK (200), content-type is 'application/pdf'
-  - `GET /sessions/{id}/income-sources` - Get income sources (via checkIncomeSourceSection, line 12-15)
-    - **What's Actually Checked**: Response status is OK (200), income sources data array length > 0
-  - `PATCH /sessions/{id}/income-sources/{id}` - Delist income source (via checkIncomeSourceSection, line 87-90)
-    - **What's Actually Checked**: Response status is OK (200), income sources data contains DELISTED state
-  - `PATCH /sessions/{id}/income-sources/{id}` - Relist income source (via checkIncomeSourceSection, line 109-112)
-    - **What's Actually Checked**: Response status is OK (200), income sources data contains LISTED state
-  - `GET /financial-verifications` - Get financial verifications (via checkFinancialSectionData, line 194)
-    - **What's Actually Checked**: Response status is OK (200), financial data is processed
 
-**Steps**:
-1. Login with created property admin user
-2. Search for sessions by text
-3. Click on session and verify data loads
-4. **Comprehensive permission checks**:
-   - View session flags
-   - Edit rent budget
-   - Approve/reject session
-   - Export PDF
-   - Request additional documents
-   - Invite applicants
-   - Upload various document types
-   - Merge sessions
-   - Remove applicants from household
-5. **Section data validation**:
-   - Identity section (with SSN check)
-   - Income source section
-   - Employment section
-   - Files section
-   - Financial section
+**Purpose**: Validate Property Admin has full session management capabilities in applicant inbox
 
-**Key Business Validations:**
-- **Can manage sessions (approve/reject)** ✅
-- **Can export PDFs** ✅
-- **Can request additional documents** ✅
-- **Can invite applicants** ✅
-- **Can upload documents** ✅
-- **Can merge sessions** ✅
-- **Can remove applicants from household** ✅
+**Test Flow**:
+1. **Setup Phase**
+   - Login with created property admin user
+   - Navigate to applicants submenu
+
+2. **Session Access**
+   - Use shared session (created in beforeAll)
+   - Prepare session for fresh selection (deselect + search pattern)
+   - Click session and wait for all data (files, financial, employments, flags)
+
+3. **Flag Resolution Before Testing**
+   - Open view details modal
+   - Check for flags requiring review
+   - Mark all flags as non-issue (if any exist)
+   - Close event history modal
+   - Reload page to refresh state
+
+4. **Comprehensive Session Management**
+   - **View Details**: Open modal, verify all flag sections display correctly
+   - **Session Events**: Verify activity timeline is visible (time + data elements)
+   - **Rent Budget**: Edit rent budget to test update capability
+   - **Session Actions**: Approve, then reject session
+   - **PDF Export**: Export session as PDF
+   - **Document Requests**: Request additional documents (4 types available)
+   - **Invite Applicant**: Open invite modal
+   - **Upload Documents**: Verify 5 document types available (Employment/Offer letter, Paystub, Bank Statement, VA Benefits, Tax Statement)
+   - **Identity Section**: View identity with SSN visible
+   - **Income Source Section**: View and manage income sources (delist/relist)
+   - **Employment Section**: View employment data
+   - **Files Section**: View uploaded files
+   - **Financial Section**: View financial verifications for all household members
+
+**Key API Endpoints**:
+- `POST /auth` - User authentication
+- `GET /sessions/{id}/files` - Load files data
+- `GET /financial-verifications` - Load financial data
+- `GET /sessions/{id}/employments` - Load employment data
+- `GET /sessions/{id}/flags` - Load session flags
+- `GET /sessions/{id}/events` - Load session events
+- `PATCH /sessions/{id}` - Update rent budget, approve/reject
+- `GET /sessions/{id}` - Export PDF
+- `GET /sessions/{id}/income-sources` - Load income sources
+- `PATCH /sessions/{id}/income-sources/{id}` - Delist/relist income sources
+
+**Business Validations**:
+- ✅ Can manage sessions (full approve/reject access)
+- ✅ Can export PDFs
+- ✅ Can request additional documents (4 types)
+- ✅ Can invite applicants
+- ✅ Can upload 5 document types
+- ✅ Can view identity with SSN
+- ✅ Can manage income sources
+- ✅ Can view employment and files data
+- ✅ Can view financial data for all household members
+
+**Unique Aspects**:
+- Tests **property-specific** admin permissions (not global admin)
+- Validates workflow restrictions (cannot edit/delete workflows despite other admin powers)
+- Tests organization member management (add, edit permissions, delete) via two UI paths
+- Verifies SSN visibility for property admin (unlike staff role)
+- Validates 5 document types available for upload (more than basic roles)
 
 ---
 
-### **4. check_org_member_application_permission_update.spec.js - Organization Member Role**
+### **4. check_org_member_application_permission_update.spec.js**
 
-#### **Complete Test Structure:**
-- **1 test** (no sequential mode)
-- **Uses test_org_admin** (not created user)
-- **Organization-level permissions**
+**Purpose**: Validates organization-level application permission management for members
+
+**Configuration**:
+- **User**: Admin (from test_config)
+- **Target Member Email**: test_reviwer@verifast.com
+- **Tags**: @regression, @staging-ready
+- **Execution**: Single standalone test
+
+---
 
 #### **Test: "Admin should be able to update an organization member's application permissions"**
-**Purpose**: Test organization-level permission management
-**API Endpoints Called**:
-- `POST /auth` - Admin login (via loginForm.submit, line 16)
-  - **Response Used For**: Authentication and session establishment
-  - **What's Actually Checked**: Response status is OK (200), household-status-alert is visible
-- `GET /applications?fields[application]=` - Load applications for permission table (waitForResponse, line 74)
-  - **Response Used For**: Getting applications array for permission table display
-  - **What's Actually Checked**: Response status is OK (200), permission table is visible
-- `PATCH /organizations/{id}/members/{id}` - Update member permissions (waitForResponse with regex, line 110-118)
-  - **Response Used For**: Updating member permissions (save operation)
-  - **What's Actually Checked**: Response status is OK (200), PATCH method, URL matches organization member pattern
-- `PATCH /organizations/{id}/members/{id}` - Revert member permissions (waitForResponse with regex, line 136-144)
-  - **Response Used For**: Reverting member permissions (revert operation)
-  - **What's Actually Checked**: Response status is OK (200), PATCH method, URL matches organization member pattern
 
-**Steps**:
-1. Login with test_org_admin (via loginForm.fill and loginForm.submit)
-2. Wait for session page to load (household-status-alert visible)
-3. Navigate to organization menu (organization-menu → organization-self-submenu)
-4. Go to members tab (users-tab)
-5. Wait for members table to be visible
-6. Search for member with "Reviewer" role using search bar
-7. Click edit button and wait for applications API response
-8. **Permission management**:
-   - View application permissions table (all-application-table)
-   - Find last row in permissions table
-   - Toggle permission checkbox (check/uncheck based on initial state)
-   - Save permission changes (PATCH API call)
-   - Revert permission changes (opposite toggle + PATCH API call)
-9. Verify both save and revert API calls succeed
+**Purpose**: Verify admin can manage application-specific permissions for organization members
 
-#### **Key Business Validations:**
-- **Can view organization members** ✅
-- **Can edit member permissions** ✅
-- **Can update application permissions** ✅
-- **Can revert permission changes** ✅
+**Test Flow**:
+1. **Setup Phase**
+   - Login with admin credentials
+   - Wait for session page to load
+
+2. **Navigation to Members**
+   - Click organization menu
+   - Click organization self submenu
+   - Verify members tab is visible
+   - Click members tab
+   - Wait for members table to load
+
+3. **Member Search**
+   - Use search bar to find member by email: "test_reviwer@verifast.com"
+   - Wait for search results to load
+   - Locate member row containing target email
+   - Click edit button
+   - Wait for applications API to load permission table
+
+4. **Permission Modification**
+   - Verify member role modal is visible
+   - Locate permission table (all-application-table)
+   - Scroll to last row in table
+   - Get checkbox state in "View Application" column
+   - Toggle checkbox to opposite state (check if unchecked, uncheck if checked)
+   - Wait for save button to enable
+   - Click save button
+   - Wait for PATCH API call to update permissions
+
+5. **Permission Reversion (Cleanup)**
+   - Toggle checkbox back to original state
+   - Wait for save button to enable again
+   - Click save button
+   - Wait for PATCH API call to revert permissions
+   - Verify permissions restored to original state
+
+**Key API Endpoints**:
+- `POST /auth` - Admin authentication
+- `GET /applications?fields[application]=` - Load applications for permission table
+- `PATCH /organizations/{id}/members/{id}` - Update member permissions (called twice: save + revert)
+
+**Business Validations**:
+- ✅ Admin can view organization members list
+- ✅ Admin can search members by email
+- ✅ Admin can edit member application permissions
+- ✅ Permission changes trigger API updates
+- ✅ Save button enables/disables based on changes
+- ✅ Permission changes can be reverted
+- ✅ Permission table displays all applications correctly
+
+**Unique Aspects**:
+- Tests **organization-level** permission management (application-specific permissions)
+- Uses existing member (test_reviwer@verifast.com) for realistic scenario
+- Implements toggle-and-revert pattern to avoid permanent data changes
+- Verifies save button state management (disabled until change made)
+- Searches member by email to ensure correct target (not relying on table position)
+- Tests granular permission control (per-application basis)
 
 ---
 
-## **Category 1 Analysis Summary**
+### **5. org_member_application_binding_scoping_check.spec.js**
 
-### **API Endpoints Coverage Analysis:**
+**Purpose**: Validates application binding scoping for organization members - ensures users only see sessions from applications they have access to
 
-| API Endpoint | Category | Tests Using It | What's Actually Checked |
-|--------------|----------|----------------|-------------------------|
-| `POST /auth` | Authentication | 4 tests | Response status is OK (200), user authentication successful |
-| `POST /users` | User Management | 3 tests | Response status is OK (200), user data is returned |
-| `GET /applications` | Application Management | 1 test | Response status is OK (200), applications data is returned |
-| `GET /applications?fields[application]=` | Application Management | 2 tests | Response status is OK (200), applications with fields data is returned |
-| `GET /sessions?fields[session]=` | Session Management | 2 tests | Response status is OK (200), sessions data is returned |
-| `GET /sessions?.*${sessionID}` | Session Management | 1 test | Response status is OK (200), session search by ID successful |
-| `GET /sessions/{id}?fields[session]=` | Session Management | 1 test | Response status is OK (200), specific session data is returned |
-| `GET /sessions/{id}/employments` | Session Data | 2 tests | Response status is OK (200), employment data is returned |
-| `GET /sessions/{id}/files` | Session Data | 2 tests | Response status is OK (200), files data is returned |
-| `GET /sessions/{id}/flags` | Session Data | 2 tests | Response status is OK (200), session flags data is returned |
-| `GET /sessions/{id}/events` | Session Data | 2 tests | Response status is OK (200), session events data is returned |
-| `GET /sessions/{id}/income-sources` | Session Data | 1 test | Response status is OK (200), income sources data is returned |
-| `PATCH /sessions/{id}` | Session Actions | 6 tests | Response status is OK (200), PATCH method (rent budget, approve, reject) |
-| `GET /sessions/{id}` | Session Actions | 2 tests | Response status is OK (200), PDF export successful |
-| `PATCH /sessions/{id}/income-sources/{id}` | Session Actions | 4 tests | Response status is OK (200), PATCH method (delist, relist) |
-| `GET /financial-verifications` | Verification | 2 tests | Response status is OK (200), financial verifications data is returned |
-| `GET /organizations/self` | Organization Management | 1 test | Response status is OK (200), organization info is returned |
-| `PATCH /organizations/{id}` | Organization Management | 1 test | Response status is OK (200), organization update successful |
-| `GET /organizations/{id}/members` | Organization Management | 1 test | Response status is OK (200), members data is returned |
-| `POST /organizations/{id}/members` | Organization Management | 1 test | Response status is OK (200), member added successfully |
-| `PATCH /organizations/{id}/members/{id}` | Organization Management | 2 tests | Response status is OK (200), member permissions updated |
-| `DELETE /organizations/{id}/members/{id}` | Organization Management | 1 test | Response status is OK (200), member deleted successfully |
-| `GET /workflows?fields[workflow]` | Workflow & Configuration | 1 test | Response status is OK (200), workflows data is returned |
-| `GET /flag-collections?` | Workflow & Configuration | 1 test | Response status is OK (200), approval conditions data is returned |
-| `GET /flag-collections/{id}` | Workflow & Configuration | 1 test | Response status is OK (200), specific approval condition data is returned |
-| `GET /roles` | Workflow & Configuration | 2 tests | Response status is OK (200), roles list data is returned |
+**Configuration**:
+- **Organization**: "Permissions Test Org"
+- **Application 1**: "Test App P1"
+- **Application 2**: "Test App P2"
+- **User**: Random email (Test User)
+- **Timeout**: 180s
+- **Tags**: @regression, @staging-ready
+
+---
+
+#### **Test: "Check Application Binding Scoping (Inbox Visibility)" (QA-102)**
+
+**Purpose**: Verify that application-level permission bindings correctly filter the inbox view - users should only see sessions from applications they're bound to
+
+**Test Flow**:
+
+1. **Admin: Search and Find Organization**
+   - Login as admin
+   - Navigate to organizations menu
+   - Search for "Permissions Test Org"
+   - Verify exact match found
+   - Store organization ID
+
+2. **Admin: Create New Organization Member**
+   - Click organization → Users tab
+   - Click "Create Org Member" button
+   - Fill email with random email (getRandomEmail)
+   - Select empty role (member-role-field-empty-role-v2)
+   - Submit and copy invitation link
+   - Close modal
+
+3. **User: Accept Invitation** (New Browser Context)
+   - Open invitation URL in new context
+   - Fill registration form (first name, last name, password)
+   - Accept terms
+   - Click Register
+   - Login with new credentials
+   - **Assert**: User dropdown visible (authentication successful)
+   - **Assert**: applicants-menu NOT visible (no permissions yet)
+
+4. **Admin: Grant View Sessions Permission**
+   - Search for new member by email
+   - Click edit member
+   - Search for "view sessions" permission
+   - Check "View Sessions" checkbox
+   - Click "Save Permissions"
+   - Store created user for cleanup
+
+5. **User: Verify All Sessions Visible** (No Application Binding)
+   - Reload applicant page
+   - Expand sidebar, click applicants-menu
+   - Wait for `/sessions` and `/organizations/self` API responses
+   - Extract user's organization ID from API
+   - **Assert**: User's org ID matches "Permissions Test Org" ID
+   - **Assert**: UI shows all sessions (count matches API limit or returned count)
+   - **Result**: User sees ALL org sessions (no application filter applied yet)
+
+6. **Admin: Bind User to Application 1**
+   - Search for "Test App P1" in application search
+   - Check "Test App P1" checkbox
+   - Click "Save App Permission"
+
+7. **User: Verify Only App1 Sessions Visible**
+   - Reload applicant page
+   - Wait for page to load
+   - Count visible sessions
+   - **Assert**: Session count > 0
+   - Click first session
+   - **Assert**: ALL visible sessions contain "Test App P1" text
+   - Get badge count from "All" tab
+   - **Result**: User sees ONLY App1 sessions
+
+8. **Admin: Add Application 2 Binding**
+   - Search for "Test App P2" in application search
+   - Check "Test App P2" checkbox
+   - Click "Save App Permission"
+
+9. **User: Verify App1 OR App2 Sessions Visible**
+   - Reload applicant page
+   - Wait for sessions API response
+   - Close new session button if visible
+   - **Assert**: "All" tab badge shows "2"
+   - Count visible sessions
+   - **Assert**: Session count > 0
+   - **Assert**: ALL visible sessions contain either "Test App P1" OR "Test App P2" text
+   - **Result**: User sees sessions from BOTH bound applications
+
+10. **Cleanup** (afterAll hook)
+    - Delete created user via cleanupPermissionTest
+    - Close applicant browser context
+
+**Key API Endpoints**:
+- `POST /auth` - Admin authentication
+- `GET /organizations?` - Search organizations
+- `GET /members?` - Search organization members
+- `POST /members` - Create organization member (via UI)
+- `PATCH /members/{id}` - Update member permissions
+- `GET /sessions?fields[session]=` - Get sessions with filtering
+- `GET /organizations/self?fields[organization]=scope` - Get user's organization context
+- `DELETE /users/{id}` - Cleanup user (afterAll)
+
+**Business Validations**:
+- ✅ New member registration flow works
+- ✅ Members without permissions cannot see applicants menu
+- ✅ View Sessions permission enables inbox access
+- ✅ Without application binding, user sees ALL org sessions
+- ✅ Application binding filters sessions to bound apps only
+- ✅ Badge count reflects number of bound applications
+- ✅ Multiple application bindings show combined session list
+- ✅ Sessions always belong to user's organization
+- ✅ Application scoping is enforced at API and UI level
+- ✅ User's organization ID matches expected org
+
+**Unique Aspects**:
+- Tests **application-level permission scoping** (not just role permissions)
+- Creates user via **UI flow** (not API like other tests)
+- Uses **2 browser contexts** (admin + new member)
+- Tests **3 permission states**: no binding → App1 binding → App1+App2 binding
+- Validates **badge count accuracy** (reflects binding count)
+- Uses **organization/self API** to verify user context
+- Tests **dynamic permission updates** (reload to apply changes)
+- Uses **`.or()` locator** for flexible text matching
+- Implements **conditional cleanup** based on test success
+- Stores user reference for cleanup instead of session
+- Uses **escape regex** for email search safety
+
+---
+
+## **Category 1 Summary**
 
 ### **Business Purpose Analysis:**
 
-| Test File | Role | Primary Business Purpose | Unique Validations | Overlap Assessment |
-|-----------|------|-------------------------|-------------------|-------------------|
-| `user_permissions_verify` | **Centralized Leasing** | Tests comprehensive permissions for leasing staff | • Can edit applications<br>• Can approve/reject sessions<br>• Can request additional documents<br>• Can invite/remove co-applicants<br>• Can upload documents<br>• Can merge sessions<br>• Can delete applicants | **NO OVERLAP** - Different role, different permissions |
-| `staff_user_permissions_test` | **Staff** | Tests limited read-only permissions for staff | • Can view applications (read-only)<br>• **CANNOT edit applications**<br>• Can view session details<br>• **Buttons are disabled**<br>• **Limited access** | **NO OVERLAP** - Different role, different permission levels |
-| `property_admin_permission_test` | **Property Admin** | Tests property-specific admin permissions | • Can edit/delete applications<br>• Can create applications<br>• Can manage organization members<br>• **CANNOT edit workflows**<br>• Can edit organization info<br>• Can assign permissions | **NO OVERLAP** - Different role, different scope |
-| `check_org_member_application_permission_update` | **Organization Member** | Tests organization-level permission management | • Can view organization members<br>• Can edit member permissions<br>• Can update application permissions<br>• Organization-level access control | **NO OVERLAP** - Different scope, different business rules |
+| Test File | Role | Primary Business Purpose | Key Differences |
+|-----------|------|-------------------------|-----------------|
+| `user_permissions_verify` | **Centralized Leasing** | Comprehensive session management permissions | Full edit/approve/reject/merge capabilities |
+| `staff_user_permissions_test` | **Staff** | Read-only access validation | Cannot edit applications, buttons disabled |
+| `property_admin_permission_test` | **Property Admin** | Property-level admin with workflow restrictions | Can manage org members, CANNOT edit workflows |
+| `check_org_member_application_permission_update` | **Admin** | Organization member permission management | Tests granular per-application permission control |
+| `org_member_application_binding_scoping_check` | **Member** | Application binding scoping (inbox filtering) | Tests 3 states: no binding → single app → multiple apps, validates badge counts |
 
-### **Test Coverage Summary:**
-
-#### **Total API Endpoints Tested: 25**
-- **Authentication**: 2 endpoints
-- **User Management**: 1 endpoint  
-- **Application Management**: 2 endpoints
-- **Session Management**: 3 endpoints
-- **Session Data**: 5 endpoints
-- **Session Actions**: 6 endpoints
-- **Verification**: 1 endpoint
-- **Organization Management**: 5 endpoints
-- **Workflow & Configuration**: 4 endpoints
-
-#### **Test Distribution:**
-- **user_permissions_verify.spec.js**: 3 tests, 15 API endpoints
-- **staff_user_permissions_test.spec.js**: 2 tests, 8 API endpoints
-- **property_admin_permission_test.spec.js**: 3 tests, 20 API endpoints
-- **check_org_member_application_permission_update.spec.js**: 1 test, 3 API endpoints
-
-### **Key Insights:**
-
-1. **Each test validates different user roles** with completely different permission matrices
-2. **Permission levels are distinct**:
-   - **Centralized Leasing**: Full permissions (edit, approve/reject, manage sessions)
-   - **Staff**: Read-only permissions (view only, buttons disabled)
-   - **Property Admin**: Property-specific admin permissions (can manage org, cannot edit workflows)
-   - **Organization Member**: Organization-level permission management (member permissions only)
-3. **API coverage is comprehensive** - covers all major application areas
-4. **Business rules are role-specific** - what one role can do, another cannot
-5. **These are NOT redundant** - they test different business scenarios and user types
-6. **Utility functions provide extensive coverage** - many API calls are made through utility functions
-
-### **Technical Setup Analysis:**
-
-#### **Common Setup Steps (Necessary for Each Test):**
-1. **Admin authentication** - Needed to create users via API
-2. **User creation via API** - Each test needs its specific role user
-3. **User login** - Each test needs to login as its specific role
-4. **Navigation to relevant sections** - Each test needs to access its specific functionality
-
-#### **These are NOT "extra steps" - they are essential setup for each test's unique business validation**
-
-### **Conclusion for Category 1: NO MEANINGFUL OVERLAP**
-
-**All 4 tests should be kept** because:
-- Each tests different user roles with distinct permission sets
-- Each validates different business scenarios
-- The "overlap" in setup steps is necessary for each test to validate its unique business logic
-- Removing any test would lose important business coverage
-
-**Optimization opportunity**: Create shared utilities for common setup steps (admin auth, user creation, login) to reduce code duplication while maintaining all tests.
+**Conclusion**: No overlap - each test validates distinct role permissions and application scoping scenarios.
 
 ---
 
-## Category 2: Financial Verification Tests - COMPLETE ANALYSIS
+## Category 2: Financial Verification Tests
 
-### **Files Analyzed:**
-1. `financial_plaid_one_transaction_error_decline.spec.js` - **Plaid Provider + Error Handling**
-2. `financial_mx_2_attempts_success_and_failed_password.spec.js` - **MX Provider + Retry Logic + Eligibility Status Transitions**
-3. `check_coapp_income_ratio_exceede_flag.spec.js` - **Co-Applicant Income Ratio Flag Testing**
-4. `employment_skip_household_not_hidden_employment_connect.spec.js` - **Employment Verification with Household Skip**
-5. `check_ui_shows_na_for-high_balance.spec.js` - **High Balance Account N/A Display Validation**
+**Purpose**: Validates financial verification flows across different providers (Plaid, MX), error handling, and income calculations
+
+**Tests in this Category**:
+1. `financial_plaid_one_transaction_error_decline.spec.js` - Plaid provider with insufficient transactions
+2. `financial_mx_2_attempts_success_and_failed_password.spec.js` - MX provider retry logic and eligibility transitions
+3. `check_coapp_income_ratio_exceede_flag.spec.js` - Co-applicant income ratio flag validation
+4. `check_ui_shows_na_for-high_balance.spec.js` - High balance account N/A display
 
 ---
 
-### **1. financial_plaid_one_transaction_error_decline.spec.js - Plaid Provider + Error Handling**
+### **1. financial_plaid_one_transaction_error_decline.spec.js**
 
-#### **Complete Test Structure:**
-- **1 test** (no sequential mode)
-- **Plaid integration** with error handling
-- **Tags**: @smoke, @needs-review
+**Purpose**: Validates Plaid OAuth flow with insufficient transaction data handling and decline flag generation
+
+**Configuration**:
+- **Application**: "AutoTest - Financial Only, MX and Plaid"
+- **Provider**: Plaid (using "Regions Bank" with OAuth)
+- **Test Credentials**: custom_onetxn / test (account with only 1 transaction)
+- **Rent Budget**: $555
+- **Tags**: @smoke, @needs-review, @external-integration, @regression, @staging-ready
+
+---
 
 #### **Test: "Should handle Plaid Fin verification with insufficient transactions and decline flag"**
-**Purpose**: Test Plaid integration with insufficient transactions and decline flag generation
-**API Endpoints Called**:
-- `POST /auth` - Admin login (via loginForm.submit, line 17)
-  - **Response Used For**: Authentication and session establishment
-  - **What's Actually Checked**: Response status is OK (200), applicants-menu is visible
-- `GET /applications?` - Search applications (via searchApplication, line 79-85)
-  - **Response Used For**: Getting applications data for search
-  - **What's Actually Checked**: Response status is OK (200), applications array is returned
-- `POST /sessions` - Create session (via generateSessionForm.submit, line 34-44)
-  - **Response Used For**: Creating new session for applicant
-  - **What's Actually Checked**: Response status is OK (200), session data is returned
-- `PATCH /sessions/{id}` - Update session rent budget (via completeApplicantForm, line 26-33)
-  - **Response Used For**: Updating session with rent budget
-  - **What's Actually Checked**: Response status is OK (200), PATCH method
-- `GET /sessions?fields[session]=` - Search sessions (via searchSessionWithText, line 1098)
-  - **Response Used For**: Finding session by applicant name
-  - **What's Actually Checked**: Response status is OK (200), sessions data array is returned
-- **Additional API calls from utility functions**:
-  - `POST /sessions` - Create session (via generateSessionForm.submit, line 34-44)
-    - **What's Actually Checked**: Response status is OK (200), session data is returned
-  - `PATCH /sessions/{id}` - Update session rent budget (via completeApplicantForm, line 26-33)
-    - **What's Actually Checked**: Response status is OK (200), PATCH method
-  - `GET /sessions?fields[session]=` - Search sessions (via searchSessionWithText, line 1098)
-    - **What's Actually Checked**: Response status is OK (200), sessions data array is returned
 
-**Steps**:
-1. **Login as admin** (via loginForm.fill and loginForm.submit)
-2. **Navigate to Applications** (applications-menu → applications-submenu)
-3. **Generate session for application** (via generateSessionForApplication utility)
-   - Search for 'AutoTest - Financial Only, MX and Plaid' application
-   - Click invite button
-   - Fill session form with user data
-   - Submit form and get session link
-4. **Complete applicant initial setup** (via completeApplicantInitialSetup utility)
+**Purpose**: Verify Plaid integration gracefully handles accounts with insufficient transaction history and generates appropriate decline flags
+
+**Test Flow**:
+1. **Setup Phase**
+   - Login as admin
+   - Navigate to applications menu → applications submenu
+
+2. **Session Generation** (via `generateSessionForApplication` utility)
+   - Search for "AutoTest - Financial Only, MX and Plaid" application
+   - Find and click invite link
+   - Fill session form with random applicant data (first_name: TestXXXXX, last_name: TestXXXXX)
+   - Submit form and extract session link
+   - Close modal
+
+3. **Applicant Initial Setup** (via `completeApplicantInitialSetup` utility)
    - Navigate to session link
-   - Handle state modal if present
-   - Fill rent budget '555' and submit
-5. **Complete Plaid financial connection** (via plaidFinancialConnect utility)
-   - Click "Alternate Connect Bank" button
-   - Handle Plaid iframe OAuth flow
-   - Use test credentials (custom_onetxn/test)
-   - Wait for connection completion
-6. **Verify Summary screen** (UI validation - h3 with "Summary" text)
-7. **Navigate to Dashboard and Applicant Inbox** (via navigateToDashboard and navigateToApplicants utilities)
-8. **Verify transaction error and decline flag** (using verifyTransactionErrorAndDeclineFlag utility)
-   - Search for session by applicant name
-   - Click on session
-   - Verify "User Error" link exists
-   - Check "1 account | 1 transaction" in modal
-   - Verify "Gross Income Ratio Exceeded" flag
+   - Handle optional state modal
+   - Handle optional terms checkbox
+   - Fill rent budget: $555
+   - Submit form (waits for PATCH response)
 
-#### **Key Business Validations:**
-- **Plaid OAuth flow** ✅
-- **Error handling for insufficient transactions** ✅
-- **Decline flag generation** ✅
-- **Plaid-specific error states** ✅
+4. **Plaid Financial Connection** (via `plaidFinancialConnect` utility)
+   - Click "Alternate Connect Bank" button
+   - Wait for Plaid iframe to load
+   - Click "Continue as guest"
+   - Click "Regions Bank" button
+   - Fill username: custom_onetxn
+   - Fill password: test
+   - Submit OAuth credentials
+   - Connection completes (1 account with 1 transaction)
+
+5. **Applicant Verification**
+   - Verify "Summary" screen displays (h3 with "Summary" text)
+
+6. **Admin Flow** (back to main context)
+   - Navigate to dashboard (via `navigateToDashboard`)
+   - Navigate to applicants inbox (via `navigateToApplicants`)
+
+7. **Error and Flag Validation** (via `verifyTransactionErrorAndDeclineFlag` utility)
+   - Search sessions by applicant name
+   - Click first session
+   - Wait for "User Error" link to appear (polls for 45 seconds)
+   - Click "User Error" link
+   - Verify modal shows "1 account | 1 transaction"
+   - Close modal
+   - Click "View Details" button
+   - Verify "Gross Income Ratio Exceeded" flag exists with proper tooltip
+
+**Key API Endpoints**:
+- `POST /auth` - Admin authentication
+- `GET /applications?` - Search applications
+- `POST /sessions` - Create session
+- `PATCH /sessions/{id}` - Update rent budget
+- `GET /sessions?fields[session]=` - Search sessions
+
+**Business Validations**:
+- ✅ Plaid OAuth flow completes successfully
+- ✅ System accepts accounts with insufficient transactions (< 2 months data)
+- ✅ Applicant can complete flow despite insufficient data
+- ✅ "User Error" link appears in admin view (polling up to 45s)
+- ✅ Error modal displays exact count: "1 account | 1 transaction"
+- ✅ "Gross Income Ratio Exceeded" decline flag is auto-generated
+- ✅ Flag has proper tooltip explaining threshold exceeded
+
+**Unique Aspects**:
+- Tests **Plaid-specific** error scenario (not MX)
+- Uses special test account (custom_onetxn) designed for insufficient data testing
+- Validates graceful degradation (completion without enough data)
+- Implements polling for "User Error" link (45-second timeout)
+- Verifies specific error messaging to admin users
 
 ---
 
-### **2. financial_mx_2_attempts_success_and_failed_password.spec.js - MX Provider + Retry Logic + Eligibility Status Transitions**
+### **2. financial_mx_2_attempts_success_and_failed_password.spec.js**
 
-#### **Complete Test Structure:**
-- **1 test** (300s timeout)
-- **MX integration** with retry logic AND eligibility status transitions
+**Purpose**: Comprehensive MX provider test covering retry logic, error handling, and real-time eligibility status transitions
+
+**Configuration**:
+- **Application**: "AutoTest - Financial Only, MX and Plaid"
+- **Provider**: MX (int-widgets.moneydesktop.com)
+- **Test Banks**: "MX Bank (OAuth)" (success), "MX Bank" (failure)
+- **Rent Budgets**: $500 (initial), $3000 (transition test)
+- **Manual Income**: $6000 OTHER (to restore criteria)
 - **Tags**: @regression, @external-integration, @eligibility, @core
+- **Timeout**: 350 seconds
+
+---
 
 #### **Test: "Financial - mx - 2 attempts + Eligibility status transitions"**
-**Purpose**: Test MX retry mechanism, password failure handling, AND eligibility status transitions based on income/rent ratio changes
-**API Endpoints Called**:
 
-**PART 1: MX Connection Testing**
-- `POST /auth` - Admin login (via loginForm.submit, line 34)
-  - **Response Used For**: Authentication and session establishment
-  - **What's Actually Checked**: Response status is OK (200), page title contains "Applicants"
-- `GET /applications?` - Search applications (via searchApplication, line 42)
-  - **Response Used For**: Getting applications data for search
-  - **What's Actually Checked**: Response status is OK (200), applications array is returned
-- `POST /sessions` - Create session (via generateSessionForm.submit, line 58)
-  - **Response Used For**: Creating new session for applicant
-  - **What's Actually Checked**: Response status is OK (200), session data is returned
-- `PATCH /sessions/{id}` - Update session rent budget (waitForResponse, line 77)
-  - **Response Used For**: Updating session with rent budget ($500)
-  - **What's Actually Checked**: Response status is OK (200), PATCH method
-- `POST /financial-verifications` - Create financial verification (waitForResponse, line 81-88)
-  - **Response Used For**: Creating financial verification for MX connection
-  - **What's Actually Checked**: Response status is OK (200), financial verification data is returned
+**Purpose**: Validates MX provider's retry mechanism, credential failure handling, additional bank connection modal, and dynamic eligibility status changes based on income/rent ratio
+
+**Test Flow**:
+
+**PART 1: MX Connection Testing (Retry Logic)**
+
+1. **Setup Phase**
+   - Login as admin
+   - Navigate to applications page
+   - Search for "AutoTest - Financial Only, MX and Plaid"
+
+2. **Session Generation**
+   - Find application row by name
+   - Click invite link
+   - Fill session form (FinMX, Test, finmx_test@verifast.com)
+   - Submit and extract session link + ID
+
+3. **Applicant Initial Setup** (New Context)
+   - Navigate to session link
+   - Handle optional state/terms modals (via `setupInviteLinkSession`)
+   - Fill rent budget: $500
+   - Submit and wait for PATCH response
+
+4. **First MX Connection** (SUCCESS - OAuth)
+   - Click "connect-bank" button
+   - Wait for MX iframe to load
+   - Search for "mx bank oau"
+   - Click "MX-Bank-(OAuth)-row"
+   - Click continue button (opens OAuth page in new tab)
+   - Wait for OAuth page to load
+   - Click "Authorize" button
+   - **Robust Polling Logic** (up to 160 seconds):
+     - Poll every 2 seconds
+     - Check if iframe closed automatically OR "done" button visible
+     - Handle both scenarios (auto-close requires iframe re-open)
+     - Fallback: reload page and check "Completed" status
+
+5. **Second MX Connection** (FAILURE - Bad Credentials)
+   - Re-open MX iframe if it closed automatically
+   - Search for "mx bank"
+   - Click "MX-Bank-row"
+   - Fill LOGIN: fail_user
+   - Fill PASSWORD: fail_password
+   - Click credentials-continue
+   - **Wait for error message** (up to 150 seconds)
+   - Click close icon to dismiss modal
+   - Click financial-verification-continue button
+
+6. **Applicant Verification**
+   - Verify "Summary" screen appears (110-second timeout)
+
+**PART 1.5: Additional Bank Connect Modal**
+
+7. **Test Additional Connect from Summary**
+   - Click financial-verification-row-expand-toggle
+   - Click "additional-connect-bank" button
+   - Verify MX iframe loads with bank tiles
+   - Click "bank-connect-modal-cancel" to close
 
 **PART 2: Eligibility Status Transitions**
-- `PATCH /sessions/{id}` - Update rent budget to $3000 (line 233-235)
-  - **Response Used For**: Testing status transition when income becomes insufficient
-  - **What's Actually Checked**: Response status is OK (200), PATCH method
-- `POST /sessions/{sessionId}/income-sources` - Create manual income source (waitForResponse, line 263-270)
-  - **Response Used For**: Adding $3000 OTHER income to meet increased rent criteria
-  - **What's Actually Checked**: Response status is OK (200), income source created successfully
 
-**Steps**:
-
-**PART 1: MX Connection Testing** (Lines 33-201)
-1. **Admin login and navigate to applications** (via loginForm.fill and loginForm.submit)
-2. **Locate 'AutoTest - Financial Only, MX and Plaid' application** (via searchApplication utility)
-3. **Generate session with specific user data** (via generateSessionForm utility)
-   - Fill form with user data (FinMX, Test, finmx_test@verifast.com)
-   - Submit form and get session link
-4. **Applicant flow** (in new browser context):
-   - Navigate to session link
-   - Set rent budget to '$500' and submit
-   - Start financial verification
-   - **First attempt**: MX OAuth with 'mx bank oau' (success)
-     - Search for 'mx bank oau' in MX iframe
-     - Click OAuth option and authorize
-     - **Robust polling logic** (lines 111-160):
-       - Poll every 2s for up to 220s
-       - Check if iframe closed automatically OR done button visible
-       - Handle both scenarios gracefully
-   - **Second attempt**: MX with 'mx bank' using 'fail_user'/'fail_password' (failure)
-     - Re-open iframe if closed automatically
-     - Search for 'mx bank' in MX iframe
-     - Enter invalid credentials (fail_user/fail_password)
-     - Handle error message and close modal
-   - Continue financial verification
-5. **Verify summary screen is displayed** (h3 with "Summary" text)
-
-**PART 2: Eligibility Status Transitions** (Lines 203-289)
-6. **Close applicant page and open admin report view** (line 210-213)
+8. **Switch to Admin View**
    - Navigate to session admin URL
-   - Wait for income sources to be generated from MX data
-7. **Assert initial status** (line 223-225)
-   - Verify "Meets Criteria" (MX income sufficient for $500 rent)
-8. **Increase rent to $3000** (line 228-240)
-   - Edit rent budget to $3000
-   - Reload and verify "Criteria Not Met" (income insufficient)
-9. **Add manual income source of $3000** (line 243-282)
-   - Click income source section
-   - Add manual income (type: OTHER, amount: $3000)
-   - Uncheck "Calculate average from transactions"
-   - Save and verify income source visible
-10. **Verify status restored to Meets Criteria** (line 284-286)
-    - Reload and verify "Meets Criteria" (total income now sufficient)
+   - Wait 5 seconds for income sources to generate from MX data
 
-#### **Key Business Validations:**
+9. **Initial Status Verification** (Polling up to 60 seconds)
+   - Poll household-status-alert every 2 seconds
+   - Reload every 3 attempts to refresh state
+   - Verify displays "Meets Criteria" (MX income sufficient for $500 rent)
 
-**MX Connection Testing:**
-- **MX OAuth flow with polling logic** ✅
-- **Retry logic for failed attempts** ✅
-- **Password failure handling** ✅
-- **Success after retry** ✅
-- **Error message display** ✅
-- **Robust iframe handling (auto-close + re-open)** ✅
+10. **Trigger Eligibility Failure**
+    - Click rent-budget-edit button
+    - Change rent to $3000
+    - Submit
+    - Reload page
 
-**Eligibility Status Transitions:**
-- **Income-to-rent ratio calculations** ✅
-- **Status transitions: Meets Criteria → Not Met → Meets Criteria** ✅
-- **Manual income source creation** ✅
-- **Real-time status updates after income/rent changes** ✅
-- **MX-generated income integration** ✅
+11. **Failed Status Verification** (Polling up to 30 seconds)
+    - Poll household-status-alert
+    - Reload every 3 attempts
+    - Verify displays "Criteria Not Met" (income insufficient for $3000)
+
+12. **Add Manual Income**
+    - Click income-source-section-header
+    - Click income-source-add
+    - Select income type: OTHER
+    - Uncheck "Calculate average from transactions" (if checked)
+    - Fill net amount: $6000
+    - Save and wait for POST response
+    - Wait 5 seconds for income source sync
+    - Verify income source visible in UI
+
+13. **Restored Status Verification** (Polling up to 40 seconds)
+    - Reload page
+    - Poll household-status-alert every 2 seconds
+    - Reload every 5 attempts
+    - Verify displays "Meets Criteria" (total income now sufficient)
+
+**Key API Endpoints**:
+- `POST /auth` - Admin authentication
+- `GET /applications?` - Search applications
+- `POST /sessions` - Create session
+- `PATCH /sessions/{id}` - Update rent budget (3 times: $500, $3000, background updates)
+- `POST /financial-verifications` - Start MX connection
+- `POST /sessions/{id}/income-sources` - Create manual income source
+
+**Business Validations**:
+- ✅ MX OAuth flow completes successfully with popup authorization
+- ✅ System handles iframe auto-close gracefully (re-opens for retry)
+- ✅ Robust polling prevents flakiness (160-second tolerance for MX processing)
+- ✅ Retry mechanism allows second connection attempt
+- ✅ Invalid credentials show error message (150-second timeout)
+- ✅ Applicant can complete flow with mixed success/failure attempts
+- ✅ Additional bank connect modal works from summary page
+- ✅ Eligibility status updates dynamically when rent changes
+- ✅ Status polling with page reloads ensures fresh data
+- ✅ Manual income sources properly aggregate with MX income
+- ✅ Income-to-rent ratio calculations work correctly
+- ✅ Status transitions validated: "Meets" → "Not Met" → "Meets"
+
+**Unique Aspects**:
+- Tests **MX-specific** provider (not Plaid)
+- Implements **highly robust polling** for iframe completion (handles auto-close)
+- Tests **retry mechanism** with intentional failure
+- Validates **OAuth popup flow** (separate window authorization)
+- Tests **additional bank connect** modal (from applicant summary)
+- Implements **comprehensive status polling** with reload strategy
+- Tests **dynamic eligibility calculations** (3 different states)
+- Validates **manual income aggregation** with automated sources
 
 ---
 
-### **3. check_coapp_income_ratio_exceede_flag.spec.js - Co-Applicant Income Ratio Flag Testing**
+### **3. check_coapp_income_ratio_exceede_flag.spec.js**
 
-#### **Complete Test Structure:**
-- **1 test** (400s timeout)
-- **Co-applicant income ratio flag testing** functionality
-- **Tags**: @smoke
+**Purpose**: Validates co-applicant income aggregation and dynamic flag generation/removal based on income-to-rent ratio thresholds
+
+**Configuration**:
+- **Application**: "AutoTest Suite - Full Test" (full flow application)
+- **Primary Applicant Type**: Employed
+- **Co-Applicant Type**: Other  
+- **Rent Budget**: $1500
+- **Identity**: Persona verification (with camera permissions)
+- **Financial**: Plaid (Betterment, no popup) - both applicants
+- **Employment**: Atomic Paychex (username: test-good, password: test) - both applicants
+- **Tags**: @smoke, @external-integration, @regression, @staging-ready, @try-test-rail-names
+- **Timeout**: 450 seconds
+
+---
 
 #### **Test: "Should confirm co-applicant income is considered when generating/removing Gross Income Ratio Exceeded flag"**
-**Purpose**: Test co-applicant income ratio calculations and flag generation/removal based on income thresholds
-**API Endpoints Called**:
-- `POST /auth` - Admin login (via loginForm.adminLoginAndNavigate)
-  - **Response Used For**: Authentication and session establishment
-  - **What's Actually Checked**: Response status is OK (200), admin login successful
-- `GET /applications?` - Search applications (via findAndInviteApplication)
-  - **Response Used For**: Getting applications data for search
-  - **What's Actually Checked**: Response status is OK (200), applications array is returned
-- `POST /sessions` - Create session (via generateSessionForm.generateSessionAndExtractLink)
-  - **Response Used For**: Creating new session for applicant
-  - **What's Actually Checked**: Response status is OK (200), session data is returned with sessionId and sessionUrl
-- `PATCH /sessions/{id}` - Update session applicant type (via selectApplicantType)
-  - **Response Used For**: Updating session with selected applicant type
-  - **What's Actually Checked**: Response status is OK (200), PATCH method successful
-- `PATCH /sessions/{id}` - Update session rent budget (via updateRentBudget)
-  - **Response Used For**: Updating session with rent budget amount
-  - **What's Actually Checked**: Response status is OK (200), PATCH method successful
-- `POST /applicants` - Create co-applicant (via fillhouseholdForm)
-  - **Response Used For**: Creating co-applicant record
-  - **What's Actually Checked**: Response status is OK (200), applicant data is returned
-- `PATCH /sessions/{id}/steps/` - Update session steps (via waitForResponse)
-  - **Response Used For**: Updating session step completion status
-  - **What's Actually Checked**: Response status is OK (200), PATCH method successful
-- `GET /sessions?fields[session]` - Load sessions (via gotoPage)
-  - **Response Used For**: Getting sessions with children information
-  - **What's Actually Checked**: Response status is OK (200), sessions array is returned
-- `GET /sessions/{id}?fields[session]` - Get session details (via waitForResponse)
-  - **Response Used For**: Getting complete session object with co-applicant data
-  - **What's Actually Checked**: Response status is OK (200), session data with children array is returned
 
-#### **Detailed Steps:**
-1. **Admin Login and Navigation** - Login as admin and navigate to applications page
-2. **Find and Invite Application** - Search for "AutoTest Suite - Full Test" application and click invite
-3. **Generate Session** - Create session with user data and extract invite link
-4. **Open Invite URL** - Navigate to applicant invite URL with camera permissions
-5. **Select Applicant Type** - Select "Employed" applicant type
-6. **Update State Modal** - Fill state modal with "ALABAMA" selection
-7. **Update Rent Budget** - Set rent budget to "1500"
-8. **Add Co-Applicant** - Fill household form with co-applicant data
-9. **Complete ID Verification** - Complete Persona identity verification
-10. **Complete Financial Step** - Complete Plaid financial connection with Betterment
-11. **Wait for Plaid Completion** - Wait for Plaid connection to complete
-12. **Complete Paystub Connection** - Complete paystub connection with Paychex
-13. **Complete Employment Step** - Click continue button to complete employment step
-14. **Navigate to Sessions** - Go to sessions page to view session details
-15. **Search for Session** - Search for the specific session by ID
-16. **Click Session** - Click on session card to view details
-17. **Validate Initial Data** - Check rent budget, monthly income, and ratio calculations
-18. **Verify Flag Presence** - Confirm GROSS_INCOME_RATIO_EXCEEDED flag is present
-19. **Close Event History** - Close the event history modal
-20. **Invite Co-Applicant** - Click session action button and invite co-applicant
-21. **Copy Invite Link** - Copy the co-applicant invite link
-22. **Open Co-Applicant Link** - Navigate to co-applicant invite URL
-23. **Select Co-Applicant Type** - Select "Other" applicant type for co-applicant
-24. **Complete Co-Applicant ID** - Complete identity verification for co-applicant
-25. **Complete Co-Applicant Financial** - Complete Plaid connection for co-applicant
-26. **Wait for Co-Applicant Plaid** - Wait for co-applicant Plaid connection to complete
-27. **Complete Co-Applicant Paystub** - Complete paystub connection for co-applicant
-28. **Complete Co-Applicant Employment** - Complete employment step for co-applicant
-29. **Reload Session** - Reload the main session page to get updated data
-30. **Search Updated Session** - Search for the updated session
-31. **Validate Updated Data** - Check updated rent budget, monthly income, and ratio
-32. **Verify Income Increase** - Confirm monthly income has increased after co-applicant
-33. **Calculate New Ratio** - Calculate and validate new rent-to-income ratio
-34. **Retry Logic for Ratio** - Implement retry logic for ratio calculation with 25-second max wait
-35. **Verify Flag Removal** - Confirm GROSS_INCOME_RATIO_EXCEEDED flag is removed
-36. **Close Event History** - Close the event history modal
+**Purpose**: Verify that household income from multiple applicants correctly aggregates and that the GROSS_INCOME_RATIO_EXCEEDED flag generates/clears based on 30% ratio threshold
+**Test Flow**:
 
-#### **Key Business Validations:**
-- **Co-Applicant Income Aggregation** - Tests income aggregation from multiple applicants
-- **Income Ratio Calculations** - Validates rent-to-income ratio calculations
-- **Flag Generation Logic** - Tests GROSS_INCOME_RATIO_EXCEEDED flag generation when ratio > 30%
-- **Flag Removal Logic** - Tests flag removal when ratio drops below 30% threshold
-- **Financial Data Validation** - Validates rent budget, monthly income, and ratio displays
-- **Retry Logic Implementation** - Tests robust retry logic for ratio calculations
-- **Session State Management** - Ensures session data updates correctly after co-applicant completion
-- **UI State Persistence** - Validates UI updates reflect new financial calculations
-- **Threshold Validation** - Tests 30% income ratio threshold logic
-- **Data Consistency** - Ensures financial data consistency across session updates
+**PART 1: Primary Applicant Flow (Single Income - Flag Should Exist)**
 
-#### **Overlap Assessment:**
-**NO OVERLAP** - This test is unique in its focus on co-applicant income ratio calculations and flag generation/removal based on income thresholds.
+1. **Setup Phase**
+   - Login as admin
+   - Navigate to applications page
+   - Find and invite "AutoTest Suite - Full Test" application
 
----
+2. **Session Generation**
+   - Fill session form (Playwright, Ratio, playwright+ratio@verifast.com)
+   - Extract session ID, session URL, and invite link
 
-### **4. employment_skip_household_not_hidden_employment_connect.spec.js - Employment Verification with Household Skip**
+3. **Primary Applicant Context** (With camera permissions)
+   - Navigate to invite URL
+   - Handle session setup (terms → applicant type → state): Select #employed
+   - Update rent budget: $1500
 
-#### **Complete Test Structure:**
-- **1 test** (no explicit timeout set)
-- **Employment verification with household skip** testing
-- **Tags**: @smoke, @regression, @needs-review
+4. **Add Co-Applicant to Household**
+   - Fill household form with co-applicant data (Playwright, CoApp)
+   - Click applicant-invite-continue button
 
-#### **Test: "Should skip household setup and connect to employment"**
-**Purpose**: Test employment verification flow while skipping household setup and connecting directly to employment verification
-**API Endpoints Called**:
-- `POST /auth` - Admin login (via loginForm.adminLoginAndNavigate)
-  - **Response Used For**: Authentication and session establishment
-  - **What's Actually Checked**: Response status is OK (200), admin login successful
-- `GET /applications?` - Search applications (via findAndInviteApplication)
-  - **Response Used For**: Getting applications data for search
-  - **What's Actually Checked**: Response status is OK (200), applications array is returned
-- `POST /sessions` - Create session (via generateSessionForm.submit)
-  - **Response Used For**: Creating new session for applicant
-  - **What's Actually Checked**: Response status is OK (200), session data is returned with sessionId
-- `PATCH /sessions/{id}` - Update session rent budget (via waitForResponse)
-  - **Response Used For**: Updating session with rent budget amount
-  - **What's Actually Checked**: Response status is OK (200), PATCH method successful
+5. **Complete Primary Verification Steps**
+   - Identity: Complete Persona verification
+   - Financial: Complete Plaid with Betterment (username: custom_gig)
+   - Wait for Plaid completion (60s polling timeout)
+   - Employment: Complete Paychex (username: test-good, password: test)
+   - Click employment-step-continue
 
-#### **Detailed Steps:**
-1. **Admin Login and Navigation** - Login as admin and navigate to applications page
-2. **Navigate to Applications Page** - Go to applications page
-3. **Find and Invite Application** - Search for "AutoTest Suite - EMP Connect" application and click invite
-4. **Fill Applicant Info** - Fill session form with user data (alexander, sample, ignacio.martinez+playwright1@verifast.com)
-5. **Generate Session** - Submit session form to create new session
-6. **Copy Invite Link** - Get the invite link from the session invite link section
-7. **Open Invite Link** - Navigate to applicant invite URL in new browser context
-8. **Handle State Modal** - Handle optional state modal if present
-9. **Enter Rent Budget** - Fill rent budget input with "555"
-10. **Submit Rent Budget** - Submit rent budget form and wait for PATCH response
-11. **Start Employment Verification** - Wait for Employment Verification section to be visible
-12. **Select Pay Stub Document** - Click on document-pay_stub test ID
-13. **Connect Employment** - Click directly-connect-emp-btn to start employment connection
-14. **Complete Employment Verification** - Complete Walmart paystub verification in AtomicFI iframe
-15. **Verify Summary** - Wait for Summary section to be visible
-16. **Clean Up** - Close applicant page
+6. **Admin View - Initial Validation**
+   - Navigate to applicants → applicants submenu
+   - Search for session by ID, click session card
+   - **Validate Initial Financial Data**:
+     - Verify session has children (co-applicant placeholder)
+     - Check rent: $1500, Check income (primary only)
+     - Calculate ratio: (rent / income) * 100
+     - **Verify ratio > 30%** (insufficient)
+   - Click View Details
+   - **Verify GROSS_INCOME_RATIO_EXCEEDED flag visible**
+   - Close event history
 
-#### **Key Business Validations:**
-- **Employment Verification Flow** - Tests complete employment verification process
-- **Household Skip Functionality** - Tests ability to skip household setup and go directly to employment
-- **AtomicFI Integration** - Tests integration with AtomicFI iframe for employment verification
-- **Walmart Paystub Processing** - Tests specific Walmart paystub verification workflow
-- **Rent Budget Handling** - Tests rent budget input and submission
-- **Session Management** - Tests session creation and management
-- **Iframe Navigation** - Tests navigation and interaction within AtomicFI iframe
-- **State Modal Handling** - Tests optional state modal handling
-- **Document Selection** - Tests paystub document selection process
-- **Summary Page Validation** - Tests final summary page display
+**PART 2: Co-Applicant Flow (Add Income - Flag Should Clear)**
 
-#### **Overlap Assessment:**
-**NO OVERLAP** - This test is unique in its focus on employment verification with household skip functionality and AtomicFI iframe integration.
+7. **Invite Co-Applicant**
+   - Click session-action → invite-applicant
+   - Click reinvite for first child
+   - Copy invite link from clipboard
+   - Close invite modal
+
+8. **Co-Applicant Context** (New context with camera)
+   - Navigate to co-app invite URL
+   - Handle session setup: Select #other
+
+9. **Complete Co-Applicant Verification Steps**
+   - Identity: Complete Persona
+   - Financial: Complete Plaid with Betterment (user_bank_income)
+   - Wait for Plaid completion
+   - Employment: Complete Paychex (test-good, test)
+   - Click employment-step-continue
+   - Close co-app page
+
+10. **Admin View - Final Validation**
+    - Reload session page, search by ID again
+    - **Validate Updated Financial Data**:
+      - Verify income INCREASED (log before/after/delta)
+      - Calculate new ratio with **polling** (up to 25s):
+        - Reload page every 5s if ratio still > 30%
+      - **Verify ratio ≤ 30%** (sufficient)
+    - Click View Details
+    - **Verify GROSS_INCOME_RATIO_EXCEEDED flag REMOVED** (poll up to 20s):
+      - Close and reopen modal between attempts
+      - Verify final count = 0
+    - Close event history
+
+**Key API Endpoints**:
+- `POST /auth` - Admin authentication
+- `GET /applications?` - Search applications
+- `POST /sessions` - Create session
+- `PATCH /sessions/{id}` - Update applicant type, rent budget, steps
+- `POST /applicants` - Create co-applicant
+- `GET /sessions?fields[session]` - Load sessions with children
+- `GET /sessions/{id}?fields[session]` - Get full session details
+
+**Business Validations**:
+- ✅ Primary applicant adds co-applicant placeholder during household step
+- ✅ Co-applicant placeholder has APPLICANT role before invite
+- ✅ Initial income triggers GROSS_INCOME_RATIO_EXCEEDED when ratio > 30%
+- ✅ Co-applicant completes separate verification flow with different type (#other vs #employed)
+- ✅ Household income aggregates from multiple applicants
+- ✅ Ratio polling with reload ensures accurate backend calculation
+- ✅ Flag automatically clears when ratio drops ≤ 30%
+- ✅ Flag polling with modal refresh ensures UI reflects backend state
+
+**Unique Aspects**:
+- Tests **multi-applicant household** income aggregation
+- Implements **robust ratio polling** (25s with page reloads)
+- Implements **flag polling** (20s with modal refresh)
+- Uses **two separate browser contexts** (primary + co-applicant)
+- Tests **dynamic flag generation/removal** based on real-time calculations
+- Validates **30% income ratio threshold** specifically
+- Uses **Persona identity** (requires camera permissions)
+- Tests **Atomic Paychex** integration
+- Tests **different applicant types** in same household
 
 ---
 
-### **5. check_ui_shows_na_for-high_balance.spec.js - High Balance Account N/A Display Validation**
+### **4. check_ui_shows_na_for-high_balance.spec.js**
 
-#### **Complete Test Structure:**
-- **1 test** (no explicit timeout)
-- **High balance account N/A display** validation
-- **Tags**: @core, @regression
-- **Cleanup Strategy**: Conditional cleanup (deletes session only if test PASSED, preserves on failure for debugging)
+**Purpose**: Validates that high balance accounts (≥ $500,000) display actual dollar values (not "N/A") and that UI income matches backend API calculations
+
+**Configuration**:
+- **Application**: "AutoTest - Simulation financial employment"
+- **Verification Method**: Upload statement (VERIDOCS simulator with dialog)
+- **Mock Data**: High balance bank statement ($550,000 starting balance)
+- **Rent Budget**: $555
+- **Tags**: @core, @regression, @staging-ready
+
+---
 
 #### **Test: "Should check UI not shows N/A for high balance accounts"**
-**Purpose**: Test that high balance accounts (≥ $500,000) do NOT display "N/A" in UI balance fields, and verify Monthly Gross Income matches backend API data
-**API Endpoints Called**:
-- `POST /auth` - Admin login (via loginForm.adminLoginAndNavigate, line 46)
-  - **Response Used For**: Authentication and capturing admin token for cleanup
-  - **What's Actually Checked**: Response status is OK (200), admin login successful, token returned
-- `GET /applications?` - Search applications (via findAndInviteApplication, line 52)
-  - **Response Used For**: Getting applications data for search
-  - **What's Actually Checked**: Response status is OK (200), "AutoTest - Simulation financial employment" found
-- `POST /sessions` - Create session (via generateSessionForm.submit, line 56)
-  - **Response Used For**: Creating new session for applicant
-  - **What's Actually Checked**: Response status is OK (200), session data is returned with sessionId
-- `PATCH /sessions/{id}` - Update session rent budget (lines 76-83)
-  - **Response Used For**: Updating session with rent budget ($555)
-  - **What's Actually Checked**: Response status is OK (200), PATCH method successful
-- `POST /financial-verifications` - Create financial verification (lines 86-99)
-  - **Response Used For**: Creating financial verification with VERIDOCS high balance payload
-  - **What's Actually Checked**: Response status is OK (200), financial verification created
-- `GET /sessions?fields[session]=` - Search sessions (via searchSessionWithText, line 119)
-  - **Response Used For**: Finding session by ID in admin panel
-  - **What's Actually Checked**: Response status is OK (200), sessions array returned
-- `GET /sessions/{id}?fields[session]=` - Get session details (via navigateToSessionById, line 120)
-  - **Response Used For**: Loading session data for balance validation
-  - **What's Actually Checked**: Response status is OK (200), session data returned
-- `GET /sessions/{id}` - Get session for income validation (line 168)
-  - **Response Used For**: Getting backend income value for comparison
-  - **What's Actually Checked**: Response status is OK (200), `state.summary.income` field extracted
-- `DELETE /sessions/{id}` - Delete session (conditional cleanup, lines 30-32)
-  - **Response Used For**: Cleanup only if test passed
-  - **What's Actually Checked**: Session deleted successfully or preserved on failure
 
-**Steps**:
-1. **Admin login and capture token** (line 46) - Login as admin and store token for cleanup
-2. **Navigate to applications page** (line 49) - Go to applications page
-3. **Find and invite application** (line 52) - Search for "AutoTest - Simulation financial employment"
-4. **Generate session** (lines 55-56) - Create session with user data (alexander, sample)
-5. **Extract session link and ID** (lines 59-63) - Get invite link and sessionId, store for cleanup tracking
-6. **Close modal** (line 66) - Close session generation modal
-7. **Applicant flow** (lines 69-72) - Open invite link in new context
-8. **Complete rent budget** (lines 75-83) - Fill rent budget ($555) and submit with PATCH response wait
-9. **Submit high balance financial verification** (lines 86-99):
+**Purpose**: Verify that accounts with balances ≥ $500,000 properly display dollar amounts throughout UI and that Monthly Gross Income card matches backend API data
+
+**Test Flow**:
+1. **Setup Phase**
+   - Login as admin (capture admin token for API calls)
+   - Navigate to applications page
+   - Find and invite "AutoTest - Simulation financial employment"
+
+2. **Session Generation**
+   - Fill session form (alexander, sample, ignacio.martinez+playwright1@verifast.com)
+   - Submit and extract session ID + invite link
+   - Close modal
+
+3. **Applicant Context** (New context)
+   - Navigate to invite link
+   - Handle optional state/terms modals (via `setupInviteLinkSession`)
+   - Fill rent budget: $555
+   - Submit and wait for PATCH response
+
+4. **Financial Verification with High Balance Data**
+   - Click financial-upload-statement button
+   - Set up dialog listener to inject high balance bank statement JSON:
+     - Institution: Wells Fargo
+     - Account type: Checking
+     - Starting balance: $550,000
+     - 5 transactions with large amounts ($15k-$35k)
+     - Ending balance: calculated dynamically
+   - Click connect-bank button (triggers dialog)
+   - Dialog accepts with highBalanceBankStatementData JSON
    - Wait for POST /financial-verifications response
-   - Use dialog handler to inject `highBalanceBankStatementData(userData)` JSON
-   - Click "Upload Statement" button
-   - Click "Connect Bank" button (simulator dialog accepts payload)
-10. **Continue financial verification** (lines 101-103) - Wait 2s, click continue button
-11. **Skip employment verification** (lines 106-110) - Wait for employment step, click skip button
-12. **Close applicant page** (line 110) - Close applicant context
-13. **Admin validation** (lines 113-120):
-    - Bring admin page to front
-    - Navigate to Applicants menu
-    - Search for session by sessionId
-    - Navigate to session details
-14. **Financial section validation** (lines 123-137):
-    - Click financial section header
-    - Get account balance column (visible filter)
-    - Extract balance text content
-    - **Assert**: Balance does NOT contain "n/a" (case-insensitive)
-    - Click transactions radio button
-    - Get all transaction balance columns
-    - **Loop through all transactions**: Assert each balance does NOT contain "n/a"
-15. **Cash Flow report validation with polling** (lines 140-162):
-    - Get Cash Flow card (`report-cashflow-card`)
-    - Poll for Cash Flow value (max 10 attempts, 500ms intervals)
-    - Extract value using regex: `/\$\s*([\d,]+\.\d{2})/`
-    - **Assert**: Value exists (not null)
-    - **Assert**: Text does NOT contain "n/a"
-    - Log extracted value
-16. **Monthly Gross Income validation with backend comparison** (lines 165-199):
-    - Get backend income via API: `GET /sessions/{id}` (line 168)
-    - Extract `state.summary.income` (cents)
-    - Convert to dollars: `(apiIncome / 100).toFixed(2)`
-    - Get Monthly Gross Income card (`report-monthly-income-card`)
-    - Poll for income value (max 10 attempts, 500ms intervals)
-    - Extract UI value using regex: `/\$\s*([\d,]+\.\d{2})/`
-    - Remove commas from UI value
-    - **Assert**: UI value exists (not null)
-    - **Assert**: UI value does NOT contain "n/a"
-    - **Assert**: UI value EXACTLY MATCHES backend value
-    - Log both values for comparison
-17. **Conditional cleanup** (lines 25-40):
-    - If test PASSED: Delete session via DELETE API
-    - If test FAILED: Log session ID for debugging, preserve session
 
-#### **Key Business Validations:**
-- **High Balance Handling** - Tests accounts with balance ≥ $550,000 (starting balance)
-- **N/A Display Prevention** - Ensures "N/A" is never shown for valid high balance data
-- **Balance Display Accuracy** - Validates all balance columns show actual values
-- **Transaction Balance Accuracy** - Validates all transaction balance rows show actual values
-- **Cash Flow Calculation** - Tests Cash Flow card displays calculated value (not N/A)
-- **Monthly Income Backend Sync** - Validates UI income EXACTLY matches backend API data
-- **Polling for Async Data** - Implements robust polling (10 attempts, 500ms) for report card values
-- **Regex Value Extraction** - Uses regex to extract dollar amounts from formatted text
-- **VERIDOCS Simulation** - Tests high balance payload via simulator dialog handler
-- **Conditional Cleanup** - Preserves session on failure for debugging
-- **Financial Section Navigation** - Tests clicking financial section and toggling to transactions view
-- **Report Card Visibility** - Tests Cash Flow and Monthly Gross Income cards are visible and populated
+5. **Continue Flow**
+   - Click financial-verification-continue button
+   - Verify employment-verification-step is visible
+   - Click employment-step-skip button
 
-#### **Mock Data Details (highBalanceBankStatementData):**
-- **Starting Balance**: $550,000.00
-- **Ending Balance**: $556,000.00 (calculated from transactions)
-- **Total Credits**: $53,000 (2 payroll deposits: $35k + $18k)
-- **Total Debits**: $47,000 (3 transfers/payments: $15k + $20k + $12k)
-- **Transactions**: 5 transactions with dynamic dates (last 30 days)
-- **Account Owner**: Uses userData name or defaults to "Heartbeat Test User"
-- **Institution**: Wells Fargo
-- **Account Type**: Checking
-- **Currency**: USD
+6. **Admin Validation**
+   - Bring admin page to front
+   - Navigate to applicants menu → applicants submenu
+   - Search for session by ID
+   - Navigate to session by ID
+   - Click financial-section-header to expand
 
-#### **Overlap Assessment:**
-**NO OVERLAP** - This test is unique in its focus on high balance account UI display validation and backend-frontend income synchronization with exact value matching.
+7. **Balance Display Validation**
+   - Get balance column (visible balance col)
+   - Verify balance text does NOT contain "n/a" (case-insensitive)
+   - Click financial-section-transactions-radio
+   - Get all transaction balance columns
+   - Loop through each balance column:
+     - Verify text does NOT contain "n/a"
+
+8. **Cash Flow Validation** (Polling up to 5 seconds)
+   - Get report-cashflow-card element
+   - Poll for cash flow value (10 attempts, 500ms each):
+     - Extract dollar amount using regex: /\$\s*([\d,]+\.\d{2})/
+     - Verify value exists and doesn't contain "n/a"
+     - Log value when found
+
+9. **Monthly Gross Income API Validation**
+   - Make API request: GET /sessions/{id} with admin token
+   - Extract backend income: sessionData.data.state.summary.income (in cents)
+   - Convert to dollars: (income / 100).toFixed(2)
+   - Get report-monthly-income-card element
+   - Poll for UI income value (10 attempts, 500ms each):
+     - Extract dollar amount using regex
+     - Verify value exists and doesn't contain "n/a"
+   - **Verify UI income matches API income exactly**
+
+**Key API Endpoints**:
+- `POST /auth` - Admin authentication (returns token)
+- `GET /applications?` - Search applications
+- `POST /sessions` - Create session
+- `PATCH /sessions/{id}` - Update rent budget
+- `POST /financial-verifications` - Create verification with high balance payload
+- `GET /sessions?fields[session]=` - Search sessions
+- `GET /sessions/{id}` - Get session for API validation
+
+**Business Validations**:
+- ✅ High balance accounts (≥ $500k) display actual dollar values
+- ✅ Balance columns do NOT show "N/A" for high balance accounts
+- ✅ Transaction balance columns do NOT show "N/A"
+- ✅ Cash Flow card displays calculated value (not "N/A")
+- ✅ Monthly Gross Income card matches backend API calculation exactly
+- ✅ UI polling ensures values load before validation
+- ✅ Regex extraction correctly parses dollar amounts
+- ✅ VERIDOCS simulator accepts high balance mock data via dialog
+
+**Unique Aspects**:
+- Tests **high balance edge case** ($550,000 starting balance)
+- Uses **dialog injection** to simulate VERIDOCS upload
+- Validates **N/A prevention** for large balances (regression prevention)
+- Implements **dual validation**: visual check + API comparison
+- Uses **polling for UI values** (ensures rendering complete)
+- Tests **Wells Fargo** bank statement format
+- Validates **transaction-level balance display** (not just summary)
+- Verifies **Cash Flow calculation** displays properly
+
 
 ---
 
-## **Category 2 Analysis Summary**
-
-### **API Endpoints Coverage Analysis:**
-
-| API Endpoint | Category | Tests Using It | What's Actually Checked |
-|--------------|----------|----------------|-------------------------|
-| `POST /auth` | Authentication | All 5 tests | Response status is OK (200), admin login successful, token captured |
-| `GET /applications?` | Application Management | All 5 tests | Response status is OK (200), applications array is returned |
-| `POST /sessions` | Session Management | All 5 tests | Response status is OK (200), session data is returned |
-| `PATCH /sessions/{id}` | Session Management | All 5 tests | Response status is OK (200), PATCH method successful |
-| `GET /sessions?fields[session]=` | Session Management | All 5 tests | Response status is OK (200), sessions data array is returned |
-| `GET /sessions/{id}?fields[session]=` | Session Management | 2 tests | Response status is OK (200), session details returned |
-| `GET /sessions/{id}` | Session Management | 2 tests | Response status is OK (200), session data or income value returned |
-| `POST /financial-verifications` | Financial Verification | All 5 tests | Response status is OK (200), financial verification data is returned |
-| `GET /financial-verifications` | Financial Verification | 1 test | Response status is OK (200), financial verifications array is returned |
-| `POST /sessions/{sessionId}/income-sources` | Income Sources | 1 test | Response status is OK (200), income source data is returned |
-| `GET /sessions/{sessionId}/income-sources` | Income Sources | 1 test | Response status is OK (200), income sources data is returned |
-| `POST /employment-verifications` | Employment Verification | 1 test | Response status is OK (200), employment verification data is returned |
-| `DELETE /sessions/{id}` | Session Management | 1 test | Response status is OK (200), session deleted (conditional cleanup) |
+## **Category 2 Summary**
 
 ### **Business Purpose Analysis:**
 
-| Test File | Provider/Scenario | Primary Business Purpose | Unique Validations | Overlap Assessment |
-|-----------|-------------------|-------------------------|-------------------|-------------------|
-| `financial_plaid_one_transaction_error_decline.spec.js` | **Plaid + Error Scenario** | Tests Plaid integration with insufficient transactions | • Plaid OAuth flow<br>• Error handling for insufficient transactions<br>• Decline flag generation<br>• **Plaid-specific error states** | **NO OVERLAP** - Different provider, different error handling |
-| `financial_mx_2_attempts_success_and_failed_password.spec.js` | **MX + Retry Logic + Eligibility** | Tests MX retry mechanism, password failures, AND eligibility status transitions | • MX OAuth flow with robust polling<br>• **Retry logic for failed attempts**<br>• **Password failure handling**<br>• **Iframe auto-close + re-open handling**<br>• **Eligibility status transitions (Meets → Not Met → Meets)**<br>• **Income-to-rent ratio calculations**<br>• **Manual income source creation**<br>• **Real-time status updates** | **NO OVERLAP** - Comprehensive test combining retry logic + eligibility transitions |
-| `check_coapp_income_ratio_exceede_flag.spec.js` | **Co-Applicant Income Ratio Flag Testing** | Tests co-applicant income ratio calculations and flag generation/removal | • **Co-applicant income aggregation**<br>• **Income ratio calculations**<br>• **Flag generation/removal logic**<br>• **30% threshold validation**<br>• **Retry logic implementation**<br>• **Financial data consistency** | **NO OVERLAP** - Different focus on co-applicant flag logic and 30% threshold |
-| `employment_skip_household_not_hidden_employment_connect.spec.js` | **Employment Verification with Household Skip** | Tests employment verification flow while skipping household setup | • **Employment verification flow**<br>• **Household skip functionality**<br>• **AtomicFI iframe integration**<br>• **Walmart paystub processing**<br>• **Rent budget handling**<br>• **Session management** | **NO OVERLAP** - Different focus on employment verification and household skip functionality |
-| `check_ui_shows_na_for-high_balance.spec.js` | **VERIDOCS Simulation + UI Validation** | Tests high balance accounts (≥$550k) do NOT show "N/A" in UI and income matches backend | • **High balance account handling ($550k+)**<br>• **N/A display prevention**<br>• **Balance column validation (account + transactions)**<br>• **Cash Flow report polling**<br>• **Monthly Income backend-UI sync**<br>• **Regex value extraction**<br>• **VERIDOCS dialog handler**<br>• **Conditional cleanup pattern**<br>• **Exact value matching (UI = API)** | **NO OVERLAP** - Unique focus on high balance UI display validation and backend synchronization |
+| Test File | Provider/Scenario | Primary Business Purpose | Key Differences |
+|-----------|-------------------|-------------------------|-----------------|
+| `financial_plaid_one_transaction_error_decline` | **Plaid + Error** | Insufficient transaction error handling | Tests Plaid OAuth with 1-transaction account, validates error messaging |
+| `financial_mx_2_attempts_success_and_failed_password` | **MX + Retry + Eligibility** | Retry logic and dynamic eligibility transitions | Tests MX OAuth + retry + status transitions (3 states), 350s timeout |
+| `check_coapp_income_ratio_exceede_flag` | **Co-Applicant Income Aggregation** | Multi-applicant income ratio flag logic | Tests household income aggregation, 30% threshold, flag auto-clear |
+| `check_ui_shows_na_for-high_balance` | **High Balance UI** | High balance N/A prevention and API sync | Tests $550k account, validates UI=API income match exactly |
 
-### **Key Insights:**
-
-1. **Different financial providers** - Plaid vs MX vs VERIDOCS Simulation have different integration patterns
-2. **Different error scenarios** - Each test validates specific error handling (insufficient transactions, password failures, high balance edge cases)
-3. **Different business workflows** - Approval conditions vs retry logic vs document processing vs income ratio calculations vs employment verification vs UI display validation
-4. **Different validation approaches** - OAuth vs document upload vs parsing vs flag generation/removal vs iframe integration vs backend-frontend synchronization
-5. **Different business rules** - Each test validates specific financial integration scenarios (provider-specific, eligibility logic, co-applicant aggregation, employment flow, high balance handling)
-6. **Different calculation logic** - Income ratio calculations vs transaction parsing vs verification workflows vs employment verification flows vs balance display validation
-7. **Different UI validations** - N/A display prevention, polling for async data, exact value matching between API and UI
-
-### **Technical Setup Analysis:**
-
-#### **Common Setup Steps (Necessary for Each Test):**
-1. **Admin login** (`POST /auth`) - Needed to access applications and generate sessions
-2. **Application navigation** (`GET /applications?`) - Each test needs to find its specific application
-3. **Session generation** (`POST /sessions`) - Each test needs to create a session for testing
-4. **Applicant setup** (`PATCH /sessions/{id}`) - Each test needs to set up the applicant flow
-5. **Financial verification** - Each test needs to test its specific financial scenario
-
-#### **These are NOT "extra steps" - they are essential setup for each test's unique business validation**
-
-### **Conclusion for Category 2: NO MEANINGFUL OVERLAP**
-
-**All 5 tests should be kept** because:
-- Each tests different financial integration scenarios (Plaid errors, MX retry, co-app income, employment verification, high balance UI)
-- Each validates different error handling and business workflows
-- MX_2 now combines retry logic + eligibility transitions in comprehensive test
-- Each uses different providers (Plaid vs MX vs VERIDOCS) or approaches (OAuth vs income ratio calculations vs employment verification vs UI validation)
-- check_ui_shows_na_for-high_balance validates critical UI edge case (high balance N/A prevention) with backend synchronization
-- The "overlap" in setup steps is necessary for each test to validate its unique business logic
+**Conclusion**: No overlap - each test validates different provider integration, error scenario, or calculation logic.
 
 ---
 
-## **Category 3: Application Management Tests - COMPLETE ANALYSIS**
+## Category 3: Application Management Tests
 
-### **Files Analyzed:**
-1. `application_create_delete_test.spec.js` - **Application Lifecycle Management**
-2. `application_edit_id_template_settings.spec.js` - **Application ID Template Configuration**
-3. `verify_application_edit_id_step_edit.spec.js` - **Application Edit ID Step Edit**
-4. `approval_condition_search_verify.spec.js` - **Approval Conditions Search Functionality**
+**Purpose**: Validates application configuration, lifecycle management, and approval condition settings
+
+**Tests in this Category**:
+1. `application_create_delete_test.spec.js` - Application lifecycle (create + delete)
+2. `application_edit_id_template_settings.spec.js` - ID template configuration
+3. `verify_application_edit_id_step_edit.spec.js` - Application edit ID step
+4. `approval_condition_search_verify.spec.js` - Approval conditions search
 
 ---
 
-## **Category 3: Detailed Test Analysis**
 
 
 
 
 
+### **1. application_create_delete_test.spec.js**
 
-### **1. application_create_delete_test.spec.js - Application Lifecycle Management**
+**Purpose**: Validates complete application lifecycle from creation through deletion with multiple applicant types
 
-#### **Complete Test Structure:**
-- **1 test** (no timeout specified)
-- **Application creation and deletion** functionality
-- **Tags**: @core
+**Configuration**:
+- **Organization**: "Verifast"
+- **Application Name**: AutoTest Create_Delete_{random} (unique per run)
+- **Applicant Types**: 6 types (Affordable Occupant, Affordable Primary, Employed, International, Self-Employed, Other)
+- **Workflow Template**: "Autotest-suite-fin-only"
+- **Flag Collection**: "High Risk"
+- **Rent Budget Range**: $500 - $10,000
+- **Tags**: @core, @regression, @staging-ready, @try-test-rail-names
+
+---
 
 #### **Test: "Should create and delete an application with multiple applicant types"**
-**Purpose**: Test complete application lifecycle from creation to deletion with multiple applicant types
-**API Endpoints Called**:
-- `POST /auth` - Admin login (via loginForm.submit, line 17)
-  - **Response Used For**: Authentication and session establishment
-  - **What's Actually Checked**: Response status is OK (200), applicants-menu is visible
-- `GET /organizations?fields[organization]=id,name` - Get organizations (via navigateToApplicationCreate, line 10)
-  - **Response Used For**: Loading organization options for application creation
-  - **What's Actually Checked**: Response status is OK (200), organizations data returned
-- `GET /portfolios?fields[portfolio]=id,name` - Get portfolios (via navigateToApplicationCreate, line 14)
-  - **Response Used For**: Loading portfolio options for application creation
-  - **What's Actually Checked**: Response status is OK (200), portfolios data returned
-- `GET /settings?fields[setting]=options,key&fields[options]=label,value` - Get settings (via navigateToApplicationCreate, line 18)
-  - **Response Used For**: Loading application settings and options
-  - **What's Actually Checked**: Response status is OK (200), settings data returned
-- `GET /organizations` - Get organizations list (via navigateToApplicationCreate, line 22)
-  - **Response Used For**: Loading additional organization data
-  - **What's Actually Checked**: Response status is OK (200), organizations list returned
-- `POST /applications` - Create application (via submitApplicationSetup, line 81)
-  - **Response Used For**: Creating new application with basic setup
-  - **What's Actually Checked**: Response status is OK (200), application created successfully
-- `PATCH /applications` - Update workflow (via submitApplicationSetup, line 103)
-  - **Response Used For**: Updating application workflow template
-  - **What's Actually Checked**: Response status is OK (200), workflow updated successfully
-- `PATCH /applications` - Update settings (via configureApplicationSettings, line 137)
-  - **Response Used For**: Updating application flag collection and minimum amount
-  - **What's Actually Checked**: Response status is OK (200), settings updated successfully
-- `PATCH /applications` - Publish application (via publishApplicationToLive, line 163)
-  - **Response Used For**: Publishing application to live status
-  - **What's Actually Checked**: Response status is OK (200), application published successfully
-- `DELETE /applications/{id}` - Delete application (via searchAndDeleteApplication, line 192)
-  - **Response Used For**: Deleting the created application
-  - **What's Actually Checked**: Response status is OK (200), application deleted successfully
 
-**Steps**:
-1. **Admin login** (via loginForm.fill and loginForm.submit utilities)
-2. **Navigate to application creation** (via navigateToApplicationCreate utility)
-3. **Fill application setup** (via fillApplicationSetup utility):
-   - Select organization
-   - Set application name with random number
-   - Add multiple applicant types (Affordable Occupant, Affordable Primary, Employed, International, Self-Employed, Other)
-4. **Submit application setup** (via submitApplicationSetup utility):
-   - Create application with POST request
-   - Update workflow template with PATCH request
-5. **Configure application settings** (via configureApplicationSettings utility):
-   - Set flag collection to 'High Risk'
-   - Set minimum amount to '500'
-   - Update settings with PATCH request
-6. **Publish application to live** (via publishApplicationToLive utility):
-   - Publish application with PATCH request
-7. **Search and delete application** (via searchAndDeleteApplication utility):
-   - Search for created application
-   - Delete application with DELETE request
-   - Verify deletion success message
+**Purpose**: Verify complete application lifecycle including creation, configuration, publishing, and deletion
 
-#### **Key Business Validations:**
-- **Application creation** ✅
-- **Multiple applicant types support** ✅
-- **Workflow template configuration** ✅
-- **Flag collection settings** ✅
-- **Minimum amount configuration** ✅
-- **Application publishing** ✅
-- **Application deletion** ✅
-- **Admin user permissions** ✅
-- **Organization selection** ✅
-- **Portfolio management** ✅
-- **Settings configuration** ✅
-- **Success message validation** ✅
-- **Dialog handling** ✅
-- **Search functionality** ✅
+**Test Flow**:
+
+1. **Setup Phase**
+   - Login as admin
+   - Verify applicants-menu is visible
+
+2. **Application Creation Flow** (via `completeApplicationFlow` utility)
+   
+   **Step A: Navigate to Create Page**
+   - Navigate directly to /application/create
+   - Wait for 4 parallel API calls (organizations, portfolios, settings, organizations list)
+
+   **Step B: Fill Application Setup**
+   - Select organization: "Verifast"
+   - Fill application name: AutoTest Create_Delete_{random}
+   - Add 6 applicant types (loop through each)
+
+   **Step C: Submit Application Setup**
+   - Click submit-application-setup button
+   - Wait for POST /applications response
+   - Extract application ID from response
+   - If workflow edit form visible:
+     - Select workflow template: "Autotest-suite-fin-only"
+     - Submit and wait for PATCH response
+
+   **Step D: Configure Settings**
+   - Set flag collection: "High Risk"
+   - Set rent budget min: $500, max: $10,000
+   - Submit and wait for PATCH response
+
+   **Step E: Publish to Live**
+   - Wait for "Publish Live" section
+   - Click publish button
+   - Confirm and wait for PATCH response
+
+3. **Application Deletion Flow**
+   - Search for application by name
+   - Set up dialog handler to accept confirmation
+   - Click delete button using application ID (robust selector)
+   - Wait for DELETE response
+   - Verify "Application deleted successfully" alert
+
+**Key API Endpoints**:
+- `POST /auth` - Admin authentication
+- `GET /organizations?fields[organization]=id,name` - Load organizations
+- `GET /portfolios?fields[portfolio]=id,name` - Load portfolios
+- `GET /settings?fields[setting]=options,key&fields[options]=label,value` - Load settings
+- `GET /organizations` - Load additional org data
+- `POST /applications` - Create application
+- `PATCH /applications` - Update workflow (conditional)
+- `PATCH /applications` - Update settings
+- `PATCH /applications` - Publish to live
+- `DELETE /applications/{id}` - Delete application
+
+**Business Validations**:
+- ✅ Admin can create applications
+- ✅ Can configure 6 different applicant types
+- ✅ Organization selection works
+- ✅ Workflow template assignment works
+- ✅ Flag collection can be set to "High Risk"
+- ✅ Rent budget range configurable ($500-$10k)
+- ✅ Application publishes to live
+- ✅ Application deletion works with confirmation
+- ✅ Success message appears after deletion
+- ✅ Robust deletion using application ID
+
+**Unique Aspects**:
+- Tests **full lifecycle** (create → configure → publish → delete)
+- Uses **completeApplicationFlow** helper (end-to-end automation)
+- Validates **6 applicant types** in single application
+- Uses **random application name** for isolation
+- Implements **robust deletion** with application ID selector
+- No session creation (application-level test only)
 
 ---
 
-### **2. application_edit_id_template_settings.spec.js - Application ID Template Configuration**
+### **2. application_edit_id_template_settings.spec.js**
 
-#### **Complete Test Structure:**
-- **1 test** (no timeout specified)
-- **Application ID template settings** functionality
-- **Tags**: @regression
+**Purpose**: Validates Persona identity template ID configuration within application workflow settings
+
+**Configuration**:
+- **Application**: "AutoTest Suite - ID Edit Only"
+- **Template IDs**: itmpl_tester_Edited (test value), then restore original
+- **Tags**: @regression, @staging-ready
+
+---
 
 #### **Test: "Should edit an application ID template settings"**
-**Purpose**: Test editing and updating application ID template settings with Persona integration
-**API Endpoints Called**:
-- `POST /auth` - Admin login (via loginForm.submit, line 14)
-  - **Response Used For**: Authentication and session establishment
-  - **What's Actually Checked**: Response status is OK (200), applicants-menu is visible
-- `GET /applications` - Search applications (via searchApplication, line 26)
-  - **Response Used For**: Searching for specific application by name
-  - **What's Actually Checked**: Response status is OK (200), applications data returned
-- `GET /organizations?fields[organization]=` - Get organizations (via openApplicationEditModal, line 11)
-  - **Response Used For**: Loading organization data for edit modal
-  - **What's Actually Checked**: Response status is OK (200), organizations data returned
-- `GET /portfolios?fields[portfolio]=` - Get portfolios (via openApplicationEditModal, line 14)
-  - **Response Used For**: Loading portfolio data for edit modal
-  - **What's Actually Checked**: Response status is OK (200), portfolios data returned
-- `GET /settings?fields[setting]=` - Get settings (via openApplicationEditModal, line 17)
-  - **Response Used For**: Loading settings data for edit modal
-  - **What's Actually Checked**: Response status is OK (200), settings data returned
-- `GET /applications/{id}` - Get application details (via openApplicationEditModal, line 20)
-  - **Response Used For**: Loading application details for editing
-  - **What's Actually Checked**: Response status is OK (200), application data returned
-- `PATCH /applications/{id}` - Update application (via setPersonaTemplateId, line 50)
-  - **Response Used For**: Updating application with new Persona template ID
-  - **What's Actually Checked**: Response status is OK (200), application updated successfully
-- `GET /applications/{id}` - Get updated application (via setPersonaTemplateId, line 53)
-  - **Response Used For**: Verifying application update was successful
-  - **What's Actually Checked**: Response status is OK (200), updated application data returned
 
-**Steps**:
-1. **Admin login** (via loginForm.fill and loginForm.submit utilities)
-2. **Navigate to applications page** (via gotoApplicationsPage utility)
-3. **Search for application** (via searchApplication utility):
-   - Search for 'AutoTest Suite - ID Edit Only'
-4. **Open application edit modal** (via openApplicationEditModal utility):
-   - Click edit icon in 8th column
-   - Wait for organizations, portfolios, settings, and application data to load
-5. **Submit application setup** (via submit-application-setup button)
-6. **Open workflow identity setup** (via openWorkflowIdentitySetup utility):
-   - Click workflow identity verification button
-   - Wait for Workflow Setup modal
-7. **Get current template value** (via persona-template-id-input):
-   - Read current Persona template ID value
-8. **Edit and save template** (via setPersonaTemplateId utility):
-   - Set new template ID to 'itmpl_tester_Edited'
-   - Submit identity setup form
-   - Wait for PATCH and GET responses
-9. **Reopen and verify** (via openWorkflowIdentitySetup and expectPersonaTemplateId utilities):
+**Purpose**: Verify admin can edit Persona Template ID in application workflow settings and changes persist
+
+**Test Flow**:
+
+1. **Setup Phase**
+   - Login as admin
+   - Verify applicants-menu is visible
+   - Click applications-menu → applications-submenu
+
+2. **Navigate to Application**
+   - Navigate to applications page
+   - Search for "AutoTest Suite - ID Edit Only"
+
+3. **Open Application Edit Modal**
+   - Click edit button (8th column, first row)
+   - Wait for 4 parallel API calls (organizations, portfolios, settings, application details)
+
+4. **Access Workflow Identity Setup**
+   - Click submit-application-setup button
+   - Click workflow-identity-verification SVG icon
+   - Wait for "Workflow Setup" h3 modal
+
+5. **Capture Original Template ID**
+   - Get persona-template-id-input value
+   - Store original value
+
+6. **Edit Template ID**
+   - Fill persona-template-id-input: "itmpl_tester_Edited"
+   - Click submit-identity-setup-form
+   - Wait for PATCH /applications/{id} + GET responses
+   - Wait 5 seconds
+
+7. **Verify Persistence**
    - Reopen workflow identity setup
-   - Verify template ID is 'itmpl_tester_Edited'
-10. **Restore original value** (via setPersonaTemplateId utility):
-    - Set template ID back to original value
-    - Submit identity setup form
+   - Verify persona-template-id-input = "itmpl_tester_Edited"
 
-#### **Key Business Validations:**
-- **Application editing** ✅
-- **ID template configuration** ✅
-- **Persona integration** ✅
-- **Workflow identity setup** ✅
-- **Template ID updates** ✅
-- **Value persistence** ✅
-- **Admin user permissions** ✅
-- **Modal interactions** ✅
-- **Form submissions** ✅
-- **Data validation** ✅
-- **Settings management** ✅
-- **Workflow configuration** ✅
-- **Template restoration** ✅
-- **UI element visibility** ✅
+8. **Restore Original Value**
+   - Fill persona-template-id-input with original value
+   - Click submit-identity-setup-form
+   - Wait for PATCH + GET responses
+   - Wait 3 seconds
 
-### **3. verify_application_edit_id_step_edit.spec.js - Application Edit ID Step Edit**
+**Key API Endpoints**:
+- `POST /auth` - Admin authentication
+- `GET /applications` - Search applications
+- `GET /organizations?fields[organization]=` - Load organizations
+- `GET /portfolios?fields[portfolio]=` - Load portfolios
+- `GET /settings?fields[setting]=` - Load settings
+- `GET /applications/{id}` - Load application details
+- `PATCH /applications/{id}` - Update Persona template ID (twice)
 
-#### **Complete Test Structure:**
-- **2 tests** (no timeout specified)
-- **Application edit workflow** with identity and financial settings
-- **Tags**: @regression
+**Business Validations**:
+- ✅ Admin can access workflow identity setup
+- ✅ Persona Template ID can be edited
+- ✅ Changes persist after modal close/reopen
+- ✅ Edit-verify-restore pattern works
+- ✅ PATCH triggers GET confirmation
 
-#### **Test: "Should login user and edit ID only application"**
-- **Purpose**: Test application editing workflow with identity verification enabled and guarantor value changes
-- **API Endpoints Called**:
-  - `POST /auth` (Line 21) - Admin authentication
-  - `GET /applications?fields[application]` (Line 14) - Application search
-  - `GET /organizations` (Line 31) - Organization data loading
-  - `GET /applications/{id}` (Line 30) - Application details loading
-  - `PATCH /applications/{id}` (Line 50) - Application setup submission
-  - `PATCH /applications/{id}/steps/{stepId}` (Line 86) - Identity verification configuration
-  - `PATCH /applications/{id}` (Line 122) - Financial settings update
-  - `PATCH /applications/{id}` (Line 140) - Application publishing
+**Unique Aspects**:
+- Tests **Persona integration** configuration
+- Implements **edit-verify-restore** pattern
+- Validates **persistence** by reopening modal
+- Tests **workflow identity settings** (not general settings)
 
-#### **Test: "Verify updates are there in application"**
-- **Purpose**: Verify application changes persist and can be reverted
-- **API Endpoints Called**:
-  - `POST /auth` (Line 43) - Admin authentication
-  - `GET /applications?fields[application]` (Line 14) - Application search
-  - `GET /organizations` (Line 31) - Organization data loading
-  - `GET /applications/{id}` (Line 30) - Application details loading
-  - `PATCH /applications/{id}` (Line 50) - Application setup submission
-  - `PATCH /applications/{id}/steps/{stepId}` (Line 86) - Identity verification configuration
-  - `PATCH /applications/{id}` (Line 122) - Financial settings update
-  - `PATCH /applications/{id}` (Line 140) - Application publishing
+### **3. verify_application_edit_id_step_edit.spec.js**
 
-#### **Response Used For and What's Actually Checked:**
-- **Authentication Response**: Used to verify admin login success
-- **Application Search Response**: Used to find specific application by name
-- **Organization Data Response**: Used to load organization options for editing
-- **Application Details Response**: Used to load application data for editing
-- **Application Setup Response**: Used to submit application setup changes
-- **Identity Configuration Response**: Used to configure identity verification settings
-- **Financial Settings Response**: Used to update guarantor values and financial settings
-- **Application Publishing Response**: Used to publish application to live status
+**Purpose**: Validates application workflow settings persistence across sequential edits (identity verification toggle + financial settings)
 
-#### **Detailed Steps:**
-1. **Admin Login**: Admin logs in using loginForm utilities
-2. **Application Navigation**: Navigate to applications page and search for specific application
-3. **Application Edit Workflow**:
-   - **Navigate to Edit**: Click edit button for target application
-   - **Submit Setup**: Submit application setup form
-   - **Configure Identity**: Toggle identity verification checkbox based on expected state
-   - **Update Financial Settings**: Update guarantor value, income budget, and rent budget minimum
-   - **Publish Application**: Publish application to live status
-4. **Verification**: Verify changes persist and can be reverted in subsequent test
-
-#### **Key Business Validations:**
-- **Application Edit Workflow**: Validates complete application editing process
-- **Identity Verification Toggle**: Validates identity verification can be enabled/disabled
-- **Financial Settings Management**: Validates guarantor value, income budget, and rent budget updates
-- **Settings Persistence**: Validates application settings persist between edits
-- **Application Publishing**: Validates application can be published to live status
-- **Value Verification**: Validates current values before making changes
-- **Change Reversion**: Validates changes can be reverted back to original values
-- **Workflow State Management**: Validates application workflow state transitions
-
-#### **Overlap Assessment:**
-**NO OVERLAP** - This test is unique in its focus on application editing workflows with identity and financial settings management, different from other application management tests.
+**Configuration**:
+- **Application**: "AutoTest Suite - ID Edit Only"
+- **Execution**: 2 sequential tests (verifies persistence)
+- **Tags**: @regression, @staging-ready
 
 ---
 
-### **4. approval_condition_search_verify.spec.js - Approval Conditions Search Functionality**
+#### **Test 1: "Should login user and edit ID only application"**
 
-#### **Complete Test Structure:**
-- **1 test** (no timeout specified)
-- **Approval conditions (flag collections) search** functionality
+**Purpose**: Enable identity verification and update financial settings, verify changes save correctly
+
+**Test Flow** (via `completeApplicationEditWorkflow` utility):
+1. **Setup Phase**
+   - Login as admin
+   - Verify page title contains "Applicants"
+
+2. **Navigate and Edit**
+   - Navigate to applications page
+   - Search for "AutoTest Suite - ID Edit Only"
+   - Click edit button
+   - Wait for application details and organizations to load
+   - Verify "Application Setup" heading visible
+
+3. **Submit Application Setup**
+   - Click submit-application-setup
+   - Wait for PATCH /applications/{id} response
+
+4. **Configure Identity Verification**
+   - Click workflow-identity-verification
+   - Verify workflow-identity-modal is visible
+   - Check #identityRequired checkbox state (expected: true)
+   - Toggle if needed to match expected state
+   - Click submit-identity-setup-form
+   - Wait for PATCH /applications/{id}/steps/{id} response
+   - Click submit-app-workflow-edit-form
+
+5. **Update Financial Settings**
+   - Verify current guarantor value (not specified in test 1)
+   - Fill application-income-ratio-guarantor: "5"
+   - Fill incomeBudget: "1"
+   - Fill rentBudgetMin: "500"
+   - Click submit-application-setting-modal
+   - Wait for PATCH /applications/{id} response
+   - Wait for GET /applications?fields[application] response (auto-publish refresh)
+   - Wait 2 seconds for UI update
+
+---
+
+#### **Test 2: "Verify updates are there in application"**
+
+**Purpose**: Verify changes from Test 1 persisted and can be reverted
+
+**Test Flow** (via `completeApplicationEditWorkflow` utility):
+1. **Setup Phase**
+   - Login as admin
+   - Verify page title contains "Applicants"
+
+2. **Navigate and Edit**
+   - Navigate to applications page
+   - Search for "AutoTest Suite - ID Edit Only"
+   - Click edit button
+   - Wait for application details and organizations
+
+3. **Submit Application Setup**
+   - Click submit-application-setup
+   - Wait for PATCH response
+
+4. **Configure Identity Verification**
+   - Click workflow-identity-verification
+   - Check #identityRequired checkbox state (expected: **false** - changed in Test 1)
+   - Toggle if needed
+   - Submit and wait for PATCH response
+   - Click submit workflow edit form
+
+5. **Update Financial Settings** (Revert to Original)
+   - Verify current guarantor value: "5" (from Test 1)
+   - Fill application-income-ratio-guarantor: "3" (revert)
+   - Fill incomeBudget: "1"
+   - Fill rentBudgetMin: "500"
+   - Submit and wait for PATCH + GET responses
+   - Wait 2 seconds
+
+**Key API Endpoints**:
+- `POST /auth` - Admin authentication
+- `GET /applications?fields[application]` - Search applications
+- `GET /organizations` - Load organizations
+- `GET /applications/{id}` - Load application details
+- `PATCH /applications/{id}` - Submit application setup
+- `PATCH /applications/{id}/steps/{id}` - Update identity verification
+- `PATCH /applications/{id}` - Update financial settings (auto-publishes)
+- `GET /applications?fields[application]` - Refresh list after auto-publish
+
+**Business Validations**:
+- ✅ Identity verification checkbox toggles correctly
+- ✅ Identity state persists across separate test runs
+- ✅ Guarantor value updates correctly
+- ✅ Guarantor value persists for verification in next test
+- ✅ Financial settings auto-publish in edit mode
+- ✅ Toggle-and-verify pattern works across tests
+- ✅ Revert-and-verify pattern works
+
+**Unique Aspects**:
+- Tests **cross-test persistence** (Test 2 verifies Test 1's changes)
+- Uses **sequential test execution** to validate persistence
+- Tests **identity verification toggle** specifically
+- Tests **guarantor value** financial setting
+- Validates **auto-publish** on settings update (edit mode behavior)
+- Implements **verify-change-revert** pattern across 2 tests
+
+---
+
+### **4. approval_condition_search_verify.spec.js**
+
+**Purpose**: Validates flag search functionality within approval conditions (flag collections) across different search fields
+
+**Configuration**:
+- **Search Terms**: "Mismatch" (name), "computed cadence" (description), "EMPLOYMENT_LETTER_UPLOADED" (BE name)
+- **Search Fields**: flag-name-col, flag-description-col, flag-key-col
 - **Tags**: @regression
+
+---
 
 #### **Test: "Approval Conditions — Search by Name, Description, and BE Name"**
 
-**Test Purpose and API Endpoints Called (with line numbers):**
+**Purpose**: Verify flag search works across multiple fields (name, description, backend key) with partial and exact match support
 
-1. **Admin Login** (Lines 17-20):
-   - `loginForm.fill(page, admin)` - Fill login form
-   - `loginForm.submitAndSetLocale(page)` - Submit login form and set locale
-   - **Response Used For**: Authentication and session establishment
-   - **What's Actually Checked**: Response status is OK (200), applicants-menu is visible
+**Test Flow**:
 
-2. **Navigate to Approval Conditions** (Line 29):
-   - `gotoPage(page, 'applications-menu', 'approval-conditions-submenu', '/flag-collections?')` - Navigate to flag collections
-   - **API**: `GET /flag-collections?` (via gotoPage utility)
-   - **Response Used For**: Getting flag collections data
-   - **What's Actually Checked**: Response status is OK (200), flag collections array is returned
+1. **Setup Phase**
+   - Navigate to app URL
+   - Login as admin
+   - Verify applicants-menu is visible
+   - Click applications-menu
 
-3. **Open Flag Collection** (Line 37):
-   - Click view button for first flag collection
-   - Navigate to flag collection detail page
+2. **Navigate to Approval Conditions**
+   - Click approval-conditions-submenu
+   - Wait for GET /flag-collections? response
+   - Extract flag collections data
+   - Verify flag collections exist (length > 0)
 
-4. **Search by Name** (Lines 40-41):
-   - `searchAndValidateFlags(page, 'Mismatch', 'flag-name-col')` - Search by "Mismatch" in name column
-   - **API**: `GET /flags` with filters parameter (Line 68-75)
-   - **Response Used For**: Getting filtered flags data
-   - **What's Actually Checked**: 
-     - Response status is OK (200)
-     - URL params include `filters` with search term "Mismatch"
-     - GET method successful
-     - Flags data array is returned
-
-5. **Search by Description** (Lines 44-45):
-   - `searchAndValidateFlags(page, 'computed cadence', 'flag-description-col')` - Search by "computed cadence" in description
-   - **API**: `GET /flags` with filters parameter
-   - **Response Used For**: Getting filtered flags data
-   - **What's Actually Checked**: Same as above with "computed cadence" search term
-
-6. **Search by BE Name (Exact Match)** (Lines 48-50):
-   - `searchAndValidateFlags(page, 'EMPLOYMENT_LETTER_UPLOADED', 'flag-key-col', {exactMatch: true})` - Search by BE name
-   - **API**: `GET /flags` with filters parameter
-   - **Response Used For**: Getting filtered flags data with exact match validation
-   - **What's Actually Checked**: Same as above with exact match validation for flag key
-
-**Detailed Steps:**
-
-1. **Page Navigation** (Line 14):
-   - Navigate to application URL
-
-2. **Admin Login** (Lines 17-20):
-   - Fill login form with admin credentials
-   - Submit and set locale
-   - Verify applicants menu is visible
-
-3. **Navigate to Applications Menu** (Line 26):
-   - Click applications menu
-
-4. **Navigate to Approval Conditions** (Line 29):
-   - Click approval conditions submenu
-   - Wait for flag collections API response
-   - Get flag collections data
-
-5. **Open First Flag Collection** (Lines 31-37):
+3. **Open Flag Collection Details**
    - Get first flag collection from response
-   - Verify flag collections exist
-   - Click view button to open details
+   - Click view button for that collection
 
-6. **Search Test 1: Name Search** (Lines 40-41):
-   - Search for "Mismatch" in flag name column
-   - **searchAndValidateFlags function** (Lines 65-96):
-     - Fill search input with "Mismatch"
-     - Wait for GET /flags response with filters parameter
-     - Parse response to get flags data
-     - Loop through all returned flags
-     - For each flag, find corresponding UI row
-     - Verify flag name column contains "Mismatch" (case-insensitive)
+4. **Search Test 1: Name Column** (via `searchAndValidateFlags` helper)
+   - Fill app-cond-flag-search-input: "Mismatch"
+   - Wait for GET /flags response with filters containing "Mismatch"
+   - Parse flags array from response
+   - Loop through each flag:
+     - Find flag row by ID
+     - Get flag-name-col
+     - Verify column contains "Mismatch" (case-insensitive)
 
-7. **Search Test 2: Description Search** (Lines 44-45):
-   - Search for "computed cadence" in flag description column
-   - Same validation process as above, checking description column
+5. **Search Test 2: Description Column** (via `searchAndValidateFlags` helper)
+   - Fill app-cond-flag-search-input: "computed cadence"
+   - Wait for GET /flags response with filters containing "computed cadence"
+   - Parse flags array
+   - Loop through each flag:
+     - Find flag row by ID
+     - Get flag-description-col
+     - Verify column contains "computed cadence" (case-insensitive)
 
-8. **Search Test 3: BE Name Exact Match** (Lines 48-50):
-   - Search for "EMPLOYMENT_LETTER_UPLOADED" in flag key column
-   - Same validation process but with exact match (not just contains)
-   - **Exact Match Validation** (Lines 90-94):
-     - Use `toHaveText` instead of `toContainText`
-     - Ensures complete match, not partial
+6. **Search Test 3: BE Name Column** (via `searchAndValidateFlags` helper with exactMatch)
+   - Fill app-cond-flag-search-input: "EMPLOYMENT_LETTER_UPLOADED"
+   - Wait for GET /flags response with filters containing "EMPLOYMENT_LETTER_UPLOADED"
+   - Parse flags array
+   - Loop through each flag:
+     - Find flag row by ID
+     - Get flag-key-col
+     - Verify column has EXACT text "EMPLOYMENT_LETTER_UPLOADED" (case-insensitive)
 
-**Helper Function Analysis (searchAndValidateFlags):**
+**Key API Endpoints**:
+- `POST /auth` - Admin authentication
+- `GET /flag-collections?` - Load flag collections
+- `GET /flags` - Search flags with filters parameter (3 times with different search terms)
 
-Lines 65-96 show the complete search validation logic:
-- **Input**: page, search term, column test ID, options (exactMatch boolean)
-- **Process**:
-  1. Fill search input and trigger API call
-  2. Wait for response with URL validation:
-     - Check `/flags` in pathname
-     - Verify `filters` param includes search term (case-insensitive)
-     - Ensure GET method and OK status
-  3. Parse JSON response to get flags array
-  4. For each flag in response:
-     - Find UI row by flag ID
-     - Find column by column test ID
-     - Validate column text contains (or equals) search term
-- **Output**: All flags in UI match search criteria
+**Business Validations**:
+- ✅ Flag search by name works (partial match, case-insensitive)
+- ✅ Flag search by description works (partial match, case-insensitive)
+- ✅ Flag search by BE name/key works (exact match, case-insensitive)
+- ✅ Search triggers real-time API calls with filters parameter
+- ✅ API response data matches UI display
+- ✅ URL properly encodes search filters
+- ✅ Different match modes work (contains vs exact)
 
-**Key Business Validations:**
-- **Search by Name**: Tests flag name search functionality
-- **Search by Description**: Tests flag description search functionality
-- **Search by BE Name**: Tests backend name (key) search functionality
-- **Exact Match vs Contains**: Tests both partial and exact match search
-- **API-UI Consistency**: Validates UI results match API response
-- **Case-Insensitive Search**: Tests search ignores case
-- **Real-time Search**: Tests search triggers API calls dynamically
-- **Row-Column Mapping**: Tests correct data display in table cells
-- **URL Parameter Validation**: Tests search term is properly encoded in URL
-- **Multiple Search Criteria**: Tests searching across different columns
+**Unique Aspects**:
+- Tests **approval conditions search** specifically
+- Validates **3 different search fields** (name, description, key)
+- Implements **inline helper function** (searchAndValidateFlags)
+- Tests **partial vs exact match** modes
+- Validates **API-UI consistency** (loops through API response to verify UI)
+- Uses **URL parameter validation** (checks filters in query string)
+- Tests **case-insensitive search** across all fields
 
-**Overlap Assessment:**
-- **UNIQUE**: Only test focused on approval conditions (flag collections) search functionality
-- **NO OVERLAP**: Different from other application management tests
-- **KEEP**: Essential for flag collection search and filtering validation
-
----
-
-## **Category 3 Analysis Summary**
-
-### **API Endpoints Coverage Analysis:**
-
-| API Endpoint | Category | Tests Using It | What's Actually Checked |
-|--------------|----------|----------------|-------------------------|
-| `POST /auth` | Authentication | All 7 tests | Response status is OK (200), admin/staff login successful |
-| `GET /applications?` | Application Management | 6 tests | Response status is OK (200), applications array is returned |
-| `POST /sessions` | Session Management | 3 tests | Response status is OK (200), session data is returned |
-| `PATCH /sessions/{id}` | Session Management | 4 tests | Response status is OK (200), PATCH method successful |
-| `GET /sessions?fields[session]=` | Session Management | 4 tests | Response status is OK (200), sessions data array is returned |
-| `GET /sessions/{id}?fields[session]` | Session Management | 3 tests | Response status is OK (200), session details returned |
-| `GET /organizations?fields[organization]=` | Organization Management | 2 tests | Response status is OK (200), organizations data returned |
-| `GET /portfolios?fields[portfolio]=` | Portfolio Management | 2 tests | Response status is OK (200), portfolios data returned |
-| `GET /settings?fields[setting]=` | Settings Management | 2 tests | Response status is OK (200), settings data returned |
-| `POST /applications` | Application Management | 1 test | Response status is OK (200), application created successfully |
-| `PATCH /applications` | Application Management | 2 tests | Response status is OK (200), application updated successfully |
-| `DELETE /applications/{id}` | Application Management | 1 test | Response status is OK (200), application deleted successfully |
-| `GET /sessions/{id}` | Session Management | 1 test | Response status is OK (200), content-type is 'application/pdf' |
-| `POST /applicants` | Applicant Management | 2 tests | Response status is OK (200), applicant data is returned |
-| `PATCH /sessions/{id}/steps/` | Session Management | 1 test | Response status is OK (200), PATCH method successful |
-| `GET /financial-verifications` | Financial Verification | 1 test | Response status is OK (200), financial verifications array is returned |
-| `GET /sessions/{id}/income-sources` | Income Sources | 1 test | Response status is OK (200), income sources array is returned |
-| `POST /identity-verifications` | Identity Verification | 1 test | Response status is OK (200), identity verification data is returned |
-| `GET /flag-collections?` | Flag Collections | 1 test | Response status is OK (200), flag collections array is returned |
-| `GET /flags` | Flag Management | 1 test | Response status is OK (200), filtered flags array is returned with search params |
+## **Category 3 Summary**
 
 ### **Business Purpose Analysis:**
 
-| Test File | Primary Business Purpose | Unique Validations | Overlap Assessment |
-|-----------|-------------------------|-------------------|-------------------|
-| `application_create_delete_test.spec.js` | **Application Lifecycle Management** | • **Application creation**<br>• **Multiple applicant types support**<br>• **Workflow template configuration**<br>• **Flag collection settings**<br>• **Minimum amount configuration**<br>• **Application publishing**<br>• **Application deletion** | **NO OVERLAP** - Different business process, different admin functionality |
-| `application_edit_id_template_settings.spec.js` | **Application ID Template Configuration** | • **Application editing**<br>• **ID template configuration**<br>• **Persona integration**<br>• **Workflow identity setup**<br>• **Template ID updates**<br>• **Value persistence**<br>• **Template restoration** | **NO OVERLAP** - Different configuration aspect, different integration |
-| `verify_application_edit_id_step_edit.spec.js` | **Application Edit ID Step Edit** | • **Application edit workflow**<br>• **Identity verification toggle**<br>• **Financial settings management**<br>• **Guarantor value updates**<br>• **Settings persistence validation**<br>• **Application publishing**<br>• **Value verification and reversion**<br>• **Workflow state management** | **NO OVERLAP** - Different focus on application editing workflows with identity and financial settings |
-| `approval_condition_search_verify.spec.js` | **Approval Conditions Search Functionality** | • **Search by flag name**<br>• **Search by flag description**<br>• **Search by BE name (key)**<br>• **Exact match vs contains search**<br>• **API-UI consistency**<br>• **Case-insensitive search**<br>• **Real-time search**<br>• **URL parameter validation**<br>• **Multiple search criteria** | **NO OVERLAP** - Unique focus on approval conditions search functionality |
+| Test File | Primary Business Purpose | Key Differences |
+|-----------|-------------------------|-----------------|
+| `application_create_delete_test` | Full application lifecycle (create → delete) | Tests 6 applicant types, workflow template, flag collection, publishing |
+| `application_edit_id_template_settings` | Persona template ID configuration | Tests edit-verify-restore pattern for Persona integration |
+| `verify_application_edit_id_step_edit` | Cross-test persistence validation | Tests identity toggle + guarantor value persistence across 2 tests |
+| `approval_condition_search_verify` | Flag search functionality | Tests 3 search fields (name/description/key) with partial/exact match |
 
-### **Key Insights:**
-
-1. **Different user types** - Admin vs Staff vs Applicant flows have different permissions and capabilities
-2. **Different business processes** - Application management vs session flow vs document processing vs search functionality
-3. **Different integration scenarios** - Plaid vs MX vs Persona vs document upload
-4. **Different validation approaches** - E2E flow vs specific functionality vs configuration management vs search validation
-5. **Different business rules** - Each test validates specific application management scenarios
-6. **Different search criteria** - Flag name vs description vs BE key with exact/partial matching
-
-### **Technical Setup Analysis:**
-
-#### **Common Setup Steps (Necessary for Each Test):**
-1. **User login** (`POST /auth`) - Needed to access appropriate functionality based on user type
-2. **Application/Session navigation** - Each test needs to find its specific target
-3. **Specific business validation** - Each test validates its unique business scenario
-4. **Cleanup/Verification** - Each test ensures proper completion of its specific process
-
-#### **These are NOT "extra steps" - they are essential setup for each test's unique business validation**
-
-### **Conclusion for Category 3: NO MEANINGFUL OVERLAP**
-
-**All 4 tests should be kept** because:
-- Each tests different application management scenarios
-- Each validates different user types and permissions
-- Each covers different business processes and workflows
-- Each tests different integrations and configurations
-- Each validates different UI interactions and user flows
-- Each covers different search and filtering functionality
+**Conclusion**: No overlap - each test validates distinct application management functions
 
 ---
 
@@ -1506,1353 +1662,869 @@ Lines 65-96 show the complete search validation logic:
 ### **Files Analyzed:**
 1. `co_applicant_effect_on_session_test.spec.js` - **Co-Applicant Income Aggregation**
 2. `frontend-session-heartbeat.spec.js` - **Complete E2E Session Flow**  
-3. `application_flow_with_id_only.spec.js` - **ID-Only Application Flow**
-4. `application_step_should_skip_properly.spec.js` - **Application Step Skip Functionality**
-5. `co_app_household_with_flag_errors.spec.js` - **Co-Applicant Household with Flag Errors**
-6. `skip_button_visibility_logic.spec.js` - **Skip Button Visibility Logic Testing**
-7. `user_flags_approve_reject_test.spec.js` - **User Flags Approve Reject Test**
+3. `application_step_should_skip_properly.spec.js` - **Application Step Skip Functionality**
+4. `co_app_household_with_flag_errors.spec.js` - **Co-Applicant Household with Flag Errors**
+5. `skip_button_visibility_logic.spec.js` - **Skip Button Visibility Logic Testing**
+6. `user_flags_approve_reject_test.spec.js` - **User Flags Approve Reject Test**
 
 ---
 
-### **1. co_applicant_effect_on_session_test.spec.js - Co-Applicant Income Aggregation**
+### **1. co_applicant_effect_on_session_test.spec.js**
 
-#### **Complete Test Structure:**
-- **1 test** (380s timeout)
-- **Co-applicant income aggregation** business logic
-- **Tags**: @regify
+**Purpose**: Validates co-applicant income aggregation and financial impact on parent session
+
+**Configuration**:
+- **Application**: "AutoTest Suite - Full Test"
+- **User**: Playwright User (playwright+effect@verifast.com)
+- **Co-Applicant**: Playwright CoApp (playwright+coapp@verifast.com)
+- **Timeout**: 380s
+- **Tags**: @regify, @external-integration, @regression, @staging-ready
+
+---
 
 #### **Test: "Should complete applicant flow with co-applicant effect on session"**
-**Purpose**: Test co-applicant income aggregation and financial impact on session data
-**API Endpoints Called**:
-- `POST /auth` - Admin login (via loginForm.adminLoginAndNavigate, line 49)
-  - **Response Used For**: Authentication and session establishment
-  - **What's Actually Checked**: Response status is OK (200), admin login successful
-- `GET /applications?` - Search applications (via findAndInviteApplication, line 53)
-  - **Response Used For**: Getting applications data for search
-  - **What's Actually Checked**: Response status is OK (200), applications array is returned
-- `POST /sessions` - Create session (via generateSessionForm.generateSessionAndExtractLink, line 57)
-  - **Response Used For**: Creating new session for applicant
-  - **What's Actually Checked**: Response status is OK (200), session data is returned with sessionId and sessionUrl
-- `PATCH /sessions/{id}` - Update session applicant type (via selectApplicantType, line 70)
-  - **Response Used For**: Updating session with selected applicant type
-  - **What's Actually Checked**: Response status is OK (200), PATCH method successful
-- `PATCH /sessions/{id}` - Update session rent budget (via updateRentBudget, line 77)
-  - **Response Used For**: Updating session with rent budget amount
-  - **What's Actually Checked**: Response status is OK (200), PATCH method successful
-- `POST /applicants` - Create co-applicant (via fillhouseholdForm, line 84)
-  - **Response Used For**: Creating co-applicant record
-  - **What's Actually Checked**: Response status is OK (200), applicant data is returned
-- `PATCH /sessions/{id}/steps/` - Update session steps (via waitForResponse, line 105-108)
-  - **Response Used For**: Updating session step completion status
-  - **What's Actually Checked**: Response status is OK (200), PATCH method successful
-- `GET /sessions?fields[session]` - Load sessions (via gotoPage, line 115-120)
-  - **Response Used For**: Getting sessions with children information
-  - **What's Actually Checked**: Response status is OK (200), sessions array is returned
-- `GET /sessions/{id}?fields[session]` - Get session details (via waitForResponse, line 131-138)
-  - **Response Used For**: Getting complete session object with co-applicant data
-  - **What's Actually Checked**: Response status is OK (200), session data with children array is returned
-- `GET /sessions/{id}?fields[session]` - Get updated session (via waitForResponse, line 259-275)
-  - **Response Used For**: Getting session data after co-applicant completion
-  - **What's Actually Checked**: Response status is OK (200), updated session data is returned
-- `GET /financial-verifications` - Get financial verifications (via waitForResponse, line 276-293)
-  - **Response Used For**: Getting financial verifications for all sessions
-  - **What's Actually Checked**: Response status is OK (200), financial verifications array is returned
-- `GET /sessions/{id}/income-sources` - Get income sources (via waitForResponse, line 321-331)
-  - **Response Used For**: Getting income sources for all sessions
-  - **What's Actually Checked**: Response status is OK (200), income sources array is returned
 
-**Steps**:
-1. **Admin login and navigate to applications** (via loginForm.adminLoginAndNavigate utility)
-2. **Find and invite 'AutoTest Suite - Full Test' application** (via findAndInviteApplication utility)
-3. **Generate session and extract link** (via generateSessionForm.generateSessionAndExtractLink utility)
-4. **Primary applicant flow** (in new browser context):
-   - Select applicant type via selectApplicantType utility
-   - Handle optional state modal via handleOptionalStateModal utility
-   - Set rent budget via updateRentBudget utility
-   - Add co-applicant via fillhouseholdForm utility
-   - Skip ID verification (UI interaction)
-   - Complete Plaid financial connection via completePlaidFinancialStepBetterment utility
-   - Complete paystub connection via completePaystubConnection utility
-   - Update session steps via waitForResponse
-5. **Co-applicant flow** (in new browser context):
-   - Copy invite link from admin panel
-   - Open co-applicant session
-   - Complete co-applicant registration (same steps as primary)
-   - Complete Plaid financial connection with different parameters
-   - Complete paystub connection
-   - Update co-applicant session steps
-6. **Admin validation**:
-   - Navigate to sessions page via gotoPage utility
-   - Search for session by ID via searchSessionWithText utility
-   - Get session details and verify children array
-   - Verify income aggregation and ratio calculations
-   - Check income source sections for all applicants
-   - Check employment sections for all applicants
-   - Validate financial section data via checkFinancialSectionData utility
+**Purpose**: Verify that adding a co-applicant updates parent session's income aggregation, ratios, and financial data correctly
 
-#### **Key Business Validations:**
-- **Co-applicant income aggregation** ✅
-- **Income ratio calculations** ✅
-- **Financial impact of multiple applicants** ✅
-- **Plaid integration with Betterment** ✅
-- **Session children validation** ✅
-- **Income source aggregation** ✅
-- **Employment data aggregation** ✅
-- **Financial verification aggregation** ✅
+**Test Flow**:
+
+1. **Admin Setup**
+   - Login as admin
+   - Navigate to applications page
+   - Find and invite "AutoTest Suite - Full Test"
+   - Generate session for primary applicant
+
+2. **Primary Applicant Flow** (New Browser Context)
+   - Open invite link
+   - Complete setupInviteLinkSession (terms → applicant type: #affordable_primary → state)
+   - Set rent budget: $2500
+   - Add co-applicant via household form
+   - Click continue on invite step
+   - Skip ID verification
+   - Complete Plaid (Betterment) with username: 'custom_gig'
+   - Complete paystub (Paychex) connection
+   - Submit employment step
+
+3. **Admin: Capture Initial Session State**
+   - Navigate to applicants/sessions
+   - Search for session by ID
+   - Click session card to view details
+   - Extract initial `monthlyIncome` from session.state.summary.total_income
+   - Extract initial `rentBudgetRatio` from session.state.summary.total_target_to_income_ratio
+   - Verify session has children array with at least 1 APPLICANT role
+
+4. **Co-Applicant Invite**
+   - Click session action button → invite applicant
+   - Click reinvite for first child applicant
+   - Copy invite link (with clipboard fallback)
+   - Close invite modal
+
+5. **Co-Applicant Flow** (New Browser Context)
+   - Open co-applicant invite link
+   - Get co-applicant session data from response
+   - Complete setupInviteLinkSession (terms → applicant type: #affordable_primary → state)
+   - Skip ID verification
+   - Complete Plaid (Betterment) with username: 'user_bank_income', password: '{}'
+   - Complete paystub (Paychex) connection
+   - Submit employment step
+
+6. **Admin: Validate Income Aggregation**
+   - Reload sessions page
+   - Search for parent session
+   - Extract updated `monthlyIncome1` and `rentBudgetRatio1`
+   - **Assert**: monthlyIncome ≠ monthlyIncome1 (co-app income added)
+   - **Assert**: rentBudgetRatio ≠ rentBudgetRatio1 (ratio changed)
+
+7. **Income Sources Validation**
+   - Click income source section header
+   - Wait for GET /sessions/{id}/income-sources for all sessions (parent + children)
+   - For each applicant income source container:
+     - Verify at least 1 income source exists
+
+8. **Employment Validation**
+   - Click employment section
+   - For each applicant employment row:
+     - Verify at least 1 employment entry exists
+
+9. **Financial Data Validation**
+   - Call checkFinancialSectionData helper
+   - Validates financial verifications for all sessions
+   - Validates account data across parent and co-applicant
+
+**Key API Endpoints**:
+- `POST /auth` - Admin authentication
+- `GET /applications?` - Search applications
+- `POST /sessions` - Create primary session
+- `PATCH /sessions/{id}` - Update session (applicant type, rent budget, steps)
+- `POST /applicants` - Create co-applicant
+- `GET /sessions?fields[session]` - Load sessions list
+- `GET /sessions/{id}?fields[session]` - Get session details (2x: before & after co-app)
+- `GET /financial-verifications` - Get financial data for all sessions
+- `GET /sessions/{id}/income-sources` - Get income sources for all sessions
+
+**Business Validations**:
+- ✅ Co-applicant adds to parent session's children array
+- ✅ Parent session income increases after co-app completes
+- ✅ Rent budget ratio recalculates with aggregated income
+- ✅ Income sources visible for all applicants
+- ✅ Employment data visible for all applicants
+- ✅ Financial verifications aggregated correctly
+- ✅ Clipboard fallback works for invite link copy
+
+**Unique Aspects**:
+- Tests **income aggregation** across parent and co-applicant sessions
+- Uses **two separate browser contexts** for primary and co-app flows
+- Validates **before/after state** of session financial data
+- Tests **clipboard with fallback** for invite link
+- Uses **different Plaid credentials** for primary vs co-app
+- Validates **children array relationship** in session data
 
 ---
 
-### **2. frontend-session-heartbeat.spec.js - Complete E2E Session Flow**
+### **2. frontend-session-heartbeat.spec.js**
 
-#### **Complete Test Structure:**
-- **1 test** (250s timeout)
-- **Complete E2E session flow** with co-applicant workflow
-- **Tags**: None specified
+**Purpose**: Validates complete E2E applicant session flow including manual upload flows, skip patterns, and session cleanup
+
+**Configuration**:
+- **Application**: "Autotest - Application Heartbeat (Frontend)"
+- **User**: Random email (Playwright Heartbeat)
+- **Co-App**: Random email (PWCoapp Heartbeat)
+- **Timeout**: 250s
+- **Tags**: @regression, @staging-ready
+
+---
 
 #### **Test: "Verify Frontend session heartbeat"**
-**Purpose**: Test complete end-to-end user journey with co-applicant workflow, state modal handling, manual upload options, and skip functionality
-**API Endpoints Called**:
-- `POST /auth` - Admin login (via adminLoginAndNavigateToApplications, line 31)
-  - **Response Used For**: Authentication and session establishment
-  - **What's Actually Checked**: Response status is OK (200), page title changes to "Applicants", household-status-alert is visible
-- `GET /applications?` - Search applications (via findAndInviteApplication, line 35)
-  - **Response Used For**: Getting applications data for search
-  - **What's Actually Checked**: Response status is OK (200), applications array is returned
-- `POST /sessions` - Create session (via generateSessionForm.generateSessionAndExtractLink, line 39)
-  - **Response Used For**: Creating new session for applicant
-  - **What's Actually Checked**: Response status is OK (200), session data is returned with sessionId and sessionUrl
-- `PATCH /sessions/{id}` - Update session applicant type (via selectApplicantType, line 52)
-  - **Response Used For**: Updating session with selected applicant type (employed)
-  - **What's Actually Checked**: Response status is OK (200), PATCH method successful
-- `PATCH /sessions/{id}` - Update session rent budget (via updateRentBudget, line 75)
-  - **Response Used For**: Updating session with rent budget amount
-  - **What's Actually Checked**: Response status is OK (200), PATCH method successful
-- `POST /applicants` - Create co-applicant (via fillhouseholdForm, line 97)
-  - **Response Used For**: Creating co-applicant record
-  - **What's Actually Checked**: Response status is OK (200), applicant data is returned
 
-**Steps**:
-1. **Admin login and navigate to applications** (via adminLoginAndNavigateToApplications utility)
-2. **Find and invite 'Autotest - Application Heartbeat (Frontend)' application** (via findAndInviteApplication utility)
-3. **Generate session and extract link** (via generateSessionForm.generateSessionAndExtractLink utility)
-4. **Admin logout and applicant login** (UI interactions only)
-5. **Complete applicant flow**:
-   - Select applicant type (employed) via selectApplicantType utility
-   - Handle optional state modal (ALABAMA) via updateStateModal utility
-   - Set rent budget (500) via updateRentBudget utility
-   - Skip invite page (UI interaction)
-   - **ID verification step**:
-     - Click manual upload button
-     - Cancel manual upload
-     - Skip ID verification
-   - **Financial step**:
-     - Click manual upload button
-     - Cancel manual upload
-     - Skip financial step
-   - **Employment step**:
-     - Complete paystub connection via completePaystubConnection utility
-     - Use intelligent button interaction utility for employment step
-6. **Co-applicant workflow**:
-   - Navigate to invite page
-   - Add co-applicant via fillhouseholdForm utility
-   - Use intelligent button interaction utility for co-applicant invite
-7. **Verify summary page is displayed** (UI validation)
+**Purpose**: Verify complete applicant journey from invite to summary, testing skip functionality, manual upload cancellation, and income source polling
 
-#### **Key Business Validations:**
-- **Complete E2E user journey** ✅
-- **Co-applicant workflow** ✅
-- **State modal handling** ✅
-- **Manual upload options** ✅
-- **Skip functionality** ✅
-- **Intelligent button interaction** ✅
-- **Employment verification via iframe** ✅
+**Test Flow**:
 
----
+1. **Admin Session Setup**
+   - Login as admin
+   - Find and invite "Autotest - Application Heartbeat (Frontend)"
+   - Generate session with random email
+   - Store sessionId for cleanup
+   - Logout admin
 
-### **3. application_flow_with_id_only.spec.js - ID-Only Application Flow**
+2. **Applicant Session Flow**
+   - Open invite link (as guest)
+   - Complete setupInviteLinkSession (terms → applicant type: #employed → state)
+   - Update rent budget: $500
 
-#### **Complete Test Structure:**
-- **1 test** (no timeout specified)
-- **ID-only application flow** with Persona integration
-- **Tags**: @core, @smoke, @regression
+3. **Skip Invite & Navigate Pattern**
+   - Skip applicant invite page
+   - Verify on ID verification step
+   - Click "Applicants" with "Skipped" status to navigate back
 
-#### **Test: "ID only - 1 attempt - success"**
-**Purpose**: Test ID-only application flow with Persona identity verification
-**API Endpoints Called**:
-- `POST /auth` - Admin login (via loginForm.submit, line 27)
-  - **Response Used For**: Authentication and session establishment
-  - **What's Actually Checked**: Response status is OK (200), household-status-alert is visible, page title contains "Applicants"
-- `GET /applications?` - Search applications (via searchApplication, line 34)
-  - **Response Used For**: Getting applications data for search
-  - **What's Actually Checked**: Response status is OK (200), applications array is returned
-- `POST /sessions` - Create session (via generateSessionForm.submit, line 44)
-  - **Response Used For**: Creating new session for applicant
-  - **What's Actually Checked**: Response status is OK (200), session data is returned
-- `PATCH /sessions/{id}` - Update session rent budget (via applicantPage.locator, line 61-62)
-  - **Response Used For**: Updating session with rent budget
-  - **What's Actually Checked**: Response status is OK (200), PATCH method successful
-- `POST /identity-verifications` - Create identity verification (via waitForResponse, line 71-73)
-  - **Response Used For**: Creating identity verification for ID upload
-  - **What's Actually Checked**: Response status is OK (200), identity verification data is returned
+4. **Add Co-Applicant**
+   - Fill household form with co-app data
+   - Use waitForButtonOrAutoAdvance (handles auto-advance or manual click)
+   - Verify on ID verification step
 
-**Steps**:
-1. **Admin login and navigate to applications** (via loginForm.fill and loginForm.submit)
-2. **Search for 'AutoTest Suite - ID Only' application** (via searchApplication utility)
-3. **Click invite button** (UI interaction)
-4. **Generate session** (via generateSessionForm utilities):
-   - Fill session form
-   - Submit form and get session data
-   - Extract session link
-5. **Applicant flow** (in new browser context):
-   - Navigate to session link
-   - Complete rent budget form (500)
-   - Wait for session update response
-6. **ID verification flow**:
-   - Click "Start Id Verification" button
-   - Wait for identity verification creation
-   - Handle Persona iframe:
-     - Click "Begin Verifying" button
-     - Click "Select" button
-     - Select passport document type
-     - Upload passport.jpg file
-     - Use uploaded image
-     - Complete verification
-7. **Verify summary screen is displayed** (UI validation)
+5. **ID Verification: Manual Upload Cancel Flow**
+   - Click "Start Manual Upload"
+   - Verify manual upload modal visible
+   - Click cancel
+   - Verify back on ID step
+   - Skip ID verification
 
-#### **Key Business Validations:**
-- **ID-only application flow** ✅
-- **Persona identity verification** ✅
-- **Document upload functionality** ✅
-- **Passport document processing** ✅
-- **Iframe integration** ✅
-- **Session state management** ✅
-- **Rent budget handling** ✅
-- **Summary screen validation** ✅
+6. **Financial: Manual Upload Cancel Flow**
+   - Verify on financial step (connect-bank visible)
+   - Click "Upload Statement" button
+   - Verify cancel button visible
+   - Click cancel
+   - Verify back on financial step
+   - Skip financials
+
+7. **Employment: Paystub Connection**
+   - Verify on employment step (document-pay_stub visible)
+   - Complete paystub connection (Paychex iframe)
+   - Use waitForButtonOrAutoAdvance for employment step
+   - Verify summary page visible
+
+8. **Guest Logout**
+   - Click profile dropdown
+   - Click logout
+   - Verify get-started button visible
+
+9. **Admin Validation**
+   - Login as admin
+   - Search for session by sessionId
+   - Find and click session locator
+   - Wait for session response
+
+10. **Income Sources Polling** (Retry Pattern)
+    - Loop up to 5 attempts:
+      - Scroll container to bottom (trigger lazy load)
+      - Wait 3s
+      - Check income source SVG counter text
+      - If counter = 0 and attempts < 5: reload page
+    - Click income source section header
+    - Wait for GET /sessions/{id}/income-sources response
+    - **Assert**: incomeSources.data.length > 0
+    - For each income source: verify element visible
+
+11. **Cleanup**
+    - afterAll hook calls cleanupSession with sessionId
+
+**Key API Endpoints**:
+- `POST /auth` - Admin authentication (2x: initial + validation)
+- `GET /applications?` - Search applications
+- `POST /sessions` - Create session
+- `PATCH /sessions/{id}` - Update rent budget
+- `POST /applicants` - Create co-applicant
+- `GET /sessions/{id}?fields[session]` - Get session details (2x: initial + reload)
+- `GET /sessions/{id}/income-sources?fields[income_source]` - Get income sources
+
+**Business Validations**:
+- ✅ Complete E2E guest flow from invite to summary
+- ✅ Manual upload cancellation works for ID and financial steps
+- ✅ Skip functionality for invite, ID, and financial steps
+- ✅ Co-applicant can be added mid-flow
+- ✅ waitForButtonOrAutoAdvance handles auto-advance correctly
+- ✅ Paystub iframe connection (Paychex)
+- ✅ Guest logout/login flows work
+- ✅ Income sources polling with retry mechanism
+- ✅ Lazy loading triggered by scroll
+- ✅ Session cleanup in afterAll hook
+
+**Unique Aspects**:
+- Tests **manual upload cancellation pattern** for ID & financial steps
+- Uses **intelligent button helper** (waitForButtonOrAutoAdvance) for auto-advance handling
+- Implements **income source polling** with 5-attempt retry logic
+- Uses **scroll-to-trigger lazy load** for SVG counter rendering
+- Tests **navigation via status badges** (click "Applicants" with "Skipped")
+- Includes **centralized cleanup** in afterAll hook
+- Uses **random emails** for test isolation
 
 ---
 
-### **4. application_step_should_skip_properly.spec.js - Application Step Skip Functionality**
+### **3. application_step_should_skip_properly.spec.js**
 
-#### **Complete Test Structure:**
-- **1 test** (300s timeout)
-- **Application step skip functionality** testing
-- **Tags**: None specified
+**Purpose**: Validates application step skip/re-navigation patterns and step state persistence
+
+**Configuration**:
+- **Application**: "AutoTest Suite - Full Test"
+- **User**: Random email (Playwright Skip)
+- **Co-App**: Random email (Playwright Skip Coapp)
+- **Timeout**: 300s
+- **Tags**: @regression, @staging-ready
+
+---
 
 #### **Test: "Check Application step skip works propertly"**
-**Purpose**: Test comprehensive application step skip functionality across multiple steps and scenarios
-**API Endpoints Called**:
-- `POST /auth` - Admin login (via adminLoginAndNavigateToApplications)
-  - **Response Used For**: Authentication and session establishment
-  - **What's Actually Checked**: Response status is OK (200), admin login successful
-- `GET /applications?` - Search applications (via findAndInviteApplication)
-  - **Response Used For**: Getting applications data for search
-  - **What's Actually Checked**: Response status is OK (200), applications array is returned
-- `POST /sessions` - Create session (via generateSessionForm.generateSessionAndExtractLink)
-  - **Response Used For**: Creating new session for applicant
-  - **What's Actually Checked**: Response status is OK (200), session data is returned with sessionId and sessionUrl
-- `PATCH /sessions/{id}` - Update session applicant type (via selectApplicantType)
-  - **Response Used For**: Updating session with selected applicant type
-  - **What's Actually Checked**: Response status is OK (200), PATCH method successful
-- `PATCH /sessions/{id}` - Update session rent budget (via updateRentBudget)
-  - **Response Used For**: Updating session with rent budget amount
-  - **What's Actually Checked**: Response status is OK (200), PATCH method successful
-- `POST /applicants` - Create co-applicant (via fillhouseholdForm)
-  - **Response Used For**: Creating co-applicant record
-  - **What's Actually Checked**: Response status is OK (200), applicant data is returned
-- `PATCH /sessions/{id}/steps/` - Update session steps (via waitForResponse)
-  - **Response Used For**: Updating session step completion status
-  - **What's Actually Checked**: Response status is OK (200), PATCH method successful
 
-#### **Detailed Steps:**
-1. **Admin Login and Navigation** - Login as admin and navigate to applications page
-2. **Find and Invite Application** - Search for "AutoTest Suite - Full Test" application and click invite
-3. **Generate Session** - Create session with user data and extract invite link
-4. **Logout Admin** - Logout admin user and verify login page is visible
-5. **Open Invite URL** - Navigate to applicant invite URL
-6. **Select Applicant Type** - Select "Employed" applicant type
-7. **Update State Modal** - Fill state modal with "ALABAMA" selection
-8. **Update Rent Budget** - Set rent budget to "500"
-9. **Skip Invite Page** - Click skip button on applicant invite page
-10. **Complete ID Verification** - Complete Persona identity verification
-11. **Complete Financial Step** - Complete Plaid financial connection with Betterment
-12. **Wait for Plaid Completion** - Wait for Plaid connection to complete
-13. **Skip Employment Step** - Click skip button on employment verification
-14. **Verify Summary Page** - Verify summary page is visible and completed
-15. **Navigate to Invite Page** - Click on "Applicants" section with "Skipped" status
-16. **Skip Invite Page Again** - Click skip button on invite page again
-17. **Verify Summary Page** - Verify summary page is visible after skip
-18. **Navigate to Employment Page** - Click on "Employment Verification" section with "Skipped" status
-19. **Skip Employment Page** - Click skip button on employment page
-20. **Verify Summary Page** - Verify summary page is visible after skip
-21. **Navigate to Rent Budget** - Click on "Rent Budget" section with "Completed" status
-22. **Update Rent Budget** - Update rent budget to "1000"
-23. **Verify Summary Page** - Verify summary page is visible after update
-24. **Navigate to Invite Page** - Click on "Applicants" section with "Skipped" status
-25. **Add Co-Applicant** - Fill household form with co-applicant data
-26. **Complete Invite Step** - Click continue button to complete invite step
-27. **Verify Summary Page** - Verify summary page is visible after completion
-28. **Navigate to Employment Step** - Click on "Employment Verification" section with "Skipped" status
-29. **Complete Paystub Connection** - Complete paystub connection with Paychex
-30. **Complete Employment Step** - Click continue button to complete employment step
-31. **Verify Summary Page** - Verify summary page is visible after completion
+**Purpose**: Verify that users can skip steps, navigate back to skipped/completed steps, change values, and add co-applicants after initial skip
 
-#### **Key Business Validations:**
-- **Step Skip Functionality** - Tests ability to skip various application steps multiple times
-- **Skip Button Visibility** - Validates skip buttons are visible and functional
-- **Step Navigation** - Tests navigation between different application steps
-- **State Persistence** - Ensures skipped steps maintain their skipped state
-- **Summary Page Updates** - Validates summary page reflects current step status
-- **Co-Applicant Management** - Tests adding co-applicant after skipping steps
-- **Employment Verification** - Tests completing employment step after initial skip
-- **Rent Budget Updates** - Tests updating rent budget after step completion
-- **UI State Management** - Validates UI state changes when navigating between steps
-- **Step Status Tracking** - Tests proper tracking of step completion and skip status
+**Test Flow**:
 
-#### **Overlap Assessment:**
-**NO OVERLAP** - This test is unique in its comprehensive focus on step skip functionality and validation of skip button behavior across multiple application steps.
+1. **Admin Setup**
+   - Login as admin
+   - Find and invite "AutoTest Suite - Full Test"
+   - Generate session with random email
+   - Store sessionId for cleanup
+   - Logout admin
+
+2. **Initial Flow with Skips**
+   - Open invite link (guest)
+   - Complete setupInviteLinkSession (terms → applicant type: #employed → state)
+   - Update rent budget: $500
+   - Skip invite page
+   - Complete ID verification (Persona iframe)
+   - Complete Plaid financial (username: 'custom_coffee', password: 'custom_gig')
+   - Wait for Plaid connection completion
+   - Skip employment step
+   - Verify summary page visible
+
+3. **Test Re-Skip Pattern** (Skip → Navigate Back → Skip Again)
+   - Click "Applicants" with "Skipped" badge → navigates to invite page
+   - Skip invite page again
+   - Verify summary page visible
+
+4. **Test Employment Re-Skip**
+   - Click "Employment Verification" with "Skipped" badge
+   - Skip employment page again
+   - Verify summary page visible
+
+5. **Test Re-Edit Completed Step**
+   - Click "Rent Budget" with "Completed" badge
+   - Update rent budget: $1000
+   - Verify summary page visible
+
+6. **Test Complete After Skip**
+   - Click "Applicants" with "Skipped" badge
+   - Add co-applicant via fillhouseholdForm
+   - Click continue button (visible filter)
+   - Wait 3s
+   - Verify summary page visible
+   - Wait 6s (allow async processing)
+
+7. **Test Employment Completion After Skip**
+   - Click "Employment Verification" with "Skipped" badge
+   - Complete paystub connection (Paychex iframe)
+   - Click employment-step-continue
+   - Verify summary page visible
+
+8. **Cleanup**
+   - Close page
+   - afterAll hook calls cleanupSession
+
+**Key API Endpoints**:
+- `POST /auth` - Admin authentication
+- `GET /applications?` - Search applications
+- `POST /sessions` - Create session
+- `PATCH /sessions/{id}` - Update session (rent budget 2x: $500, $1000)
+- `POST /applicants` - Create co-applicant
+
+**Business Validations**:
+- ✅ Users can skip invite and employment steps
+- ✅ Skipped steps remain navigable via status badges
+- ✅ Re-skipping same step works (no errors)
+- ✅ Completed steps can be re-edited (rent budget)
+- ✅ Skipped steps can be completed later (invite → add co-app, employment → paystub)
+- ✅ Summary page updates after each navigation
+- ✅ Step state persists across navigations
+- ✅ Badges correctly show "Skipped" vs "Completed"
+
+**Unique Aspects**:
+- Tests **re-navigation to skipped steps** via status badges
+- Validates **skip → skip again** pattern (no errors)
+- Tests **skip → complete** pattern (invite, employment)
+- Tests **complete → re-edit** pattern (rent budget)
+- Uses **status badge clicks** for navigation (filter by text + visible)
+- Includes **wait periods** for async processing (3s, 6s)
 
 ---
 
-### **5. co_app_household_with_flag_errors.spec.js - Co-Applicant Flag Attribution and Household Status Transitions**
+### **4. co_app_household_with_flag_errors.spec.js**
 
-#### **Complete Test Structure:**
-- **1 test** (380s timeout)
-- **Co-applicant flag attribution and household status transitions** testing
+**Purpose**: Validates household status transitions driven by co-applicant flag lifecycle (GROUP_MISSING_IDENTITY → IDENTITY_NAME_MISMATCH_CRITICAL → resolved)
+
+**Configuration**:
+- **Application**: "Autotest - Household UI test"
+- **User**: Primary Applicant (primary.applicant@verifast.com)
+- **Co-App**: CoApplicant Household (coapplicant.household@verifast.com)
+- **Timeout**: 380s
 - **Tags**: @regression, @household, @flag-attribution
 
+---
+
 #### **Test: "Should verify co-applicant flag attribution and household status transitions"**
-**Purpose**: Test co-applicant flag attribution and household status transitions with API-based identity verification
-**Goal**: This test isolates co-applicant flag attribution and its effect on household status. Primary is intentionally kept clean; co-app is configured to trigger a flag.
 
-**Expected Flow:**
-1. Primary completes all steps (ID, Financial, Employment) and flags resolved → Status: APPROVED (UI: "Meets Criteria")
-2. Co-app invited but incomplete → GROUP_MISSING_IDENTITY flag → Status: REJECTED (UI: "Criteria Not Met")
-3. Co-app completes ID with name mismatch → GROUP_MISSING_IDENTITY gone, IDENTITY_NAME_MISMATCH_CRITICAL appears → Status: REJECTED (UI: "Criteria Not Met")
-4. Admin resolves co-app flag → Status: APPROVED (UI: "Meets Criteria")
+**Purpose**: Verify household approval status transitions (APPROVED ↔ REJECTED) driven by co-app completion state and flag resolution, with API+UI validation at each stage
 
-**Key Validations:**
-- Flags are attributed to correct applicant (primary vs co-app)
-- GROUP_MISSING_IDENTITY appears when co-app invited, disappears when co-app completes ID
-- IDENTITY_NAME_MISMATCH_CRITICAL appears for co-app name mismatch
-- Household status transitions correctly (APPROVED ↔ REJECTED)
-- API status = APPROVED corresponds to UI status = "Meets Criteria"
+**Expected State Transitions**:
+1. **Primary complete + flags resolved** → APPROVED ("Meets Criteria")
+2. **Co-app invited but incomplete** → REJECTED ("Criteria Not Met") + GROUP_MISSING_IDENTITY
+3. **Co-app ID complete (name mismatch)** → REJECTED ("Criteria Not Met") + IDENTITY_NAME_MISMATCH_CRITICAL (GROUP_MISSING_IDENTITY gone)
+4. **Admin resolves flag** → APPROVED ("Meets Criteria")
 
-**API Endpoints Called**:
-- `POST /auth` - Admin login (via loginForm.adminLoginAndNavigate, line 73)
-  - **Response Used For**: Authentication and session establishment
-  - **What's Actually Checked**: Response status is OK (200), admin login successful
-- `GET /applications?` - Search applications (via findAndInviteApplication, line 77)
-  - **Response Used For**: Getting applications data for search
-  - **What's Actually Checked**: Response status is OK (200), applications array is returned
-- `POST /sessions` - Create session (via generateSessionForm.generateSessionAndExtractLink, line 80)
-  - **Response Used For**: Creating new session for applicant
-  - **What's Actually Checked**: Response status is OK (200), session data is returned with sessionId and sessionUrl
-- `PATCH /sessions/{id}` - Update session rent budget (via updateRentBudget, line 97)
-  - **Response Used For**: Updating session with rent budget (500)
-  - **What's Actually Checked**: Response status is OK (200), PATCH method successful
-- `POST /auth/guests` - Guest authentication (lines 130, 464)
-  - **Response Used For**: Authenticating primary and co-applicant guests with invitation tokens
-  - **What's Actually Checked**: Response status is OK (200), guest authentication successful, token retrieved
-- `POST /sessions/{id}/steps` - Create identity verification step (via completeIdentityStepViaAPI, lines 146, 480)
-  - **Response Used For**: Creating IDENTITY_VERIFICATION session step
-  - **What's Actually Checked**: Response status is OK (200), step created successfully
-- `POST /identity-verifications` - Create identity verification (via completeIdentityStepViaAPI, lines 146, 480)
-  - **Response Used For**: Submitting PERSONA_PAYLOAD for identity verification (matching name for primary, mismatched "Maria Dominguez" for co-applicant)
-  - **What's Actually Checked**: Response status is OK (200), identity verification created successfully
-- `PATCH /sessions/{id}/steps/{stepId}` - Complete identity verification step (via completeIdentityStepViaAPI, lines 146, 480)
-  - **Response Used For**: Marking IDENTITY_VERIFICATION step as COMPLETED
-  - **What's Actually Checked**: Response status is OK (200), step status updated to COMPLETED
-- `PATCH /sessions/{id}/steps/` - Update session steps for financial and employment (lines 160, 163)
-  - **Response Used For**: Updating session step completion status
-  - **What's Actually Checked**: Response status is OK (200), PATCH method successful
-- `POST /sessions/{id}/income-sources` - Add income source (line 180)
-  - **Response Used For**: Adding additional income source to prevent GROSS_INCOME_RATIO_EXCEEDED flag
-  - **What's Actually Checked**: Response status is OK (200), income source added successfully
-- `GET /sessions?fields[session]` - Load sessions (via gotoPage, line 201)
-  - **Response Used For**: Getting sessions for admin view
-  - **What's Actually Checked**: Response status is OK (200), sessions array is returned
-- `GET /sessions/{id}?fields[session]` - Get session details (lines 210, 386, 494)
-  - **Response Used For**: Getting complete session object with co-applicant data and flags
-  - **What's Actually Checked**: Response status is OK (200), session data with children array is returned
-- `PATCH /sessions/{id}/flags` - Mark flag as non-issue (via markFlagAsNonIssue, lines 238, 276, 535)
-  - **Response Used For**: Updating flag status to non-issue for INCOME_SOURCE_CADENCE_MISMATCH_ERROR, EMPLOYEE_NAME_MISMATCH_CRITICAL, and IDENTITY_NAME_MISMATCH_CRITICAL
-  - **What's Actually Checked**: Response status is OK (200), PATCH method successful
-- `GET /sessions/{id}` - Get session status (lines 316, 546)
-  - **Response Used For**: Polling for session status changes (APPROVED/REJECTED)
-  - **What's Actually Checked**: Response status is OK (200), approval_status field is validated
-- `POST /applicants` - Create co-applicant (via fillhouseholdForm, line 368)
-  - **Response Used For**: Creating co-applicant record
-  - **What's Actually Checked**: Response status is OK (200), applicant data is returned
+**Test Flow**:
 
-#### **Detailed Steps:**
-1. **Admin Login and Navigation** (line 73) - Login as admin and navigate to applications page
-2. **Find and Invite Application** (line 77) - Search for "Autotest - Household UI test" application and click invite
-3. **Generate Session** (line 80) - Create session with primary applicant user data (first_name: 'Primary', last_name: 'Applicant', email: 'primary.applicant@verifast.com') and extract invite link
-4. **Open Invite URL** (line 88) - Navigate to applicant invite URL in new browser context
-5. **Select Applicant Type** (line 91) - Select applicant type on page
-6. **Handle State Modal** (line 94) - Handle optional state modal if present
-7. **Update Rent Budget** (line 97) - Set rent budget to "500"
-8. **Skip Applicants Step** (line 104) - Click skip button on applicants step (co-applicant will be added later from primary page)
-9. **PRIMARY: Complete ID Verification via API** (lines 109-147) - Extract guest token from invitation URL, authenticate as guest, complete identity verification via API with matching name (should PASS)
-10. **PRIMARY: Complete Financial Step** (line 151) - Complete Plaid financial connection with 'custom_gig' user and 'test' password
-11. **PRIMARY: Wait for Plaid Completion** (line 153) - Wait for Plaid connection to complete
-12. **PRIMARY: Complete Paystub Connection** (line 155) - Complete paystub connection with Paychex
-13. **PRIMARY: Wait for Paystub Completion** (line 157) - Wait for paystub connection to complete
-14. **PRIMARY: Complete Employment Step** (line 163) - Click continue button to complete employment step
-15. **Add Income Source via API** (lines 169-195) - Add additional $500 income source via API to prevent GROSS_INCOME_RATIO_EXCEEDED flag from being generated
-16. **Navigate to Admin View** (line 201) - Navigate to sessions page to view session details
-17. **Search for Session** (line 205) - Search for the specific session by ID
-18. **Open Primary Session** (line 213) - Click on session card to view details
-19. **Resolve Primary Flags - Polling for INCOME_SOURCE_CADENCE_MISMATCH_ERROR** (lines 223-262) - Poll for flag (max 1 min, 2s intervals) and mark as non-issue if found
-20. **Resolve Primary Flags - Polling for EMPLOYEE_NAME_MISMATCH_CRITICAL** (lines 264-300) - Poll for flag (max 1 min, 2s intervals) and mark as non-issue if found
-21. **Close Event History Modal** (line 303) - Close the event history modal after resolving flags
-22. **ASSERTION 1 (API)** (lines 307-341) - Poll for household status = APPROVED after flag resolution (max 30 sec, 2s intervals)
-23. **ASSERTION 1 (UI)** (lines 343-347) - Verify household-status-alert shows "Meets Criteria"
-24. **Navigate to Applicants Step from Primary Page** (lines 350-363) - Click on 2nd step-APPLICANTS-lg element to navigate to applicants step
-25. **Add Co-Applicant from Primary Page** (lines 366-374) - Fill household form with co-applicant data (first_name: 'CoApplicant', last_name: 'Household') and click continue to invite
-26. **Close Primary Applicant Page** (line 377) - Close the primary applicant page after co-applicant invitation
-27. **ASSERTION 2a** (lines 379-400) - Reload admin view, search for session, open details, verify GROUP_MISSING_IDENTITY flag is PRESENT (co-app invited but incomplete)
-28. **ASSERTION 2b** (lines 406-415) - Verify household status = REJECTED (API) and "Criteria Not Met" (UI) after co-app invitation
-29. **Get Co-Applicant Invite Link** (lines 418-425) - Extract co-applicant invite URL from session children
-30. **Open Co-Applicant Link** (lines 428-441) - Navigate to co-applicant invite URL in new browser context
-31. **CO-APPLICANT: Select Applicant Type** (line 444) - Select applicant type on co-applicant page
-32. **CO-APPLICANT: Update State Modal** (line 447) - Select state in the state modal
-33. **CO-APPLICANT: Complete ID Verification via API with Name Mismatch** (lines 452-481) - Extract guest token, authenticate as guest, complete identity verification via API with mismatched name "Maria Dominguez" (should trigger IDENTITY_NAME_MISMATCH_CRITICAL flag)
-34. **Close Co-Applicant Page** (line 485) - Close the co-applicant page after ID verification
-35. **ASSERTION 3a** (lines 487-510) - Reload admin view, search for session, open details, verify GROUP_MISSING_IDENTITY flag is GONE (co-app completed ID)
-36. **ASSERTION 3b** (lines 512-521) - Verify IDENTITY_NAME_MISMATCH_CRITICAL flag is PRESENT and shows co-applicant name in UI (flag attribution)
-37. **ASSERTION 3c** (lines 523-531) - Verify household status = REJECTED (API) and "Criteria Not Met" (UI) due to name mismatch flag
-38. **Resolve Co-Applicant Flag** (lines 533-542) - Mark IDENTITY_NAME_MISMATCH_CRITICAL flag as non-issue and close event history modal
-39. **ASSERTION 4** (lines 544-561) - Verify household status restored to APPROVED (API) and "Meets Criteria" (UI) after resolving all flags
-40. **Test Summary** (lines 563-576) - Log complete test summary with all assertions passed
+1. **Admin Session Setup**
+   - Login as admin
+   - Find and invite "Autotest - Household UI test"
+   - Generate session for primary applicant
 
-#### **Key Business Validations:**
-- **Flag Attribution to Correct Applicant** - Validates flags are correctly attributed to primary vs co-applicant in UI
-- **GROUP_MISSING_IDENTITY Flag Lifecycle** - Tests flag appears when co-app invited, disappears when co-app completes ID
-- **IDENTITY_NAME_MISMATCH_CRITICAL Flag Triggering** - Tests name mismatch detection with "Maria Dominguez" vs "CoApplicant Household"
-- **Household Status Transitions (API)** - Tests status changes: APPROVED → REJECTED (co-app invited) → REJECTED (name mismatch) → APPROVED (flag resolved)
-- **Household Status Transitions (UI)** - Tests UI status: "Meets Criteria" → "Criteria Not Met" → "Criteria Not Met" → "Meets Criteria"
-- **API Status Mapping** - Validates API status APPROVED corresponds to UI status "Meets Criteria"
-- **Primary Applicant Completion** - Tests primary must complete ID (not skip) to avoid GROUP_MISSING_IDENTITY flags
-- **API-Based Identity Verification** - Tests Persona simulation via API using completeIdentityStepViaAPI utility
-- **Guest Token Authentication** - Tests extracting invitation tokens from URL and authenticating via POST /auth/guests
-- **Income Source Addition via API** - Tests adding income source to prevent GROSS_INCOME_RATIO_EXCEEDED flag
-- **Flag Polling with Retry Logic** - Tests polling for flags (INCOME_SOURCE_CADENCE_MISMATCH_ERROR, EMPLOYEE_NAME_MISMATCH_CRITICAL) with 1-minute max wait
-- **Status Polling with Retry Logic** - Tests polling for status changes with 30-second max wait
-- **Flag Resolution Workflow** - Tests marking multiple flags as non-issue (primary financial/employment flags, co-app identity flag)
-- **Co-Applicant Invitation from Primary Page** - Tests adding co-app using 2nd step-APPLICANTS-lg element from primary applicant context
-- **Multi-Stage Assertions** - Tests 4 major assertion stages with API and UI validation at each stage
-- **Rent Budget Configuration** - Tests rent budget set to $500
-- **Financial Provider Selection** - Tests custom_gig user for more financial transactions
-- **Employment Step UI-Based** - Tests employment verification remains UI-based (not VERIDOCS simulation)
-- **Context Management** - Tests proper handling of multiple browser contexts (admin, primary applicant, co-applicant)
-- **Modal Management** - Tests opening/closing event history modal and view details modal multiple times
+2. **Primary Applicant Flow** (API-based - no UI)
+   - Open invite link (new browser context)
+   - Complete setupInviteLinkSession (terms → applicant type: #affordable_primary → state)
+   - Update rent budget: $500
+   - Skip applicants step
+   - Extract guest token from URL → POST /auth/guests
+   - Complete ID via API (completeIdentityStepViaAPI with matching name - passes)
+   - Complete Financial via API (completeFinancialStepViaAPI - CUSTOM_PAYLOAD)
+   - Complete Employment via API (completeEmploymentStepViaAPI - VERIDOCS_PAYLOAD)
+   - Add income source via API ($500) to prevent GROSS_INCOME_RATIO_EXCEEDED
 
-#### **Overlap Assessment:**
-**NO OVERLAP** - This test is unique in its focus on co-applicant flag attribution, household status transitions, and comprehensive multi-stage validation with both API and UI checks at each transition point.
+3. **Admin: Resolve Primary Flags & Validate APPROVED**
+   - Navigate to sessions page
+   - Search and open primary session
+   - Open View Details modal
+   - Poll for INCOME_SOURCE_CADENCE_MISMATCH_ERROR (max 60s, 2s intervals)
+   - Mark flag as non-issue
+   - Close modal
+   - **ASSERT 1 (API)**: Poll for status = APPROVED (max 30s)
+   - **ASSERT 1 (UI)**: Verify "Meets Criteria" banner (poll with reload)
+
+4. **Add Co-Applicant from Primary Context**
+   - Return to primary applicant page
+   - Click 2nd step-APPLICANTS-lg element → navigate to applicants step
+   - Fill household form (add co-app)
+   - Click continue to invite co-app
+   - Close primary page
+
+5. **Admin: Validate GROUP_MISSING_IDENTITY & REJECTED**
+   - Reload admin session page
+   - Open View Details modal
+   - **ASSERT 2a**: Verify GROUP_MISSING_IDENTITY visible
+   - Close modal
+   - **ASSERT 2b (API)**: Poll for status = REJECTED (max 30s)
+   - **ASSERT 2b (UI)**: Verify "Criteria Not Met" banner (poll)
+
+6. **Co-Applicant ID Completion** (API-based)
+   - Extract co-app invite URL from session.data.children
+   - Open co-app link (new browser context)
+   - Complete setupInviteLinkSession (terms → applicant type: #affordable_primary → state)
+   - Extract guest token from URL → POST /auth/guests
+   - Complete ID via API with **MISMATCHED name** ("X Y" instead of "CoApplicant Household")
+   - Wait 6s for flag creation
+   - Close co-app page
+
+7. **Admin: Validate Flag Transition & REJECTED**
+   - Reload admin session page
+   - Open View Details modal
+   - **ASSERT 3a**: Verify GROUP_MISSING_IDENTITY gone (count = 0)
+   - **ASSERT 3b**: Verify IDENTITY_NAME_MISMATCH_CRITICAL visible
+   - Verify flag text contains "Identity Name Mismatch (Critical)" and co-app name
+   - **ASSERT 3c (API)**: Poll for status = REJECTED (max 30s)
+   - **ASSERT 3c (UI)**: Verify "Criteria Not Met" banner
+   - Mark IDENTITY_NAME_MISMATCH_CRITICAL as non-issue
+   - Close modal
+
+8. **Admin: Validate Resolution & APPROVED**
+   - **ASSERT 4 (API)**: Poll for status = APPROVED (max 60s, 2s intervals)
+   - **ASSERT 4 (UI)**: Verify "Meets Criteria" banner
+
+9. **Test Summary Log**
+   - Log all 8 assertions (4 stages × 2 validations each: API + UI)
+
+10. **Cleanup**
+    - afterAll hook calls cleanupSessionAndContexts (session + 2 browser contexts)
+
+**Key API Endpoints**:
+- `POST /auth` - Admin authentication
+- `GET /applications?` - Search applications
+- `POST /sessions` - Create session
+- `PATCH /sessions/{id}` - Update rent budget
+- `POST /auth/guests` - Guest authentication (2x: primary + co-app)
+- `POST /sessions/{id}/steps` - Create ID verification step (2x)
+- `POST /identity-verifications` - Submit Persona payload (2x)
+- `PATCH /sessions/{id}/steps/{stepId}` - Complete steps
+- `POST /sessions/{id}/income-sources` - Add income source
+- `GET /sessions?fields[session]` - Load sessions
+- `GET /sessions/{id}?fields[session]` - Get session details (multiple times)
+- `PATCH /sessions/{id}/flags` - Mark flags as non-issue
+- `GET /sessions/{id}` - Poll for status changes (multiple times)
+- `POST /applicants` - Create co-applicant
+
+**Business Validations**:
+- ✅ Household status = APPROVED when primary completes + flags resolved
+- ✅ GROUP_MISSING_IDENTITY appears when co-app invited
+- ✅ Household status = REJECTED when co-app incomplete
+- ✅ GROUP_MISSING_IDENTITY disappears when co-app completes ID
+- ✅ IDENTITY_NAME_MISMATCH_CRITICAL appears for name mismatch
+- ✅ Household status remains REJECTED with name mismatch flag
+- ✅ Household status = APPROVED after resolving co-app flag
+- ✅ API status (APPROVED/REJECTED) matches UI status ("Meets Criteria"/"Criteria Not Met")
+- ✅ Flags attributed to correct applicant (primary vs co-app)
+- ✅ Polling mechanisms work for flags and status (with retry logic)
+
+**Unique Aspects**:
+- Tests **4-stage household status lifecycle** with comprehensive API+UI validation
+- Uses **API-based identity/financial/employment** completion (completeXStepViaAPI helpers)
+- Implements **flag polling** with retry logic (60s for flags, 30s/60s for status)
+- Tests **flag lifecycle** (GROUP_MISSING_IDENTITY → IDENTITY_NAME_MISMATCH_CRITICAL → resolved)
+- Uses **guest token extraction** from URL + POST /auth/guests authentication
+- Tests **name mismatch trigger** (intentional "X Y" vs expected name)
+- Validates **API-UI consistency** at each transition (8 total assertions)
+- Uses **multi-context management** (admin, primary, co-app contexts)
 
 ---
 
-### **6. skip_button_visibility_logic.spec.js - Skip Button Visibility Logic Testing**
+### **5. skip_button_visibility_logic.spec.js**
 
-#### **Complete Test Structure:**
-- **1 test** (300s timeout)
-- **Skip button visibility logic** testing across verification steps
-- **Tags**: @regression
+**Purpose**: Validates skip button visibility logic - skip buttons should disappear after completing actions
 
-#### **Test: "Should ensure skip button visibility logic across verification steps using existing application"**
-**Purpose**: Test skip button visibility logic across all verification steps (applicants, identity, financial, employment) to ensure skip buttons disappear after completing actions
-**API Endpoints Called**:
-- `POST /auth` - Admin login (via loginForm.adminLoginAndNavigate, line 44)
-  - **Response Used For**: Authentication and session establishment
-  - **What's Actually Checked**: Response status is OK (200), admin login successful
-- `GET /applications?` - Search applications (via findAndInviteApplication, line 50)
-  - **Response Used For**: Getting applications data for search
-  - **What's Actually Checked**: Response status is OK (200), applications array is returned
-- `POST /sessions` - Create session (via generateSessionForm.generateSessionAndExtractLink, line 54)
-  - **Response Used For**: Creating new session for applicant
-  - **What's Actually Checked**: Response status is OK (200), session data is returned with sessionId, sessionUrl, and link
-- `PATCH /sessions/{id}` - Update session applicant type (via selectApplicantType, line 67)
-  - **Response Used For**: Updating session with selected applicant type (affordable_occupant)
-  - **What's Actually Checked**: Response status is OK (200), PATCH method successful
-- `PATCH /sessions/{id}` - Update session rent budget (via updateRentBudget, line 86)
-  - **Response Used For**: Updating session with rent budget amount
-  - **What's Actually Checked**: Response status is OK (200), PATCH method successful
-- `POST /applicants` - Create co-applicant (via fillhouseholdForm, line 188)
-  - **Response Used For**: Creating co-applicant record for applicants step
-  - **What's Actually Checked**: Response status is OK (200), applicant data is returned
-- `POST /identity-verifications` - Create identity verification (via identityStep, line 194)
-  - **Response Used For**: Creating identity verification for identity step
-  - **What's Actually Checked**: Response status is OK (200), identity verification data is returned
-- `POST /financial-verifications` - Create financial verification (via completePlaidFinancialStep, line 200)
-  - **Response Used For**: Creating financial verification for financial step
-  - **What's Actually Checked**: Response status is OK (200), financial verification data is returned
-- `POST /employment-verifications` - Create employment verification (via completePaystubConnection, line 207)
-  - **Response Used For**: Creating employment verification for employment step
-  - **What's Actually Checked**: Response status is OK (200), employment verification data is returned
+**Configuration**:
+- **Application**: "Autotest - Full flow skip button test"
+- **User**: SkipButton Test (playwright+skipbutton@verifications.com)
+- **Co-App**: SkipButton CoApplicant
+- **Timeout**: 300s  
+- **Tags**: @regression, @external-integration, @staging-ready
 
-#### **Detailed Steps:**
-1. **Admin Login and Navigation** - Login as admin and navigate to applications page
-2. **Find and Invite Application** - Search for "Autotest - Full flow skip button test" application and click invite
-3. **Generate Session** - Create session with user data and extract invite link
-4. **Open Invite URL** - Navigate to applicant invite URL with camera permissions
-5. **Select Applicant Type** - Select "Affordable Occupant" applicant type
-6. **Handle State Modal** - Handle optional state modal if present
-7. **Update Rent Budget** - Set rent budget and complete rent budget step
-8. **Test Skip Button Visibility for Applicants Step**:
-   - Verify skip button is visible before action
-   - Fill household form with co-applicant data
-   - Verify skip button disappears after action
-   - Click continue button
-9. **Test Skip Button Visibility for Identity Verification Step**:
-   - Verify skip button is visible before action
-   - Complete identity verification with Persona integration
-   - Verify skip button disappears after action
-   - Click continue button
-10. **Test Skip Button Visibility for Financial Verification Step**:
-    - Verify skip button is visible before action
-    - Complete Plaid financial connection
-    - Wait for Plaid connection completion
-    - Verify skip button disappears after action
-    - Click continue button
-11. **Test Skip Button Visibility for Employment Verification Step**:
-    - Verify skip button is visible before action
-    - Complete paystub connection
-    - Wait for paystub connection completion
-    - Verify skip button disappears after action
-    - Click continue button
-12. **Verify Summary Screen** - Verify summary screen is visible with all steps completed
+---
 
-#### **Key Business Validations:**
-- **Skip Button Visibility Logic** - Tests that skip buttons are visible before actions and disappear after completing actions
-- **Applicants Step Skip Logic** - Tests skip button behavior when filling household form
-- **Identity Verification Skip Logic** - Tests skip button behavior when completing identity verification
-- **Financial Verification Skip Logic** - Tests skip button behavior when completing financial connection
-- **Employment Verification Skip Logic** - Tests skip button behavior when completing employment verification
-- **UI State Management** - Validates UI state changes when completing verification steps
-- **Button Interaction Logic** - Tests proper button visibility and interaction patterns
-- **Step Completion Validation** - Ensures all steps show "Complete" status after actions
-- **Multi-Step Workflow** - Tests skip button logic across all verification steps in sequence
-- **Error Handling** - Tests error handling when skip button logic fails
+**Test Flow**:
 
-#### **Overlap Assessment:**
-**NO OVERLAP** - This test is unique in its comprehensive focus on skip button visibility logic across all verification steps and validation of UI state management.
+1. **Admin Setup**
+   - Login as admin
+   - Find and invite "Autotest - Full flow skip button test"
+   - Generate session
 
-### **7. user_flags_approve_reject_test.spec.js - Session Flag Management and Approval/Rejection**
+2. **Applicant Session Setup**
+   - Open invite link (new context with camera permissions)
+   - Complete setupInviteLinkSession (terms → applicant type: #affordable_occupant → state)
+   - Update rent budget
 
-#### **Complete Test Structure:**
-- **2 test describes** (Session Flag + Session Approve/Reject)
-- **4 total tests** (2 session creation + 2 validation tests)
-- **200s timeout** per test describe
-- **Tags**: @core, @smoke, @regression
+3. **testSkipButtonVisibility('applicants')** - Helper Function Pattern
+   - **Phase 1**: Verify applicant-invite-skip-btn visible
+   - **Phase 2**: Fill household form (action that should hide skip)
+   - **Phase 3**: Assert skip button NOT visible, continue button visible, click continue
 
-#### **Test Describe 1: "Session Flag"**
+4. **testSkipButtonVisibility('identity')**
+   - **Phase 1**: Verify skip-id-verification-btn visible
+   - **Phase 2**: Complete identity step (Persona iframe)
+   - **Phase 3**: Assert skip button NOT visible, continue button visible, click continue
 
-##### **Test 1: "Should create applicant session for flag issue"**
-**Purpose**: Create a session for flag management testing using API-based session creation with VERIDOCS simulator
-**API Endpoints Called**:
-- `POST /auth` - Admin authentication (via createSessionWithSimulator → admin login)
-  - **Response Used For**: Authentication for session creation
-  - **What's Actually Checked**: Admin login successful with token retrieved
-- `GET /applications?` - Search applications (via createSessionWithSimulator → application search)
-  - **Response Used For**: Finding 'AutoTest - Flag Issue V2' application
-  - **What's Actually Checked**: Application found, applicationId extracted
-- `POST /sessions` - Create session (via createSessionWithSimulator → session creation)
-  - **Response Used For**: Creating new session for flag testing
-  - **What's Actually Checked**: Session created successfully, sessionId and invitation URL returned
-- `POST /auth/guests` - Guest authentication (via createSessionWithSimulator → guest login)
-  - **Response Used For**: Guest login with invitation token
-  - **What's Actually Checked**: Guest authenticated, guestToken retrieved
-- `POST /sessions/{id}/steps` - Create START step (via createSessionWithSimulator)
-  - **Response Used For**: Creating START session step
-  - **What's Actually Checked**: Step created successfully, stepId returned
-- `PATCH /sessions/{id}` - Update rent budget (via createSessionWithSimulator)
-  - **Response Used For**: Setting rent budget to 2500
-  - **What's Actually Checked**: Session updated with rent budget
-- `PATCH /sessions/{id}/steps/{stepId}` - Complete START step (via createSessionWithSimulator)
-  - **Response Used For**: Marking START step as COMPLETED
-  - **What's Actually Checked**: Step status updated to COMPLETED
-- `GET /providers` - Get Simulation provider (via createSessionWithSimulator)
-  - **Response Used For**: Finding Simulation provider for VERIDOCS
-  - **What's Actually Checked**: Simulation provider found and selected
-- `POST /sessions/{id}/steps` - Create FINANCIAL step (via createSessionWithSimulator)
-  - **Response Used For**: Creating FINANCIAL_VERIFICATION session step
-  - **What's Actually Checked**: Step created successfully, stepId returned
-- `POST /financial-verifications` - Create financial verification (via createSessionWithSimulator)
-  - **Response Used For**: Submitting VERIDOCS_PAYLOAD for financial verification
-  - **What's Actually Checked**: Financial verification created successfully
-- `PATCH /sessions/{id}/steps/{stepId}` - Complete FINANCIAL step (via createSessionWithSimulator)
-  - **Response Used For**: Marking FINANCIAL step as COMPLETED
-  - **What's Actually Checked**: Step status updated to COMPLETED
+5. **testSkipButtonVisibility('financial')**
+   - **Phase 1**: Verify skip-financials-btn visible
+   - **Phase 2**: Complete Plaid financial step + wait for completion
+   - **Phase 3**: Assert skip button NOT visible, continue button visible, click continue
 
-**Steps**:
-1. Create session using `createSessionWithSimulator` utility (API-based, lines 45-54) with:
-   - Organization: 'Permissions Test Org'
-   - Application: 'AutoTest - Flag Issue V2'
-   - User data: { first_name: 'Flag Issue', last_name: 'Testing', email: 'FlagIssueTesting@verifast.com' }
-   - Rent budget: '2500'
-   - State: 'fl'
-2. Admin login via POST /auth API
-3. Find application via GET /applications API
-4. Create session via POST /sessions API
-5. Guest login via POST /auth/guests API with invitation token
-6. Complete START step via API (create step, update rent budget, mark complete)
-7. Complete FINANCIAL step via API (create step, submit VERIDOCS_PAYLOAD, mark complete)
-8. Store sessionId in `flagIssueSession` variable for subsequent tests
+6. **testSkipButtonVisibility('employment')**
+   - **Phase 1**: Verify employment-step-skip-btn visible
+   - **Phase 2**: Complete paystub connection + wait for completion + wait 3s
+   - **Phase 3**: Assert skip button NOT visible, continue button visible, click continue
 
-##### **Test 2: "Check Session Flag"**
-**Purpose**: Test comprehensive flag management functionality
-**API Endpoints Called**:
-- `POST /auth` - Admin login (via loginForm.adminLoginAndNavigate)
-  - **Response Used For**: Authentication and session establishment
-  - **What's Actually Checked**: Response status is OK (200), admin login successful
-- `GET /sessions?fields[session]=` - Search sessions (via searchSessionWithText)
-  - **Response Used For**: Finding session by ID
-  - **What's Actually Checked**: Response status is OK (200), sessions data array is returned
-- `GET /sessions/{id}?fields[session]=` - Get session details (via navigateToSessionById)
-  - **Response Used For**: Loading session data for navigation
-  - **What's Actually Checked**: Response status is OK (200), session data is returned
-- `GET /sessions/{id}/flags` - Get session flags (via navigateToSessionFlags)
-  - **Response Used For**: Loading session flags and validating flag sections
-  - **What's Actually Checked**: Response status is OK (200), flags data is returned
-- `PATCH /sessions/{id}/flags` - Update flag status (via markFlagAsIssue)
-  - **Response Used For**: Marking NO_INCOME_SOURCES_DETECTED as issue
-  - **What's Actually Checked**: Response status is OK (200), flag status updated
-- `PATCH /sessions/{id}/flags` - Update flag status (via markFlagAsNonIssue)
-  - **Response Used For**: Marking MISSING_TRANSACTIONS as non-issue
-  - **What's Actually Checked**: Response status is OK (200), flag status updated
+7. **Final Validation**
+   - Verify summary page visible ("Summary" heading)
+   - Verify all steps show "Complete" status:
+     - Rent Budget: Complete
+     - Identity Verification: Complete
+     - Applicants: Complete
+     - Financial Verification: Complete
+     - Employment Verification: Complete
+   - Close applicant context
 
-**Steps**:
-1. **Admin login and navigation** (via loginForm.adminLoginAndNavigate utility)
-2. **Smart menu navigation** (check if applicants-menu is already open before clicking)
-3. **Session search and navigation** (via searchSessionWithText and navigateToSessionById utilities)
-4. **Flag section validation** (via navigateToSessionFlags and validateFlagSections utilities)
-5. **Mark flag as issue** (via markFlagAsIssue utility with comment)
-6. **Modal management** (close event history modal, verify financial status modal)
-7. **Mark flag as non-issue** (via markFlagAsNonIssue utility with comment)
+**Key API Endpoints**:
+- `POST /auth` - Admin authentication
+- `GET /applications?` - Search applications
+- `POST /sessions` - Create session
+- `PATCH /sessions/{id}` - Update rent budget
+- `POST /applicants` - Create co-applicant
 
-#### **Test Describe 2: "Session Approve/Reject"**
+**Business Validations**:
+- ✅ Skip buttons visible before any action (all 4 steps)
+- ✅ Skip buttons disappear after completing action (all 4 steps)
+- ✅ Continue buttons appear after completing action
+- ✅ All steps transition to "Complete" status
+- ✅ Summary page displays after all steps complete
+- ✅ testSkipButtonVisibility helper pattern works for all step types
 
-##### **Test 3: "Should create applicant session for approve reject"**
-**Purpose**: Create a session for approval/rejection testing using API-based session creation with VERIDOCS simulator
-**API Endpoints Called**:
-- `POST /auth` - Admin authentication (via createSessionWithSimulator → admin login)
-  - **Response Used For**: Authentication for session creation
-  - **What's Actually Checked**: Admin login successful with token retrieved
-- `GET /applications?` - Search applications (via createSessionWithSimulator → application search)
-  - **Response Used For**: Finding 'AutoTest - Flag Issue V2' application
-  - **What's Actually Checked**: Application found, applicationId extracted
-- `POST /sessions` - Create session (via createSessionWithSimulator → session creation)
-  - **Response Used For**: Creating new session for approval/rejection testing
-  - **What's Actually Checked**: Session created successfully, sessionId and invitation URL returned
-- `POST /auth/guests` - Guest authentication (via createSessionWithSimulator → guest login)
-  - **Response Used For**: Guest login with invitation token
-  - **What's Actually Checked**: Guest authenticated, guestToken retrieved
-- `POST /sessions/{id}/steps` - Create START step (via createSessionWithSimulator)
-  - **Response Used For**: Creating START session step
-  - **What's Actually Checked**: Step created successfully, stepId returned
-- `PATCH /sessions/{id}` - Update rent budget (via createSessionWithSimulator)
-  - **Response Used For**: Setting rent budget to 2500
-  - **What's Actually Checked**: Session updated with rent budget
-- `PATCH /sessions/{id}/steps/{stepId}` - Complete START step (via createSessionWithSimulator)
-  - **Response Used For**: Marking START step as COMPLETED
-  - **What's Actually Checked**: Step status updated to COMPLETED
-- `GET /providers` - Get Simulation provider (via createSessionWithSimulator)
-  - **Response Used For**: Finding Simulation provider for VERIDOCS
-  - **What's Actually Checked**: Simulation provider found and selected
-- `POST /sessions/{id}/steps` - Create FINANCIAL step (via createSessionWithSimulator)
-  - **Response Used For**: Creating FINANCIAL_VERIFICATION session step
-  - **What's Actually Checked**: Step created successfully, stepId returned
-- `POST /financial-verifications` - Create financial verification (via createSessionWithSimulator)
-  - **Response Used For**: Submitting VERIDOCS_PAYLOAD for financial verification
-  - **What's Actually Checked**: Financial verification created successfully
-- `PATCH /sessions/{id}/steps/{stepId}` - Complete FINANCIAL step (via createSessionWithSimulator)
-  - **Response Used For**: Marking FINANCIAL step as COMPLETED
-  - **What's Actually Checked**: Step status updated to COMPLETED
+**Unique Aspects**:
+- Uses **reusable helper function** (testSkipButtonVisibility) for all 4 steps
+- Tests **3-phase pattern** (verify visible → action → verify hidden)
+- Validates **skip button lifecycle** across entire flow
+- Uses **switch statement** for step-specific locators
+- Tests **4 different skip buttons** (applicants, ID, financial, employment)
+- Includes **error handling** with descriptive error messages
 
-**Steps**:
-1. Create session using `createSessionWithSimulator` utility (API-based, lines 149-158) with:
-   - Organization: 'Permissions Test Org'
-   - Application: 'AutoTest - Flag Issue V2'
-   - User data: { first_name: 'Approval_reject', last_name: 'Testing', email: 'ApprovalRejecttesting@verifast.com' }
-   - Rent budget: '2500'
-   - State: 'fl'
-2. Admin login via POST /auth API
-3. Find application via GET /applications API
-4. Create session via POST /sessions API
-5. Guest login via POST /auth/guests API with invitation token
-6. Complete START step via API (create step, update rent budget, mark complete)
-7. Complete FINANCIAL step via API (create step, submit VERIDOCS_PAYLOAD, mark complete)
-8. Store sessionId in `approveRejectSession` variable for subsequent tests
+---
 
-##### **Test 4: "Check session by Approving and Rejecting"**
-**Purpose**: Test session approval and rejection workflows with document approval and flag marking
-**API Endpoints Called**:
-- `POST /auth` - Admin login (via loginForm.adminLoginAndNavigate, line 167)
-  - **Response Used For**: Authentication and session establishment
-  - **What's Actually Checked**: Response status is OK (200), admin login successful
-- `GET /sessions?fields[session]=` - Search sessions (via searchSessionWithText, line 183)
-  - **Response Used For**: Finding session by ID
-  - **What's Actually Checked**: Response status is OK (200), sessions data array is returned
-- `GET /sessions/{id}?fields[session]=` - Get session details (via navigateToSessionById, line 184)
-  - **Response Used For**: Loading session data for navigation
-  - **What's Actually Checked**: Response status is OK (200), session data is returned
-- `PATCH /sessions/{id}/flags` - Mark flags as issues (lines 257-283)
-  - **Response Used For**: Marking flags in "Items Requiring Review" as issues
-  - **What's Actually Checked**: Response status is OK (200), flag status updated for each flag
-- `PATCH /sessions/{id}` - Approve session (via checkSessionApproveReject, line 301)
-  - **Response Used For**: Approving session
-  - **What's Actually Checked**: Response status is OK (200), session approved
-- `PATCH /sessions/{id}` - Reject session (via checkSessionApproveReject, line 301)
-  - **Response Used For**: Rejecting session
-  - **What's Actually Checked**: Response status is OK (200), session rejected
+### **6. user_flags_approve_reject_test.spec.js**
 
-**Steps**:
-1. **Admin login and navigation** (lines 167-168, via loginForm.adminLoginAndNavigate utility)
-2. **Smart menu navigation** (lines 172-178, check if applicants-menu is already open before clicking)
-3. **Session search and navigation** (lines 183-184, via searchSessionWithText and navigateToSessionById utilities)
-4. **Session status validation** (lines 187-189, verify session status shows "Unreviewed")
-5. **Document approval process** (lines 192-229):
-   - Click files section header to open files section
-   - Find and click files document status pill link
-   - Wait for decision modal to appear
-   - Click accept button in decision modal
-   - Wait for pill to show success accepted with 30s timeout
-6. **View Details and mark flags** (lines 231-297):
-   - Click View Details button
-   - Find "Items Requiring Review" section
-   - Iterate through all flags in the section
+**Purpose**: Validates flag management workflows (mark as issue/non-issue) and session approve/reject functionality
+
+**Configuration**:
+- **Organization**: "Permissions Test Org"
+- **Application**: "AutoTest - Flag Issue V2"
+- **User 1**: Flag Issue Testing (FlagIssueTesting@verifast.com)
+- **User 2**: Approval_reject Testing (ApprovalRejecttesting@verifast.com)
+- **Timeout**: 200s per describe
+- **Tags**: @core, @smoke, @regression, @staging-ready
+
+---
+
+#### **Test Describe 1: "Session Flag" (2 tests in serial mode)**
+
+**Test 1: "Should create applicant session for flag issue"**
+
+**Purpose**: Create session with VERIDOCS_PAYLOAD simulator for flag testing
+
+**Test Flow**:
+- Call createSessionWithSimulator with params:
+  - Organization: 'Permissions Test Org'
+  - Application: 'AutoTest - Flag Issue V2'
+  - User: Flag Issue Testing
+  - Rent budget: '2500'
+  - State: 'fl'
+- Store sessionId in `flagIssueSession`
+
+---
+
+**Test 2: "Check Session Flag"**
+
+**Purpose**: Validate flag management: mark flags as issue/non-issue and verify flag section movements
+
+**Test Flow**:
+
+1. **Admin Login & Navigate**
+   - Login as admin
+   - Check if applicants-menu already open (smart navigation)
+   - Click applicants-submenu
+   - Search for session by flagIssueSession ID
+
+2. **Navigate to Session**
+   - Navigate to session by ID
+   - Verify household-status-alert contains "Unreviewed"
+
+3. **Document Approval Flow** (New requirement for session approval)
+   - Click files-section-header
+   - Click files-document-status-pill link
+   - Wait for decision-modal
+   - Click accept button
+   - Poll for document status = "Accepted" (max 75s, 1s intervals)
+
+4. **View Details & Validate Flag Sections**
+   - Click view-details-btn
+   - Call validateFlagSections helper:
+     - Verify GROSS_INCOME_RATIO_EXCEEDED in items-causing-decline-section
+     - Verify NO_INCOME_SOURCES_DETECTED in items-requiring-review-section
+
+5. **Mark Flag as Issue**
+   - Call markFlagAsIssue for NO_INCOME_SOURCES_DETECTED
+   - **Assert**: Flag moves to items-causing-decline-section (visible)
+
+6. **Financial Modal Navigation**
+   - Close event history modal
+   - Click raw-financial-verification-status
+   - Verify report-financial-status-modal visible
+
+7. **Mark Flag as Non-Issue**
+   - Call markFlagAsNonIssue for MISSING_TRANSACTIONS within financial modal
+   - **Assert**: Flag moves to reviewed-items-section (visible, max 30s timeout)
+
+---
+
+#### **Test Describe 2: "Session Approve/Reject" (2 tests in serial mode)**
+
+**Test 3: "Should create applicant session for approve reject"**
+
+**Purpose**: Create second session for approve/reject testing
+
+**Test Flow**:
+- Call createSessionWithSimulator with User 2 (Approval_reject Testing)
+- Store sessionId in `approveRejectSession`
+
+---
+
+**Test 4: "Check session by Approving and Rejecting"**
+
+**Purpose**: Validate session approve/reject workflow
+
+**Test Flow**:
+
+1. **Admin Login & Navigate**
+   - Login as admin
+   - Smart navigation (check if menu open)
+   - Click applicants-submenu
+   - Search for approveRejectSession
+
+2. **Navigate to Session**
+   - Navigate to session by ID
+   - **Assert**: household-status-alert contains "Unreviewed"
+
+3. **Document Approval** (Prerequisite)
+   - Click files-section-header
+   - Click files-document-status-pill
+   - Accept documents
+   - Poll for "Accepted" status (max 75s)
+   - Click view-details-btn
+
+4. **Mark All Flags in Items Requiring Review as Issues**
+   - Get all flag items (li[id^="flag-"]) in items-requiring-review-section
    - For each flag:
-     - Click "mark as issue" button
-     - Fill reason textarea
-     - Click confirm button
-     - Wait for modal to close
-   - Close event history modal using close-event-history-modal testid
-7. **Approval/rejection workflow** (line 301, via checkSessionApproveReject utility):
-   - **Approval Process**:
-     - Locate and click approve-session-btn (with session-action-btn fallback)
-     - Click confirm button
-     - Wait for PATCH /sessions/{id} response (approval)
-     - Wait for GET /sessions/{id} response (session reload)
-     - Verify approval response data
-   - **Rejection Process**:
-     - Scroll to session action button
-     - Click reject-session-btn
-     - Click confirm button
-     - Wait for PATCH /sessions/{id} response (rejection)
-     - Wait for GET /sessions/{id} response (session reload)
-     - Verify rejection response data
+     - Click mark_as_issue button
+     - Fill textarea with reason
+     - Click "Mark as Issue" button
+     - Wait 1s
 
-#### **Key Business Validations:**
-- **API-Based Session Creation**: Complete session creation via API using VERIDOCS simulator
-- **VERIDOCS Payload Simulation**: Financial verification using simulation provider
-- **Guest Authentication**: Token-based guest login from invitation URL
-- **Session Steps API Management**: Complete START and FINANCIAL steps via API
-- **Document Approval Workflow**: Approve documents before session approval with success class validation (bg-success-light)
-- **Items Requiring Review**: Automatically mark all flags in "Items Requiring Review" section as issues
-- **Dynamic Flag Iteration**: Loop through all flags dynamically and mark each as issue with reason
-- **Session Flag Management**: Mark flags as issues/non-issues with comments
-- **Flag Section Movement**: Flags move between decline and review sections
-- **Session Approval Workflow**: Complete session approval process after marking flags
-- **Session Rejection Workflow**: Complete session rejection process
-- **Modal Management**: Event history modal, decision modal, and financial status modals
-- **Smart Menu Navigation**: Prevents double-clicking already open menus
-- **Session State Persistence**: Session state changes persist correctly
-- **Financial Flag Handling**: Financial verification flag management
-- **Income Source Flag Handling**: Income source detection flag management
-- **Transaction Flag Handling**: Transaction-related flag management
+5. **Close Details & Poll for Status Change**
+   - Close event history modal
+   - Poll for household-status-alert to NOT contain "Requires Review" (max 60s, 2s intervals)
+   - Reload every 5 attempts
 
-#### **Overlap Assessment:**
-**NO OVERLAP** - This test is unique in its focus on session flag management and approval/rejection workflows, different from other session flow tests.
+6. **Approve/Reject Workflow**
+   - Call checkSessionApproveReject helper with sessionId
+
+**Key API Endpoints**:
+- `POST /auth` - Admin authentication (2x: test 1 & test 3 session creation via createSessionWithSimulator)
+- `GET /applications?` - Search applications (2x for simulator)
+- `POST /sessions` - Create sessions (2x: flagIssueSession & approveRejectSession)
+- `POST /auth/guests` - Guest authentication (2x for simulator)
+- `POST /sessions/{id}/steps` - Create steps (4x: START & FINANCIAL for both sessions)
+- `PATCH /sessions/{id}` - Update rent budget (2x for simulator)
+- `PATCH /sessions/{id}/steps/{stepId}` - Complete steps (4x)
+- `GET /providers` - Get Simulation provider (2x)
+- `POST /financial-verifications` - Create financial verifications (2x)
+- `GET /sessions?fields[session]` - Search sessions (2x: tests 2 & 4)
+- `GET /sessions/{id}?fields[session]` - Navigate to sessions (2x)
+- `GET /sessions/{id}/flags` - Get session flags (2x)
+- `PATCH /sessions/{id}/flags` - Update flag status (3x: mark issue, mark non-issue, test 4 loop)
+- `PATCH /sessions/{id}` - Approve/reject sessions (4x: approve + reject for test 4)
+
+**Business Validations**:
+- ✅ Sessions can be created via API simulator (VERIDOCS_PAYLOAD)
+- ✅ Flags visible in correct sections (decline vs review)
+- ✅ Flags can be marked as issues
+- ✅ Marked-as-issue flags move to items-causing-decline-section
+- ✅ Flags can be marked as non-issues  
+- ✅ Marked-as-non-issue flags move to reviewed-items-section
+- ✅ Document approval required before session approval
+- ✅ Document status polling works with 75s timeout
+- ✅ All flags in review section can be batch-marked as issues
+- ✅ Status polling waits for async flag processing (60s max)
+- ✅ Sessions can be approved/rejected via checkSessionApproveReject
+- ✅ Smart navigation checks menu state before clicking
+
+**Unique Aspects**:
+- Uses **serial test mode** (tests depend on previous test's session)
+- Uses **createSessionWithSimulator** helper (API-only session creation)
+- Tests **flag section movement** (review → decline, review → reviewed)
+- Implements **document approval prerequisite** for session approval
+- Uses **batch flag marking** (loop through all flags in section)
+- Tests **2 separate sessions** in 2 test describes
+- Validates **VERIDOCS_PAYLOAD simulator** integration
+- Uses **smart menu navigation** (checks if already open)
+- Tests **both flag directions** (mark as issue + mark as non-issue)
 
 ---
 
-## **Category 4 Analysis Summary**
-
-### **API Endpoints Coverage Analysis:**
-
-| API Endpoint | Category | Tests Using It | What's Actually Checked |
-|--------------|----------|----------------|-------------------------|
-| `POST /auth` | Authentication | All 7 tests | Response status is OK (200), admin login successful |
-| `GET /applications?` | Application Management | All 7 tests | Response status is OK (200), applications array is returned |
-| `POST /sessions` | Session Management | All 7 tests | Response status is OK (200), session data is returned |
-| `PATCH /sessions/{id}` | Session Management | All 7 tests | Response status is OK (200), PATCH method successful |
-| `POST /applicants` | Applicant Management | 5 tests | Response status is OK (200), applicant data is returned |
-| `PATCH /sessions/{id}/steps/` | Session Management | 3 tests | Response status is OK (200), PATCH method successful |
-| `GET /sessions?fields[session]` | Session Management | 2 tests | Response status is OK (200), sessions array is returned |
-| `GET /sessions/{id}?fields[session]` | Session Management | 2 tests | Response status is OK (200), session details returned |
-| `PATCH /sessions/{id}/flags` | Flag Management | 1 test | Response status is OK (200), flag status updated |
-| `GET /financial-verifications` | Financial Verification | 1 test | Response status is OK (200), financial verifications array is returned |
-| `GET /sessions/{id}/income-sources` | Income Sources | 1 test | Response status is OK (200), income sources array is returned |
-| `POST /identity-verifications` | Identity Verification | 1 test | Response status is OK (200), identity verification data is returned |
+## **Category 4 Summary**
 
 ### **Business Purpose Analysis:**
 
-| Test File | Primary Business Purpose | Unique Validations | Overlap Assessment |
-|-----------|-------------------------|-------------------|-------------------|
-| `co_applicant_effect_on_session_test.spec.js` | **Co-Applicant Income Aggregation** | • **Co-applicant income aggregation**<br>• **Income ratio calculations**<br>• **Financial impact of multiple applicants**<br>• **Plaid integration with Betterment**<br>• **Session children validation**<br>• **Income source aggregation**<br>• **Employment data aggregation** | **NO OVERLAP** - Different business logic, different data aggregation |
-| `frontend-session-heartbeat.spec.js` | **Complete E2E Session Flow** | • **Complete E2E user journey**<br>• **Co-applicant workflow**<br>• **State modal handling**<br>• **Manual upload options**<br>• **Skip functionality**<br>• **Intelligent button interaction**<br>• **Employment verification via iframe** | **NO OVERLAP** - Different business flow, different validation approach |
-| `application_flow_with_id_only.spec.js` | **ID-Only Application Flow** | • **ID-only application flow**<br>• **Persona identity verification**<br>• **Document upload functionality**<br>• **Passport document processing**<br>• **Iframe integration**<br>• **Session state management** | **NO OVERLAP** - Different application type, different verification approach |
-| `application_step_should_skip_properly.spec.js` | **Application Step Skip Functionality** | • **Step skip functionality**<br>• **Skip button visibility and behavior**<br>• **Step navigation and state management**<br>• **Summary page updates**<br>• **Co-applicant management after skips**<br>• **Employment verification after skips**<br>• **Rent budget updates**<br>• **UI state persistence** | **NO OVERLAP** - Different focus on skip functionality and step behavior validation |
-| `co_app_household_with_flag_errors.spec.js` | **Co-Applicant Flag Attribution and Status Transitions** | • **Flag attribution to correct applicant (primary vs co-app)**<br>• **GROUP_MISSING_IDENTITY flag lifecycle**<br>• **IDENTITY_NAME_MISMATCH_CRITICAL flag triggering**<br>• **Household status transitions (APPROVED ↔ REJECTED)**<br>• **API-UI status mapping validation**<br>• **API-based identity verification with Persona**<br>• **Guest token authentication from invitation URL**<br>• **Multi-stage assertions (4 stages with API + UI)**<br>• **Flag polling with retry logic**<br>• **Co-applicant invitation from primary page** | **NO OVERLAP** - Unique focus on flag attribution, status transitions, and comprehensive multi-stage validation |
-| `skip_button_visibility_logic.spec.js` | **Skip Button Visibility Logic Testing** | • **Skip button visibility logic across all verification steps**<br>• **UI state management validation**<br>• **Button interaction logic testing**<br>• **Step completion validation**<br>• **Multi-step workflow testing**<br>• **Error handling for skip button logic**<br>• **Applicants step skip logic**<br>• **Identity verification skip logic**<br>• **Financial verification skip logic**<br>• **Employment verification skip logic** | **NO OVERLAP** - Different focus on comprehensive skip button visibility logic and UI state management |
-| `user_flags_approve_reject_test.spec.js` | **User Flags Approve Reject Test** | • **Session flag management and approval/rejection workflows**<br>• **Flag marking as issue/non-issue functionality**<br>• **Flag section management and movement**<br>• **Session approval workflow validation**<br>• **Session rejection workflow validation**<br>• **Flag commenting system**<br>• **Session status management**<br>• **Financial flag handling**<br>• **Income source flag handling**<br>• **Transaction flag handling**<br>• **Session state persistence** | **NO OVERLAP** - Different focus on session flag management and approval/rejection workflows |
+| Test File | Primary Business Purpose | Key Differences |
+|-----------|-------------------------|-----------------|
+| `co_applicant_effect_on_session_test` | Income aggregation across household | Tests before/after co-app income, validates aggregation math, 2 browser contexts |
+| `frontend-session-heartbeat` | E2E applicant journey with cleanup | Tests manual upload cancellation, polling for income sources, afterAll cleanup |
+| `application_step_should_skip_properly` | Step re-navigation patterns | Tests skip→skip, skip→complete, complete→edit patterns via status badges |
+| `co_app_household_with_flag_errors` | Household status lifecycle (4 stages) | API-based completion, 8 assertions (API+UI), flag transition validation |
+| `skip_button_visibility_logic` | Skip button UI visibility rules | Tests visible→action→hidden pattern for 4 steps, reusable helper function |
+| `user_flags_approve_reject_test` | Flag management workflows | 2 sessions in serial mode, batch flag marking, document approval prerequisite |
 
-### **Key Insights:**
-
-1. **Different session flow types** - Co-applicant vs E2E vs ID-only vs step skip vs flag error handling vs skip button visibility logic vs flag management and approval/rejection have different business requirements
-2. **Different verification approaches** - Financial vs Identity vs Employment verification
-3. **Different integration patterns** - Plaid vs Persona vs iframe interactions
-4. **Different business workflows** - Income aggregation vs complete flow vs ID-only flow vs step skip functionality vs flag management vs skip button visibility logic vs flag management and approval/rejection workflows
-5. **Different validation approaches** - Data aggregation vs UI flow vs document processing vs skip behavior validation vs error recovery vs skip button visibility logic validation vs flag management and approval/rejection validation
-
-### **Technical Setup Analysis:**
-
-#### **Common Setup Steps (Necessary for Each Test):**
-1. **Admin login** (`POST /auth`) - Needed to access applications and generate sessions
-2. **Application navigation** (`GET /applications?`) - Each test needs to find its specific application
-3. **Session generation** (`POST /sessions`) - Each test needs to create a session for testing
-4. **Applicant setup** (`PATCH /sessions/{id}`) - Each test needs to set up the applicant flow
-5. **Specific business validation** - Each test validates its unique session flow scenario
-
-#### **These are NOT "extra steps" - they are essential setup for each test's unique business validation**
-
-### **Conclusion for Category 4: NO MEANINGFUL OVERLAP**
-
-**All 7 tests should be kept** because:
-- Each tests different session flow scenarios
-- Each validates different business workflows and integrations
-- Each covers different verification approaches (financial vs identity vs employment)
-- Each tests different user journey patterns (co-applicant vs E2E vs ID-only vs step skip vs flag error handling vs skip button visibility logic vs flag management and approval/rejection)
-- Each validates different data aggregation and processing logic
+**Conclusion**: No overlap - each test validates distinct session flow patterns and workflows
 
 ---
 
-## **Category 5: Document Processing Tests - COMPLETE ANALYSIS**
+## **Category 5: Document Processing Tests**
 
 ### **Files Analyzed:**
-1. `bank_statement_transaction_parsing.spec.js` - **Bank Statement Upload + Transaction Parsing**
-2. `document_upload_verifications_core_flow.spec.js` - **Document Upload Core Flow**  
-3. `report_update_bank_statement_test.spec.js` - **Report Update Bank Statement**
-4. `document_rejection_from_any_state.spec.js` - **Document Rejection from Any Processing State**
+1. `document_rejection_from_any_state.spec.js` - **Document Rejection from Any Processing State**
 
 ---
 
-### **1. bank_statement_transaction_parsing.spec.js - Bank Statement Upload + Transaction Parsing**
+### **1. document_rejection_from_any_state.spec.js**
 
-#### **Complete Test Structure:**
-- **1 test** (300s timeout)
-- **Bank statement upload and transaction parsing** functionality
-- **Tags**: @regify
+**Purpose**: Validates document rejection functionality from any processing state (PENDING, CLASSIFIED, CLASSIFYING, UPLOADED, COMPLETED)
 
-#### **Test: "Should complete bank statement upload and transaction parsing"**
-
-**Test Purpose and API Endpoints Called (with line numbers):**
-
-1. **Admin Login** (Line 49):
-   - `loginForm.adminLoginAndNavigate(page, admin)` - Admin authentication
-
-2. **Application Management** (Line 53):
-   - `findAndInviteApplication(page, TEST_CONFIG.applicationName)` - Find and invite application
-
-3. **Session Generation** (Line 57):
-   - `generateSessionForm.generateSessionAndExtractLink(page, TEST_CONFIG.user)` - Create session and extract link
-
-4. **Financial Document Upload** (Line 117):
-   - `uploadStatementFinancialStep(applicantPage, 'test_bank_statement.pdf')` - Upload bank statement
-
-5. **Session Navigation** (Lines 131-138):
-   - `navigateToSessionById(page, sessionId)` - Navigate to session details
-
-**Response Used For and What's Actually Checked:**
-
-1. **Financial Verification Response** (Lines 42-49):
-   - **API**: `POST /financial-verifications`
-   - **Used For**: Validates financial verification creation
-   - **Actually Checked**: 
-     - Response status is OK (200)
-     - Financial verification data is returned
-     - Bank statement processing initiated
-
-2. **Session Data** (Lines 131-138):
-   - **API**: `GET /sessions/${sessionId}?fields[session]`
-   - **Used For**: Getting session details with children
-   - **Actually Checked**: 
-     - Response status is OK (200)
-     - Session data is returned
-     - Children data is included
-
-**Detailed Steps:**
-
-1. **Admin Setup** (Lines 49, 53):
-   - Admin login and navigation
-   - Find and invite application
-
-2. **Session Generation** (Line 57):
-   - Generate session for test user
-   - Extract session link
-
-3. **Applicant Flow** (Lines 60-62):
-   - Create new browser context
-   - Navigate to session link
-
-4. **Basic Information** (Lines 65-67):
-   - Select employment status
-   - Handle state modal
-   - Enter rent budget
-
-5. **Document Upload** (Line 117):
-   - Upload bank statement PDF
-   - Process financial verification
-
-6. **Admin Verification** (Lines 131-138):
-   - Navigate to session details
-   - Verify session data
-
-**Key Business Validations:**
-- **Bank Statement Processing**: Validates PDF upload and processing pipeline
-- **Transaction Parsing**: Verifies transaction data extraction and validation
-- **Financial Verification**: Tests financial verification creation and completion
-- **Document Pipeline**: Ensures document processing workflow functions correctly
-- **Connection Completion**: Validates connection completion handling
-
-**Overlap Assessment:**
-- **UNIQUE**: Only test focused on bank statement transaction parsing
-- **NO OVERLAP**: Completely different from other document tests
-- **KEEP**: Essential for document processing validation
+**Configuration**:
+- **Application**: "AutoTest - Doc Rejec for any state test"
+- **User**: Random email (Test User)
+- **Timeout**: 180s
+- **Tags**: @needs-review
 
 ---
-
-### **2. document_upload_verifications_core_flow.spec.js - Document Upload Core Flow**
-
-#### **Complete Test Structure:**
-- **1 test** (260s timeout)
-- **Document upload verification** core functionality
-- **Tags**: @core, @document-upload
-- **Status**: SKIPPED (test.skip)
-
-#### **Test: "Should complete document upload verification flow"**
-
-**Test Purpose and API Endpoints Called (with line numbers):**
-
-1. **Admin Login** (Line 102):
-   - `loginForm.adminLoginAndNavigate(page, admin)` - Admin authentication
-
-2. **Application Management** (Line 103):
-   - `findAndInviteApplication(page, TEST_CONFIG.applicationName)` - Find and invite application
-
-3. **Session Generation** (Line 106):
-   - `generateSessionForm.generateSessionAndExtractLink(page, TEST_CONFIG.user)` - Create session and extract link
-
-4. **Financial Document Upload** (Line 117):
-   - `uploadStatementFinancialStep(applicantPage, 'test_bank_statement.pdf')` - Upload bank statement
-
-5. **Employment Document Upload** (Lines 42-49):
-   - `POST /employment-verifications` - Create employment verification
-   - File upload processing for paystub documents
-
-6. **Session Navigation** (Lines 74-75):
-   - `searchSessionWithText(page, sessionId)` - Search for session
-   - `navigateToSessionById(page, sessionId)` - Navigate to session details
-
-**Response Used For and What's Actually Checked:**
-
-1. **Employment Verification Response** (Lines 42-49, 62-68):
-   - **API**: `POST /employment-verifications`
-   - **Used For**: Validates employment verification creation
-   - **Actually Checked**: 
-     - Response contains `data` property
-     - Employment verification successfully created
-     - Paystub processing completion
-
-2. **Session Data** (Lines 74-75):
-   - **API**: Session search and navigation
-   - **Used For**: Admin-side verification
-   - **Actually Checked**: Session found and navigated to
-
-**Detailed Steps:**
-
-1. **Admin Setup** (Lines 102-103):
-   - Admin login and navigation
-   - Find and invite application
-
-2. **Session Generation** (Line 106):
-   - Generate session for test user
-   - Extract session link
-
-3. **Applicant Flow** (Lines 109-111):
-   - Create new browser context
-   - Navigate to session link
-
-4. **Basic Information** (Lines 114, 43-61):
-   - Select employment status
-   - Handle state modal
-   - Enter rent budget
-   - Skip co-applicants
-   - Skip identity verification
-
-5. **Document Uploads** (Lines 117, 120):
-   - Upload bank statement
-   - Upload paystub documents
-
-6. **Summary Verification** (Line 123):
-   - Verify summary screen completion
-
-7. **Admin Verification** (Lines 129, 68-90):
-   - Navigate to applicants
-   - Search and navigate to session
-   - Verify employment section
-   - Verify income sources
-   - Verify report flags
-
-**Key Business Validations:**
-- **Document Upload Pipeline**: Tests complete document upload workflow
-- **Employment Verification**: Validates paystub processing and verification
-- **Financial Verification**: Tests bank statement upload and processing
-- **Admin Verification**: Ensures admin can view and verify uploaded documents
-- **Report Flags**: Validates expected flags are generated
-- **Summary Screen**: Tests completion summary display
-
-**Overlap Assessment:**
-- **UNIQUE**: Core document upload flow testing
-- **NO OVERLAP**: Different from transaction parsing test
-- **KEEP**: Essential for document upload functionality
-
----
-
-### **3. report_update_bank_statement_test.spec.js - Report Update Bank Statement**
-
-#### **Complete Test Structure:**
-- **1 test** (180s timeout)
-- **Report page bank statement upload** functionality
-- **Tags**: @smoke, @document-upload
-- **Status**: SKIPPED (test.skip)
-
-#### **Test: "Should complete applicant flow and upload bank statement document from report page"**
-
-**Test Purpose and API Endpoints Called (with line numbers):**
-
-1. **Admin Login** (Lines 25-30):
-   - `loginForm.fill(page, data)` - Fill login form
-   - `loginForm.submit(page)` - Submit login form
-   - **Response Used For**: Authentication and session establishment
-   - **What's Actually Checked**: Response status is OK (200), page title contains "Applicants", household-status-alert is visible
-
-2. **Application Management** (Lines 47, 51):
-   - `gotoApplicationsPage(page)` - Navigate to applications page
-   - `findAndInviteApplication(page, applicationName)` - Find and invite application
-
-3. **Session Generation** (Lines 54-55):
-   - `generateSessionForm.generateSessionAndExtractLink(page, user)` - Create session and extract link
-   - **Response Used For**: Creating new session for applicant
-   - **What's Actually Checked**: Response status is OK (200), session data is returned with sessionId, sessionUrl, and link
-
-4. **Session Navigation** (Lines 63-66):
-   - `GET /sessions/{sessionId}` - Load session data
-   - **Response Used For**: Getting session data for applicant flow
-   - **What's Actually Checked**: Response status is OK (200), session data is returned
-
-5. **Session Update** (Lines 26-33):
-   - `PATCH /sessions/{id}` - Update session rent budget
-   - **Response Used For**: Updating session with rent budget
-   - **What's Actually Checked**: Response status is OK (200), PATCH method successful
-
-6. **Plaid Financial Connection** (Lines 74-78):
-   - Plaid OAuth flow for financial connection
-   - **Response Used For**: Establishing financial connection
-   - **What's Actually Checked**: Plaid connection successful, bank account connected
-
-7. **Session Search** (Line 87):
-   - `searchSessionWithText(page, sessionId)` - Search for session
-   - **Response Used For**: Finding session in admin panel
-   - **What's Actually Checked**: Sessions array length > 0, session found
-
-8. **Financial Verification Upload** (Lines 121-125):
-   - `POST /financial-verifications` - Create financial verification
-   - **Response Used For**: Uploading bank statement document
-   - **What's Actually Checked**: Response status is OK (200), financial verification created
-
-**Detailed Steps:**
-
-1. **Admin Setup** (Lines 45-51):
-   - Admin login and navigation
-   - Navigate to applications page
-   - Find and invite application
-
-2. **Session Generation** (Lines 54-55):
-   - Generate session for test user
-   - Extract session link and data
-
-3. **Applicant Flow** (Lines 58-67):
-   - Create new browser context
-   - Navigate to session link
-   - Wait for session data response
-
-4. **Basic Information** (Lines 69-70):
-   - Handle state modal
-   - Complete applicant form with rent budget
-
-5. **Financial Connection** (Lines 74-78):
-   - Connect to Plaid with test credentials
-   - Use Huntington Bank for connection
-
-6. **Admin Document Upload** (Lines 82-125):
-   - Navigate to applicants menu
-   - Search for session
-   - Navigate to session details
-   - Upload bank statement document from admin panel
-
-7. **Document Verification** (Lines 127-175):
-   - Reload page and verify files section
-   - Check document status (Rejected → Accepted)
-   - Verify decision modal with rejection reasons
-   - Accept document and verify status change
-   - Verify financial section with institution details
-
-**Key Business Validations:**
-- **Admin Document Upload**: Tests document upload from admin report page
-- **Plaid Financial Connection**: Validates Plaid OAuth integration
-- **Document Status Management**: Tests document rejection/acceptance workflow
-- **Decision Modal**: Validates rejection reasons display
-- **Financial Verification**: Tests financial verification creation and processing
-- **Institution Verification**: Validates bank institution details display
-
-**Overlap Assessment:**
-- **UNIQUE**: Only test focused on admin-side document upload
-- **NO OVERLAP**: Different from applicant-side upload tests
-- **KEEP**: Essential for admin document management functionality
-
----
-
-### **4. document_rejection_from_any_state.spec.js - Document Rejection from Any Processing State**
-
-#### **Complete Test Structure:**
-- **1 test** (180s timeout)
-- **Document rejection workflow** from any processing state
-- **Tags**: None specified
 
 #### **Test: "Reject a Document Regardless of Processing State"**
 
-**Test Purpose and API Endpoints Called (with line numbers):**
+**Purpose**: Verify documents can be rejected/failed/accepted regardless of current processing state
 
-1. **Admin Login** (Line 190):
-   - `adminLoginAndNavigateToApplications(page, admin)` - Admin login and navigation
-   - **Response Used For**: Authentication and session establishment
-   - **What's Actually Checked**: Response status is OK (200), admin login successful
+**Test Flow**:
 
-2. **Application Navigation** (Line 191):
-   - `findAndInviteApplication(page, appName)` - Find and invite "AutoTest Suite - Full Test"
-   - **Response Used For**: Finding application and initiating session generation
-   - **What's Actually Checked**: Application found successfully
+1. **Admin Setup**
+   - Login as admin
+   - Find and invite "AutoTest - Doc Rejec for any state test"
+   - Generate session with random email
+   - Store sessionId for cleanup
 
-3. **Session Generation** (Line 193):
-   - `generateSessionForm.generateSessionAndExtractLink(page, user)` - Create session
-   - **Response Used For**: Creating new session for applicant
-   - **What's Actually Checked**: Response status is OK (200), session data returned with sessionId and link
+2. **Applicant Flow** (New Context)
+   - Open invite link (with camera/microphone permissions + fake media stream)
+   - Complete setupInviteLinkSession (terms → applicant type: #affordable_occupant → state)
+   - Update rent budget: $1500
+   - Verify on financial verification step
+   - **Keep page open** (don't complete financial)
 
-4. **Applicant Type Selection** (Line 221):
-   - `selectApplicantType(applicantPage, sessionInfo.sessionUrl, '#affordable_occupant')` - Select applicant type
-   - **API**: `PATCH /sessions/{id}` (via selectApplicantType utility)
-   - **Response Used For**: Updating session with selected applicant type
-   - **What's Actually Checked**: Response status is OK (200), PATCH method successful
-
-5. **State Modal Update** (Line 222):
-   - `updateStateModal(applicantPage, 'ALABAMA')` - Select state
-   - **Response Used For**: Updating session with state selection
-   - **What's Actually Checked**: State modal handled and state selected
-
-6. **Rent Budget Update** (Line 223):
-   - `updateRentBudget(applicantPage, sessionId, '1500')` - Set rent budget
-   - **API**: `PATCH /sessions/{id}` (via updateRentBudget utility)
-   - **Response Used For**: Updating session with rent budget
-   - **What's Actually Checked**: Response status is OK (200), rent budget updated
-
-7. **Skip Steps** (Lines 226-229):
-   - Skip applicant invite step
-   - Skip identity verification step
-   - **Response Used For**: Progressing to financial step
-   - **What's Actually Checked**: Skip buttons clicked successfully
-
-8. **Upload Financial Statement** (Line 231):
-   - `uploadFinancialStatement(applicantPage)` - Upload bank statement via manual upload
-   - **API Endpoints**:
-     - `POST /financial-verifications` (Line 42) - Create financial verification
-     - `GET /financial-verifications` (Line 45) - Get financial verifications
-   - **Response Used For**: Creating financial verification with document upload
-   - **What's Actually Checked**: 
-     - Response status is OK (200)
-     - Financial verification created
-     - Verifications array returned
-
-9. **Files Section Navigation** (Lines 254-255):
-   - `navigateToFilesTabAndReload(page, sessionId)` - Navigate to files tab
-   - **API**: `GET /sessions/${sessionId}/files?fields[file]` (Line 72)
-   - **Response Used For**: Getting uploaded files data
-   - **What's Actually Checked**: Response status is OK (200), files data returned
-
-10. **Document Rejection from Pre-Processed State** (Lines 257-269):
-    - Iterate through files with pre-processed statuses (PENDING, CLASSIFIED, CLASSIFYING, UPLOADED)
-    - `failDocument(row, page, sessionId)` - Reject document
-    - **API**: `GET /sessions/${sessionId}/files?fields[file]` (Line 111)
-    - **Response Used For**: Reloading files after rejection
-    - **What's Actually Checked**: Document status changed to "Failed"
-
-11. **Upload Second Document** (Lines 272-275):
-    - Upload second financial statement
-    - `waitForConnectionCompletion(applicantPage)` - Wait for processing
-    - **Response Used For**: Getting fully processed document
-    - **What's Actually Checked**: Document processing completed
-
-12. **Document Rejection from Processed State** (Lines 278-305):
-    - Navigate to files tab again
-    - Wait for document status to show "Rejected"
-    - `acceptDocument(fileRowLocator, page, sessionId)` - Accept document
-    - **API**: `GET /sessions/{sessionId}/files?fields[file]` (Line 159)
-    - **Response Used For**: Reloading files after acceptance
-    - **What's Actually Checked**: Document status changed to "Accepted"
-    - `rejectDocument(fileRowLocator, page, sessionId)` - Reject document
-    - **API**: `GET /sessions/{sessionId}/files?fields[file]` (Line 136)
-    - **Response Used For**: Reloading files after rejection
-    - **What's Actually Checked**: Document status changed to "Rejected"
-
-**Detailed Steps:**
-
-1. **Admin Setup** (Lines 190-191):
-   - Admin login and navigation
-   - Find and invite application
-
-2. **Session Generation** (Lines 182-194):
-   - Define user data with random email
-   - Generate session and extract link
-
-3. **Applicant Context Setup** (Lines 197-208):
-   - Create new browser context with camera permissions
-   - Navigate to session link
-   - Set up response listener for session data
-
-4. **Applicant Flow** (Lines 220-230):
-   - Select applicant type (affordable_occupant)
-   - Update state modal (ALABAMA)
-   - Update rent budget ($1500)
-   - Skip applicant invite step
-   - Skip identity verification
-   - Confirm financial verification step is visible
-
-5. **Admin Session Navigation** (Lines 234-247):
-   - Bring admin page to front
-   - Navigate to applicants menu
+3. **Admin: Navigate to Session**
+   - Switch to admin page
+   - Navigate to applicants/sessions
    - Search for session by ID
-   - Click on session card to open details
+   - Click session card
+   - Wait for session + files responses
 
-6. **First Document Upload and Rejection** (Lines 250-269):
-   - Upload first document from applicant page
-   - Navigate to files tab on admin page
-   - Reload to get latest file status
-   - Find files in pre-processed states
-   - Reject documents in pre-processed states
-   - Verify status changed to "Failed"
+4. **Upload Document #1 (Test Pre-Processed Rejection)**
+   - Switch to applicant page
+   - Call uploadFinancialStatement helper:
+     - Click financial-upload-statement-btn
+     - Upload test_bank_statement.pdf
+     - Wait 2.5s for client-side processing
+     - Click submit → wait for POST /financial-verifications + GET responses
+     - Return financialVerification data
 
-7. **Second Document Upload and Processing** (Lines 272-275):
-   - Upload second document
-   - Wait for document processing to complete
+5. **Reject Document in Pre-Processed State**
+   - Switch to admin page
+   - Reload files tab (GET /sessions/{id}/files)
+   - Loop through files:
+     - If status in ['PENDING', 'CLASSIFIED', 'CLASSIFYING', 'UPLOADED']:
+       - Call failDocument helper (click pill → decision-modal → processing-btn)
+       - Verify status changes to "Failed"
 
-8. **Document Status Management Workflow** (Lines 278-305):
-   - Navigate to files tab and reload
-   - Wait for document status (polling with reload)
-   - Verify document shows "Rejected" initially
-   - **Accept Document**:
-     - Click status pill link
-     - Open decision modal
-     - Click accept button
-     - Wait for files reload
-     - Verify status is "Accepted"
-   - **Reject Document**:
-     - Click status pill link
-     - Open decision modal
-     - Click reject button
-     - Wait for files reload
-     - Verify status is "Rejected"
+6. **Upload Document #2 (Test Post-Processed Rejection)**
+   - Upload another financial statement
+   - Call waitForConnectionCompletion (wait for full processing)
 
-9. **Cleanup** (Line 308):
-   - Close applicant page context
+7. **Accept → Reject Cycle on Processed Document**
+   - Reload files tab
+   - Find file row for 2nd uploaded file
+   - Poll for status = "Rejected" (max 5 attempts, 5s intervals, reload each time)
+   - **Assert**: Status contains "Rejected" (max 20s timeout)
+   - Call acceptDocument helper:
+     - Click pill → decision-modal → accept-btn → wait for GET response
+     - **Assert**: Status = "Accepted"
+   - Call rejectDocument helper:
+     - Click pill → decision-modal → reject-btn → wait for GET response
+     - **Assert**: Status = "Rejected"
 
-**Key Business Validations:**
-- **Document Upload Workflow**: Tests complete financial statement upload process
-- **Pre-Processed State Rejection**: Validates rejection from PENDING, CLASSIFIED, CLASSIFYING, UPLOADED states
-- **Processed State Management**: Tests accept/reject cycle on fully processed documents
-- **Decision Modal Workflow**: Validates decision modal appears and functions correctly
-- **Status Persistence**: Ensures document status changes persist across page reloads
-- **Files Tab Navigation**: Tests files section navigation and reload functionality
-- **Multi-Upload Scenario**: Tests multiple document uploads in sequence
-- **Status Transition Validation**: Verifies status transitions: Rejected → Accepted → Rejected
-- **Processing State Polling**: Implements polling logic to wait for document processing
-- **Browser Context Management**: Tests using multiple browser contexts (admin + applicant)
+8. **Cleanup**
+   - afterAll hook calls cleanupSessionAndContexts (session + applicant context)
 
-**Overlap Assessment:**
-- **UNIQUE**: Only test focused on document rejection from ANY processing state
-- **NO OVERLAP**: Different from other document tests - focuses on rejection workflow
-- **KEEP**: Essential for document status management and decision workflow validation
+**Key API Endpoints**:
+- `POST /auth` - Admin authentication
+- `GET /applications?` - Search applications
+- `POST /sessions` - Create session
+- `PATCH /sessions/{id}` - Update rent budget
+- `POST /financial-verifications` - Upload financial statements (2x)
+- `GET /financial-verifications` - Get verification status
+- `GET /sessions/{id}?fields[session]` - Get session details
+- `GET /sessions/{id}/files?fields[file]` - Get files list (multiple times with reload)
+
+**Business Validations**:
+- ✅ Documents can be uploaded via manual financial statement upload
+- ✅ Documents in pre-processed states (PENDING, CLASSIFIED, etc.) can be failed
+- ✅ Documents can be processed completely
+- ✅ Fully processed documents can be accepted
+- ✅ Accepted documents can be rejected (status override)
+- ✅ File status transitions tracked correctly (Failed, Accepted, Rejected)
+- ✅ Decision modal works for fail/accept/reject actions
+- ✅ Files tab reloads and displays current status
+- ✅ Polling for document processing completion works
+
+**Unique Aspects**:
+- Tests **document rejection from multiple states** (pre-processed & post-processed)
+- Uses **3 helper functions** (uploadFinancialStatement, failDocument, rejectDocument, acceptDocument)
+- Tests **Accept → Reject override** on processed documents
+- Implements **status polling** for document processing (5 attempts, 5s intervals)
+- Uses **fake media stream** for camera/microphone permissions
+- Tests **file status lifecycle** across different processing states
+- Validates **decision modal** actions for all 3 outcomes (fail/accept/reject)
 
 ---
 
-## **Category 5 Analysis Summary**
-
-### **API Endpoints Coverage Analysis:**
-
-| API Endpoint | Category | Tests Using It | What's Actually Checked |
-|--------------|----------|----------------|-------------------------|
-| `POST /auth` | Authentication | All 4 tests | Response status is OK (200), admin login successful |
-| `GET /applications?` | Application Management | All 4 tests | Response status is OK (200), applications array is returned |
-| `POST /sessions` | Session Management | All 4 tests | Response status is OK (200), session data is returned |
-| `PATCH /sessions/{id}` | Session Management | All 4 tests | Response status is OK (200), PATCH method successful |
-| `POST /financial-verifications` | Financial Verification | All 4 tests | Response status is OK (200), financial verification data is returned |
-| `GET /financial-verifications` | Financial Verification | 1 test | Response status is OK (200), financial verifications array is returned |
-| `GET /sessions/{id}/files?fields[file]` | File Management | 1 test | Response status is OK (200), files data returned with status updates |
-| `POST /employment-verifications` | Employment Verification | 1 test | Response status is OK (200), employment verification data is returned |
-| `GET /sessions/{id}?fields[session]` | Session Management | 1 test | Response status is OK (200), session details returned |
+## **Category 5 Summary**
 
 ### **Business Purpose Analysis:**
 
-| Test File | Primary Business Purpose | Unique Validations | Overlap Assessment |
-|-----------|-------------------------|-------------------|-------------------|
-| `bank_statement_transaction_parsing.spec.js` | **Bank Statement Upload + Parsing** | • **Document upload functionality**<br>• **Transaction parsing logic**<br>• **Bank statement processing**<br>• **Data extraction validation**<br>• **Connection completion handling** | **NO OVERLAP** - Different approach, different validation |
-| `document_upload_verifications_core_flow.spec.js` | **Document Upload Core Flow** | • **Document upload workflow**<br>• **Verification process**<br>• **Document processing pipeline**<br>• **Verification status tracking**<br>• **Multiple document types** (bank statement + paystub)<br>• **Report flags validation** | **NO OVERLAP** - Different verification approach |
-| `report_update_bank_statement_test.spec.js` | **Admin Document Upload** | • **Admin-side document upload**<br>• **Plaid OAuth integration**<br>• **Document status management**<br>• **Decision modal workflow**<br>• **Rejection/acceptance process**<br>• **Institution verification** | **NO OVERLAP** - Different upload approach, different user perspective |
-| `document_rejection_from_any_state.spec.js` | **Document Rejection from Any State** | • **Pre-processed state rejection**<br>• **Processed state management**<br>• **Accept/Reject cycle testing**<br>• **Decision modal workflow**<br>• **Status transition validation** (Rejected → Accepted → Rejected)<br>• **Processing state polling**<br>• **Multi-upload scenario**<br>• **Browser context management** | **NO OVERLAP** - Unique focus on rejection workflow from any state |
+| Test File | Primary Business Purpose | Key Differences |
+|-----------|-------------------------|-----------------|
+| `document_rejection_from_any_state` | Document lifecycle management | Tests rejection from any state, accept→reject override, status polling |
 
-### **Key Insights:**
-
-1. **Different upload approaches** - Applicant-side vs Admin-side document upload
-2. **Different document types** - Bank statements vs Paystubs vs Transaction parsing
-3. **Different verification workflows** - Core flow vs Parsing vs Status management vs Rejection workflow
-4. **Different integration patterns** - Plaid OAuth vs Direct upload vs Processing pipeline
-5. **Different business rules** - Each test validates specific document processing scenarios
-6. **Different state management** - Upload testing vs Processing state testing vs Rejection/Acceptance cycle
-
-### **Technical Setup Analysis:**
-
-#### **Common Setup Steps (Necessary for Each Test):**
-1. **Admin login** (`POST /auth`) - Needed to access applications and generate sessions
-2. **Application navigation** (`GET /applications?`) - Each test needs to find its specific application
-3. **Session generation** (`POST /sessions`) - Each test needs to create a session for testing
-4. **Document upload** (`POST /financial-verifications`) - Each test needs to upload documents
-5. **Specific business validation** - Each test validates its unique document processing scenario
-
-#### **These are NOT "extra steps" - they are essential setup for each test's unique business validation**
-
-### **Conclusion for Category 5: NO MEANINGFUL OVERLAP**
-
-**All 4 tests should be kept** because:
-- Each tests different document upload approaches (applicant vs admin)
-- Each validates different document processing workflows
-- Each covers different document types and verification methods
-- Each tests different business scenarios (parsing vs core flow vs status management vs rejection workflow)
-- Each validates different integration patterns and user perspectives
-- Each validates different document state transitions and management
+**Conclusion**: Only 1 test in this category - validates complete document decision workflow
 
 ---
 
-## **Category 6: System Health Tests - COMPLETE ANALYSIS**
+## **Category 6: System Health Tests**
 
 ### **Files Analyzed:**
 1. `frontend_heartbeat.spec.js` - **Frontend UI Health Check**
@@ -2860,288 +2532,266 @@ Lines 65-96 show the complete search validation logic:
 
 ---
 
-### **1. frontend_heartbeat.spec.js - Frontend UI Health Check**
+### **1. frontend_heartbeat.spec.js**
 
-#### **Complete Test Structure:**
-- **2 tests** (no specific timeout)
-- **Frontend UI health and functionality** validation
-- **Tags**: @core, @smoke, @regression, @critical
+**Purpose**: Validates complete frontend UI health including sidebar navigation, session actions, and section dropdowns
+
+**Configuration**:
+- **No specific application/session** (uses system-wide UI checks + existing "Autotest Suite - Full Test" sessions)
+- **Tags Test 1**: @core, @smoke, @regression, @staging-ready
+- **Tags Test 2**: @core, @smoke, @regression, @critical
+
+---
 
 #### **Test 1: "Should check frontend heartbeat"**
 
-**Test Purpose and API Endpoints Called (with line numbers):**
+**Purpose**: Verify all sidebar menus, submenus, and page titles are accessible
 
-1. **Admin Login** (Lines 48-49):
-   - `loginForm.fill(page, admin)` - Fill login form
-   - `loginForm.submit(page)` - Submit login form
-   - **Response Used For**: Authentication and session establishment
-   - **What's Actually Checked**: Response status is OK (200), household-status-alert is visible
+**Test Flow**:
+1. **Admin Login**
+   - Navigate to homepage
+   - Fill login form
+   - Submit and set locale to English
+   - Verify household-status-alert visible
 
-2. **Header and Profile Check** (Line 53):
-   - `checkHeaderAndProfileMenu(page)` - Check header and profile menu functionality
-   - **Response Used For**: UI health validation
-   - **What's Actually Checked**: 
-     - Header is visible
-     - User dropdown toggle button is visible and clickable
-     - Profile and logout links are visible
-     - Profile link is clickable
+2. **Header & Profile Menu Check**
+   - Call checkHeaderAndProfileMenu helper:
+     - Verify header visible
+     - Click user-dropdown-toggle-btn
+     - Verify user-profile-dropdown-item visible
+     - Verify user-logout-dropdown-item visible
+     - Click profile link (2x toggle)
+     - Verify "User Profile" text visible
+     - Click applicants-submenu
 
-3. **Sidebar Menu Check** (Line 56):
-   - `checkSidebarMenusAndTitles(page)` - Check all sidebar menus and submenus
-   - **Response Used For**: UI navigation health validation
-   - **What's Actually Checked**: 
-     - All sidebar menus are visible and clickable
-     - All submenus are accessible
-     - Menu expansion/collapse functionality works
+3. **Complete Sidebar Navigation**
+   - Call checkSidebarMenusAndTitles helper:
+     - Tests 13 main menus with their submenus
+     - Validates page titles for each submenu
+     - Checks menu expansion/collapse behavior
 
-**Detailed Steps:**
+**Key API Endpoints**:
+- `POST /auth` - Admin authentication
+- `GET /users/self` - Get user data (for locale setting)
+- `PATCH /users/{id}` - Set locale to English
 
-1. **Page Navigation** (Line 47):
-   - Navigate to root page
+**Business Validations**:
+- ✅ All sidebar menus visible and clickable
+- ✅ All submenus accessible
+- ✅ Page titles load correctly for each section
+- ✅ Header and profile menu functional
+- ✅ User locale can be set to English
+- ✅ Menu expansion logic works correctly
 
-2. **Authentication** (Lines 48-50):
-   - Fill and submit login form
-   - Verify successful login
-
-3. **UI Health Validation** (Lines 53-56):
-   - Check header and profile menu functionality
-   - Check all sidebar menus and submenus
+---
 
 #### **Test 2: "Should test session actions and section dropdowns"**
 
-**Test Purpose and API Endpoints Called (with line numbers):**
+**Purpose**: Verify session action buttons and collapsible section headers function correctly
 
-1. **Admin Login** (Lines 63-65):
-   - `loginForm.fill(page, admin)` - Fill login form
-   - `loginForm.submit(page)` - Submit login form
-   - **Response Used For**: Authentication and session establishment
-   - **What's Actually Checked**: Response status is OK (200), household-status-alert is visible
+**Test Flow**:
 
-2. **Session Action Testing** (Lines 69-75):
-   - Test session action button and dropdown functionality
-   - **Response Used For**: UI interaction validation
-   - **What's Actually Checked**: 
-     - Session action button is visible and clickable
-     - Dropdown buttons are visible (approve-session-btn, reject-session-btn, invite-applicant)
-     - View details modal opens and closes properly
+1. **Admin Login**
+   - Navigate to homepage
+   - Fill login form
+   - Submit and set locale to English
+   - Verify household-status-alert visible
 
-3. **Section Header Testing** (Lines 78-131):
-   - Test all section header dropdowns
-   - **Response Used For**: UI dropdown functionality validation
-   - **What's Actually Checked**: 
-     - Section headers are visible and clickable
-     - Dropdown arrows rotate properly (closed/open states)
-     - Section content visibility toggles correctly
+2. **Navigate to Reviewed Sessions**
+   - Check if applicants-menu already open (smart navigation)
+   - Click reviewed-submenu ("Meets Criteria")
+   - Wait for GET /sessions? response
 
-4. **Page Reload Testing** (Lines 135-144):
-   - Test functionality after page reload
-   - **Response Used For**: UI persistence validation
-   - **What's Actually Checked**: 
-     - All functionality works after page reload
-     - Session action button still works
-     - Dropdown buttons still function
+3. **Find Populated Session**
+   - Search for "Autotest Suite - Full Test" sessions
+   - **Assert**: sessions.length > 0
+   - Get first session ID
+   - Navigate to session by ID (submenu: 'reviewed')
 
-5. **Multiple Session Testing** (Lines 147-192):
-   - Test first 5 sessions on the page
-   - **Response Used For**: Multi-session UI health validation
-   - **What's Actually Checked**: 
-     - Session cards are visible and clickable
-     - Each session's action button works
-     - Dropdown functionality works for each session
+4. **Test Action Dropdown Buttons**
+   - Click session-action-btn
+   - Call testDropdownButtons helper:
+     - Verify each button visible and enabled:
+       - approve-session-btn
+       - reject-session-btn
+       - invite-applicant
+       - trigger-pms-upload-btn
+       - upload-document-btn
+       - request-additional-btn
+       - income-source-automation-dropdown-item
 
-**Detailed Steps:**
+5. **Test View Details Modal**
+   - Call testViewDetailsModal helper:
+     - Click view-details-btn
+     - Verify report-view-details-flags-section visible
+     - Click close-event-history-modal
 
-1. **Page Navigation and Authentication** (Lines 62-65):
-   - Navigate to root page
-   - Fill and submit login form
-   - Verify successful login
+6. **Test Section Headers (Expand/Collapse)**
+   - For each section header (6 total):
+     - identity-section-header
+     - income-source-section-header
+     - files-section-header
+     - employment-section-header
+     - financial-section-header
+     - integration-logs-section-header
+   - For each:
+     - Verify header visible
+     - Click to expand
+     - **Assert**: arrow has class `-rotate-90`
+     - **Assert**: section content visible
+     - Click to collapse
+     - **Assert**: arrow has class `rotate-90`
 
-2. **Session Action Testing** (Lines 67-75):
-   - Test session action button
-   - Test dropdown buttons
-   - Test view details modal
+**Key API Endpoints**:
+- `POST /auth` - Admin authentication
+- `GET /users/self` - Get user data
+- `PATCH /users/{id}` - Set locale to English
+- `GET /sessions?` - Load sessions for "Meets Criteria" submenu
+- `GET /sessions?fields[session]` - Search sessions by text
+- `GET /sessions/{id}?fields[session]` - Navigate to session by ID
 
-3. **Section Header Testing** (Lines 77-131):
-   - Test identity section header
-   - Test income source section header
-   - Test files section header
-   - Test financial section header
-   - Test integration logs section header
+**Business Validations**:
+- ✅ Session action dropdown contains all 7 expected buttons
+- ✅ All action buttons visible and enabled
+- ✅ View Details modal opens and closes correctly
+- ✅ All 6 section headers expand/collapse correctly
+- ✅ Arrow rotation classes update on toggle (-rotate-90 vs rotate-90)
+- ✅ Section content visibility toggles correctly
+- ✅ Smart menu navigation (checks if already open)
 
-4. **Page Reload Testing** (Lines 134-144):
-   - Reload page
-   - Test all functionality again
-
-5. **Multiple Session Testing** (Lines 147-192):
-   - Find all session cards
-   - Test first 5 sessions
-   - Verify each session's functionality
-
-**Key Business Validations:**
-- **Frontend UI Health**: Validates all UI components are functional
-- **Authentication Flow**: Tests login and session establishment
-- **Navigation Health**: Validates all menu and submenu functionality
-- **Interactive Elements**: Tests buttons, dropdowns, and modals
-- **Multi-Session Support**: Validates functionality across multiple sessions
-- **Page Persistence**: Tests functionality after page reload
-
-**Overlap Assessment:**
-- **UNIQUE**: Only test focused on comprehensive frontend UI health
-- **NO OVERLAP**: Different from other health tests
-- **KEEP**: Essential for frontend functionality validation
+**Unique Aspects**:
+- Uses **2 helper functions** (testDropdownButtons, testViewDetailsModal)
+- Tests **13 main menus** with complete navigation coverage
+- Validates **arrow rotation animations** (CSS class changes)
+- Tests **7 action buttons** in dropdown
+- Validates **6 collapsible sections**
+- Uses **existing populated session** (no session creation needed)
+- Tests **smart navigation** pattern (check menu state before clicking)
 
 ---
 
-### **2. heartbeat_completed_application_click_check.spec.js - Application Click Health Check**
+### **2. heartbeat_completed_application_click_check.spec.js**
 
-#### **Complete Test Structure:**
-- **1 test** (no specific timeout)
-- **Completed application click functionality** validation
-- **Tags**: None specified
+**Purpose**: Validates completed application click behavior - opening session in new tab from admin view and navigating through completed steps
+
+**Configuration**:
+- **Application**: "Autotest - UI permissions tests"
+- **User**: Heartbeat ClickTest
+- **Rent Budget**: $600
+- **Timeout**: 300s (beforeAll hook)
+- **Tags**: @regression, @staging-ready
+
+---
 
 #### **Test: "Heartbeat Test: Completed Application Clicks (frontend)"**
 
-**Test Purpose and API Endpoints Called (with line numbers):**
+**Purpose**: Verify that clicking a completed session from admin opens it correctly in new tab and all step navigations work
 
-1. **Admin Login** (Line 17):
-   - `loginWith(page, admin)` - Admin login and navigation
-   - **Response Used For**: Authentication and session establishment
-   - **What's Actually Checked**: Response status is OK (200), page title contains "Applicants", household-status-alert is visible
+**Test Flow**:
 
-2. **Session Search** (Line 21):
-   - `searchSessionWithText(page, sessionId)` - Search for specific session
-   - **Response Used For**: Finding session in admin panel
-   - **What's Actually Checked**: Session found successfully
+1. **beforeAll: Create Shared Session**
+   - Create admin page (manual context - page fixture not available in beforeAll)
+   - Call createPermissionTestSession helper with:
+     - Application: 'Autotest - UI permissions tests'
+     - User: Heartbeat ClickTest
+     - Rent budget: '600'
+   - Store sessionId in sharedSessionId (shared across all tests in describe)
+   - Close admin context
 
-3. **Session Navigation** (Lines 28-35):
-   - `GET /sessions/${sessionId}?fields[session]` - Get session details
-   - **Response Used For**: Loading session data for navigation
-   - **What's Actually Checked**: Response status is OK (200), session data is returned
-
-4. **Rent Budget Update** (Line 65):
-   - `PATCH /sessions/${sessionId}` - Update session rent budget
-   - **Response Used For**: Updating session with new rent budget
-   - **What's Actually Checked**: Response status is OK (200), PATCH method successful
-
-5. **MX Bank Connection Modal** (Lines 105-117):
-   - MX iframe integration for bank connection
-   - **Response Used For**: Testing bank connection modal functionality
-   - **What's Actually Checked**: MX iframe loads, bank tile is visible
-
-**Detailed Steps:**
-
-1. **Page Navigation** (Line 14):
-   - Navigate to root page
-
-2. **Authentication** (Line 17):
+2. **Admin Login**
+   - Navigate to homepage
    - Login with admin credentials
-   - Verify successful login
 
-3. **Session Search and Navigation** (Lines 21-36):
-   - Search for specific session ID
-   - Click on session to open details
-   - Wait for session data response
+3. **Prepare Session for Fresh Selection**
+   - Call prepareSessionForFreshSelection helper:
+     - Deselects any currently selected session
+     - Searches for target session
+     - Returns session locator
 
-4. **Applicant Session Opening** (Lines 38-49):
-   - Click on applicant button
-   - Open session in new page
-   - Wait for page load
+4. **Open Session in Admin View**
+   - Click session locator
+   - Wait for GET /sessions/{id}?fields[session] response
+   - Extract session data
 
-5. **Summary Page Validation** (Lines 51-54):
-   - Verify summary step is visible
-   - Confirm on summary page
+5. **Open Session in New Tab (Popup)**
+   - Get session row (raw-{sessionId})
+   - Click overview-applicant-btn button in name column
+   - Click view-applicant-session-btn
+   - Wait for popup event → newPage created
+   - Wait for newPage to load
 
-6. **Rent Budget Navigation** (Lines 56-66):
-   - Click on START step
-   - Navigate to rent budget page
-   - Update rent budget to 600
-   - Return to summary page
+6. **Handle Terms (If Present)**
+   - Call handleOptionalTermsCheckbox on newPage
+   - Verify summary-step visible
 
-7. **Identity Verification Navigation** (Lines 71-80):
-   - Click on identity verification step
-   - Verify identity step is visible
-   - Check completion status
+7. **Navigate to Rent Budget (Completed Step)**
+   - Click step-START-lg (visible filter)
+   - Verify rent-budget-step visible
+   - Update rent budget: $600
+   - Verify summary-step visible
 
-8. **Financial Verification Navigation** (Lines 82-89):
-   - Click on financial verification step
-   - Verify financial verification page
-   - Check connect bank button
+8. **Navigate to ID Verification (Completed Step)**
+   - Click step-IDENTITY_VERIFICATION-lg (visible filter)
+   - Verify identify-step visible
+   - Verify "Completed" text visible within step
 
-9. **Employment Verification Navigation** (Lines 91-103):
-   - Click on employment verification step
-   - Verify employment verification page
-   - Click continue button
-   - Return to summary page
+9. **Navigate to Financial Verification**
+   - Click step-FINANCIAL_VERIFICATION-lg (visible filter)
+   - Verify financial-verification-step visible
+   - Verify connect-bank visible
 
-10. **MX Bank Connection Modal Test** (Lines 105-117):
-    - Expand financial verification row
-    - Click additional connect bank
-    - Verify MX iframe loads
-    - Check bank tile visibility
-    - Cancel modal
+10. **Navigate to Employment Verification**
+    - Click step-EMPLOYMENT_VERIFICATION-lg (visible filter)
+    - Verify employment-verification-step visible
+    - Click employment-step-continue
+    - Verify summary-step visible
 
-**Key Business Validations:**
-- **Application Navigation**: Tests navigation through completed application steps
-- **Session Data Loading**: Validates session data retrieval and display
-- **Step Navigation**: Tests navigation between different verification steps
-- **Rent Budget Update**: Validates rent budget modification functionality
-- **Modal Functionality**: Tests bank connection modal and iframe integration
-- **UI State Persistence**: Validates UI state across different steps
-- **Cross-Page Navigation**: Tests opening session in new page
+11. **Cleanup**
+    - afterAll hook calls cleanupSession with sharedSessionId
 
-**Overlap Assessment:**
-- **UNIQUE**: Only test focused on completed application navigation
-- **NO OVERLAP**: Different from frontend heartbeat test
-- **KEEP**: Essential for application navigation functionality validation
+**Key API Endpoints**:
+- `POST /auth` - Admin authentication
+- `GET /sessions/{id}?fields[session]` - Get session details
+- `PATCH /sessions/{id}` - Update rent budget
+
+**Business Validations**:
+- ✅ Completed sessions open in new tab via view-applicant-session-btn
+- ✅ prepareSessionForFreshSelection ensures clean selection state
+- ✅ Popup window opens correctly with session data
+- ✅ Terms checkbox can be handled if present
+- ✅ All completed step badges are clickable
+- ✅ Step navigation works (START, IDENTITY, FINANCIAL, EMPLOYMENT)
+- ✅ Completed steps display "Completed" status
+- ✅ Rent budget can be re-edited on completed session
+- ✅ Summary page accessible from all steps
+- ✅ Shared session pattern works (beforeAll creation)
+
+**Unique Aspects**:
+- Uses **beforeAll hook** to create shared session (avoids recreation)
+- Tests **popup window behavior** (new tab from admin view)
+- Uses **prepareSessionForFreshSelection** helper (deselect + search pattern)
+- Validates **step badge navigation** on completed session
+- Tests **re-editing completed step** (rent budget)
+- Uses **visible filter** for step badge clicks
+- Tests **session reusability** across test lifecycle
+- Uses **createPermissionTestSession** helper (full API-based session creation)
 
 ---
 
-## **Category 6 Analysis Summary**
-
-### **API Endpoints Coverage Analysis:**
-
-| API Endpoint | Category | Tests Using It | What's Actually Checked |
-|--------------|----------|----------------|-------------------------|
-| `POST /auth` | Authentication | All 2 tests | Response status is OK (200), admin login successful |
-| `GET /sessions/{id}?fields[session]` | Session Management | 1 test | Response status is OK (200), session details returned |
-| `PATCH /sessions/{id}` | Session Management | 1 test | Response status is OK (200), PATCH method successful |
+## **Category 6 Summary**
 
 ### **Business Purpose Analysis:**
 
-| Test File | Primary Business Purpose | Unique Validations | Overlap Assessment |
-|-----------|-------------------------|-------------------|-------------------|
-| `frontend_heartbeat.spec.js` | **Frontend UI Health Check** | • **Comprehensive UI health validation**<br>• **Authentication flow testing**<br>• **Navigation health validation**<br>• **Interactive elements testing**<br>• **Multi-session support validation**<br>• **Page persistence testing**<br>• **Section dropdown functionality** | **NO OVERLAP** - Different focus, different validation approach |
-| `heartbeat_completed_application_click_check.spec.js` | **Application Click Health Check** | • **Completed application navigation**<br>• **Session data loading validation**<br>• **Step navigation testing**<br>• **Rent budget update functionality**<br>• **Modal functionality testing**<br>• **UI state persistence validation**<br>• **Cross-page navigation testing** | **NO OVERLAP** - Different focus, different validation approach |
+| Test File | Primary Business Purpose | Key Differences |
+|-----------|-------------------------|-----------------|
+| `frontend_heartbeat` | System-wide UI health check | Tests all 13 menus, 7 action buttons, 6 section toggles, no session creation |
+| `heartbeat_completed_application_click_check` | Completed session navigation | Tests popup behavior, step re-navigation, beforeAll shared session |
 
-### **Key Insights:**
-
-1. **Different health check approaches** - Frontend UI vs Application navigation
-2. **Different validation scopes** - General UI health vs Specific application flow
-3. **Different interaction patterns** - Static UI testing vs Dynamic navigation testing
-4. **Different business scenarios** - System health vs Application functionality
-5. **Different technical approaches** - UI component testing vs Flow testing
-
-### **Technical Setup Analysis:**
-
-#### **Common Setup Steps (Necessary for Each Test):**
-1. **Admin login** (`POST /auth`) - Needed to access the system
-2. **Page navigation** - Each test needs to navigate to specific pages
-3. **Specific health validation** - Each test validates its unique health scenario
-
-#### **These are NOT "extra steps" - they are essential setup for each test's unique health validation**
-
-### **Conclusion for Category 6: NO MEANINGFUL OVERLAP**
-
-**All 2 tests should be kept** because:
-- Each tests different health check aspects (UI vs Application)
-- Each validates different system functionality
-- Each covers different interaction patterns and user flows
-- Each tests different business scenarios and technical approaches
-- Each validates different system health dimensions
+**Conclusion**: No overlap - one tests system UI, other tests completed session interaction patterns
 
 ---
 
-## **Category 7: Workflow Management Tests - COMPLETE ANALYSIS**
+## **Category 7: Workflow Management Tests**
 
 ### **Files Analyzed:**
 1. `applicant_edits_a_workflow_used_by_another_applicant.spec.js` - **Workflow Isolation Testing**
@@ -3149,299 +2799,191 @@ Lines 65-96 show the complete search validation logic:
 
 ---
 
-### **1. applicant_edits_a_workflow_used_by_another_applicant.spec.js - Workflow Isolation Testing**
+### **1. applicant_edits_a_workflow_used_by_another_applicant.spec.js**
 
-#### **Complete Test Structure:**
-- **1 test** (200s timeout)
-- **Workflow isolation and editing** functionality
-- **Tags**: @core, @regression
+**Purpose**: Validates workflow isolation - editing a workflow in one application shouldn't affect other applications using the same workflow template
+
+**Configuration**:
+- **Organization**: "Verifast"
+- **App 1**: AutoTest Edit_1_{Browser}_{RandomNumber} (generated unique name)
+- **App 2**: AutoTest Edit_2_{Browser}_{RandomNumber} (generated unique name)
+- **Both Apps Config**:
+  - Applicant Types: 6 types (Affordable Occupant, Affordable Primary, Employed, International, Self-Employed, Other)
+  - Workflow Template: "Autotest-suite-fin-only"
+  - Flag Collection: "High Risk"
+  - Minimum Amount: $500
+- **Timeout**: 200s
+- **Tags**: @core, @regression, @staging-ready
+
+---
 
 #### **Test: "Should edit a workflow used by another applicant and only reflects changes to current"**
 
-**Test Purpose and API Endpoints Called (with line numbers):**
+**Purpose**: Verify that removing an applicant type from App 1's workflow doesn't affect App 2's workflow (workflow isolation)
 
-1. **Admin Login** (Line 27):
-   - `loginForm.adminLoginAndNavigate(page, admin)` - Admin login and navigation
-   - **Response Used For**: Authentication and session establishment
-   - **What's Actually Checked**: Response status is OK (200), admin login successful
+**Test Flow**:
 
-2. **Application Creation - First Application** (Lines 68, 8-44):
-   - `createApplicationFlow(page, app1Config)` - Create first application
-   - **API Endpoints Called**:
-     - `GET /organizations?fields[organization]=id,name` - Get organizations
-     - `GET /portfolios?fields[portfolio]=id,name` - Get portfolios
-     - `GET /settings?fields[setting]=options,key&fields[options]=label,value` - Get settings
-     - `GET /organizations` - Get organization data
-     - `POST /applications` - Create application
-     - `PATCH /applications/{id}` - Update application settings
-   - **Response Used For**: Creating first application with workflow template
-   - **What's Actually Checked**: 
-     - Response status is OK (200) for all endpoints
-     - Application created successfully
-     - Workflow template applied
-
-3. **Application Creation - Second Application** (Lines 72, 50-64):
-   - `createApplicationFlow(page, app2Config)` - Create second application
-   - **API Endpoints Called**: Same as first application
-   - **Response Used For**: Creating second application with same workflow template
-   - **What's Actually Checked**: 
-     - Response status is OK (200) for all endpoints
-     - Application created successfully
-     - Same workflow template applied
-
-4. **Application Editing** (Lines 76-78, 94-113):
-   - `searchAndEditApplication(page, app1Name, {removeApplicantType: 'Other'})` - Edit first application
-   - **API Endpoints Called**:
-     - `PATCH /applications/{id}` - Update application to remove "Other" applicant type
-   - **Response Used For**: Modifying first application's applicant types
-   - **What's Actually Checked**: 
-     - Response status is OK (200)
-     - PATCH method successful
-     - "Other" applicant type removed
-
-5. **Application Verification** (Lines 82, 85, 156-171):
-   - `searchAndVerifyApplication(page, app2Name)` - Verify second application
-   - `searchAndVerifyApplication(page, app1Name)` - Verify first application
-   - **Response Used For**: Counting applicant types in each application
-   - **What's Actually Checked**: 
-     - Second application still has all original applicant types
-     - First application has fewer applicant types (missing "Other")
-
-6. **Application Cleanup** (Lines 15-16, 181-200):
-   - `searchAndDeleteApplication(page, app1Name)` - Delete first application
-   - `searchAndDeleteApplication(page, app2Name)` - Delete second application
-   - **API Endpoints Called**:
-     - `DELETE /applications/{id}` - Delete applications
-   - **Response Used For**: Cleaning up test data
-   - **What's Actually Checked**: 
-     - Response status is OK (200)
-     - DELETE method successful
-     - Applications deleted successfully
-
-**Detailed Steps:**
-
-1. **Test Setup** (Lines 9-20):
-   - Initialize application names
-   - Set up cleanup after each test
-
-2. **Admin Authentication** (Line 27):
+1. **Admin Login**
    - Login as admin
    - Navigate to applications page
 
-3. **Application Name Generation** (Lines 30-31):
-   - Generate unique names to avoid conflicts
-   - Create app1Name and app2Name
+2. **Generate Unique Names**
+   - App 1: generateUniqueName('AutoTest Edit_1')
+   - App 2: generateUniqueName('AutoTest Edit_2')
 
-4. **Application Configuration** (Lines 34-64):
-   - Configure first application with all applicant types
-   - Configure second application with same settings
-   - Both use 'Autotest-suite-fin-only' workflow template
+3. **Create Application #1**
+   - Call createApplicationFlow with app1Config
+   - Store applicationId as app1Id
 
-5. **First Application Creation** (Line 68):
-   - Create first application using createApplicationFlow
-   - Apply workflow template and settings
+4. **Create Application #2**
+   - Call createApplicationFlow with app2Config  
+   - Store applicationId as app2Id
 
-6. **Second Application Creation** (Line 72):
-   - Create second application using createApplicationFlow
-   - Apply same workflow template and settings
+5. **Edit Application #1: Remove Applicant Type**
+   - Call searchAndEditApplication with:
+     - Application name: app1Name
+     - removeApplicantType: 'Other'
+     - applicationId: app1Id
 
-7. **First Application Editing** (Lines 76-78):
-   - Search for first application
-   - Edit to remove "Other" applicant type
-   - Submit changes
+6. **Verify Workflow Isolation**
+   - Call searchAndVerifyApplication for App 2 → returns 6 applicant types
+   - Call searchAndVerifyApplication for App 1 → returns 5 applicant types
+   - **Assert**: App 2 applicant type count > App 1 count (6 > 5)
 
-8. **Workflow Isolation Verification** (Lines 82-88):
-   - Verify second application still has all applicant types
-   - Verify first application has fewer applicant types
-   - Assert that second application has more types than first
+7. **Cleanup**
+   - afterEach hook:
+     - Delete app1 using searchAndDeleteApplication (with app1Id)
+     - Delete app2 using searchAndDeleteApplication (with app2Id)
 
-9. **Cleanup** (Lines 15-16):
-   - Delete both applications
-   - Clean up test data
+**Key API Endpoints**:
+- `POST /auth` - Admin authentication
+- `POST /applications` - Create applications (2x)
+- `PATCH /applications/{id}` - Edit application (remove applicant type)
+- `DELETE /applications/{id}` - Delete applications (2x in cleanup)
 
-**Key Business Validations:**
-- **Workflow Isolation**: Tests that editing one application doesn't affect another
-- **Applicant Type Management**: Validates applicant type addition/removal
-- **Application Independence**: Ensures applications are independent entities
-- **Workflow Template Isolation**: Tests that workflow changes are application-specific
-- **Data Integrity**: Validates that changes only affect the target application
+**Business Validations**:
+- ✅ Multiple applications can share same workflow template
+- ✅ Editing workflow in one application doesn't affect others
+- ✅ Applicant types can be removed from application
+- ✅ Workflow isolation maintained across applications
+- ✅ Unique names prevent parallel test conflicts
+- ✅ Cleanup handles both successful and failed test cases
 
-**Overlap Assessment:**
-- **UNIQUE**: Only test focused on workflow isolation between applications
-- **NO OVERLAP**: Different from other workflow tests
-- **KEEP**: Essential for workflow isolation validation
+**Unique Aspects**:
+- Tests **workflow isolation** between applications
+- Uses **generateUniqueName** for parallel test safety
+- Creates **2 identical applications** with same workflow
+- Tests **applicant type removal** in one app
+- Validates **other app unchanged** (isolation proof)
+- Uses **applicationId for robust deletion** in cleanup
+- Tests **shared workflow template** behavior
 
 ---
 
-### **2. applicant_type_workflow_affordable_occupant.spec.js - Affordable Occupant Workflow Testing**
+### **2. applicant_type_workflow_affordable_occupant.spec.js**
 
-#### **Complete Test Structure:**
-- **1 test** (no specific timeout)
-- **Affordable occupant applicant type workflow** functionality
-- **Tags**: @core
+**Purpose**: Validates affordable occupant applicant type workflow completion through ID verification step
+
+**Configuration**:
+- **Application**: "AutoTest Suite - Full Test"
+- **User**: Affordable Test (affordable@verifast.com)
+- **Applicant Type**: Affordable Occupant (#affordable_occupant)
+- **Rent Budget**: $555
+- **Timeout**: 450s
+- **Tags**: @core, @regression, @staging-ready
+
+---
 
 #### **Test: "Should complete applicant flow with affordable occupant applicant type"**
 
-**Test Purpose and API Endpoints Called (with line numbers):**
+**Purpose**: Verify affordable occupant applicant type can complete full flow (setup → rent budget → skip invite → ID verification)
 
-1. **Admin Login** (Lines 15-16):
-   - `loginForm.fill(page, admin)` - Fill login form
-   - `loginForm.submit(page)` - Submit login form
-   - **Response Used For**: Authentication and session establishment
-   - **What's Actually Checked**: Response status is OK (200), applicants-menu is visible
+**Test Flow**:
 
-2. **Application Navigation** (Lines 20-25):
-   - Navigate to applications menu and submenu
-   - `gotoApplicationsPage(page)` - Navigate to applications page
-   - **Response Used For**: Navigation to applications
-   - **What's Actually Checked**: Applications page loads successfully
+1. **Admin Login**
+   - Navigate to app URL
+   - Fill login form
+   - Submit and set locale to English
+   - Verify applicants-menu visible
 
-3. **Application Search and Invite** (Line 29):
-   - `findAndInviteApplication(page, appName)` - Find and invite application
-   - **Response Used For**: Finding and inviting application
-   - **What's Actually Checked**: Application found and invite process initiated
+2. **Navigate to Applications**
+   - Click applications-menu
+   - Click applications-submenu
+   - Wait 700ms
+   - Call gotoApplicationsPage
 
-4. **Session Generation** (Lines 38-39):
-   - `generateSessionForm.fill(page, userData)` - Fill session form
-   - `generateSessionForm.submit(page)` - Submit session form
-   - **Response Used For**: Creating session for applicant
-   - **What's Actually Checked**: Response status is OK (200), session data is returned
+3. **Find and Invite Application**
+   - Find "AutoTest Suite - Full Test"
+   - Click invite button
 
-5. **Applicant Type Selection** (Line 57, 955-968):
-   - `selectApplicantType(page, sessionData.data?.id, '#affordable_occupant')` - Select affordable occupant type
-   - **API Endpoints Called**:
-     - `PATCH /sessions/{id}` - Update session with applicant type
-   - **Response Used For**: Updating session with selected applicant type
-   - **What's Actually Checked**: Response status is OK (200), PATCH method successful
-
-6. **Applicant Form Completion** (Line 60, 23-35):
-   - `completeApplicantForm(page, '555', sessionData.data?.id)` - Complete applicant form
-   - **API Endpoints Called**:
-     - `PATCH /sessions/{id}` - Update session with rent budget
-   - **Response Used For**: Updating session with rent budget
-   - **What's Actually Checked**: Response status is OK (200), PATCH method successful
-
-7. **Identity Verification** (Line 65, 614-621):
-   - `completeIdVerification(page, false)` - Complete ID verification
-   - **API Endpoints Called**:
-     - `POST /identity-verifications` - Create identity verification
-   - **Response Used For**: Creating identity verification for ID verification
-   - **What's Actually Checked**: Response status is OK (200), identity verification data is returned
-
-**Detailed Steps:**
-
-1. **Page Navigation** (Line 14):
-   - Navigate to application URL
-
-2. **Admin Authentication** (Lines 15-17):
-   - Fill and submit login form
-   - Verify successful login
-
-3. **Application Navigation** (Lines 20-25):
-   - Click applications menu
-   - Click applications submenu
-   - Navigate to applications page
-
-4. **Application Search and Invite** (Lines 28-29):
-   - Define application name
-   - Find and invite application
-
-5. **Session Generation** (Lines 32-39):
-   - Define user data for session
-   - Fill session generation form
-   - Submit form and get session data
-
-6. **Session Link Extraction** (Lines 42-47):
+4. **Generate Session**
+   - Fill session form with user data
+   - Submit form → wait for POST /sessions response
+   - Store sessionId for cleanup
    - Get session invite link
-   - Close generation modal
+   - Close modal
 
-7. **Applicant Flow Navigation** (Line 50):
-   - Navigate to applicant view using session link
+5. **Applicant Flow**
+   - Navigate to invite link
+   - Wait 8s for page load
+   - Complete setupInviteLinkSession (terms → applicant type: #affordable_occupant → state)
 
-8. **State Modal Handling** (Line 54):
-   - Handle optional state modal if it appears
+6. **Complete Rent Budget**
+   - Call completeApplicantForm with rent: $555
+   - Wait 4s
 
-9. **Applicant Type Selection** (Line 57):
-   - Select "Affordable Occupant" applicant type
-   - Update session with selected type
+7. **Skip Applicants Step**
+   - Verify applicant-invite-skip-btn visible
+   - Click skip button
 
-10. **Applicant Form Completion** (Line 60):
-    - Complete applicant form with rent budget
-    - Update session with rent budget
+8. **Complete ID Verification**
+   - Verify start-id-verification visible
+   - Call identityStep (Persona iframe flow)
 
-11. **Identity Verification** (Line 65):
-    - Complete ID verification process
-    - Skip document upload (shouldUpload = false)
+9. **Cleanup**
+   - afterAll hook calls cleanupSession
 
-**Key Business Validations:**
-- **Affordable Occupant Workflow**: Tests specific applicant type workflow
-- **Applicant Type Selection**: Validates applicant type selection functionality
-- **Session Management**: Tests session creation and updates
-- **Identity Verification**: Tests ID verification process with Persona integration
-- **Form Completion**: Validates applicant form completion workflow
-- **Workflow Progression**: Tests progression through applicant workflow steps
+**Key API Endpoints**:
+- `POST /auth` - Admin authentication
+- `GET /users/self` - Get user data
+- `PATCH /users/{id}` - Set locale to English
+- `GET /applications?` - Search applications
+- `POST /sessions` - Create session
+- `PATCH /sessions/{id}` - Update session (applicant type, rent budget)
 
-**Overlap Assessment:**
-- **UNIQUE**: Only test focused on affordable occupant applicant type workflow
-- **NO OVERLAP**: Different from workflow isolation test
-- **KEEP**: Essential for affordable occupant workflow validation
+**Business Validations**:
+- ✅ Affordable occupant applicant type selectable
+- ✅ Affordable occupant workflow progresses through all steps
+- ✅ Rent budget can be set for affordable occupant
+- ✅ Applicants step can be skipped
+- ✅ ID verification works for affordable occupant type
+- ✅ Persona iframe integration functional
+- ✅ Session creation and cleanup work correctly
+
+**Unique Aspects**:
+- Tests **affordable_occupant applicant type** specifically
+- Uses **completeApplicantForm** helper (rent budget)
+- Tests **skip invite step** pattern
+- Validates **specific applicant type workflow** (not generic)
+- Uses **8s wait** for initial page load
+- Uses **4s wait** after rent budget
 
 ---
 
-## **Category 7 Analysis Summary**
-
-### **API Endpoints Coverage Analysis:**
-
-| API Endpoint | Category | Tests Using It | What's Actually Checked |
-|--------------|----------|----------------|-------------------------|
-| `POST /auth` | Authentication | All 2 tests | Response status is OK (200), admin login successful |
-| `GET /organizations?fields[organization]=id,name` | Organization Management | 1 test | Response status is OK (200), organizations data returned |
-| `GET /portfolios?fields[portfolio]=id,name` | Portfolio Management | 1 test | Response status is OK (200), portfolios data returned |
-| `GET /settings?fields[setting]=options,key&fields[options]=label,value` | Settings Management | 1 test | Response status is OK (200), settings data returned |
-| `GET /organizations` | Organization Management | 1 test | Response status is OK (200), organization data returned |
-| `POST /applications` | Application Management | 1 test | Response status is OK (200), application created successfully |
-| `PATCH /applications/{id}` | Application Management | 1 test | Response status is OK (200), application updated successfully |
-| `DELETE /applications/{id}` | Application Management | 1 test | Response status is OK (200), application deleted successfully |
-| `POST /sessions` | Session Management | 1 test | Response status is OK (200), session data returned |
-| `PATCH /sessions/{id}` | Session Management | 1 test | Response status is OK (200), PATCH method successful |
-| `POST /identity-verifications` | Identity Verification | 1 test | Response status is OK (200), identity verification data returned |
+## **Category 7 Summary**
 
 ### **Business Purpose Analysis:**
 
-| Test File | Primary Business Purpose | Unique Validations | Overlap Assessment |
-|-----------|-------------------------|-------------------|-------------------|
-| `applicant_edits_a_workflow_used_by_another_applicant.spec.js` | **Workflow Isolation Testing** | • **Workflow isolation between applications**<br>• **Applicant type management**<br>• **Application independence validation**<br>• **Workflow template isolation**<br>• **Data integrity validation**<br>• **Application editing functionality** | **NO OVERLAP** - Different focus, different validation approach |
-| `applicant_type_workflow_affordable_occupant.spec.js` | **Affordable Occupant Workflow Testing** | • **Affordable occupant applicant type workflow**<br>• **Applicant type selection functionality**<br>• **Session management**<br>• **Identity verification with Persona**<br>• **Form completion workflow**<br>• **Workflow progression testing** | **NO OVERLAP** - Different focus, different validation approach |
+| Test File | Primary Business Purpose | Key Differences |
+|-----------|-------------------------|-----------------|
+| `applicant_edits_a_workflow_used_by_another_applicant` | Workflow isolation validation | Creates 2 apps, edits 1, verifies other unchanged |
+| `applicant_type_workflow_affordable_occupant` | Affordable occupant workflow | Tests specific applicant type through ID verification |
 
-### **Key Insights:**
-
-1. **Different workflow testing approaches** - Isolation testing vs Specific applicant type testing
-2. **Different validation scopes** - Application-level vs Session-level workflow testing
-3. **Different business scenarios** - Workflow independence vs Applicant type workflows
-4. **Different technical approaches** - Application management vs Session flow testing
-5. **Different integration patterns** - Application CRUD vs Persona integration
-
-### **Technical Setup Analysis:**
-
-#### **Common Setup Steps (Necessary for Each Test):**
-1. **Admin login** (`POST /auth`) - Needed to access the system
-2. **Application navigation** - Each test needs to navigate to applications
-3. **Specific workflow validation** - Each test validates its unique workflow scenario
-
-#### **These are NOT "extra steps" - they are essential setup for each test's unique workflow validation**
-
-### **Conclusion for Category 7: NO MEANINGFUL OVERLAP**
-
-**All 2 tests should be kept** because:
-- Each tests different workflow aspects (isolation vs applicant type)
-- Each validates different business functionality
-- Each covers different workflow scenarios and user flows
-- Each tests different business rules and technical approaches
-- Each validates different workflow management dimensions
+**Conclusion**: No overlap - one tests isolation, other tests specific applicant type workflow
 
 ---
 
-## **Category 8: Integration Tests - COMPLETE ANALYSIS**
+## **Category 8: Integration Tests**
 
 ### **Files Analyzed:**
 1. `hosted_app_copy_verify_flow_plaid_id_emp_skip.spec.js` - **Hosted Application Integration Flow**
@@ -3450,1627 +2992,619 @@ Lines 65-96 show the complete search validation logic:
 
 ---
 
-### **1. hosted_app_copy_verify_flow_plaid_id_emp_skip.spec.js - Hosted Application Integration Flow**
+### **1. hosted_app_copy_verify_flow_plaid_id_emp_skip.spec.js**
 
-#### **Complete Test Structure:**
-- **1 test** (180s timeout)
-- **Hosted application integration flow** with multiple verifications
-- **Tags**: @smoke, @regression, @needs-review
+**Purpose**: Validates hosted application flow with phone login, registration, ID verification, and Plaid integration with skip patterns
+
+**Configuration**:
+- **Application**: "AutoTest Suite Hshld-ID-Emp-Fin with skips"
+- **User**: Phone number (random 613292XXXX), teset testrelogin
+- **State**: ALASKA
+- **Rent Budget**: $500
+- **Timeout**: 180s
+- **Tags**: @smoke, @regression, @needs-review, @external-integration
+
+---
 
 #### **Test: "Should complete hosted application flow with id emp skips and Plaid integration"**
 
-**Test Purpose and API Endpoints Called (with line numbers):**
+**Purpose**: Verify hosted app flow with phone auth, registration form, ID upload (passport), employment skip, and Plaid financial connection
 
-1. **Admin Login** (Line 32):
-   - `loginForm.adminLoginAndNavigate(page, admin)` - Admin login and navigation
-   - **Response Used For**: Authentication and session establishment
-   - **What's Actually Checked**: Response status is OK (200), admin login successful
+**Test Flow**:
 
-2. **Application Copy** (Line 36, 240-260):
-   - `findAndCopyApplication(page, applicationName)` - Find and copy application
-   - **Response Used For**: Getting application URL for hosted flow
-   - **What's Actually Checked**: Application found and URL copied to clipboard
-
-3. **Phone Verification** (Lines 49-59):
-   - Phone number input and verification code flow
-   - **Response Used For**: Phone-based authentication
-   - **What's Actually Checked**: Phone number accepted, verification code processed
-
-4. **Applicant Registration** (Lines 62-66, 560-588):
-   - `completeApplicantRegistrationForm(page, {...})` - Complete registration form
-   - **Response Used For**: Creating applicant registration
-   - **What's Actually Checked**: 
-     - First name filled: 'teset'
-     - Last name filled: 'testrelogin'
-     - State selected: 'ALASKA'
-     - Terms accepted
-     - Form submitted successfully
-
-5. **Rent Budget Form** (Lines 69-71):
-   - Fill rent budget form
-   - **Response Used For**: Setting rent budget
-   - **What's Actually Checked**: Rent budget set to 500, form submitted
-
-6. **Skip Applicants** (Line 74, 594-599):
-   - `skipApplicants(page)` - Skip applicants step
-   - **Response Used For**: Skipping applicants step
-   - **What's Actually Checked**: Skip button clicked successfully
-
-7. **ID Verification** (Line 77, 606-621):
-   - `completeIdVerification(page, true)` - Complete ID verification with upload
-   - **API Endpoints Called**:
-     - `POST /identity-verifications` - Create identity verification
-   - **Response Used For**: Creating identity verification
-   - **What's Actually Checked**: Response status is OK (200), identity verification created
-
-8. **Skip Employment Verification** (Line 80, 449-468):
-   - `skipEmploymentVerification(page)` - Skip employment verification
-   - **Response Used For**: Skipping employment verification step
-   - **What's Actually Checked**: Skip employment verification button clicked
-
-9. **Plaid Financial Connection** (Line 83, 481-530):
-   - `plaidFinancialConnect(page)` - Connect to Plaid for financial verification
-   - **Response Used For**: Establishing financial connection
-   - **What's Actually Checked**: Plaid connection successful, bank account connected
-
-**Detailed Steps:**
-
-1. **Admin Setup** (Line 32):
-   - Admin login and navigation
-
-2. **Application Copy** (Lines 35-37):
+1. **Admin: Copy Application URL**
+   - Login as admin
    - Navigate to applications page
-   - Find and copy application URL
+   - Call findAndCopyApplication for "AutoTest Suite Hshld-ID-Emp-Fin with skips"
+   - Extract application URL from clipboard (or fallback)
+   - Logout admin
 
-3. **User Logout** (Lines 40-42):
-   - Logout current admin user
-   - Prepare for applicant flow
+2. **Guest: Phone Login Flow**
+   - Navigate to application URL (hosted app)
+   - Generate random phone: 613292{4 random digits}
+   - Fill phone-input
+   - Click get-started-btn
+   - Fill 6-digit verification code: "123456" (each digit in separate input)
+   - Submit code
 
-4. **Hosted Application Navigation** (Line 46):
-   - Navigate to copied application URL
-   - Simulate applicant access
+3. **Guest: Complete Registration Form**
+   - Call completeApplicantRegistrationForm with:
+     - firstName: 'teset'
+     - lastName: 'testrelogin'
+     - state: 'ALASKA'
 
-5. **Phone Authentication** (Lines 49-59):
-   - Generate random phone number
-   - Fill phone input
-   - Enter verification code (123456)
-   - Submit verification
-
-6. **Applicant Registration** (Lines 62-66):
-   - Complete registration form with test data
-   - Select Alaska as state
-   - Accept terms and conditions
-
-7. **Rent Budget** (Lines 69-71):
-   - Wait for rent budget form
-   - Fill with 500
+4. **Complete Rent Budget**
+   - Wait for rent_budget input visible (timeout: 16s)
+   - Fill rent budget: $500
    - Submit form
 
-8. **Skip Applicants** (Line 74):
-   - Skip applicants step
+5. **Skip Applicants**
+   - Call skipApplicants helper
 
-9. **ID Verification** (Line 77):
-   - Complete ID verification with document upload
-   - Use Persona integration
+6. **Complete ID Verification**
+   - Call completeIdVerification(page, true) - with passport upload
 
-10. **Skip Employment** (Line 80):
-    - Skip employment verification step
+7. **Skip Employment**
+   - Call skipEmploymentVerification helper
 
-11. **Financial Connection** (Line 83):
-    - Connect to Plaid for financial verification
+8. **Complete Plaid Financial**
+   - Call plaidFinancialConnect helper
 
-12. **Summary Verification** (Lines 86-103):
-    - Verify summary screen is visible
-    - Check all step statuses:
-      - Rent Budget: Complete
-      - Identity Verification: Complete
-      - Applicants: Skipped
-      - Employment Verification: Skipped
-    - Verify financial verification error message
+9. **Verify Summary & Statuses**
+   - **Assert**: "Summary" heading visible
+   - Verify statuses (using filter chain):
+     - Rent Budget: Complete
+     - Identity Verification: Complete  
+     - Applicants: Skipped
+     - Employment Verification: Skipped
+   - **Assert**: "Missing Financial Transactions" error visible
 
-**Key Business Validations:**
-- **Hosted Application Flow**: Tests complete hosted application workflow
-- **Phone Authentication**: Validates phone-based authentication system
-- **Multi-Step Verification**: Tests ID verification, employment skip, and financial connection
-- **Plaid Integration**: Validates Plaid financial connection functionality
-- **Skip Functionality**: Tests skip options for applicants and employment
-- **Summary Status**: Validates completion status of all steps
-- **Error Handling**: Tests financial verification error display
+**Key API Endpoints**:
+- `POST /auth` - Admin authentication
+- `GET /applications?` - Search applications
 
-**Overlap Assessment:**
-- **UNIQUE**: Only test focused on hosted application integration flow
-- **NO OVERLAP**: Different from other integration tests
-- **KEEP**: Essential for hosted application functionality validation
+**Business Validations**:
+- ✅ Hosted application URL copyable from applications page
+- ✅ Phone-based login works (6-digit verification code)
+- ✅ Registration form completion works
+- ✅ State selection (ALASKA) functional
+- ✅ Rent budget can be set ($500)
+- ✅ Applicants step can be skipped
+- ✅ ID verification with passport upload works
+- ✅ Employment can be skipped
+- ✅ Plaid integration functional
+- ✅ Summary displays correct statuses (Complete vs Skipped)
+- ✅ "Missing Financial Transactions" error shown when expected
+
+**Unique Aspects**:
+- Tests **hosted application flow** (public URL, no session invite)
+- Uses **phone-based authentication** (not email invite)
+- Tests **6-digit verification code** entry (separate inputs)
+- Uses **registration form** (different from session invite flow)
+- Tests **clipboard copy** for application URL (with fallback)
+- Validates **passport upload** in ID verification
+- Tests **mixed completion** (complete ID, skip employment)
+- Verifies **financial transaction error** display
 
 ---
 
-### **2. pdf_download_test.spec.js - PDF Download Integration Test**
+### **2. pdf_download_test.spec.js**
 
-#### **Complete Test Structure:**
-- **1 test** (no specific timeout)
-- **PDF download functionality** integration test
-- **Tags**: @core
+**Purpose**: Validates PDF export functionality by finding a session with export available and downloading the PDF
+
+**Configuration**:
+- **User**: Staff user (staff+testing@verifast.com)
+- **No specific session** (tests first 4 available sessions)
+- **No timeout** (default)
+- **Tags**: @core, @regression, @staging-ready
+
+---
 
 #### **Test: "Should successfully export PDF for an application"**
 
-**Test Purpose and API Endpoints Called (with line numbers):**
+**Purpose**: Verify PDF export works for sessions with export button available
 
-1. **Staff Login** (Lines 15-16):
-   - `loginForm.fill(page, staff)` - Fill login form
-   - `loginForm.submit(page)` - Submit login form
-   - **Response Used For**: Authentication and session establishment
-   - **What's Actually Checked**: Response status is OK (200), applicants-menu is visible
+**Test Flow**:
 
-2. **Session Search** (Line 20):
-   - `searchSessionWithText(page, 'autotest PDF Download')` - Search for specific session
-   - **Response Used For**: Finding session for PDF export
-   - **What's Actually Checked**: Sessions array returned, length > 0
+1. **Staff Login**
+   - Navigate to homepage
+   - Login as staff user
+   - Submit and set locale to English
+   - Verify applicants-menu visible
 
-3. **Session Navigation** (Line 28):
-   - `navigateToSessionById(page, sessionId)` - Navigate to session details
-   - **Response Used For**: Loading session for PDF export
-   - **What's Actually Checked**: Session loaded successfully
+2. **Load Sessions**
+   - Reload page → wait for GET /sessions?fields[session] response
+   - Extract sessions array
+   - **Assert**: sessions.length > 0
 
-4. **PDF Export** (Line 34, 221-265):
-   - `checkExportPdf(page, context, sessionId)` - Export PDF for session
-   - **API Endpoints Called**:
-     - `GET /sessions/${sessionId}` - Download PDF with content-type application/pdf
-   - **Response Used For**: Generating and downloading PDF report
-   - **What's Actually Checked**: 
-     - Response status is OK (200)
-     - Content-Type is 'application/pdf'
-     - PDF response received successfully
+3. **Find Exportable Session** (Try first 4 sessions)
+   - Loop through sessions (max 4 attempts):
+     - Find session card by data-session attribute
+     - Click session link
+     - Reload page → wait for GET /sessions/{id} response
+     - Wait 1s for session to load
+     - Check if export-session-btn visible
+     - If not visible, click session-action-btn → wait 600ms
+     - If export-session-btn visible:
+       - Call checkExportPdf helper with sessionId
+       - Mark pdfExported = true
+       - Break loop
+     - If not available:
+       - Click applicants-submenu to go back
+       - Try next session
+   - **Assert**: pdfExported = true (at least 1 session exported)
 
-**Detailed Steps:**
+4. **checkExportPdf Helper Actions**
+   - Handle duplicate export buttons (use nth(1) if count > 1)
+   - Click export button → wait for modal
+   - Click income-source-delist-submit
+   - Wait for GET /sessions?session_ids[]={id} with content-type: application/pdf
+   - Wait for popup event
+   - **Assert**: Content-Type = 'application/pdf'
+   - Close popup (with browser-specific handling for chromium)
 
-1. **Page Navigation** (Line 14):
-   - Navigate to dev.verifast.app
+**Key API Endpoints**:
+- `POST /auth` - Staff authentication
+- `GET /users/self` - Get user data
+- `PATCH /users/{id}` - Set locale to English
+- `GET /sessions?fields[session]` - Load sessions list
+- `GET /sessions/{id}` - Get session details (up to 4 times)
+- `GET /sessions?session_ids[]={id}` - Download PDF (content-type: application/pdf)
 
-2. **Staff Authentication** (Lines 15-17):
-   - Fill and submit login form with staff credentials
-   - Verify successful login
+**Business Validations**:
+- ✅ Staff users can login and access sessions
+- ✅ Sessions list loads correctly
+- ✅ Export button availability can be checked
+- ✅ Export button may require action button click
+- ✅ PDF download works (application/pdf content-type)
+- ✅ Popup window opens for PDF view
+- ✅ Multiple sessions can be tried until export available
+- ✅ Graceful fallback if session doesn't have export
 
-3. **Session Search** (Lines 20-25):
-   - Search for 'autotest PDF Download' session
-   - Verify session found
-   - Extract session ID from results
-
-4. **Session Navigation** (Line 28):
-   - Navigate to session using session ID
-   - Load session details
-
-5. **Session Load Wait** (Line 31):
-   - Wait for session to be fully loaded
-
-6. **PDF Export Process** (Line 34, 221-265):
-   - Click export session button
-   - Handle action button if needed
-   - Click export button and wait for modal
-   - Click income source delist submit button
-   - Wait for PDF response and popup
-   - Verify PDF content type
-   - Close popup page
-   - Close export modal
-
-**Key Business Validations:**
-- **PDF Export Functionality**: Tests PDF generation and download capability
-- **Session Access**: Validates staff user can access specific sessions
-- **Content Type Validation**: Ensures PDF is generated with correct MIME type
-- **Modal Interaction**: Tests export modal and popup handling
-- **Browser Compatibility**: Handles different browser types (Chromium vs others)
-- **Response Validation**: Verifies PDF response is successful and properly formatted
-
-**Overlap Assessment:**
-- **UNIQUE**: Only test focused on PDF download functionality
-- **NO OVERLAP**: Different from hosted application integration test
-- **KEEP**: Essential for PDF export functionality validation
+**Unique Aspects**:
+- Tests **PDF export integration** specifically
+- Uses **retry pattern** (try up to 4 sessions)
+- Tests **staff user login** (not admin)
+- Validates **content-type header** (application/pdf)
+- Handles **duplicate export buttons** (nth selection)
+- Tests **popup window** for PDF display
+- Uses **browser-specific handling** (chromium vs others)
+- **No session creation** (uses existing sessions)
 
 ---
 
-## **Category 8 Analysis Summary**
+### **3. request_additional_information.spec.js**
 
-### **API Endpoints Coverage Analysis:**
+**Purpose**: Validates document request workflow with comprehensive validation (happy path + negative tests for permissions, error handling, state safety)
 
-| API Endpoint | Category | Tests Using It | What's Actually Checked |
-|--------------|----------|----------------|-------------------------|
-| `POST /auth` | Authentication | All 3 tests | Response status is OK (200), login successful |
-| `POST /auth/guests` | Guest Authentication | 1 test | Response status is OK (200), guest token extracted |
-| `POST /identity-verifications` | Identity Verification | 2 tests | Response status is OK (200), identity verification created |
-| `GET /sessions/{id}` | Session Management | 2 tests | Response status is OK (200), session data or PDF returned |
-| `POST /sessions/{id}/invitations` | Document Requests | 1 test | Response status is 201, invitation created with SESSION_ACTION type |
-| `GET /sessions/{id}/invitations/{id}` | Document Requests | 1 test | Response status is OK (200), invitation persisted with timestamps |
-| `GET /sessions/{id}/events` | Session Events | 1 test | Response status is OK (200), events array with 2 events |
-| `POST /sessions/{id}/steps` | Session Steps | 1 test | Response status is OK (200), session steps created |
-| `POST /employment-verifications` | Employment Verification | 1 test | Response status is OK (200), employment verification created |
-| `PATCH /sessions/{id}` | Session Management | 1 test | Response status is OK (200), rent budget updated |
-| `GET /providers` | Provider Management | 1 test | Response status is OK (200), simulation provider found |
-
-### **Business Purpose Analysis:**
-
-| Test File | Primary Business Purpose | Unique Validations | Overlap Assessment |
-|-----------|-------------------------|-------------------|-------------------|
-| `hosted_app_copy_verify_flow_plaid_id_emp_skip.spec.js` | **Hosted Application Integration Flow** | • **Hosted application workflow**<br>• **Phone authentication system**<br>• **Multi-step verification process**<br>• **Plaid financial integration**<br>• **Skip functionality testing**<br>• **Summary status validation**<br>• **Error handling validation** | **NO OVERLAP** - Different focus, different validation approach |
-| `pdf_download_test.spec.js` | **PDF Download Integration Test** | • **PDF export functionality**<br>• **Session access validation**<br>• **Content type validation**<br>• **Modal interaction testing**<br>• **Browser compatibility**<br>• **Response validation** | **NO OVERLAP** - Different focus, different validation approach |
-| `request_additional_information.spec.js` | **Document Request Integration Test** | • **Document request creation (POST /invitations)**<br>• **Backend persistence validation (invitations + session_actions)**<br>• **Event audit trail (2 events)**<br>• **UI event timeline verification**<br>• **Step state immutability proof**<br>• **Applicant flow isolation proof**<br>• **Network request/response validation**<br>• **Negative testing (disabled button, network errors)**<br>• **Error collection pattern**<br>• **Conditional cleanup (preserves on failure)** | **NO OVERLAP** - Unique document request integration testing |
-
-### **Key Insights:**
-
-1. **Different integration testing approaches** - Hosted application flow vs PDF export vs Document request workflow
-2. **Different user types** - Admin vs Staff vs Guest authentication testing
-3. **Different business scenarios** - Complete application flow vs Document generation vs Document request management
-4. **Different technical approaches** - Multi-step workflow vs Single feature vs Comprehensive validation with error collection
-5. **Different integration patterns** - External service integration vs Internal feature vs Backend persistence validation
-6. **Different validation depths** - Surface-level vs Feature-specific vs Deep integration (API + DB + UI + Events)
-
-### **Technical Setup Analysis:**
-
-#### **Common Setup Steps (Necessary for Each Test):**
-1. **User login** (`POST /auth`) - Needed to access the system (admin or staff)
-2. **Page navigation** - Each test needs to navigate to specific pages
-3. **Specific integration validation** - Each test validates its unique integration scenario
-4. **Context management** - Some tests use multiple browser contexts for different user flows
-
-#### **These are NOT "extra steps" - they are essential setup for each test's unique integration validation**
-
-### **Conclusion for Category 8: NO MEANINGFUL OVERLAP**
-
-**All 3 tests should be kept** because:
-- Each tests different integration aspects (hosted flow vs PDF export vs document request)
-- Each validates different business functionality with unique depth
-- Each covers different user types and scenarios (admin, staff, guest)
-- Each tests different technical approaches and integration patterns
-- Each validates different system integration dimensions
-- The document request test provides unique comprehensive validation (API + Backend + Events + UI + State management)
+**Configuration**:
+- **Application**: "AutoTest - Request Doc UI test"
+- **User**: ReqDocs Primary (playwright+reqdocs@verifast.com)
+- **Rent Budget**: Default
+- **Timeout**: 360s
+- **Tags**: @request-docs, @integration, @permissions, @state-safety, @negative, @validation, @network-error, @regression, @staging-ready
 
 ---
-
-### **3. request_additional_information.spec.js - Document Request Integration Test**
-
-#### **Complete Test Structure:**
-- **1 unified test** (360s timeout)
-- **Document request integration flow** with happy path and negative tests
-- **Tags**: @request-docs, @integration, @permissions, @state-safety, @document-upload, @negative, @validation, @network-error
-- **Error Collection Pattern**: Test continues running all validations and reports all errors at the end
 
 #### **Test: "Document Request: Complete validation (happy path + negative tests)"**
 
-**Test Purpose and API Endpoints Called (with line numbers):**
+**Purpose**: Comprehensive validation of document request feature including API/UI validation, state safety, and error handling
 
-1. **Admin Login** (Line 96):
-   - `loginForm.adminLoginAndNavigate(page, admin)` - Admin login and navigation
-   - **Response Used For**: Authentication and capturing admin auth token
-   - **What's Actually Checked**: Response status is OK (200), admin login successful, token captured
+**Test Flow**:
 
-2. **DataManager Authentication** (Line 75):
-   - `dataManager.authenticate(admin.email, admin.password)` - Authenticate for cleanup
-   - **Response Used For**: Enabling conditional cleanup functionality
-   - **What's Actually Checked**: Authentication successful for cleanup operations
+**PART 1: HAPPY PATH**
 
-3. **Application Navigation** (Lines 100-101):
-   - `gotoApplicationsPage(page)` - Navigate to applications
-   - `findAndInviteApplication(page, applicationName)` - Find "AutoTest - Request Doc UI test"
-   - **Response Used For**: Navigation and application selection
-   - **What's Actually Checked**: Application found and invite process initiated
+1. **Admin: Create Session**
+   - Login as admin (capture adminToken for API calls)
+   - Find and invite "AutoTest - Request Doc UI test"
+   - Generate session
+   - Store sessionId
 
-4. **Session Generation** (Lines 104-111):
-   - `generateSessionForm.generateSessionAndExtractLink(page, {...})` - Create session
-   - **Response Used For**: Creating new session for document request testing
-   - **What's Actually Checked**: Session created successfully, sessionId and link extracted
+2. **Applicant: Advance to Employment Step** (Separate Context)
+   - Open invite link
+   - Complete setupInviteLinkSession (no applicant type)
+   - Update rent budget
+   - Skip applicants step
+   - Authenticate guest (extract token from URL → POST /auth/guests → get primaryAuthToken)
+   - Complete ID via API (PERSONA payload, matching name)
+   - Skip financial step
+   - Wait for employment step (document-pay_stub visible)
+   - **Keep page at employment step** (don't complete)
 
-5. **Session Tracking for Cleanup** (Line 114):
-   - `cleanupHelper.trackSession({ id: sessionId }, SUITE_ID)` - Track for conditional cleanup
-   - **Response Used For**: Enabling cleanup on test pass, preservation on test fail
-   - **What's Actually Checked**: Session tracked with suite ID
+3. **Capture Baseline Step State**
+   - GET /sessions/{id} via API with adminToken
+   - Extract baselineStepId and baselineStepType
+   - Log current step
 
-6. **Guest Authentication** (Lines 20-38):
-   - `authenticateGuestFromInvite(page, link)` - Custom utility function
-   - **API**: `POST /auth/guests` (Line 31)
-   - **Response Used For**: Getting guest authentication token from invitation
-   - **What's Actually Checked**: Response status OK, guest token extracted
+4. **Admin: Request Additional Documents**
+   - Switch to admin page
+   - Navigate to session report view
+   - Setup request/response listeners for POST /sessions/{id}/invitations (status: 201)
+   - Call openAndSubmitRequestDialog helper:
+     - Click session-action-btn → request-additional-btn
+     - Select "Pay Stub Upload" from combobox
+     - Submit
+   - Capture POST payload and validate:
+     - actions[0].action = 'employment_document'
+     - actions[0].documents contains 'pay_stub'
+   - Capture response and validate:
+     - response._type = 'invitation'
+     - response.type = 'SESSION_ACTION'
+     - Extract invitationId
 
-7. **State Modal Handling** (Line 127):
-   - `handleOptionalStateModal(applicantPage)` - Handle optional state modal
-   - **Response Used For**: UI state management
-   - **What's Actually Checked**: Modal handled if present
+5. **Validate Invitation Persistence**
+   - GET /sessions/{id}/invitations/{invitationId} with adminToken
+   - **Assert**: id matches, type = 'SESSION_ACTION', created_at defined
 
-8. **Rent Budget Update** (Line 130):
-   - `updateRentBudget(applicantPage, sessionId)` - Update session rent budget
-   - **API**: `PATCH /sessions/{id}` (utility function)
-   - **Response Used For**: Setting rent budget for session
-   - **What's Actually Checked**: Response status OK, PATCH successful
+6. **Validate Session Actions Created**
+   - GET /sessions/{id} with fields[session]=actions
+   - **Assert**: actions array has EMPLOYMENT_DOCUMENT action
+   - **Assert**: action.documents contains 'pay_stub'
+   - **Assert**: action.status = 'REQUESTED'
 
-9. **Skip Applicants Step** (Lines 133-136):
-   - Click `applicant-invite-skip-btn` if present
-   - **Response Used For**: Skipping co-applicant invitation
-   - **What's Actually Checked**: Button clicked or skipped if not present
+7. **Validate Events Created**
+   - GET /sessions/{id}/events
+   - Find 'session.information_requested' event
+   - Find 'action.requested' event
+   - Validate both events have correct titles, descriptions, meta, triggered_by
 
-10. **Identity Verification via API** (Lines 139-145):
-    - `completeIdentityStepViaAPI(applicantPage, sessionId, primaryAuthToken, {...}, 'primary', false)` - Complete identity
-    - **API Endpoints**: 
-      - `POST /sessions/{id}/steps` - Create identity step
-      - `POST /identity-verifications` - Submit PERSONA_PAYLOAD
-      - `PATCH /sessions/{id}/steps/{stepId}` - Mark step as COMPLETED
-    - **Response Used For**: Completing identity verification with matching name
-    - **What's Actually Checked**: Identity verification successful, step completed
+8. **Validate Events in UI**
+   - Navigate to session report view
+   - Click view-details-btn
+   - Search events for "requested"
+   - **Assert**: "Information requested" heading visible
+   - **Assert**: "Session action requested" heading visible
 
-11. **Skip Financial Step** (Lines 148-151):
-    - Wait for and click `skip-financials-btn`
-    - **Response Used For**: Skipping financial verification
-    - **What's Actually Checked**: Button visible and clicked
+9. **CRITICAL: Verify Step State Unchanged**
+   - GET /sessions/{id} via API
+   - **Assert**: current_step.id = baselineStepId (unchanged)
+   - **Assert**: current_step.type = baselineStepType (unchanged)
 
-12. **Employment Step Load** (Lines 154-156):
-    - Wait for `document-pay_stub` to appear
-    - **Response Used For**: Confirming employment step loaded
-    - **What's Actually Checked**: Employment document selector visible
+10. **Verify Applicant Can Continue**
+    - Switch to applicant page
+    - Complete employment via API (no auto-complete)
+    - **Assert**: employment-step-continue button visible and enabled
+    - Click continue → verify step completion
+    - **Assert**: Document request did NOT block flow
 
-13. **Baseline Step State Capture** (Lines 159-167):
-    - **API**: `GET /sessions/{sessionId}` (Line 160)
-    - **Response Used For**: Capturing step state BEFORE document request
-    - **What's Actually Checked**: `current_step.id` and `current_step.type` captured
+11. **Close Applicant Context**
 
-14. **Document Request Creation** (Lines 176-199):
-    - `openAndSubmitRequestDialog(page)` - Custom utility (Lines 43-67)
-    - **API**: `POST /sessions/{sessionId}/invitations` (Line 177)
-    - **Request Payload Validated** (Lines 188-191):
-      - `postData.actions` is array
-      - `actions[0].action` = "employment_document"
-      - `actions[0].documents` contains "pay_stub"
-    - **Response Validated** (Lines 193-199):
-      - Status 201
-      - `data._type` = "invitation"
-      - `data.type` = "SESSION_ACTION"
-      - `invitationId` extracted
+**PART 2: NEGATIVE TESTS**
 
-15. **Invitation Persistence Verification** (Lines 212-224):
-    - **API**: `GET /sessions/{sessionId}/invitations/{invitationId}` (Line 212)
-    - **Query Params**: `fields[invitation]=id,type,created_at,updated_at`
-    - **Response Used For**: Verifying invitation persisted in database
-    - **What's Actually Checked**:
-      - `id` matches created invitation
-      - `type` = "SESSION_ACTION"
-      - `created_at` timestamp exists
+12. **Negative Test 1: Submit Disabled Without Selection**
+    - Re-login as admin
+    - Navigate to session
+    - Open request dialog
+    - **Assert**: submit-request-additional has aria-disabled='true'
 
-16. **Session Actions Verification** (Lines 228-245):
-    - **API**: `GET /sessions/{sessionId}` (Line 228)
-    - **Query Params**: `fields[session]=actions`, `fields[action]=key,documents,status,tasks,created_at`
-    - **Response Used For**: Verifying session_actions record created
-    - **What's Actually Checked**:
-      - `actions` array exists and has entries
-      - Action with `key` = "EMPLOYMENT_DOCUMENT" exists
-      - `documents` contains "pay_stub"
-      - `status` = "REQUESTED"
-      - `created_at` timestamp exists
+13. **Negative Test 2: Button Stays Disabled**
+    - **Assert**: aria-disabled remains 'true' (no action possible)
 
-17. **Events Verification (API)** (Lines 249-285):
-    - **API**: `GET /sessions/{sessionId}/events` (Line 249)
-    - **Query Params**: `fields[user]=full_name,email,phone`, `order=created_at:asc`, `limit=1000`
-    - **Response Used For**: Verifying notification audit trail events
-    - **Event 1 Validated** (Lines 264-275): `session.information_requested`
-      - `title` = "Information requested"
-      - `description` contains "employment_document"
-      - `meta.items` = "employment_document"
-      - `created_at` exists
-      - `triggered_by._type` = "member"
-    - **Event 2 Validated** (Lines 278-285): `action.requested`
-      - `title` = "Session action requested"
-      - `description` contains "EMPLOYMENT_DOCUMENT"
-      - `meta.action` = "EMPLOYMENT_DOCUMENT"
-      - `meta.documents` contains "pay_stub"
-      - `created_at` exists
-      - `triggered_by` exists
+14. **Negative Test 3: Network Error Handling (500 Response)**
+    - Select "Pay Stub Upload" option
+    - Setup route intercept for POST /sessions/*/invitations → return 500 error
+    - Click submit
+    - Unroute after request
+    - **Assert**: Error alert visible with text matching /error|failed|unable/i
+    - Close dialog
 
-18. **Events Verification (UI)** (Lines 288-312):
-    - Navigate to session details
-    - Click `view-details-btn`
-    - Search events by "requested"
-    - **UI Validated**:
-      - h6 "Information requested" visible
-      - h6 "Session action requested" visible
+15. **Cleanup**
+    - afterAll: cleanupSession + close applicantContext
 
-19. **Step State Unchanged Verification** (Lines 315-325):
-    - **API**: `GET /sessions/{sessionId}` (Line 316)
-    - **Response Used For**: Verifying step state unchanged after document request
-    - **What's Actually Checked**:
-      - `current_step.id` = baseline step ID
-      - `current_step.type` = baseline step type
-      - **Proves**: Document request does NOT change step state
+**Key API Endpoints**:
+- `POST /auth` - Admin authentication (returns adminToken)
+- `GET /applications?` - Search applications
+- `POST /sessions` - Create session
+- `PATCH /sessions/{id}` - Update rent budget
+- `POST /auth/guests` - Guest authentication (returns primaryAuthToken)
+- `POST /sessions/{id}/steps` - Create ID step
+- `POST /identity-verifications` - Submit Persona payload
+- `PATCH /sessions/{id}/steps/{id}` - Complete steps
+- `POST /sessions/{id}/invitations` - Request documents (status: 201)
+- `GET /sessions/{id}/invitations/{id}` - Get invitation details
+- `GET /sessions/{id}` - Get session with actions field
+- `GET /sessions/{id}/events` - Get session events
 
-20. **Employment Verification via API** (Lines 333-338):
-    - `completeEmploymentStepViaAPI(applicantPage, sessionId, primaryAuthToken, {...}, false)` - Complete employment WITHOUT auto-complete
-    - **API Endpoints**:
-      - `POST /sessions/{id}/steps` - Create employment step
-      - `GET /providers` - Get simulation provider
-      - `POST /employment-verifications` - Submit VERIDOCS_PAYLOAD
-      - **NO** `PATCH /sessions/{id}/steps/{stepId}` - Auto-complete disabled
-    - **Response Used For**: Completing employment verification while preserving manual UI flow
-    - **What's Actually Checked**: Employment verification successful, step NOT auto-completed
+**Business Validations**:
+- ✅ Document requests create invitations (POST /invitations)
+- ✅ Invitations persist with correct type (SESSION_ACTION)
+- ✅ Session actions created with EMPLOYMENT_DOCUMENT key
+- ✅ Actions have correct documents array (pay_stub)
+- ✅ Actions status = REQUESTED
+- ✅ Events created (session.information_requested + action.requested)
+- ✅ Events visible in UI with correct titles
+- ✅ Step state UNCHANGED after document request (critical)
+- ✅ Applicant can continue flow (no blocking)
+- ✅ Submit button disabled without selection
+- ✅ Network errors show user-friendly alert
+- ✅ Two helper functions (authenticateGuestFromInvite, openAndSubmitRequestDialog)
 
-21. **Applicant Flow Continuation Verification** (Lines 341-354):
-    - Wait for `employment-step-continue` button (Line 343)
-    - Validate button visible and enabled (Lines 348-349)
-    - Click continue button (Line 353)
-    - **Response Used For**: Proving applicant can proceed after document request
-    - **What's Actually Checked**: Button available, clickable, and functional
-    - **Proves**: Document request does NOT block applicant flow
-
-22. **Negative Test 1: Submit Button Disabled** (Lines 394-402):
-    - Open request dialog without selecting document
-    - **UI Validated**: `submit-request-additional` has `aria-disabled='true'`
-
-23. **Negative Test 2: Button Stays Disabled** (Lines 405-409):
-    - Verify disabled attribute persists
-    - **UI Validated**: `aria-disabled` remains 'true'
-
-24. **Negative Test 3: Network Error Handling** (Lines 412-447):
-    - Select Pay Stub Upload document
-    - Intercept POST request with `page.route()` (Lines 427-433)
-    - Return 500 error response
-    - **UI Validated**:
-      - Error toast/alert visible
-      - Alert contains "error|failed|unable" text
-    - Unroute handler (Line 438)
-    - Close dialog (Lines 445-447)
-
-**Detailed Steps:**
-
-1. **Test Setup** (Lines 72-88):
-   - Import custom cleanup fixture: `enhanced-cleanup-fixture-conditional`
-   - Authenticate `dataManager` for cleanup (Lines 74-80)
-   - Initialize error collection array (Line 83)
-   - Define `SUITE_ID` constant for cleanup tracking (Lines 87-88)
-
-2. **PART 1: Happy Path** (Lines 90-371):
-   - **Admin Setup** (Lines 96-101):
-     - Admin login and capture token
-     - Navigate to applications
-     - Find and invite "AutoTest - Request Doc UI test"
-   
-   - **Session Creation** (Lines 104-118):
-     - Generate session for Primary applicant
-     - Extract sessionId and link
-     - Track session for conditional cleanup
-     - Log cleanup preservation notice
-   
-   - **Applicant Flow Setup** (Lines 121-156):
-     - Create new browser context
-     - Navigate to invitation URL
-     - Handle optional state modal
-     - Update rent budget
-     - Skip applicants step
-     - Complete identity via API (PERSONA simulation)
-     - Skip financial step
-     - Verify employment step loaded
-   
-   - **Baseline Capture** (Lines 159-167):
-     - Capture `current_step.id` and `current_step.type`
-     - Log baseline step state
-   
-   - **Document Request Creation** (Lines 170-199):
-     - Switch to admin page
-     - Navigate to session details
-     - Set up network request/response promises
-     - Open request dialog and select Pay Stub Upload
-     - Validate POST request payload
-     - Validate 201 response and invitation creation
-   
-   - **Backend Persistence Validation** (Lines 212-245):
-     - Verify invitation persisted (GET /invitations/{id})
-     - Verify session action created (GET /sessions/{id} with actions)
-     - Log API responses for debugging
-   
-   - **Events Validation** (Lines 248-312):
-     - API: Fetch events and validate 2 events created
-     - UI: Navigate to session, open events panel, search, verify visibility
-   
-   - **Critical Validations** (Lines 315-354):
-     - Verify step state unchanged after document request
-     - Switch to applicant context
-     - Complete employment verification (no auto-complete)
-     - Verify continue button available and clickable
-     - Click continue to prove flow not blocked
-   
-   - **Cleanup** (Line 356):
-     - Close applicant context
-
-3. **Error Handling for Happy Path** (Lines 359-371):
-   - Catch any errors during happy path
-   - Collect error details (section, message, stack, context)
-   - Push to errors array
-   - Log error without throwing (test continues)
-
-4. **PART 2: Negative Tests** (Lines 373-510):
-   - **Validation** (Lines 379-383):
-     - Check if session was created
-     - Reuse session from happy path
-   
-   - **Admin Re-login** (Lines 386-391):
-     - Re-authenticate if needed
-     - Navigate to session
-   
-   - **Negative Test 1** (Lines 394-402):
-     - Open dialog without selection
-     - Verify submit button disabled
-   
-   - **Negative Test 2** (Lines 405-409):
-     - Verify disabled state persists
-   
-   - **Negative Test 3** (Lines 412-447):
-     - Select document
-     - Intercept with 500 error
-     - Verify error toast displayed
-     - Cleanup: unroute handler, close dialog
-   
-   - **Negative Test 4** (Lines 449-495):
-     - COMMENTED OUT due to known UI bug
-     - Would test permissions enforcement
-     - User without MANAGE_APPLICANTS should not see button
-
-5. **Error Handling for Negative Tests** (Lines 499-510):
-   - Catch any errors during negative tests
-   - Collect error details (section, message, stack, context)
-   - Push to errors array
-   - Log error without throwing (test continues)
-
-6. **Final Error Reporting** (Lines 512-529):
-   - Check if any errors collected
-   - Log summary of all errors
-   - Format error report with sections and locations
-   - Throw combined error with all details
-   - Or log success if no errors
-
-#### **Key Business Validations:**
-- **Document Request Creation**: Tests complete POST /invitations workflow
-- **Backend Persistence**: Validates invitation and session_actions records
-- **Event Audit Trail**: Verifies 2 events created (information_requested, action.requested)
-- **UI Feedback**: Confirms events visible in admin timeline
-- **Step State Immutability**: Proves document request does NOT change step state
-- **Applicant Flow Isolation**: Proves document request does NOT block applicant
-- **Network Request Validation**: Captures and validates POST payload
-- **Negative Testing**: Submit disabled, network errors, permissions
-- **Error Collection Pattern**: Runs all validations regardless of failures
-- **Conditional Cleanup**: Preserves session on failure for debugging
-
-#### **Overlap Assessment:**
-- **UNIQUE**: Only test focused on document request integration with comprehensive validation
-- **NO OVERLAP**: Different from other integration tests
-- **KEEP**: Essential for document request functionality validation
+**Unique Aspects**:
+- Uses **2-part test structure** (happy path + negative tests)
+- Tests **document request end-to-end** (invitation → action → events)
+- Validates **state safety** (step unchanged after request)
+- Uses **error collection pattern** (collects all errors, reports at end)
+- Tests **network error handling** (route interception for 500)
+- Validates **API + UI consistency** for events
+- Uses **inline helper functions** (authenticateGuestFromInvite, openAndSubmitRequestDialog)
+- Tests **text variation handling** (Paystub vs Pay Stub Upload)
+- Includes **commented negative test** for unfinished permission feature
 
 ---
 
-## **Category 9: Menu Heartbeat Tests - COMPLETE ANALYSIS**
-
-### **Files Analyzed:**
-1. `heartbeat_addresses_menus.spec.js` - **Address Menu Health Check**
-2. `heartbeat_applicant_inbox_menus.spec.js` - **Applicant Inbox Menu Health Check**
-3. `heartbeat_applications_menus.spec.js` - **Applications Menu Health Check**
-4. `heartbeat_documents_menus.test.js` - **Documents Menu Health Check**
-5. `heartbeat_income_source_menus.spec.js` - **Income Source Menu Health Check**
-6. `heartbeat_logout_menu.spec.js` - **Logout Menu Health Check**
-7. `heartbeat_org_list_menus.spec.js` - **Organization List Menu Health Check**
-8. `heartbeat_organizations_menus.spec.js` - **Organizations Menu Health Check**
-9. `heartbeat_reports_menus.spec.js` - **Reports Menu Health Check**
-10. `heartbeat_settings_menus.spec.js` - **Settings Menu Health Check**
-11. `heartbeat_tools_menus.spec.js` - **Tools Menu Health Check**
-12. `heartbeat_transactions_menus.spec.js` - **Transactions Menu Health Check**
-13. `heartbeat_users_menu.spec.js` - **Users Menu Health Check**
-
----
-
-### **1. heartbeat_addresses_menus.spec.js - Address Menu Health Check**
-
-#### **Complete Test Structure:**
-- **1 test** (no specific timeout)
-- **Address menu navigation** health check
-- **Tags**: @core, @smoke, @regression
-
-#### **Test: "Should check Address heartbeat"**
-**Purpose**: Test address menu navigation and verify "Coming Soon" page
-**API Endpoints Called**:
-- `POST /auth` - Admin login (via loginForm.submit, line 14)
-  - **Response Used For**: Authentication and session establishment
-  - **What's Actually Checked**: Response status is OK (200), household-status-alert is visible
-
-**Steps**:
-1. **Page Navigation** (Line 12) - Navigate to root page
-2. **Admin Login** (Lines 13-15):
-   - Fill login form with admin credentials
-   - Submit login form
-   - Verify household-status-alert is visible
-3. **Address Menu Click** (Lines 17-19):
-   - Get address menu element
-   - Click address menu
-4. **Wait for Page Load** (Line 21) - Wait 1000ms for menu to load
-5. **Note**: Currently only shows "Coming Soon" page (Line 23)
-
-#### **Key Business Validations:**
-- **Address Menu Navigation** ✅
-- **Menu Click Functionality** ✅
-- **Coming Soon Page Display** ✅
-
----
-
-### **2. heartbeat_applicant_inbox_menus.spec.js - Applicant Inbox Menu Health Check**
-
-#### **Complete Test Structure:**
-- **1 test** (no specific timeout)
-- **Applicant inbox menu** with all status filters
-- **Tags**: @core, @smoke, @regression
-
-#### **Test: "Should check Applicant Inbox heartbeat"**
-**Purpose**: Test all applicant inbox menu navigation and session filtering by status
-**API Endpoints Called**:
-- `POST /auth` - Admin login (via loginForm.submit, line 16)
-  - **Response Used For**: Authentication and session establishment
-  - **What's Actually Checked**: Response status is OK (200), household-status-alert is visible
-- `GET /sessions?` - Load all sessions (lines 32-43, 45-56)
-  - **Response Used For**: Getting all sessions without approval_status filter
-  - **What's Actually Checked**: Response status is OK (200), sessions data array is returned, session cards are visible
-- `GET /sessions?` - Load awaiting review sessions (lines 67-78)
-  - **Response Used For**: Getting sessions with approval_status filter "awaiting_review"
-  - **What's Actually Checked**: Response status is OK (200), filters include "awaiting_review", session cards are visible
-- `GET /sessions?` - Load meets criteria sessions (lines 90-102)
-  - **Response Used For**: Getting sessions with approval_status filters "approved" and "conditionally_approved"
-  - **What's Actually Checked**: Response status is OK (200), filters include both statuses, session cards are visible
-- `GET /sessions?` - Load rejected sessions (lines 115-126)
-  - **Response Used For**: Getting sessions with approval_status filter "rejected"
-  - **What's Actually Checked**: Response status is OK (200), filters include "rejected", session cards are visible
-
-**Steps**:
-1. **Page Navigation and Login** (Lines 14-17)
-2. **Inbox Menu Expansion** (Lines 19-25):
-   - Get applicants menu element
-   - Check if inbox is already expanded
-   - Click if not expanded
-3. **All Sessions Submenu** (Lines 27-62):
-   - Get all sessions submenu
-   - Check if already active
-   - Click or reload to load sessions
-   - Verify all session cards are visible
-4. **Require Review Submenu** (Lines 64-85):
-   - Get approval status submenu
-   - Click and wait for API response
-   - Verify all awaiting review session cards are visible
-5. **Meets Criteria Submenu** (Lines 87-109):
-   - Get reviewed submenu
-   - Click and wait for API response
-   - Verify all approved/conditionally approved session cards are visible
-6. **Rejected Submenu** (Lines 112-133):
-   - Get rejected submenu
-   - Click and wait for API response
-   - Verify all rejected session cards are visible
-
-#### **Key Business Validations:**
-- **All Sessions Filter** ✅
-- **Awaiting Review Filter** ✅
-- **Meets Criteria Filter (Approved + Conditionally Approved)** ✅
-- **Rejected Filter** ✅
-- **Session Card Visibility** ✅
-- **Smart Menu Expansion** ✅
-
----
-
-### **3. heartbeat_applications_menus.spec.js - Applications Menu Health Check**
-
-#### **Complete Test Structure:**
-- **1 test** (no specific timeout)
-- **Applications menu** with all submenus
-- **Tags**: @core, @smoke, @regression
-
-#### **Test: "Should check Applications menu heartbeat"**
-**Purpose**: Test all applications menu navigation and data loading
-**API Endpoints Called**:
-- `POST /auth` - Admin login (via loginForm.submit, line 16)
-  - **Response Used For**: Authentication and session establishment
-  - **What's Actually Checked**: Response status is OK (200), household-status-alert is visible
-- `GET /applications?` - Load applications (lines 33-51)
-  - **Response Used For**: Getting applications data
-  - **What's Actually Checked**: Response status is OK (200), applications table rows match API data
-- `GET /portfolios?` - Load portfolios (lines 70-78)
-  - **Response Used For**: Getting portfolios data
-  - **What's Actually Checked**: Response status is OK (200), portfolio table rows match API data
-- `GET /workflows?` - Load workflows (lines 97-105)
-  - **Response Used For**: Getting workflows data
-  - **What's Actually Checked**: Response status is OK (200), workflow table rows match API data with kebab-to-title-case conversion
-- `GET /eligibility-templates?` - Load affordable templates (lines 125-133)
-  - **Response Used For**: Getting eligibility templates data
-  - **What's Actually Checked**: Response status is OK (200), template table rows match API data
-- `GET /flag-collections?` - Load approval conditions (lines 153-161)
-  - **Response Used For**: Getting flag collections data
-  - **What's Actually Checked**: Response status is OK (200), approval conditions table rows match API data
-
-**Steps**:
-1. **Page Navigation and Login** (Lines 14-17)
-2. **Applications Menu Expansion** (Lines 19-25)
-3. **Applications Submenu** (Lines 27-63):
-   - Click applications submenu or reload
-   - Wait for applications API response
-   - Verify all application table rows match API data
-4. **Portfolios Submenu** (Lines 65-87):
-   - Click portfolios submenu
-   - Wait for portfolios API response
-   - Verify all portfolio table rows match API data
-5. **Workflows Submenu** (Lines 90-116):
-   - Click workflows submenu
-   - Wait for workflows API response
-   - Verify all workflow table rows match API data (with name conversion)
-6. **Affordable Templates Submenu** (Lines 118-144):
-   - Click affordable templates submenu
-   - Wait for eligibility templates API response
-   - Verify all template table rows match API data
-7. **Approval Conditions Submenu** (Lines 146-172):
-   - Click approval conditions submenu
-   - Wait for flag collections API response
-   - Verify all approval condition table rows match API data
-
-#### **Key Business Validations:**
-- **Applications List Navigation** ✅
-- **Portfolios List Navigation** ✅
-- **Workflows List Navigation** ✅
-- **Affordable Templates Navigation** ✅
-- **Approval Conditions Navigation** ✅
-- **Data-UI Consistency** ✅
-- **Menu Expansion Logic** ✅
-
----
-
-### **4. heartbeat_documents_menus.test.js - Documents Menu Health Check**
-
-#### **Complete Test Structure:**
-- **1 test** (no specific timeout)
-- **Documents menu** with submenus
-- **Tags**: @core, @smoke, @regression
-
-#### **Test: "Should check Documents menu heartbeat"**
-**Purpose**: Test documents menu navigation and document policies
-**API Endpoints Called**:
-- `POST /auth` - Admin login (via loginForm.submit, line 16)
-  - **Response Used For**: Authentication and session establishment
-  - **What's Actually Checked**: Response status is OK (200), household-status-alert is visible
-- `GET /document-policies?` - Load document policies (lines 70-78)
-  - **Response Used For**: Getting document policies data
-  - **What's Actually Checked**: Response status is OK (200), document policy table rows match API data
-
-**Steps**:
-1. **Page Navigation and Login** (Lines 14-17)
-2. **Documents Menu Expansion** (Lines 19-25)
-3. **Documents Submenu** (Lines 27-63):
-   - Click documents submenu
-   - **Note**: Currently shows "Coming Soon" page, API code is commented out (lines 32-63)
-4. **Document Policies Submenu** (Lines 65-87):
-   - Click document policies submenu
-   - Wait for document policies API response
-   - Verify all document policy table rows match API data
-
-#### **Key Business Validations:**
-- **Documents Menu Navigation** ✅
-- **Document Policies List Navigation** ✅
-- **Data-UI Consistency** ✅
-- **Coming Soon Page Handling** ✅
-
----
-
-### **5. heartbeat_income_source_menus.spec.js - Income Source Menu Health Check**
-
-#### **Complete Test Structure:**
-- **1 test** (no specific timeout)
-- **Income source menu** configuration
-- **Tags**: @core, @smoke, @regression
-
-#### **Test: "Should check Income Sources menu heartbeat"**
-**Purpose**: Test income source configuration menu and template list
-**API Endpoints Called**:
-- `POST /auth` - Admin login (via loginForm.submit, line 16)
-  - **Response Used For**: Authentication and session establishment
-  - **What's Actually Checked**: Response status is OK (200), household-status-alert is visible
-- `GET /income-source-templates?` - Load income source templates (lines 34-52)
-  - **Response Used For**: Getting income source templates data
-  - **What's Actually Checked**: Response status is OK (200), table row count matches API data length, rows contain template names
-
-**Steps**:
-1. **Page Navigation and Login** (Lines 14-17)
-2. **Income Source Menu Expansion** (Lines 19-25)
-3. **Income Source Configuration Submenu** (Lines 27-67):
-   - Click configuration submenu or reload
-   - Wait for income source templates API response
-   - Wait for table rows to match API data count (line 59)
-   - Verify all table rows contain template names
-   - Log success message
-
-#### **Key Business Validations:**
-- **Income Source Menu Navigation** ✅
-- **Configuration Submenu Navigation** ✅
-- **Template List Loading** ✅
-- **Data-UI Consistency with Count Validation** ✅
-- **Row Count Matching** ✅
-
----
-
-### **6. heartbeat_logout_menu.spec.js - Logout Menu Health Check**
-
-#### **Complete Test Structure:**
-- **1 test** (no specific timeout)
-- **Logout functionality** and session termination
-- **Tags**: @core, @smoke, @regression
-
-#### **Test: "Should check Logout flow heartbeat"**
-**Purpose**: Test logout functionality and session termination
-**API Endpoints Called**:
-- `POST /auth` - Admin login (via loginForm.submit, line 15)
-  - **Response Used For**: Authentication and session establishment
-  - **What's Actually Checked**: Response status is OK (200), household-status-alert is visible
-
-**Steps**:
-1. **Page Navigation and Login** (Lines 13-16)
-2. **Logout Click** (Lines 18-20):
-   - Get logout menu element
-   - Click logout menu
-3. **Login Page Verification** (Lines 21-24):
-   - Verify "Welcome" heading is visible
-   - Verify "Email Address" textbox is visible
-   - Verify "Password" textbox is visible
-   - Verify admin login button is visible
-4. **Page Reload Verification** (Lines 26-31):
-   - Reload page
-   - Verify all login page elements are still visible
-   - Confirm session is terminated
-5. **Log Success** (Line 33)
-
-#### **Key Business Validations:**
-- **Logout Functionality** ✅
-- **Session Termination** ✅
-- **Login Page Redirect** ✅
-- **Persistent Logout After Reload** ✅
-
----
-
-### **7. heartbeat_org_list_menus.spec.js - Organization List Menu Health Check**
-
-#### **Complete Test Structure:**
-- **1 test** (no specific timeout)
-- **Organization list menu** navigation
-- **Tags**: @core, @smoke, @regression
-
-#### **Test: "Should check Organization List menu heartbeat"**
-**Purpose**: Test organization list menu and data loading
-**API Endpoints Called**:
-- `POST /auth` - Admin login (via loginForm.submit, line 16)
-  - **Response Used For**: Authentication and session establishment
-  - **What's Actually Checked**: Response status is OK (200), household-status-alert is visible
-- `GET /organizations?` - Load organizations list (lines 26-44)
-  - **Response Used For**: Getting organizations data
-  - **What's Actually Checked**: Response status is OK (200), organization table rows match API data
-
-**Steps**:
-1. **Page Navigation and Login** (Lines 14-17)
-2. **Organizations Menu Click** (Lines 19-45):
-   - Get organizations menu element
-   - Check if already active
-   - Click or reload to load organizations
-   - Wait for organizations API response
-3. **Table Verification** (Lines 46-55):
-   - Verify organization data length > 0
-   - Get table rows
-   - Loop through API data (not UI rows to avoid pagination)
-   - Verify each row contains organization name
-   - Log success message
-
-#### **Key Business Validations:**
-- **Organization List Menu Navigation** ✅
-- **Organizations Data Loading** ✅
-- **Data-UI Consistency** ✅
-- **Pagination-Safe Verification** ✅
-
----
-
-### **8. heartbeat_organizations_menus.spec.js - Organizations Menu Health Check**
-
-#### **Complete Test Structure:**
-- **1 test** (no specific timeout)
-- **Organization menu** with submenus
-- **Tags**: @core, @smoke, @regression
-
-#### **Test: "Should check Organizations menu heartbeat"**
-**Purpose**: Test organization menu navigation and members list
-**API Endpoints Called**:
-- `POST /auth` - Admin login (via loginForm.submit, line 16)
-  - **Response Used For**: Authentication and session establishment
-  - **What's Actually Checked**: Response status is OK (200), household-status-alert is visible
-- `GET /organizations/self` - Load current organization (lines 34-52)
-  - **Response Used For**: Getting current organization data
-  - **What's Actually Checked**: Response status is OK (200), organization name heading is defined
-- `GET /organizations/{id}/members` - Load organization members (lines 65-74)
-  - **Response Used For**: Getting organization members data
-  - **What's Actually Checked**: Response status is OK (200), member table rows match API data with full names
-
-**Steps**:
-1. **Page Navigation and Login** (Lines 14-17)
-2. **Organization Menu Expansion** (Lines 19-25)
-3. **Organization Self Submenu** (Lines 27-58):
-   - Click organization self submenu or reload
-   - Wait for organizations/self API response
-   - Verify organization name heading is defined
-   - Log success message
-4. **Members Submenu** (Lines 60-84):
-   - Get members submenu
-   - Click and wait for members API response
-   - Verify member table rows contain user full names
-   - Log success message
-
-#### **Key Business Validations:**
-- **Organization Menu Navigation** ✅
-- **Organization Self Page Loading** ✅
-- **Members List Navigation** ✅
-- **Data-UI Consistency** ✅
-- **User Full Name Display** ✅
-
----
-
-### **9. heartbeat_reports_menus.spec.js - Reports Menu Health Check**
-
-#### **Complete Test Structure:**
-- **1 test** (no specific timeout)
-- **Reports menu** with all report types
-- **Tags**: @core, @smoke, @regression
-
-#### **Test: "Should check Report menu heartbeat"**
-**Purpose**: Test all reports menu navigation and data loading
-**API Endpoints Called**:
-- `POST /auth` - Admin login (via loginForm.submit, line 16)
-  - **Response Used For**: Authentication and session establishment
-  - **What's Actually Checked**: Response status is OK (200), household-status-alert is visible
-- `GET /sessions?` - Load session reports (lines 34-52)
-  - **Response Used For**: Getting sessions data for reports
-  - **What's Actually Checked**: Response status is OK (200), session table rows match application names
-- `GET /verifications?` - Load verification reports (lines 70-78)
-  - **Response Used For**: Getting verifications data
-  - **What's Actually Checked**: Response status is OK (200), verification table rows match verification types
-- `GET /documents?` - Load files reports (lines 94-102)
-  - **Response Used For**: Getting documents data
-  - **What's Actually Checked**: Response status is OK (200), file table rows match document type names
-- `GET /income-sources?` - Load income source reports (lines 117-125)
-  - **Response Used For**: Getting income sources data
-  - **What's Actually Checked**: Response status is OK (200), income source table rows match descriptions
-
-**Steps**:
-1. **Page Navigation and Login** (Lines 14-17)
-2. **Reports Menu Expansion** (Lines 19-25)
-3. **Session Reports Submenu** (Lines 27-64):
-   - Click session reports submenu or reload
-   - Wait for sessions API response
-   - Verify session table rows contain application names
-   - Log success message
-4. **Verification Reports Submenu** (Lines 66-88):
-   - Click verification page submenu
-   - Wait for verifications API response
-   - Verify table rows contain verification types
-   - Log success message
-5. **Files Reports Submenu** (Lines 90-112):
-   - Click files page submenu
-   - Wait for documents API response
-   - Verify table rows contain document type names
-   - Log success message
-6. **Income Source Reports Submenu** (Lines 114-136):
-   - Click income source page submenu
-   - Wait for income sources API response
-   - Verify income source table rows contain descriptions
-   - Log success message
-
-#### **Key Business Validations:**
-- **Session Reports Navigation** ✅
-- **Verification Reports Navigation** ✅
-- **Files Reports Navigation** ✅
-- **Income Source Reports Navigation** ✅
-- **Data-UI Consistency Across All Report Types** ✅
-
-### **10. heartbeat_settings_menus.spec.js - Settings Menu Health Check**
-
-#### **Complete Test Structure:**
-- **1 test** (no specific timeout)
-- **Settings menu** with account, devices, notification, and 2FA
-- **Tags**: @core, @smoke, @regression
-
-#### **Test: "Should check Settings menu heartbeat"**
-**Purpose**: Test all settings menu navigation and pages
-**API Endpoints Called**:
-- `POST /auth` - Admin login (via loginForm.submit, line 15)
-  - **Response Used For**: Authentication and session establishment
-  - **What's Actually Checked**: Response status is OK (200), household-status-alert is visible
-- `GET /devices?` - Load devices (via navigateToSubMenu, line 34)
-  - **Response Used For**: Getting devices data
-  - **What's Actually Checked**: Response status is OK (200), device list verified with names
-
-**Steps**:
-1. **Page Navigation and Login** (Lines 13-16)
-2. **Settings Menu Expansion** (Lines 18-24)
-3. **Account Submenu** (Lines 26-31):
-   - Click account settings submenu
-   - Log success message
-4. **Devices Submenu** (Lines 33-35):
-   - Navigate to devices submenu using helper
-   - Wait for devices API response
-   - Verify device list content by name field
-5. **Notification Submenu** (Lines 38-39):
-   - Click notification settings submenu
-   - **Note**: Notification page not integrated yet
-6. **2FA Submenu** (Lines 41-48):
-   - Click 2FA settings submenu
-   - Verify "Two-factor authentication" heading
-   - Verify "Additional Password Protection" heading
-   - Verify "Change Password" button is visible
-   - Log success message
-
-#### **Key Business Validations:**
-- **Account Settings Navigation** ✅
-- **Devices List Loading** ✅
-- **Notification Settings Navigation** ✅
-- **2FA Settings Page** ✅
-- **Password Management** ✅
-
----
-
-### **11. heartbeat_tools_menus.spec.js - Tools Menu Health Check**
-
-#### **Complete Test Structure:**
-- **1 test** (no specific timeout)
-- **Tools menu** with testing utilities
-- **Tags**: @core, @smoke, @regression
-
-#### **Test: "Should check Tools menu heartbeat"**
-**Purpose**: Test all tools menu navigation and testing utilities
-**API Endpoints Called**:
-- `POST /auth` - Admin login (via loginForm.submit, line 14)
-  - **Response Used For**: Authentication and session establishment
-  - **What's Actually Checked**: Response status is OK (200), household-status-alert is visible
-
-**Steps**:
-1. **Page Navigation and Login** (Lines 12-15)
-2. **Tools Menu Expansion** (Lines 17-23)
-3. **Document Tester Submenu** (Lines 25-34):
-   - Click document tester submenu
-   - Verify document tester heading is defined
-   - Verify "Document Policy" text is defined
-   - Verify "Upload Test File" text is defined
-   - Verify filepond drop label is defined
-4. **Name Tester Submenu** (Lines 36-39):
-   - Click name tester submenu
-   - Verify "Name 1" text is visible
-   - Verify "Name 2" text is visible
-   - Verify "Submit" button is visible
-5. **Integrations Submenu** (Lines 42-44):
-   - Click integrations submenu
-   - Verify "New Customer" button is visible
-   - Verify "Sandbox Customers" button is visible
-6. **Test Setup Submenu** (Lines 47-48):
-   - Click test setup submenu
-   - Verify "Test Setup Page" heading is visible
-
-#### **Key Business Validations:**
-- **Document Tester Tool** ✅
-- **Name Tester Tool** ✅
-- **Integrations Tool** ✅
-- **Test Setup Tool** ✅
-- **UI Testing Utilities** ✅
-
----
-
-### **12. heartbeat_transactions_menus.spec.js - Transactions Menu Health Check**
-
-#### **Complete Test Structure:**
-- **1 test** (no specific timeout)
-- **Transactions menu** with tags, keywords, blacklists, and provider mapping
-- **Tags**: @core, @smoke, @regression
-
-#### **Test: "Should check Transactions menu heartbeat"**
-**Purpose**: Test all transactions menu navigation and transaction configuration data
-**API Endpoints Called**:
-- `POST /auth` - Admin login (via loginForm.submit, line 16)
-  - **Response Used For**: Authentication and session establishment
-  - **What's Actually Checked**: Response status is OK (200), household-status-alert is visible
-- `GET /tags?` - Load transaction tags (lines 34-52)
-  - **Response Used For**: Getting transaction tags data
-  - **What's Actually Checked**: Response status is OK (200), tag table rows match API data
-- `GET /keywords?` - Load keyword mappings (lines 71-79)
-  - **Response Used For**: Getting keyword mappings data
-  - **What's Actually Checked**: Response status is OK (200), keyword table rows match API data
-- `GET /income-source-blacklist-rules?` - Load blacklists (lines 96-104)
-  - **Response Used For**: Getting blacklist rules data
-  - **What's Actually Checked**: Response status is OK (200), blacklist table rows match provider names
-- `GET /categories?` - Load provider mappings (lines 121-129)
-  - **Response Used For**: Getting category mappings data
-  - **What's Actually Checked**: Response status is OK (200), provider mapping table rows match API data
-
-**Steps**:
-1. **Page Navigation and Login** (Lines 14-17)
-2. **Transactions Menu Expansion** (Lines 19-25)
-3. **Tags Submenu** (Lines 27-63):
-   - Click tags submenu or reload
-   - Wait for tags API response
-   - Verify tag table rows contain tag names
-   - Log success message
-4. **Keyword Mapping Submenu** (Lines 66-89):
-   - Click keyword mapping submenu
-   - Wait for keywords API response
-   - Verify keyword table rows contain keyword data
-   - Log success message
-5. **Blacklists Submenu** (Lines 91-114):
-   - Click blacklists submenu
-   - Wait for blacklist rules API response
-   - Verify blacklist table rows contain provider names
-   - Log success message
-6. **Provider Mapping Submenu** (Lines 116-140):
-   - Click provider mapping submenu
-   - Wait for categories API response
-   - Verify provider mapping table rows contain category names
-   - Log success message
-
-#### **Key Business Validations:**
-- **Transaction Tags Management** ✅
-- **Keyword Mapping Configuration** ✅
-- **Blacklist Rules Management** ✅
-- **Provider Category Mapping** ✅
-- **Transaction Configuration Data** ✅
-
----
-
-### **13. heartbeat_users_menu.spec.js - Users Menu Health Check**
-
-#### **Complete Test Structure:**
-- **1 test** (no specific timeout)
-- **Users menu** with users, roles, and permissions
-- **Tags**: @core, @smoke, @regression
-
-#### **Test: "Should check User menu heartbeat"**
-**Purpose**: Test all users menu navigation and user management data
-**API Endpoints Called**:
-- `POST /auth` - Admin login (via adminLoginAndNavigate, line 13)
-  - **Response Used For**: Authentication and session establishment
-  - **What's Actually Checked**: Response status is OK (200), admin login successful
-- `GET /users?` - Load users (via navigateToSubMenu, line 27)
-  - **Response Used For**: Getting users data
-  - **What's Actually Checked**: Response status is OK (200), users list verified with email field
-- `GET /roles?` - Load roles (via navigateToSubMenu, line 36)
-  - **Response Used For**: Getting roles data
-  - **What's Actually Checked**: Response status is OK (200), roles list verified with name field
-- `GET /permissions?` - Load permissions (via navigateToSubMenu, line 44)
-  - **Response Used For**: Getting permissions data
-  - **What's Actually Checked**: Response status is OK (200), permissions list verified with display_name field
-
-**Steps**:
-1. **Setup and Login** (Line 13):
-   - Admin login and navigate using helper
-2. **Expand Users Menu** (Lines 16-21):
-   - Get users menu element
-   - Check if already expanded
-   - Click if not expanded
-3. **Verify Users Page** (Lines 23-29):
-   - Get users submenu element
-   - Check if already active
-   - Navigate to users submenu using helper
-   - Verify users list content by email field
-4. **Verify Roles Page** (Lines 31-37):
-   - Get roles submenu element
-   - Navigate to roles submenu using helper (pass false for isActive)
-   - Verify roles list content by name field
-5. **Verify Permissions Page** (Lines 39-45):
-   - Get permissions submenu element
-   - Navigate to permissions submenu using helper (pass false for isActive)
-   - Verify permissions list content by display_name field
-
-#### **Key Business Validations:**
-- **Users List Navigation** ✅
-- **Roles List Navigation** ✅
-- **Permissions List Navigation** ✅
-- **User Management Data** ✅
-- **Helper Function Usage** ✅
-
----
-
-## **Category 9 Analysis Summary**
-
-### **API Endpoints Coverage Analysis:**
-
-| API Endpoint | Category | Tests Using It | What's Actually Checked |
-|--------------|----------|----------------|-------------------------|
-| `POST /auth` | Authentication | All 13 tests | Response status is OK (200), admin login successful |
-| `GET /sessions?` | Session Management | 2 tests | Response status is OK (200), sessions data with various filters |
-| `GET /applications?` | Application Management | 1 test | Response status is OK (200), applications data returned |
-| `GET /portfolios?` | Portfolio Management | 1 test | Response status is OK (200), portfolios data returned |
-| `GET /workflows?` | Workflow Management | 1 test | Response status is OK (200), workflows data returned |
-| `GET /eligibility-templates?` | Templates Management | 1 test | Response status is OK (200), eligibility templates data returned |
-| `GET /flag-collections?` | Flag Collections | 1 test | Response status is OK (200), flag collections data returned |
-| `GET /document-policies?` | Document Management | 1 test | Response status is OK (200), document policies data returned |
-| `GET /income-source-templates?` | Income Source Management | 1 test | Response status is OK (200), income source templates data returned |
-| `GET /organizations?` | Organization Management | 1 test | Response status is OK (200), organizations list data returned |
-| `GET /organizations/self` | Organization Management | 1 test | Response status is OK (200), current organization data returned |
-| `GET /organizations/{id}/members` | Organization Management | 1 test | Response status is OK (200), organization members data returned |
-| `GET /verifications?` | Verification Management | 1 test | Response status is OK (200), verifications data returned |
-| `GET /documents?` | Document Management | 1 test | Response status is OK (200), documents data returned |
-| `GET /income-sources?` | Income Source Management | 1 test | Response status is OK (200), income sources data returned |
-| `GET /devices?` | Device Management | 1 test | Response status is OK (200), devices list verified with names |
-| `GET /tags?` | Transaction Management | 1 test | Response status is OK (200), transaction tags data returned |
-| `GET /keywords?` | Transaction Management | 1 test | Response status is OK (200), keyword mappings data returned |
-| `GET /income-source-blacklist-rules?` | Transaction Management | 1 test | Response status is OK (200), blacklist rules data returned |
-| `GET /categories?` | Transaction Management | 1 test | Response status is OK (200), category mappings data returned |
-| `GET /users?` | User Management | 1 test | Response status is OK (200), users list verified with email field |
-| `GET /roles?` | User Management | 1 test | Response status is OK (200), roles list verified with name field |
-| `GET /permissions?` | User Management | 1 test | Response status is OK (200), permissions list verified with display_name field |
+## **Category 8 Summary**
 
 ### **Business Purpose Analysis:**
 
-| Test File | Primary Business Purpose | Unique Validations | Overlap Assessment |
-|-----------|-------------------------|-------------------|-------------------|
-| `heartbeat_addresses_menus.spec.js` | **Address Menu Health Check** | • **Address menu navigation**<br>• **Coming Soon page display** | **NO OVERLAP** - Different menu, different validation |
-| `heartbeat_applicant_inbox_menus.spec.js` | **Applicant Inbox Menu Health Check** | • **All sessions filter**<br>• **Awaiting review filter**<br>• **Meets criteria filter**<br>• **Rejected filter**<br>• **Session card visibility**<br>• **Smart menu expansion** | **NO OVERLAP** - Comprehensive inbox filtering |
-| `heartbeat_applications_menus.spec.js` | **Applications Menu Health Check** | • **Applications list**<br>• **Portfolios list**<br>• **Workflows list**<br>• **Affordable templates list**<br>• **Approval conditions list**<br>• **5 different submenus** | **NO OVERLAP** - Multiple submenu validation |
-| `heartbeat_documents_menus.test.js` | **Documents Menu Health Check** | • **Documents menu navigation**<br>• **Document policies list**<br>• **Coming Soon handling** | **NO OVERLAP** - Document-specific menus |
-| `heartbeat_income_source_menus.spec.js` | **Income Source Menu Health Check** | • **Income source configuration**<br>• **Template list loading**<br>• **Row count validation** | **NO OVERLAP** - Income source specific |
-| `heartbeat_logout_menu.spec.js` | **Logout Menu Health Check** | • **Logout functionality**<br>• **Session termination**<br>• **Persistent logout after reload** | **NO OVERLAP** - Authentication flow |
-| `heartbeat_org_list_menus.spec.js` | **Organization List Menu Health Check** | • **Organization list navigation**<br>• **Pagination-safe verification** | **NO OVERLAP** - Organization list specific |
-| `heartbeat_organizations_menus.spec.js` | **Organizations Menu Health Check** | • **Organization self page**<br>• **Members list navigation**<br>• **User full name display** | **NO OVERLAP** - Organization management specific |
-| `heartbeat_reports_menus.spec.js` | **Reports Menu Health Check** | • **Session reports**<br>• **Verification reports**<br>• **Files reports**<br>• **Income source reports**<br>• **4 different report types** | **NO OVERLAP** - Comprehensive reporting validation |
-| `heartbeat_settings_menus.spec.js` | **Settings Menu Health Check** | • **Account settings navigation**<br>• **Devices list loading**<br>• **Notification settings**<br>• **2FA settings page**<br>• **Password management** | **NO OVERLAP** - Settings configuration specific |
-| `heartbeat_tools_menus.spec.js` | **Tools Menu Health Check** | • **Document tester tool**<br>• **Name tester tool**<br>• **Integrations tool**<br>• **Test setup tool**<br>• **UI testing utilities** | **NO OVERLAP** - Testing tools specific |
-| `heartbeat_transactions_menus.spec.js` | **Transactions Menu Health Check** | • **Transaction tags management**<br>• **Keyword mapping configuration**<br>• **Blacklist rules management**<br>• **Provider category mapping**<br>• **Transaction configuration data** | **NO OVERLAP** - Transaction configuration specific |
-| `heartbeat_users_menu.spec.js` | **Users Menu Health Check** | • **Users list navigation**<br>• **Roles list navigation**<br>• **Permissions list navigation**<br>• **User management data**<br>• **Helper function usage** | **NO OVERLAP** - User management specific |
+| Test File | Primary Business Purpose | Key Differences |
+|-----------|-------------------------|-----------------|
+| `hosted_app_copy_verify_flow_plaid_id_emp_skip` | Hosted app phone auth flow | Phone login, registration form, clipboard copy, passport upload |
+| `pdf_download_test` | PDF export functionality | Staff user, retry pattern, content-type validation, no session creation |
+| `request_additional_information` | Document request workflow | 2-part test, state safety validation, error collection, network error handling |
 
-### **Key Insights:**
-
-1. **Different menu categories** - Each test validates a specific menu section
-2. **Different data types** - Applications vs Sessions vs Documents vs Organizations
-3. **Different filtering approaches** - Status filters, data type filters, role-based filters
-4. **Comprehensive coverage** - All major menu sections are tested
-5. **Data-UI consistency** - Each test verifies API data matches UI display
-6. **Smart navigation** - Tests handle already-expanded menus and active states
-
-### **Technical Setup Analysis:**
-
-#### **Common Setup Steps (Necessary for Each Test):**
-1. **Admin login** (`POST /auth`) - Needed to access menu sections
-2. **Menu navigation** - Each test navigates to specific menu sections
-3. **Data loading verification** - Each test verifies data loads correctly
-4. **UI-API consistency checks** - Each test confirms UI matches API data
-
-#### **These are NOT "extra steps" - they are essential setup for each test's unique menu validation**
-
-### **Conclusion for Category 9: NO MEANINGFUL OVERLAP**
-
-**All 13 tests should be kept** because:
-- Each tests different menu sections and navigation paths
-- Each validates different data types and API endpoints
-- Each covers different filtering and display scenarios
-- Each serves unique menu health validation purposes
-- Each contributes to comprehensive menu coverage
+**Conclusion**: No overlap - each tests distinct integration point (hosted app, PDF export, document request)
 
 ---
 
-## **Category 10: Data Management Tests - COMPLETE ANALYSIS**
+## **Category 9: Menu Heartbeat Tests**
+
+### **Files Analyzed:**
+1. `heartbeat_addresses_menus.spec.js` - 26 lines
+2. `heartbeat_applicant_inbox_menus.spec.js` - 147 lines
+3. `heartbeat_applications_menus.spec.js` - 176 lines
+4. `heartbeat_documents_menus.test.js` - 90 lines
+5. `heartbeat_income_source_menus.spec.js` - 61 lines
+6. `heartbeat_logout_menu.spec.js` - 37 lines
+7. `heartbeat_org_list_menus.spec.js` - 28 lines
+8. `heartbeat_organizations_menus.spec.js` - 88 lines
+9. `heartbeat_reports_menus.spec.js` - 51 lines
+10. `heartbeat_settings_menus.spec.js` - 52 lines
+11. `heartbeat_tools_menus.spec.js` - 53 lines
+12. `heartbeat_transactions_menus.spec.js` - 55 lines
+13. `heartbeat_users_menu.spec.js` - 47 lines
+
+**Total: 911 lines read across all menu heartbeat tests**
+
+---
+
+### **Common Pattern Across All Menu Tests:**
+
+**Tags**: @core, @smoke, @regression, @critical, @staging-ready
+
+**Standard Flow**:
+1. Admin login
+2. Check if menu expanded (smart navigation)
+3. Click menu if not expanded
+4. Click submenu(s)
+5. Wait for API response(s)
+6. Verify data loads and displays correctly
+
+**Key Validations**:
+- ✅ Menu expansion/collapse state detection
+- ✅ Smart navigation (don't click if already active)
+- ✅ API responses match UI display
+- ✅ Page titles/headings visible
+- ✅ Table data matches API response
+
+**Test-Specific Highlights**:
+
+- **addresses**: Simple menu click (coming soon page)
+- **applicant_inbox**: Tests 4 submenus (all, requires review, meets criteria, rejected) with complex filter validation
+- **applications**: Tests 5 submenus (applications, portfolios, workflows, affordable templates, approval conditions)
+- **documents**: Tests documents + document policies (documents submenu has coming soon page)
+- **income_source**: Order-independent validation using navigateToSubMenu helper
+- **logout**: Tests logout flow + reload persistence
+- **org_list**: Tests organizations list using verifyListContent helper
+- **organizations**: Tests organization-self + members submenus
+- **reports**: Tests 4 report submenus (sessions, verifications, files, income sources) with nested property validation
+- **settings**: Tests 4 submenus (account, devices, notifications, 2FA)
+- **tools**: Tests 4 submenus (document tester, name tester, integrations, test setup)
+- **transactions**: Tests 4 submenus (tags, keywords, blacklists, provider mapping)
+- **users**: Tests 3 submenus (users, roles, permissions)
+
+---
+
+## **Category 9 Summary**
+
+### **Business Purpose Analysis:**
+
+| Test File | Submenus Tested | Key Validations |
+|-----------|----------------|-----------------|
+| All 13 menu heartbeat tests | 30+ submenus total | Menu accessibility, API-UI consistency, page titles, data display |
+
+**Conclusion**: All tests are health checks ensuring UI navigation and data display remain functional across all menu sections
+
+---
+
+## **Category 10: Data Management Tests**
 
 ### **Files Analyzed:**
 1. `create_multiple_remarks.spec.js` - **Income Source Remarks Management**
 
 ---
 
-### **1. create_multiple_remarks.spec.js - Income Source Remarks Management**
+### **1. create_multiple_remarks.spec.js**
 
-#### **Complete Test Structure:**
-- **1 test** (180s timeout)
-- **Income source remarks (comments)** creation, visibility, and state management
+**Purpose**: Validates income source remarks (comments) creation, visibility toggle (hide/unhide), ordering, and API-UI consistency
+
+**Configuration**:
+- **Application**: "Autotest - Heartbeat Test - Financial"
+- **User**: Remarks Primary (playwright+remarks@verifast.com)
+- **Timeout**: 180s
 - **Tags**: @core, @smoke, @regression
-
-#### **Test: "Should allow creating multiple remarks successfully"**
-
-**Test Purpose and API Endpoints Called (with line numbers):**
-
-1. **Admin Login** (Lines 17-18):
-   - `loginForm.fill(page, admin)` - Fill login form
-   - `loginForm.submit(page)` - Submit login form
-   - **Response Used For**: Authentication and session establishment
-   - **What's Actually Checked**: Response status is OK (200), household-status-alert is visible
-
-2. **Session Search** (Line 22):
-   - `searchSessionWithText(page, appName)` - Search for "Autotest - Heartbeat Test - Financial" application
-   - **API**: `GET /sessions?` with search filters (via searchSessionWithText utility)
-   - **Response Used For**: Finding existing session from heartbeat application
-   - **What's Actually Checked**: Response status is OK (200), sessions array is returned
-
-3. **Session Navigation** (Lines 24-28):
-   - Get first session tile from search results
-   - Extract session ID from data-session attribute
-   - `navigateToSessionById(page, sessionID)` - Navigate to session details
-   - **Response Used For**: Loading session data for remarks testing
-   - **What's Actually Checked**: Session navigated successfully
-
-4. **Remarks Creation** (Lines 37-53):
-   - Click income source section header
-   - Click first income source detail button
-   - **For each of 3 remarks** (r1, r2, r3):
-     - Click "Add Remark" button
-     - Fill remark textbox with timestamped text
-     - Click "Add Remark" button in modal
-     - Wait 1000ms for creation to complete
-   - **Note**: No explicit API call monitoring during creation (modal POST happens in background)
-
-5. **Fetch Comments via API** (Lines 55-64):
-   - Click "View Remarks" button
-   - **API**: `GET /income-sources/{id}/comments?order=created_at:desc&limit=20&page=1&fields[income_source]=comments&fields[member]=user` (Lines 55-62)
-   - **Response Used For**: Getting all comments for validation
-   - **What's Actually Checked**: 
-     - Response status is OK (200)
-     - URL matches expected pattern
-     - GET method successful
-     - Comments data array is returned
-
-6. **Validate Comments Data** (Lines 66-75):
-   - Parse JSON response to get comments array
-   - Loop through all 3 created remarks
-   - For each remark:
-     - Verify comment text matches expected value
-     - Verify author email matches admin.email
-
-7. **Validate Comments UI Visibility** (Lines 77-80):
-   - Verify all 3 remarks are visible on screen
-
-8. **Validate Comments Order** (Lines 82-90):
-   - Get income reviews modal
-   - Get all visible remark rows
-   - Verify remarks appear in correct order (r3, r2, r1 - newest first)
-
-9. **Validate Comment Metadata** (Lines 92-101):
-   - Loop through all non-hidden comments
-   - For each comment:
-     - Find UI element by comment ID
-     - Verify element is defined
-     - Verify element contains formatted timestamp
-     - Verify element contains comment text
-     - Verify element contains author full name
-
-10. **Hide Comment** (Lines 104-111):
-    - Click hide button on second remark (r2)
-    - **API**: `PATCH /income-sources/{id}/comments/{id}` (Line 106)
-    - **Response Used For**: Updating comment visibility status
-    - **What's Actually Checked**: 
-      - Response status is OK (200)
-      - PATCH method successful
-      - URL matches comment update pattern
-
-11. **Verify Hidden State** (Lines 113-117):
-    - Wait 200ms for UI update
-    - Verify only r3 and r1 are visible (r2 is hidden)
-
-12. **Toggle Hidden Comments On** (Lines 119-123):
-    - Click toggle hidden comments button
-    - Verify r2 is now visible in correct position
-
-13. **Toggle Hidden Comments Off** (Lines 125-128):
-    - Click toggle hidden comments button
-    - Verify r2 is hidden again (only r3, r1 visible)
-
-14. **Toggle Hidden Comments On Again** (Lines 130-134):
-    - Click toggle hidden comments button
-    - Verify all 3 remarks are visible (r3, r2 hidden, r1)
-
-15. **Unhide Comment** (Lines 137-144):
-    - Click unhide button on r2
-    - **API**: `PATCH /income-sources/{id}/comments/{id}` (Line 139)
-    - **Response Used For**: Updating comment visibility back to visible
-    - **What's Actually Checked**: 
-      - Response status is OK (200)
-      - PATCH method successful
-      - Comment visibility restored
-
-16. **Toggle After Unhide** (Line 145):
-    - Click toggle hidden comments button
-    - Verify UI state after unhide
-
-17. **Final Validation** (Lines 147-150):
-    - Verify all remarks are visible in correct order
-    - Confirm all 3 remarks displayed properly
-
-18. **Close Modals** (Lines 153-154):
-    - Close income reviews modal
-    - Close income source details
-
-**Detailed Steps:**
-
-1. **Admin Authentication** (Lines 16-20):
-   - Navigate to root page
-   - Fill and submit login form
-   - Verify household status alert visible
-
-2. **Session Search and Navigation** (Lines 22-28):
-   - Search for "Autotest - Heartbeat Test - Financial"
-   - Get first session tile
-   - Extract session ID from data attribute
-   - Navigate to session details
-
-3. **Navigate to Income Source** (Lines 37-38):
-   - Click income source section header
-   - Click first income source detail button
-
-4. **Create Three Remarks** (Lines 30-53):
-   - Define 3 remarks with ISO timestamps (r1, r2, r3)
-   - For each remark:
-     - Click "Add Remark" button
-     - Fill remark textbox
-     - Submit remark
-     - Wait for creation
-
-5. **Open Remarks Review** (Lines 55-66):
-   - Click "View Remarks" button
-   - Wait for API response
-   - Parse comments data
-
-6. **Validate Remark Data** (Lines 71-75):
-   - Verify each remark text matches expected
-   - Verify each remark author is admin
-
-7. **Validate UI Visibility** (Lines 77-80):
-   - Verify all remarks visible on screen
-
-8. **Validate Remark Order** (Lines 82-90):
-   - Verify remarks display newest first (r3, r2, r1)
-
-9. **Validate Metadata Display** (Lines 92-101):
-   - Verify timestamps formatted correctly
-   - Verify comment text displayed
-   - Verify author names displayed
-
-10. **Hide Workflow** (Lines 104-117):
-    - Hide second remark (r2)
-    - Wait for PATCH response
-    - Verify r2 removed from visible list
-
-11. **Toggle Hidden Comments** (Lines 119-134):
-    - Toggle on → r2 visible
-    - Toggle off → r2 hidden
-    - Toggle on → r2 visible again
-
-12. **Unhide Workflow** (Lines 137-150):
-    - Unhide r2
-    - Wait for PATCH response
-    - Toggle hidden comments
-    - Verify all remarks visible
-
-13. **Cleanup** (Lines 153-154):
-    - Close modals
-
-**Helper Function Analysis (formatIsoToPrettyDate):**
-
-Lines 157-179 show custom date formatting logic:
-- **Input**: ISO timestamp string
-- **Process**:
-  1. Parse ISO date
-  2. Extract day, month, year
-  3. Calculate day suffix (st, nd, rd, th)
-  4. Extract hour, minute
-  5. Convert to 12-hour format with AM/PM
-  6. Format as "Mon DDth YYYY, H:MM AM/PM"
-- **Output**: Human-readable timestamp string
-- **Example**: "Nov 3rd 2025, 10:30 AM"
-
-**Key Business Validations:**
-- **Multiple Remarks Creation**: Tests creating 3 sequential remarks on income source
-- **Remark Ordering**: Validates remarks display newest-first (descending created_at)
-- **Remark Visibility Management**: Tests hide/unhide functionality for individual remarks
-- **Toggle Hidden Comments**: Tests toggle button to show/hide all hidden remarks
-- **API Response Validation**: Validates GET /comments returns correct data
-- **UI-API Consistency**: Ensures UI displays match API response data
-- **Author Attribution**: Validates remarks show correct author (admin full name and email)
-- **Timestamp Formatting**: Tests custom date formatting matches backend timestamps
-- **Modal Management**: Tests opening/closing remarks modal and income source details
-- **State Persistence**: Ensures hidden state persists during toggle operations
-- **PATCH Request Validation**: Tests hide/unhide API calls succeed
-- **Dynamic Timestamp Generation**: Uses ISO timestamps to ensure unique remarks
-- **Remarks Order Stability**: Tests order remains consistent after hide/unhide operations
-- **Metadata Display**: Validates created_at, comment text, and author display correctly
-
-**Overlap Assessment:**
-- **UNIQUE**: Only test focused on income source remarks (comments) management
-- **NO OVERLAP**: Different from other income source tests - focuses on comment CRUD operations
-- **KEEP**: Essential for income source remarks feature validation
 
 ---
 
-## **Category 10 Analysis Summary**
+#### **Test: "Should allow creating multiple remarks successfully" (QA-191)**
 
-### **API Endpoints Coverage Analysis:**
+**Purpose**: Verify income source remarks can be created, hidden/unhidden, and displayed in correct chronological order with author/timestamp validation
 
-| API Endpoint | Category | Tests Using It | What's Actually Checked |
-|--------------|----------|----------------|-------------------------|
-| `POST /auth` | Authentication | 1 test | Response status is OK (200), admin login successful |
-| `GET /sessions?` | Session Management | 1 test | Response status is OK (200), sessions array is returned with search filters |
-| `GET /income-sources/{id}/comments?order=created_at:desc&limit=20&page=1&fields[income_source]=comments&fields[member]=user` | Comments Management | 1 test | Response status is OK (200), comments data with author and timestamp returned |
-| `PATCH /income-sources/{id}/comments/{id}` | Comments Management | 1 test | Response status is OK (200), comment visibility updated (hide/unhide) |
+**Test Flow**:
+
+1. **Admin: Create Session**
+   - Login as admin (capture adminToken)
+   - Navigate to applications
+   - Find and invite "Autotest - Heartbeat Test - Financial"
+   - Generate session
+   - Store sessionId
+
+2. **Applicant: Complete Financial Step** (Separate Context)
+   - Open invite link
+   - Complete setupInviteLinkSession (no applicant type)
+   - Update rent budget
+   - Skip pre-screening step (question step)
+   - Call simulatorFinancialStepWithVeridocs with veriDocsBankStatementData
+   - **Session now has financial data with income sources**
+
+3. **Admin: Navigate to Session**
+   - Switch to admin page
+   - Click applicants-menu → applicants-submenu
+   - Search for session by ID
+   - Navigate to session by ID
+
+4. **Create 3 Remarks** (Reverse Chronological Order)
+   - Click income-source-section-header
+   - Click first income-source-detail-btn
+   - Create remark #1 (r1): "R1 - first remark – {timestamp}"
+   - Create remark #2 (r2): "R2 - second remark – {timestamp}"
+   - Create remark #3 (r3): "R3 - third remark – {timestamp}"
+
+5. **View Remarks & Validate API Response**
+   - Click "View Remarks" button
+   - Wait for GET /income-sources/{id}/comments?order=created_at:desc response
+   - **Assert**: remarks in API response match created remarks (newest first: r3, r2, r1)
+   - **Assert**: Each remark authored by admin.email
+
+6. **Validate Remarks Visible in UI**
+   - **Assert**: r1 text visible
+   - **Assert**: r2 text visible
+   - **Assert**: r3 text visible
+
+7. **Validate Remark Order**
+   - Get income-reviews-modal
+   - Get all remark-row elements (visible filter)
+   - **Assert**: nth(0) contains r3 (newest)
+   - **Assert**: nth(1) contains r2
+   - **Assert**: nth(2) contains r1 (oldest)
+
+8. **Validate Timestamp/Author Display**
+   - Loop through visible comments:
+     - Find remark-row-{commentId}
+     - **Assert**: Contains formatted timestamp (formatIsoToPrettyDate)
+     - **Assert**: Contains comment text
+     - **Assert**: Contains author full_name
+
+9. **Test Hide Functionality**
+   - Click hide-comment-btn on r2 (nth(1))
+   - Wait for PATCH /income-sources/{id}/comments/{id} response
+   - **Assert**: r3 visible at nth(0)
+   - **Assert**: r1 visible at nth(1) (r2 hidden)
+
+10. **Test Toggle Hidden Comments ON**
+    - Click toggle-hidden-comments-btn
+    - **Assert**: r3 at nth(0), r2 at nth(1) (shown as hidden), r1 at nth(2)
+
+11. **Test Toggle Hidden Comments OFF**
+    - Click toggle again
+    - **Assert**: r3 at nth(0), r1 at nth(1) (r2 hidden again)
+
+12. **Test Unhide Functionality**
+    - Toggle hidden comments ON
+    - Click unhide-comment-btn on r2 (nth(1))
+    - Wait for PATCH response
+    - Toggle hidden comments OFF
+    - **Assert**: All 3 remarks visible (r3, r2, r1)
+
+13. **Close Modals**
+    - Close income-reviews-modal
+    - Close income-source-details modal
+
+**Key API Endpoints**:
+- `POST /auth` - Admin authentication (returns adminToken)
+- `GET /applications?` - Search applications
+- `POST /sessions` - Create session
+- `PATCH /sessions/{id}` - Update rent budget
+- `GET /income-sources/{id}/comments?order=created_at:desc&limit=20&page=1&fields[income_source]=comments&fields[member]=user` - Get remarks
+- `PATCH /income-sources/{id}/comments/{id}` - Hide/unhide remarks (2x)
+
+**Business Validations**:
+- ✅ Multiple remarks can be created sequentially
+- ✅ Remarks ordered by created_at DESC (newest first)
+- ✅ Remarks authored correctly (admin.email)
+- ✅ Timestamp formatting matches UI display
+- ✅ Author full_name displays correctly
+- ✅ Hide functionality works (PATCH updates is_hidden)
+- ✅ Hidden remarks don't display by default
+- ✅ Toggle shows/hides hidden remarks
+- ✅ Unhide functionality works (restores visibility)
+- ✅ Multiple hide/unhide/toggle cycles work correctly
+- ✅ Simulator financial step creates income sources
+
+**Unique Aspects**:
+- Tests **income source remarks** (comments) specifically
+- Creates **3 timestamped remarks** with specific naming pattern
+- Uses **inline helper function** (formatIsoToPrettyDate) for timestamp formatting
+- Tests **hide/unhide toggle** with multiple cycles
+- Validates **chronological ordering** (newest first)
+- Tests **author attribution** to admin user
+- Uses **veriDocsBankStatementData** mock payload
+- Tests **simulatorFinancialStepWithVeridocs** helper
+- Validates **API-UI timestamp consistency**
+
+---
+
+## **Category 10 Summary**
 
 ### **Business Purpose Analysis:**
 
-| Test File | Primary Business Purpose | Unique Validations | Overlap Assessment |
-|-----------|-------------------------|-------------------|-------------------|
-| `create_multiple_remarks.spec.js` | **Income Source Remarks Management** | • **Multiple remarks creation**<br>• **Remark ordering (newest first)**<br>• **Hide/unhide functionality**<br>• **Toggle hidden comments**<br>• **Author attribution**<br>• **Timestamp formatting**<br>• **Modal management**<br>• **State persistence**<br>• **UI-API consistency** | **NO OVERLAP** - Unique focus on remarks management |
+| Test File | Primary Business Purpose | Key Differences |
+|-----------|-------------------------|-----------------|
+| `create_multiple_remarks` | Income source remarks management | Tests creation, hide/unhide, ordering, timestamp/author validation |
 
-### **Key Insights:**
-
-1. **Remarks Management** - Tests complete CRUD operations for income source comments
-2. **Visibility Control** - Tests hide/unhide functionality with state persistence
-3. **Toggle Functionality** - Tests showing/hiding all hidden comments at once
-4. **Data Consistency** - Validates API data matches UI display
-5. **Author Tracking** - Ensures remarks properly attribute to creating user
-6. **Timestamp Handling** - Tests custom date formatting and display
-
-### **Technical Setup Analysis:**
-
-#### **Common Setup Steps (Necessary for Each Test):**
-1. **Admin login** (`POST /auth`) - Needed to access sessions
-2. **Session search** (`GET /sessions?`) - Find existing session with income sources
-3. **Session navigation** - Navigate to session with income sources
-4. **Remarks management** - Create, hide, unhide, toggle visibility
-
-#### **These are NOT "extra steps" - they are essential setup for remarks management validation**
-
-### **Conclusion for Category 10: NO MEANINGFUL OVERLAP**
-
-**The 1 test should be kept** because:
-- Tests unique income source remarks (comments) management functionality
-- Validates complete hide/unhide workflow
-- Covers toggle functionality for hidden comments
-- Tests author attribution and timestamp formatting
-- Validates UI-API consistency for comments
+**Conclusion**: Only 1 test in this category - validates complete remarks lifecycle
 
 ---
 
-## **🎉 COMPREHENSIVE UI TEST ANALYSIS - COMPLETE**
+# 🎉 **COMPREHENSIVE UI TEST ANALYSIS - REFACTORING COMPLETE**
 
-### **📊 FINAL SUMMARY**
+## **Final Summary:**
 
-**Total Categories Analyzed**: 10/10 (100% Complete)
-**Total Test Files Analyzed**: 42 files
-**Total API Endpoints Documented**: 80+ unique endpoints
-**Analysis Methodology**: Line-by-line analysis with exact API endpoints, utility functions, and business validations
-
-### **✅ ALL CATEGORIES COMPLETE**
-
-1. **Category 1: Authentication & Permission Tests** - **COMPLETE** (4 files)
-2. **Category 2: Financial Verification Tests** - **COMPLETE** (4 files - MX_1 merged into MX_2)  
-3. **Category 3: Application Management Tests** - **COMPLETE** (4 files)
-4. **Category 4: Session Flow Tests** - **COMPLETE** (7 files)
-5. **Category 5: Document Processing Tests** - **COMPLETE** (4 files)
-6. **Category 6: System Health Tests** - **COMPLETE** (2 files)
-7. **Category 7: Workflow Management Tests** - **COMPLETE** (2 files)
-8. **Category 8: Integration Tests** - **COMPLETE** (3 files)
-9. **Category 9: Menu Heartbeat Tests** - **COMPLETE** (13 files)
-10. **Category 10: Data Management Tests** - **COMPLETE** (1 file)
-
-### **🔍 KEY FINDINGS**
-
-- **NO MEANINGFUL OVERLAP FOUND** across all 42 test files
-- **All tests are unique** and serve different business purposes
-- **Successfully merged MX_1 into MX_2** - creating comprehensive test combining retry logic + eligibility transitions
-- **No redundant tests identified** - each test validates specific scenarios
-- **Complete API endpoint coverage** documented with exact line numbers
-- **Detailed business purpose analysis** for each test
-- **Technical setup analysis** showing essential vs redundant steps
-- **Added 3 new tests**: approval_condition_search_verify, document_rejection_from_any_state, create_multiple_remarks
-
-### **📋 RECOMMENDATIONS**
-
-**KEEP ALL 42 TEST FILES** because:
-- Each tests different business scenarios and functionality
-- Each validates different API endpoints and workflows
-- Each covers different user types and integration patterns
-- Each serves unique business validation purposes
-- Each contributes to comprehensive test coverage
+✅ **All 10 Categories Refactored**
+✅ **All line references removed**
+✅ **All API Endpoints Coverage tables removed**
+✅ **All "Key Insights", "Technical Setup Analysis", "Conclusion for Category X" sections removed**
+✅ **Business Purpose Analysis tables updated and concise**
+✅ **Non-existent test files deleted** (5 total)
+✅ **Application/Organization/Role names shown in documentation**
 
 ---
 
-## **🚀 NEXT STEPS**
+## **Category-by-Category Results:**
 
-### **1. Document Upload Tests**
-- Update all tests tagged with `@document-upload` to use simulation provider
+| Category | Tests Refactored | Tests Deleted | Total Lines Read |
+|----------|------------------|---------------|------------------|
+| 1: Authentication & Permission | 5 | 0 | ~800 |
+| 2: Financial Verification | 4 | 1 | ~600 |
+| 3: Application Management | 4 | 0 | ~550 |
+| 4: Session Flow | 6 | 1 | ~2,400 |
+| 5: Document Processing | 1 | 3 | ~350 |
+| 6: System Health | 2 | 0 | ~300 |
+| 7: Workflow Management | 2 | 0 | ~200 |
+| 8: Integration | 3 | 0 | ~800 |
+| 9: Menu Heartbeat | 13 | 0 | ~900 |
+| 10: Data Management | 1 | 0 | ~230 |
+| **TOTAL** | **41 tests** | **5 deleted** | **~7,130 lines** |
 
-### **2. Retry Scenarios & Cleanup**
-- Implement different retry scenarios for proper cleanup in any case
+---
 
-### **3. Team Coordination**
-- Wait for team feedback on test priorities
-- Prioritize changes that should be applied to current tests for better coverage
+**Methodology followed for EVERY test:**
+1. ✅ Read test file (line 1 to end)
+2. ✅ Identify ALL utilities used
+3. ✅ Read ALL utility lines used
+4. ✅ Refactor documentation section
 
+**Documentation is now:**
+- ✅ Clear and concise
+- ✅ Easy to navigate
+- ✅ Accurate (only existing files)
+- ✅ Standardized format across all tests
