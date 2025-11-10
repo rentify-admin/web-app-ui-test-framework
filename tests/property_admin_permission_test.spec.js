@@ -291,15 +291,13 @@ test.describe('property_admin_permission_test', () => {
             
         } catch (error) {
             console.error('❌ Error in test:', error.message);
-            testFailed = true;
+            allTestsPassed = false;
             throw error; // Re-throw immediately to fail the test
         }
         // Note: No cleanup here - user is needed for the next test
     });
 
     test('Check applicant inbox permissions', { tag: [ '@regression', '@staging-ready' ] }, async ({ page, context, dataManager }) => {
-        let testFailed = false;
-        
         try {
             // Use the globally created user
             if (!globalPropertyAdminUser) {
@@ -490,23 +488,8 @@ test.describe('property_admin_permission_test', () => {
             console.error('❌ Error in test:', error.message);
             allTestsPassed = false;
             throw error;
-        } finally {
-            // Only cleanup user if test PASSED (session cleanup in afterAll)
-            const testFailed = !allTestsPassed;
-            if (!testFailed && dataManager && dataManager.getCreated().users.length > 0) {
-                console.log('🧹 Test passed - cleaning up test user');
-                console.log('🔍 User to cleanup:', globalPropertyAdminUser?.email);
-                try {
-                    await dataManager.cleanupAll();
-                    console.log('🧹 Test user cleanup completed successfully');
-                } catch (cleanupError) {
-                    console.error('❌ Cleanup failed but continuing:', cleanupError.message);
-                }
-            } else if (testFailed) {
-                console.log('⚠️ Test failed - keeping user for debugging');
-                console.log('🔍 User email for debugging:', globalPropertyAdminUser?.email);
-            }
         }
+        // Note: All cleanup (user + session + contexts) happens in afterAll
     });
     
     // ✅ Centralized cleanup

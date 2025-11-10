@@ -9,6 +9,7 @@ import { joinUrl } from '~/tests/utils/helper.js';
 import { waitForJsonResponse } from '~/tests/utils/wait-response';
 import { gotoApplicationsPage, searchApplication } from '~/tests/utils/applications-page';
 import { setupInviteLinkSession } from '~/tests/utils/session-flow';
+import { cleanupSessionAndContexts } from './utils/cleanup-helper';
 
 const API_URL = config.app.urls.api;
 const APP_URL = config.app.urls.app;
@@ -29,10 +30,17 @@ test.beforeEach(async ({ page }) => {
 });
 
 test.describe('financial_mx_2_attempts_success_and_failed_password', () => {
+    // Global state for cleanup
+    let createdSessionId = null;
+    let applicantContext = null;
+    let allTestsPassed = true;
+
     test('Financial - mx - 2 attempts + Eligibility status transitions', {
       tag: ['@regression', '@external-integration', '@eligibility', '@core'],
     }, async ({ page, browser }) => {
-        test.setTimeout(350_000); 
+        test.setTimeout(350_000);
+        
+        try { 
         // Step 1: Admin Login and Navigate
         await loginForm.fill(page, admin);
         await loginForm.submitAndSetLocale(page);
@@ -65,12 +73,14 @@ test.describe('financial_mx_2_attempts_success_and_failed_password', () => {
 
         const link = await linkSection.getAttribute('href');
         const sessionId = sessionData.data?.id;
+        createdSessionId = sessionId;  // Store for cleanup
         const sessionUrl = joinUrl(API_URL, `sessions/${sessionId}`);
 
         // await page.close();
 
         // Step 4: Applicant View — New Context
         const context = await browser.newContext();
+        applicantContext = context;  // Store for cleanup
         const applicantPage = await context.newPage();
         await applicantPage.goto(link);
 
@@ -270,8 +280,7 @@ test.describe('financial_mx_2_attempts_success_and_failed_password', () => {
         console.log('\n🎯 Part 2: Testing eligibility status transitions based on income/rent changes');
         
         // Step 6: Switch to admin report view
-        console.log('Step 6: Closing applicant page and opening admin report view');
-        await applicantPage.close();
+        console.log('Step 6: Opening admin report view');
         const sessionUrlAdmin = `${APP_URL}/applicants/all/${sessionId}`;
         await page.goto(sessionUrlAdmin);
         await page.bringToFront();
@@ -442,5 +451,22 @@ test.describe('financial_mx_2_attempts_success_and_failed_password', () => {
         console.log('\n✅ Part 2 Complete: Eligibility status transitions validated');
         console.log('🎉 Full test passed: MX connections + Additional connect modal + Eligibility logic');
 
+        } catch (error) {
+            console.error('❌ Test failed:', error.message);
+            allTestsPassed = false;
+            throw error;
+        }
+        // Note: Context cleanup happens in afterAll
+    });
+    
+    // ✅ Centralized cleanup
+    test.afterAll(async ({ request }) => {
+        await cleanupSessionAndContexts(
+            request,
+            createdSessionId,
+            applicantContext,
+            null,  // No admin context
+            allTestsPassed
+        );
     });
 });

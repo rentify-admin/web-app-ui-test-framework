@@ -3,7 +3,7 @@ import loginForm from '~/tests/utils/login-form';
 import { customUrlDecode, getRandomEmail } from './utils/helper';
 import { waitForJsonResponse } from './utils/wait-response';
 import { expect, test } from '@playwright/test';
-import { randomUUID } from 'crypto';
+import { cleanupPermissionTest } from './utils/cleanup-helper';
 
 let createdUser = null;
 let applicantContext = null;
@@ -286,53 +286,15 @@ test.describe('QA-102: org_member_application_binding_scoping_check', () => {
     
     // ✅ Cleanup user and context after test
     test.afterAll(async ({ request }) => {
-        console.log('🧹 Starting cleanup...');
-        console.log(`   User: ${createdUser?.email || 'none'}`);
-        console.log(`   All tests passed: ${allTestsPassed}`);
-        
-        // Clean up user (always delete)
-        if (createdUser?.id) {
-            try {
-                console.log('🧹 Deleting test user...');
-                const authResponse = await request.post(`${app.urls.api}/auth`, {
-                    data: {
-                        email: admin.email,
-                        password: admin.password,
-                        uuid: randomUUID(),
-                        os: 'web'
-                    }
-                });
-                
-                if (authResponse.ok()) {
-                    const auth = await authResponse.json();
-                    const token = auth.data.token;
-                    
-                    const deleteResponse = await request.delete(
-                        `${app.urls.api}/users/${createdUser.id}`,
-                        {
-                            headers: { Authorization: `Bearer ${token}` }
-                        }
-                    );
-                    
-                    if (deleteResponse.ok()) {
-                        console.log('✅ User deleted');
-                    } else {
-                        console.log(`⚠️ Failed to delete user: ${deleteResponse.status()}`);
-                    }
-                }
-            } catch (error) {
-                console.error('❌ User cleanup failed:', error.message);
-            }
-        }
-        
-        // Close context
-        if (applicantContext) {
-            try {
-                await applicantContext.close();
-                console.log('✅ Applicant context closed');
-            } catch (error) {
-                // Silent
-            }
-        }
+        // ✅ Centralized cleanup: user + context (no session in this test)
+        await cleanupPermissionTest(
+            request,
+            null,               // No session created in this test
+            applicantContext,   // Applicant context to close
+            null,               // No admin context
+            null,               // No dataManager (user created via UI)
+            createdUser,        // User to delete
+            allTestsPassed      // Conditional cleanup flag
+        );
     });
 });  

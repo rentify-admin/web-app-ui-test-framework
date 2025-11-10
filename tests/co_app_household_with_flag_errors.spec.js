@@ -14,6 +14,13 @@ import {
     completeEmploymentStepViaAPI
 } from '~/tests/utils/session-flow';
 import { findSessionLocator, searchSessionWithText } from '~/tests/utils/report-page';
+import { cleanupSessionAndContexts } from './utils/cleanup-helper';
+
+// Global state for cleanup
+let createdSessionId = null;
+let primaryContext = null;
+let coAppContext = null;
+let allTestsPassed = true;
 
 /**
  * Test: Co-Applicant Flag Attribution and Household Status Transitions
@@ -69,20 +76,23 @@ test.describe('co_app_household_with_flag_errors', () => {
     }, async ({ page, browser }) => {
         test.setTimeout(380000); // Full timeout needed for complex test flow
 
-        // Step 1: Admin Login and Navigate to Applications
-        await loginForm.adminLoginAndNavigate(page, admin);
+        try {
+            // Step 1: Admin Login and Navigate to Applications
+            await loginForm.adminLoginAndNavigate(page, admin);
 
-        await gotoApplicationsPage(page);
-        // Step 2: Find and Invite Application
-        await findAndInviteApplication(page, applicationName);
+            await gotoApplicationsPage(page);
+            // Step 2: Find and Invite Application
+            await findAndInviteApplication(page, applicationName);
 
-        // Step 3: Generate Session and Extract Link
-        const { sessionId, sessionUrl, link } = await generateSessionForm.generateSessionAndExtractLink(page, user);
+            // Step 3: Generate Session and Extract Link
+            const { sessionId, sessionUrl, link } = await generateSessionForm.generateSessionAndExtractLink(page, user);
+            createdSessionId = sessionId; // Store for cleanup
 
         const linkUrl = new URL(link);
 
         // Step 4: Open Invite link
         const context = await browser.newContext();
+        primaryContext = context; // Store for cleanup
 
         const applicantPage = await context.newPage();
         await applicantPage.goto(joinUrl(`${app.urls.app}`, `${linkUrl.pathname}${linkUrl.search}`));
@@ -457,6 +467,7 @@ test.describe('co_app_household_with_flag_errors', () => {
         
         // Open co-app link in new context
         const newPageContext = await browser.newContext();
+        coAppContext = newPageContext; // Store for cleanup
         const coAppPage = await newPageContext.newPage();
 
         const coAppLinkUrl = new URL(coAppInviteUrl);
@@ -650,5 +661,21 @@ test.describe('co_app_household_with_flag_errors', () => {
         console.log('✅ ASSERTION 4 (API): After resolving flag → APPROVED');
         console.log('✅ ASSERTION 4 (UI): UI shows "Meets Criteria"');
         console.log('✅ All household status transitions validated successfully (API + UI)');
+        } catch (error) {
+            console.error('❌ Test failed:', error.message);
+            allTestsPassed = false;
+            throw error;
+        }
+    });
+    
+    // ✅ Centralized cleanup
+    test.afterAll(async ({ request }) => {
+        await cleanupSessionAndContexts(
+            request,
+            createdSessionId,
+            primaryContext,
+            coAppContext,
+            allTestsPassed
+        );
     });
 });

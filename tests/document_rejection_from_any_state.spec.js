@@ -10,6 +10,7 @@ import { waitForJsonResponse } from "./utils/wait-response";
 import { setupInviteLinkSession, updateRentBudget, waitForConnectionCompletion } from "./utils/session-flow";
 import { gotoPage } from "./utils/common";
 import { findSessionLocator, searchSessionWithText } from "./utils/report-page";
+import { cleanupSessionAndContexts } from "./utils/cleanup-helper";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -185,138 +186,156 @@ test.describe('QA-208: Document Rejection from Any State', () => {
     const appName = 'AutoTest - Doc Rejec for any state test';
     let sessionId;
     let applicantPageContext;
+    let allTestsPassed = true;
 
     test('Reject a Document Regardless of Processing State', {
         tag: ['@needs-review']
     }, async ({ page, browser }) => {
-        // Note: first_name will be auto-prefixed with 'AutoT - ' by the helper
-        // Note: email will be auto-suffixed with '+autotest' by the helper
-        const user = {
-            first_name: 'Test',
-            last_name: 'User',
-            email: getRandomEmail(),
-            password: 'password'
-        };
+        try {
+            // Note: first_name will be auto-prefixed with 'AutoT - ' by the helper
+            // Note: email will be auto-suffixed with '+autotest' by the helper
+            const user = {
+                first_name: 'Test',
+                last_name: 'User',
+                email: getRandomEmail(),
+                password: 'password'
+            };
 
-        // 1. Setup Session
-        await adminLoginAndNavigateToApplications(page, admin);
-        await findAndInviteApplication(page, appName);
+            // 1. Setup Session
+            await adminLoginAndNavigateToApplications(page, admin);
+            await findAndInviteApplication(page, appName);
 
-        const sessionInfo = await generateSessionForm.generateSessionAndExtractLink(page, user);
-        sessionId = sessionInfo.sessionId;
-        const link = sessionInfo.link;
+            const sessionInfo = await generateSessionForm.generateSessionAndExtractLink(page, user);
+            sessionId = sessionInfo.sessionId;
+            const link = sessionInfo.link;
 
-        const linkUrl = new URL(link);
-        applicantPageContext = await browser.newContext({
-            permissions: ['camera', 'microphone'],
-            launchOptions: {
-                args: [
-                    '--use-fake-ui-for-media-stream',
-                    '--use-fake-device-for-media-stream'
-                ]
-            }
-        });
-        const applicantPage = await applicantPageContext.newPage();
-        await applicantPage.goto(joinUrl(`${app.urls.app}`, `${linkUrl.pathname}${linkUrl.search}`));
-
-        // Listen for session data to be retrieved
-        applicantPage.on('response', async response => {
-            if (response.url().includes(`/sessions/${sessionId}?fields[session]`) && response.ok() && response.request().method() === 'GET') {
-                const sessionData = await waitForJsonResponse(response);
-                session = sessionData.data;
-                await applicantPage.waitForTimeout(1000);
-            }
-        });
-
-        // 2. Complete Applicant Flow Steps
-        console.log('➡️ Starting applicant flow...');
-        
-        await setupInviteLinkSession(applicantPage, {
-            sessionUrl: sessionInfo.sessionUrl,
-            applicantTypeSelector: '#affordable_occupant'
-        });
-        
-        await updateRentBudget(applicantPage, sessionId, '1500');
-
-
-        await expect(applicantPage.getByTestId('financial-verification-step')).toBeVisible();
-        console.log('✅ Applicant flow navigated to financial verification step.');
-
-        // 3. Navigate Admin to Session Details
-        await page.bringToFront();
-        await gotoPage(page, 'applicants-menu', 'applicants-submenu', '/sessions?fields[session]');
-        await searchSessionWithText(page, sessionId);
-
-        const sessionLocator = await findSessionLocator(page, `.application-card[data-session="${sessionId}"]`);
-
-        // Wait for responses upon clicking session card
-        const [sessionResponse, filesResponse] = await Promise.all([
-            page.waitForResponse(resp => resp.url().includes(`/sessions/${sessionId}?fields[session]`) && resp.ok() && resp.request().method() === 'GET'),
-            page.waitForResponse(resp => resp.url().includes(`/sessions/${sessionId}/files?fields[file]`) && resp.ok() && resp.request().method() === 'GET'),
-            sessionLocator.click()
-        ]);
-        await waitForJsonResponse(sessionResponse);
-        let { data: files } = await waitForJsonResponse(filesResponse);
-
-        // 4. Upload Initial Document (Processing State)
-        console.log('➡️ Uploading first document...');
-        await uploadFinancialStatement(applicantPage);
-
-        // 5. Reject Document in a Pre-Processed State
-        files = await navigateToFilesTabAndReload(page, sessionId);
-        const allWrapper = page.getByTestId('file-section-all-wrapper');
-
-        if (files.length > 0) {
-            console.log(`🔍 Found ${files.length} file(s). Checking for pre-processed status...`);
-            const preProcessedStatuses = ['PENDING', 'CLASSIFIED', 'CLASSIFYING', 'UPLOADED'];
-
-            for (const element of files) {
-                if (preProcessedStatuses.includes(element.status)) {
-                    const row = allWrapper.getByTestId(`all-tr-${element.id}`);
-                    await failDocument(row, page, sessionId);
+            const linkUrl = new URL(link);
+            applicantPageContext = await browser.newContext({
+                permissions: ['camera', 'microphone'],
+                launchOptions: {
+                    args: [
+                        '--use-fake-ui-for-media-stream',
+                        '--use-fake-device-for-media-stream'
+                    ]
                 }
+            });
+            const applicantPage = await applicantPageContext.newPage();
+            await applicantPage.goto(joinUrl(`${app.urls.app}`, `${linkUrl.pathname}${linkUrl.search}`));
+
+            // Listen for session data to be retrieved
+            applicantPage.on('response', async response => {
+                if (response.url().includes(`/sessions/${sessionId}?fields[session]`) && response.ok() && response.request().method() === 'GET') {
+                    const sessionData = await waitForJsonResponse(response);
+                    session = sessionData.data;
+                    await applicantPage.waitForTimeout(1000);
+                }
+            });
+
+            // 2. Complete Applicant Flow Steps
+            console.log('➡️ Starting applicant flow...');
+            
+            await setupInviteLinkSession(applicantPage, {
+                sessionUrl: sessionInfo.sessionUrl,
+                applicantTypeSelector: '#affordable_occupant'
+            });
+            
+            await updateRentBudget(applicantPage, sessionId, '1500');
+
+
+            await expect(applicantPage.getByTestId('financial-verification-step')).toBeVisible();
+            console.log('✅ Applicant flow navigated to financial verification step.');
+
+            // 3. Navigate Admin to Session Details
+            await page.bringToFront();
+            await gotoPage(page, 'applicants-menu', 'applicants-submenu', '/sessions?fields[session]');
+            await searchSessionWithText(page, sessionId);
+
+            const sessionLocator = await findSessionLocator(page, `.application-card[data-session="${sessionId}"]`);
+
+            // Wait for responses upon clicking session card
+            const [sessionResponse, filesResponse] = await Promise.all([
+                page.waitForResponse(resp => resp.url().includes(`/sessions/${sessionId}?fields[session]`) && resp.ok() && resp.request().method() === 'GET'),
+                page.waitForResponse(resp => resp.url().includes(`/sessions/${sessionId}/files?fields[file]`) && resp.ok() && resp.request().method() === 'GET'),
+                sessionLocator.click()
+            ]);
+            await waitForJsonResponse(sessionResponse);
+            let { data: files } = await waitForJsonResponse(filesResponse);
+
+            // 4. Upload Initial Document (Processing State)
+            console.log('➡️ Uploading first document...');
+            await uploadFinancialStatement(applicantPage);
+
+            // 5. Reject Document in a Pre-Processed State
+            files = await navigateToFilesTabAndReload(page, sessionId);
+            const allWrapper = page.getByTestId('file-section-all-wrapper');
+
+            if (files.length > 0) {
+                console.log(`🔍 Found ${files.length} file(s). Checking for pre-processed status...`);
+                const preProcessedStatuses = ['PENDING', 'CLASSIFIED', 'CLASSIFYING', 'UPLOADED'];
+
+                for (const element of files) {
+                    if (preProcessedStatuses.includes(element.status)) {
+                        const row = allWrapper.getByTestId(`all-tr-${element.id}`);
+                        await failDocument(row, page, sessionId);
+                    }
+                }
+            } else {
+                console.warn('⚠️ No files found after first upload to attempt rejection from a pre-processed state.');
             }
-        } else {
-            console.warn('⚠️ No files found after first upload to attempt rejection from a pre-processed state.');
+
+            // 6. Upload Second Document (and wait for full processing)
+            console.log('➡️ Uploading second document and waiting for completion...');
+            const { financialVerification } = await uploadFinancialStatement(applicantPage);
+            // Wait for the document processing to complete on the admin side
+            await waitForConnectionCompletion(applicantPage);
+
+            // 7. Verify Document State: Reject (Manual Override)
+            files = await navigateToFilesTabAndReload(page, sessionId);
+
+            // Locate the row for the second uploaded file (assuming the first file in financialVerification.files is the one)
+            const fileToManage = financialVerification.files[0];
+            const fileRowLocator = allWrapper.getByTestId(`all-tr-${fileToManage.id}`);
+
+            console.log('➡️ Initiating Accept -> Reject cycle on processed document.');
+
+            // Waiting for document to get rejected
+            let count = 0
+            let textdata = '';
+            do {
+                await page.reload();
+                await page.getByTestId('files-section-header').click();
+                await page.getByTestId('document-tab-all').click();
+                await expect(page.getByTestId('file-section-all-wrapper')).toBeVisible();
+                textdata = await fileRowLocator.getByTestId('files-document-status-pill').textContent()
+                await page.waitForTimeout(5000);
+                count++;
+            } while (!textdata.includes('Rejected') || count > 5)
+
+            await expect(fileRowLocator.getByTestId('files-document-status-pill')).toContainText('Rejected', { timeout: 20_000 })
+
+            // Initially Accepting document to check reject
+            await acceptDocument(fileRowLocator, page, sessionId);
+
+            // Rejecting document
+            await rejectDocument(fileRowLocator, page, sessionId);
+
+            console.log('✅ Document rejection test completed successfully');
+        } catch (error) {
+            console.error('❌ Test failed:', error.message);
+            allTestsPassed = false;
+            throw error;
         }
-
-        // 6. Upload Second Document (and wait for full processing)
-        console.log('➡️ Uploading second document and waiting for completion...');
-        const { financialVerification } = await uploadFinancialStatement(applicantPage);
-        // Wait for the document processing to complete on the admin side
-        await waitForConnectionCompletion(applicantPage);
-
-        // 7. Verify Document State: Reject (Manual Override)
-        files = await navigateToFilesTabAndReload(page, sessionId);
-
-        // Locate the row for the second uploaded file (assuming the first file in financialVerification.files is the one)
-        const fileToManage = financialVerification.files[0];
-        const fileRowLocator = allWrapper.getByTestId(`all-tr-${fileToManage.id}`);
-
-        console.log('➡️ Initiating Accept -> Reject cycle on processed document.');
-
-        // Waiting for document to get rejected
-        let count = 0
-        let textdata = '';
-        do {
-            await page.reload();
-            await page.getByTestId('files-section-header').click();
-            await page.getByTestId('document-tab-all').click();
-            await expect(page.getByTestId('file-section-all-wrapper')).toBeVisible();
-            textdata = await fileRowLocator.getByTestId('files-document-status-pill').textContent()
-            await page.waitForTimeout(5000);
-            count++;
-        } while (!textdata.includes('Rejected') || count > 5)
-
-        await expect(fileRowLocator.getByTestId('files-document-status-pill')).toContainText('Rejected', { timeout: 20_000 })
-
-        // Initially Accepting document to check reject
-        await acceptDocument(fileRowLocator, page, sessionId);
-
-        // Rejecting document
-        await rejectDocument(fileRowLocator, page, sessionId);
-
-        // Clean up context is generally a good practice for isolated tests
-        await applicantPageContext.close();
+        // Note: Context cleanup happens in afterAll
+    });
+    
+    // ✅ Centralized cleanup
+    test.afterAll(async ({ request }) => {
+        await cleanupSessionAndContexts(
+            request,
+            sessionId,
+            applicantPageContext,
+            null,  // No admin context
+            allTestsPassed
+        );
     });
 });
