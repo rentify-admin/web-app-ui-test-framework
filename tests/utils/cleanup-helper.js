@@ -190,6 +190,39 @@ async function deleteSession(request, sessionId, token) {
 }
 
 /**
+ * Delete a application using authenticated request
+ * Handles co-applicants deletion first if they exist
+ * @param {APIRequestContext} request - Playwright request context
+ * @param {string} applicationId - Application ID to delete
+ * @param {string} token - Auth token
+ * @returns {Promise<boolean>} True if deletion succeeded
+ */
+async function deleteApplication(request, applicationId, token) {
+    try {
+
+        
+        // Now delete the primary session
+        const deleteResponse = await request.delete(
+            `${app.urls.api}/applications/${applicationId}`,
+            {
+                headers: { Authorization: `Bearer ${token}` }
+            }
+        );
+        
+        if (deleteResponse.ok()) {
+            console.log('✅ Application deleted');
+            return true;
+        } else {
+            console.log(`⚠️ Failed to delete application: ${deleteResponse.status()}`);
+            return false;
+        }
+    } catch (error) {
+        console.error('❌ Application deletion error:', error.message);
+        return false;
+    }
+}
+
+/**
  * Clean up a session (delete if tests passed, keep for debugging if failed)
  * @param {APIRequestContext} request - Playwright request context
  * @param {string} sessionId - Session ID to clean up
@@ -220,6 +253,41 @@ export async function cleanupSession(request, sessionId, allTestsPassed = true) 
     } catch (error) {
         console.error('❌ Cleanup error:', error.message);
         console.log(`⚠️ Manual cleanup required - Session: ${sessionId}`);
+    }
+}
+
+
+/**
+ * Clean up a application (delete if tests passed, keep for debugging if failed)
+ * @param {APIRequestContext} request - Playwright request context
+ * @param {string} applicationId - Application ID to clean up
+ * @param {boolean} allTestsPassed - Whether all tests passed (default: true)
+ * @returns {Promise<void>}
+ */
+export async function cleanupApplication(request, applicationId, allTestsPassed = true) {
+    if (!applicationId) {
+        return;
+    }
+    
+    if (!allTestsPassed) {
+        console.log(`⚠️ Keeping application for debugging: ${applicationId}`);
+        return;
+    }
+    
+    try {
+        const token = await authenticateAdmin(request);
+        if (!token) {
+            console.log(`⚠️ Manual cleanup required - Application: ${applicationId}`);
+            return;
+        }
+        
+        const deleted = await deleteApplication(request, applicationId, token);
+        if (!deleted) {
+            console.log(`⚠️ Manual cleanup required - Application: ${applicationId}`);
+        }
+    } catch (error) {
+        console.error('❌ Cleanup error:', error.message);
+        console.log(`⚠️ Manual cleanup required - Application: ${applicationId}`);
     }
 }
 
