@@ -3,14 +3,17 @@ import { test, expect } from "./fixtures/api-data-fixture";
 import { admin, app } from "./test_config";
 import { createApplicationFlow } from "./utils/application-management";
 import { searchApplication } from "./utils/applications-page";
-import { cleanupApplication } from "./utils/cleanup-helper";
+import { authenticateAdmin, cleanupApplication } from "./utils/cleanup-helper";
 import { fillMultiselect } from "./utils/common";
 import { getRandomNumber, joinUrl } from "./utils/helper";
 import loginForm from "./utils/login-form";
 import { waitForJsonResponse } from "./utils/wait-response";
+import WorkflowBuilder from "./utils/workflow-builder";
 
 // Global variable to store the ID of the created application for cleanup.
 let cleanupApplicationId = null
+
+const workflowTemplate = 'Autotest-suite-fin-only';
 
 // Define the test suite for QA-215: Default Applicant Type Override in Application Workflow Steps.
 test.describe('QA-215 default_applicant_type_override_in_application_workflow_steps.spec', () => {
@@ -21,6 +24,27 @@ test.describe('QA-215 default_applicant_type_override_in_application_workflow_st
     });
 
     // Cleanup hook that runs after all tests in the suite have completed.
+
+    test.beforeAll(async ({ request }) => {
+        // if Workflow not found then create workflow with required configuration
+        const token = await authenticateAdmin(request);
+        if (!token) {
+            console.log(`⚠️ Manual workflow creation not triggered`);
+            return;
+        }
+        // Constants for workflow creation
+        const workflowBuilder = new WorkflowBuilder(request, workflowTemplate, token)
+        if (!await workflowBuilder.checkWorkflowExists()) {
+            await workflowBuilder.checkOrCreateWorkflow();
+            await workflowBuilder.getRequiredData();
+            await workflowBuilder.createIdentityStep({});
+            await workflowBuilder.createFinancialStep({});
+            await workflowBuilder.fetchCreatedSteps();
+            await workflowBuilder.createPaths();
+        }
+        console.log("✅ Workflow setup complete for default applicant type override scenario.");
+    });
+
     test.afterAll(async ({ request }) => {
         console.log(`🧹 Suite Cleanup: Running afterAll cleanup`);
         try {
@@ -68,7 +92,7 @@ test.describe('QA-215 default_applicant_type_override_in_application_workflow_st
                     'Self-Employed',
                     'Other'
                 ],
-                workflowTemplate: 'Autotest-suite-fin-only',
+                workflowTemplate: workflowTemplate,
                 flagCollection: 'High Risk',
                 minimumAmount: '500'
             };
