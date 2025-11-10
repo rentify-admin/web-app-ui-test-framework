@@ -24,7 +24,7 @@ import { admin, app } from '~/tests/test_config';
  * @param {APIRequestContext} request - Playwright request context
  * @returns {Promise<string|null>} Auth token or null if failed
  */
-async function authenticateAdmin(request) {
+export async function authenticateAdmin(request) {
     try {
         const authResponse = await request.post(`${app.urls.api}/auth`, {
             data: {
