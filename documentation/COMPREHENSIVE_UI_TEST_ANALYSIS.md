@@ -2537,7 +2537,11 @@ Based on the test files in the framework, I've identified these categories:
 **Purpose**: Validates complete frontend UI health including sidebar navigation, session actions, and section dropdowns
 
 **Configuration**:
-- **No specific application/session** (uses system-wide UI checks + existing "Autotest Suite - Full Test" sessions)
+- **Application**: "Autotest - UI permissions tests"
+- **User**: Heartbeat Test (dynamic email: `heartbeat-test-{timestamp}@verifast.com`)
+- **Rent Budget**: $2,500
+- **Session Creation**: beforeAll hook (complete session with all steps enabled)
+- **Cleanup**: afterAll hook via cleanupSessionAndContexts
 - **Tags Test 1**: @core, @smoke, @regression, @staging-ready
 - **Tags Test 2**: @core, @smoke, @regression, @critical
 
@@ -2585,6 +2589,33 @@ Based on the test files in the framework, I've identified these categories:
 
 ---
 
+#### **beforeAll Hook: Create Complete Session**
+
+**Purpose**: Create a complete session with all steps for testing action buttons and section dropdowns
+
+**Test Flow**:
+1. **Create Admin Context & Page**
+   - Create new browser context for admin
+   - Open new page and navigate to homepage
+
+2. **Create Complete Session via createPermissionTestSession**
+   - **Application**: "Autotest - UI permissions tests"
+   - **User**: Heartbeat Test (email: `heartbeat-test-{timestamp}@verifast.com`)
+   - **Rent Budget**: $2,500
+   - **All steps enabled by default**:
+     - completeIdentity: true (Persona UI with real images)
+     - completeFinancial: true (VERIDOCS bank statement)
+     - completeEmployment: true (ATOMIC employment data)
+     - addChildApplicant: true
+   - Store sessionId globally as `sharedSessionId`
+   - Store applicantContext for cleanup
+   - Store adminContext for cleanup
+   - Close admin page (keep contexts for cleanup)
+
+**Result**: Complete session ready for testing with all verification data populated
+
+---
+
 #### **Test 2: "Should test session actions and section dropdowns"**
 
 **Purpose**: Verify session action buttons and collapsible section headers function correctly
@@ -2597,16 +2628,16 @@ Based on the test files in the framework, I've identified these categories:
    - Submit and set locale to English
    - Verify household-status-alert visible
 
-2. **Navigate to Reviewed Sessions**
+2. **Navigate to Applicants Inbox**
    - Check if applicants-menu already open (smart navigation)
-   - Click reviewed-submenu ("Meets Criteria")
-   - Wait for GET /sessions? response
+   - If not open, click to expand
+   - Click applicants-submenu
+   - Wait 2s for page load
 
-3. **Find Populated Session**
-   - Search for "Autotest Suite - Full Test" sessions
-   - **Assert**: sessions.length > 0
-   - Get first session ID
-   - Navigate to session by ID (submenu: 'reviewed')
+3. **Navigate to Shared Session**
+   - Call navigateToSessionById with `sharedSessionId` from beforeAll
+   - Navigate to session detail page (submenu: 'all')
+   - Verify household-status-alert visible
 
 4. **Test Action Dropdown Buttons**
    - Click session-action-btn
@@ -2643,14 +2674,31 @@ Based on the test files in the framework, I've identified these categories:
      - **Assert**: arrow has class `rotate-90`
 
 **Key API Endpoints**:
-- `POST /auth` - Admin authentication
-- `GET /users/self` - Get user data
-- `PATCH /users/{id}` - Set locale to English
-- `GET /sessions?` - Load sessions for "Meets Criteria" submenu
-- `GET /sessions?fields[session]` - Search sessions by text
-- `GET /sessions/{id}?fields[session]` - Navigate to session by ID
+- **beforeAll**: Via createPermissionTestSession helper:
+  - `POST /auth` - Admin authentication
+  - `GET /applications?` - Find application
+  - `POST /sessions` - Create session
+  - `POST /auth/guests` - Guest authentication
+  - `POST /sessions/{id}/steps` - Create steps (identity, financial, employment)
+  - `GET /providers` - Get Simulation provider (2x for financial & employment)
+  - `POST /financial-verifications` - Upload VERIDOCS bank statement (6 transactions)
+  - `POST /employment-verifications` - Upload ATOMIC employment data
+  - `PATCH /sessions/{id}/steps/{stepId}` - Mark steps as COMPLETED (2x)
+  - `GET /sessions/{id}` - Poll for step transitions
+- **Test Flow**:
+  - `POST /auth` - Admin authentication
+  - `GET /users/self` - Get user data
+  - `PATCH /users/{id}` - Set locale to English
+  - `GET /sessions?fields[session]` - Search sessions by ID
+  - `GET /sessions/{id}?fields[session]` - Navigate to session by ID
+- **afterAll**:
+  - `POST /auth` - Admin authentication for cleanup
+  - `GET /sessions/{id}?fields[session]=id,children` - Get session details
+  - `DELETE /sessions/{child_id}` - Delete co-applicants
+  - `DELETE /sessions/{id}` - Delete primary session
 
 **Business Validations**:
+- ✅ **Complete session creation via API/UI** (identity + financial + employment)
 - ✅ Session action dropdown contains all 7 expected buttons
 - ✅ All action buttons visible and enabled
 - ✅ View Details modal opens and closes correctly
@@ -2658,14 +2706,19 @@ Based on the test files in the framework, I've identified these categories:
 - ✅ Arrow rotation classes update on toggle (-rotate-90 vs rotate-90)
 - ✅ Section content visibility toggles correctly
 - ✅ Smart menu navigation (checks if already open)
+- ✅ **Conditional cleanup** (session deleted only if all tests pass)
 
 **Unique Aspects**:
+- **Creates complete session in beforeAll** (NEW - not searching existing sessions)
+- Uses **createPermissionTestSession helper** for full session setup with real verification data
+- Tests **session detail UI** with populated data (identity images, bank statement, employment)
 - Uses **2 helper functions** (testDropdownButtons, testViewDetailsModal)
 - Tests **13 main menus** with complete navigation coverage
 - Validates **arrow rotation animations** (CSS class changes)
 - Tests **7 action buttons** in dropdown
 - Validates **6 collapsible sections**
-- Uses **existing populated session** (no session creation needed)
+- **Shared session pattern**: beforeAll creates, tests use, afterAll cleans up
+- **Context management**: Tracks applicant & admin contexts for proper cleanup
 - Tests **smart navigation** pattern (check menu state before clicking)
 
 ---
@@ -2784,10 +2837,10 @@ Based on the test files in the framework, I've identified these categories:
 
 | Test File | Primary Business Purpose | Key Differences |
 |-----------|-------------------------|-----------------|
-| `frontend_heartbeat` | System-wide UI health check | Tests all 13 menus, 7 action buttons, 6 section toggles, no session creation |
+| `frontend_heartbeat` | System-wide UI health check | Tests all 13 menus, 7 action buttons, 6 section toggles, **beforeAll creates complete session** |
 | `heartbeat_completed_application_click_check` | Completed session navigation | Tests popup behavior, step re-navigation, beforeAll shared session |
 
-**Conclusion**: No overlap - one tests system UI, other tests completed session interaction patterns
+**Conclusion**: No overlap - one tests system UI with complete session, other tests completed session interaction patterns. Both now use beforeAll session creation + afterAll cleanup.
 
 ---
 
@@ -3090,86 +3143,119 @@ Based on the test files in the framework, I've identified these categories:
 
 ### **2. pdf_download_test.spec.js**
 
-**Purpose**: Validates PDF export functionality by finding a session with export available and downloading the PDF
+**Purpose**: Validates PDF export functionality using a minimal session created specifically for the test
 
 **Configuration**:
-- **User**: Staff user (staff+testing@verifast.com)
-- **No specific session** (tests first 4 available sessions)
-- **No timeout** (default)
+- **Application**: "Autotest - UI permissions tests"
+- **User**: PDFTest Export (dynamic email: `pdf-test-{timestamp}@verifast.com`)
+- **Rent Budget**: $2,500
+- **Session Type**: MINIMAL (only created, no steps completed)
+- **Session Creation**: beforeAll hook (minimal session - completeIdentity/Financial/Employment/ChildApplicant all false)
+- **Cleanup**: afterAll hook via cleanupSessionAndContexts
+- **Timeout**: 300s (beforeAll)
 - **Tags**: @core, @regression, @staging-ready
+
+---
+
+#### **beforeAll Hook: Create Minimal Session**
+
+**Purpose**: Create minimal session with just session creation (no verification steps) for PDF export testing
+
+**Test Flow**:
+1. **Create Admin Context & Page**
+   - Create new browser context for admin
+   - Open new page and navigate to homepage
+
+2. **Create Minimal Session via createPermissionTestSession**
+   - **Application**: "Autotest - UI permissions tests"
+   - **User**: PDFTest Export (email: `pdf-test-{timestamp}@verifast.com`)
+   - **Rent Budget**: $2,500
+   - **Minimal configuration** (all verification steps disabled):
+     - completeIdentity: false
+     - completeFinancial: false
+     - completeEmployment: false
+     - addChildApplicant: false
+   - **Result**: Session created and stopped after rent budget (before applicant invite step)
+   - Store sessionId globally as `sharedSessionId`
+   - Store applicantContext for cleanup
+   - Store adminContext for cleanup
+   - Close admin page (keep contexts for cleanup)
+
+**Note**: Minimal session enables testing PDF export functionality without requiring full verification flow
 
 ---
 
 #### **Test: "Should successfully export PDF for an application"**
 
-**Purpose**: Verify PDF export works for sessions with export button available
+**Purpose**: Verify PDF export works for the created minimal session
 
 **Test Flow**:
 
 1. **Staff Login**
    - Navigate to homepage
-   - Login as staff user
+   - Login as staff user (staff+testing@verifast.com)
    - Submit and set locale to English
    - Verify applicants-menu visible
 
-2. **Load Sessions**
-   - Reload page → wait for GET /sessions?fields[session] response
-   - Extract sessions array
-   - **Assert**: sessions.length > 0
+2. **Navigate to Applicants Inbox**
+   - Check if applicants-menu already open (smart navigation)
+   - If not open, click to expand
+   - Click applicants-submenu
+   - Wait 2s for page load
 
-3. **Find Exportable Session** (Try first 4 sessions)
-   - Loop through sessions (max 4 attempts):
-     - Find session card by data-session attribute
-     - Click session link
-     - Reload page → wait for GET /sessions/{id} response
-     - Wait 1s for session to load
-     - Check if export-session-btn visible
-     - If not visible, click session-action-btn → wait 600ms
-     - If export-session-btn visible:
-       - Call checkExportPdf helper with sessionId
-       - Mark pdfExported = true
-       - Break loop
-     - If not available:
-       - Click applicants-submenu to go back
-       - Try next session
-   - **Assert**: pdfExported = true (at least 1 session exported)
+3. **Navigate to Shared Session**
+   - Call navigateToSessionById with `sharedSessionId` from beforeAll
+   - Navigate to session detail page (submenu: 'applicants')
+   - Wait 1s for session to load
 
-4. **checkExportPdf Helper Actions**
-   - Handle duplicate export buttons (use nth(1) if count > 1)
-   - Click export button → wait for modal
-   - Click income-source-delist-submit
-   - Wait for GET /sessions?session_ids[]={id} with content-type: application/pdf
-   - Wait for popup event
-   - **Assert**: Content-Type = 'application/pdf'
-   - Close popup (with browser-specific handling for chromium)
+4. **Export PDF**
+   - Call checkExportPdf helper with sessionId
+   - Helper actions:
+     - Click export button
+     - Wait for modal
+     - Click income-source-delist-submit
+     - Wait for GET /sessions?session_ids[]={id} with content-type: application/pdf
+     - Wait for popup event
+     - **Assert**: Content-Type = 'application/pdf'
+     - Close popup
 
 **Key API Endpoints**:
-- `POST /auth` - Staff authentication
-- `GET /users/self` - Get user data
-- `PATCH /users/{id}` - Set locale to English
-- `GET /sessions?fields[session]` - Load sessions list
-- `GET /sessions/{id}` - Get session details (up to 4 times)
-- `GET /sessions?session_ids[]={id}` - Download PDF (content-type: application/pdf)
+- **beforeAll**: Via createPermissionTestSession helper:
+  - `POST /auth` - Admin authentication
+  - `GET /applications?` - Find application
+  - `POST /sessions` - Create minimal session
+  - **Note**: Minimal session stops after rent budget, no verification steps executed
+- **Test Flow**:
+  - `POST /auth` - Staff authentication
+  - `GET /users/self` - Get user data
+  - `PATCH /users/{id}` - Set locale to English
+  - `GET /sessions?fields[session]` - Search sessions by ID
+  - `GET /sessions/{id}?fields[session]` - Navigate to session by ID
+  - `GET /sessions?session_ids[]={id}` - Download PDF (content-type: application/pdf)
+- **afterAll**:
+  - `POST /auth` - Admin authentication for cleanup
+  - `DELETE /sessions/{id}` - Delete session (no co-applicants in minimal session)
 
 **Business Validations**:
+- ✅ **Minimal session creation** (just rent budget, no verifications needed for PDF)
 - ✅ Staff users can login and access sessions
-- ✅ Sessions list loads correctly
-- ✅ Export button availability can be checked
-- ✅ Export button may require action button click
+- ✅ PDF export works for minimal sessions
 - ✅ PDF download works (application/pdf content-type)
 - ✅ Popup window opens for PDF view
-- ✅ Multiple sessions can be tried until export available
-- ✅ Graceful fallback if session doesn't have export
+- ✅ **Conditional cleanup** (session deleted only if test passes)
+- ✅ Export button accessible via checkExportPdf helper
 
 **Unique Aspects**:
+- **Creates minimal session in beforeAll** (NEW - not searching existing sessions)
+- Uses **createPermissionTestSession with all steps disabled** (most efficient for PDF test)
 - Tests **PDF export integration** specifically
-- Uses **retry pattern** (try up to 4 sessions)
 - Tests **staff user login** (not admin)
 - Validates **content-type header** (application/pdf)
-- Handles **duplicate export buttons** (nth selection)
 - Tests **popup window** for PDF display
+- **No verification data needed** (PDF export works for minimal sessions)
+- **Shared session pattern**: beforeAll creates minimal, test uses, afterAll cleans up
+- **Context management**: Tracks applicant & admin contexts for proper cleanup
 - Uses **browser-specific handling** (chromium vs others)
-- **No session creation** (uses existing sessions)
 
 ---
 
@@ -3339,10 +3425,10 @@ Based on the test files in the framework, I've identified these categories:
 | Test File | Primary Business Purpose | Key Differences |
 |-----------|-------------------------|-----------------|
 | `hosted_app_copy_verify_flow_plaid_id_emp_skip` | Hosted app phone auth flow | Phone login, registration form, clipboard copy, passport upload |
-| `pdf_download_test` | PDF export functionality | Staff user, retry pattern, content-type validation, no session creation |
+| `pdf_download_test` | PDF export functionality | **beforeAll creates minimal session**, staff user, content-type validation, afterAll cleanup |
 | `request_additional_information` | Document request workflow | 2-part test, state safety validation, error collection, network error handling |
 
-**Conclusion**: No overlap - each tests distinct integration point (hosted app, PDF export, document request)
+**Conclusion**: No overlap - each tests distinct integration point (hosted app, PDF export, document request). pdf_download_test now uses beforeAll/afterAll pattern for session management.
 
 ---
 
