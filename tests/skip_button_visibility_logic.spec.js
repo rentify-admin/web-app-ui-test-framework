@@ -16,6 +16,7 @@ import {
 } from '~/tests/utils/session-flow';
 import { gotoApplicationsPage, findAndInviteApplication } from '~/tests/utils/applications-page';
 import generateSessionForm from '~/tests/utils/generate-session-form';
+import { cleanupSessionAndContexts } from './utils/cleanup-helper';
 
 
 
@@ -34,94 +35,114 @@ const user = {
 test.describe('skip_button_visibility_logic', () => {
     test.describe.configure({ mode: 'default', timeout: 300000 }); // 5 minutes timeout
 
-
+    // Global state for cleanup
+    let sessionId = null;
+    let applicantContext = null;
+    let allTestsPassed = true;
 
     test('Should ensure skip button visibility logic across verification steps using existing application', {
         tag: ['@regression', '@external-integration', '@staging-ready'],
     }, async ({ page, browser }) => {
-        
-        // Step 1: Admin login and navigate to applications
-        console.log('🚀 Step 1: Admin login and navigate to applications');
-        await loginForm.adminLoginAndNavigate(page, admin);
-        
-        // Step 2: Search for existing application and invite
-        console.log('🚀 Step 2: Search for existing application and invite');
-        await gotoApplicationsPage(page);
-        const existingAppName = 'Autotest - Full flow skip button test';
-        await findAndInviteApplication(page, existingAppName);
+        try {
+            // Step 1: Admin login and navigate to applications
+            console.log('🚀 Step 1: Admin login and navigate to applications');
+            await loginForm.adminLoginAndNavigate(page, admin);
+            
+            // Step 2: Search for existing application and invite
+            console.log('🚀 Step 2: Search for existing application and invite');
+            await gotoApplicationsPage(page);
+            const existingAppName = 'Autotest - Full flow skip button test';
+            await findAndInviteApplication(page, existingAppName);
 
-        // Step 3: Generate Session and Extract Link
-        console.log('🚀 Step 3: Generate Session and Extract Link');
-        const { sessionId, sessionUrl, link } = await generateSessionForm.generateSessionAndExtractLink(page, user);
+            // Step 3: Generate Session and Extract Link
+            console.log('🚀 Step 3: Generate Session and Extract Link');
+            const sessionData = await generateSessionForm.generateSessionAndExtractLink(page, user);
+            sessionId = sessionData.sessionId;
+            const { sessionUrl, link } = sessionData;
 
-        const linkUrl = new URL(link);
-        console.log('📋 Generated Session Link:', link);
+            const linkUrl = new URL(link);
+            console.log('📋 Generated Session Link:', link);
 
-        // Step 4: Applicant View — New Context
-        console.log('🚀 Step 4: Applicant View — New Context');
-        const context = await browser.newContext({ permissions: ['camera'] });
-        const applicantPage = await context.newPage();
-        await applicantPage.goto(joinUrl(`${app.urls.app}`, `${linkUrl.pathname}${linkUrl.search}`));
+            // Step 4: Applicant View — New Context
+            console.log('🚀 Step 4: Applicant View — New Context');
+            const context = await browser.newContext({ permissions: ['camera'] });
+            applicantContext = context;  // Store for cleanup
+            const applicantPage = await context.newPage();
+            await applicantPage.goto(joinUrl(`${app.urls.app}`, `${linkUrl.pathname}${linkUrl.search}`));
 
-        // Step 5: Setup session flow (terms → applicant type → state)
-        console.log('🚀 Step 5: Setup session flow');
-        await setupInviteLinkSession(applicantPage, {
-            sessionUrl,
-            applicantTypeSelector: '#affordable_occupant'
-        });
-        console.log('✅ Session setup complete');
+            // Step 5: Setup session flow (terms → applicant type → state)
+            console.log('🚀 Step 5: Setup session flow');
+            await setupInviteLinkSession(applicantPage, {
+                sessionUrl,
+                applicantTypeSelector: '#affordable_occupant'
+            });
+            console.log('✅ Session setup complete');
 
-        // Step 6.5: Verify we're on the rent budget step
-        console.log('🚀 Step 6.5: Verify we\'re on the rent budget step');
-        await expect(applicantPage.locator('input#rent_budget')).toBeVisible({ timeout: 15000 });
-        console.log('✅ Rent budget input field is visible');
+            // Step 6.5: Verify we're on the rent budget step
+            console.log('🚀 Step 6.5: Verify we\'re on the rent budget step');
+            await expect(applicantPage.locator('input#rent_budget')).toBeVisible({ timeout: 15000 });
+            console.log('✅ Rent budget input field is visible');
 
-        // Step 7: Complete rent budget step
-        console.log('🚀 Step 7: Complete rent budget step');
-        await updateRentBudget(applicantPage, sessionId);
-        await applicantPage.waitForTimeout(1000);
+            // Step 7: Complete rent budget step
+            console.log('🚀 Step 7: Complete rent budget step');
+            await updateRentBudget(applicantPage, sessionId);
+            await applicantPage.waitForTimeout(1000);
 
-        // Step 8: Test Skip Button Visibility for Applicants Step
-        console.log('🚀 Step 8: Test Skip Button Visibility for Applicants Step');
-        await testSkipButtonVisibility(applicantPage, 'applicants');
+            // Step 8: Test Skip Button Visibility for Applicants Step
+            console.log('🚀 Step 8: Test Skip Button Visibility for Applicants Step');
+            await testSkipButtonVisibility(applicantPage, 'applicants');
 
-        // Step 9: Test Skip Button Visibility for Identity Verification Step
-        console.log('🚀 Step 9: Test Skip Button Visibility for Identity Verification Step');
-        await testSkipButtonVisibility(applicantPage, 'identity');
+            // Step 9: Test Skip Button Visibility for Identity Verification Step
+            console.log('🚀 Step 9: Test Skip Button Visibility for Identity Verification Step');
+            await testSkipButtonVisibility(applicantPage, 'identity');
 
-        // Step 10: Test Skip Button Visibility for Financial Verification Step
-        console.log('🚀 Step 10: Test Skip Button Visibility for Financial Verification Step');
-        await testSkipButtonVisibility(applicantPage, 'financial');
+            // Step 10: Test Skip Button Visibility for Financial Verification Step
+            console.log('🚀 Step 10: Test Skip Button Visibility for Financial Verification Step');
+            await testSkipButtonVisibility(applicantPage, 'financial');
 
-        // Step 11: Test Skip Button Visibility for Employment Verification Step
-        console.log('🚀 Step 11: Test Skip Button Visibility for Employment Verification Step');
-        await testSkipButtonVisibility(applicantPage, 'employment');
+            // Step 11: Test Skip Button Visibility for Employment Verification Step
+            console.log('🚀 Step 11: Test Skip Button Visibility for Employment Verification Step');
+            await testSkipButtonVisibility(applicantPage, 'employment');
 
-        // Step 12: Verify Summary screen and final statuses
-        console.log('🚀 Step 12: Verify Summary screen and final statuses');
-        await expect(applicantPage.locator('h3:has-text("Summary")')).toBeVisible({ timeout: 15000 });
+            // Step 12: Verify Summary screen and final statuses
+            console.log('🚀 Step 12: Verify Summary screen and final statuses');
+            await expect(applicantPage.locator('h3:has-text("Summary")')).toBeVisible({ timeout: 15000 });
 
-        // Verify all steps have appropriate statuses (should be Completed after actions)
-        await expect(applicantPage.locator('div').filter({ hasText: 'Rent Budget' })
-            .nth(1)
-            .filter({ hasText: 'Complete' })).toBeVisible();
-        await expect(applicantPage.locator('div').filter({ hasText: 'Identity Verification' })
-            .nth(1)
-            .filter({ hasText: 'Complete' })).toBeVisible();
-        await expect(applicantPage.locator('div').filter({ hasText: 'Applicants' })
-            .nth(1)
-            .filter({ hasText: 'Complete' })).toBeVisible();
-        await expect(applicantPage.locator('div').filter({ hasText: 'Financial Verification' })
-            .nth(1)
-            .filter({ hasText: 'Complete' })).toBeVisible();
-        await expect(applicantPage.locator('div').filter({ hasText: 'Employment Verification' })
-            .nth(1)
-            .filter({ hasText: 'Complete' })).toBeVisible();
+            // Verify all steps have appropriate statuses (should be Completed after actions)
+            await expect(applicantPage.locator('div').filter({ hasText: 'Rent Budget' })
+                .nth(1)
+                .filter({ hasText: 'Complete' })).toBeVisible();
+            await expect(applicantPage.locator('div').filter({ hasText: 'Identity Verification' })
+                .nth(1)
+                .filter({ hasText: 'Complete' })).toBeVisible();
+            await expect(applicantPage.locator('div').filter({ hasText: 'Applicants' })
+                .nth(1)
+                .filter({ hasText: 'Complete' })).toBeVisible();
+            await expect(applicantPage.locator('div').filter({ hasText: 'Financial Verification' })
+                .nth(1)
+                .filter({ hasText: 'Complete' })).toBeVisible();
+            await expect(applicantPage.locator('div').filter({ hasText: 'Employment Verification' })
+                .nth(1)
+                .filter({ hasText: 'Complete' })).toBeVisible();
 
-        console.log('✅ Skip button visibility logic test completed successfully');
-        
-        // Close applicant context
-        await context.close();
+            console.log('✅ Skip button visibility logic test completed successfully');
+        } catch (error) {
+            console.error('❌ Test failed:', error.message);
+            allTestsPassed = false;
+            throw error;
+        }
+        // Note: Context cleanup happens in afterAll
+    });
+    
+    // ✅ Centralized cleanup
+    test.afterAll(async ({ request }) => {
+        await cleanupSessionAndContexts(
+            request,
+            sessionId,
+            applicantContext,
+            null,  // No admin context
+            allTestsPassed
+        );
     });
 });
 

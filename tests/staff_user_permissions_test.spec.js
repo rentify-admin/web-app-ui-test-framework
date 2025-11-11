@@ -196,9 +196,25 @@ test.describe('staff_user_permissions_test', () => {
                 ).toHaveText(applications[it].name);
             }
 
-            // Verify that there is NO Edit icon
+            // Verify that Edit icon IS visible (new behavior)
             const editIconLocator = page.locator('[data-testid^="edit-"]');
-            await expect(editIconLocator).toHaveCount(0);
+            await expect(editIconLocator.first()).toBeVisible();
+            console.log('✅ Edit button is visible for staff user');
+
+            // Verify clicking Edit button does NOT redirect to edit page (staff permission restriction)
+            const currentUrl = page.url();
+            console.log(`📍 Current URL before click: ${currentUrl}`);
+            
+            await editIconLocator.first().click();
+            await page.waitForTimeout(2000); // Wait for potential navigation
+            
+            const urlAfterClick = page.url();
+            console.log(`📍 URL after edit click: ${urlAfterClick}`);
+            
+            // Verify user was NOT redirected to edit page
+            expect(urlAfterClick).not.toContain('/edit');
+            expect(urlAfterClick).toContain('/application'); // Still on applications list
+            console.log('✅ Staff user cannot access edit page (no redirect occurred)');
 
             // Click on Applicant Inbox to expand the menu
             await page.getByTestId('applicants-menu').click();

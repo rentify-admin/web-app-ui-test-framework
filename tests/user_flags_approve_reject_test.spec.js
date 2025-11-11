@@ -18,6 +18,7 @@ import {
     validateFlagSections
 } from '~/tests/utils/report-page';
 import { createSessionWithSimulator } from '~/tests/utils/session-flow';
+import { cleanupSession } from './utils/cleanup-helper';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -28,6 +29,11 @@ test.describe('user_flags_approve_reject_test', () => {
     test.describe('Session Flag', () => {
         test.describe.configure({ mode: 'serial' });
         test.setTimeout(200_000);
+        
+        // Global state for cleanup
+        let flagIssueSession = null;
+        let allTestsPassed = true;
+        
         // Note: first_name will be auto-prefixed with 'AutoT - ' by the helper
         // Note: email will be auto-suffixed with '+autotest' by the helper
         const userData = {
@@ -36,104 +42,126 @@ test.describe('user_flags_approve_reject_test', () => {
             email: 'FlagIssueTesting@verifast.com'
         };
 
-        let flagIssueSession = null;
-
         test('Should create applicant session for flag issue', { tag: [ '@core', '@smoke', '@regression', '@staging-ready' ] }, async ({
-        page,
-        browser
-    }) => {
-
-        // Create session with VERIDOCS_PAYLOAD simulator
-        const { sessionId } = await createSessionWithSimulator(
             page,
-            browser,
-            admin,
-            'Permissions Test Org',
-            'AutoTest - Flag Issue V2',
-            userData,
-            '2500',
-            'fl'
-        );
+            browser
+        }) => {
+            try {
+                // Create session with VERIDOCS_PAYLOAD simulator
+                const { sessionId } = await createSessionWithSimulator(
+                    page,
+                    browser,
+                    admin,
+                    'Permissions Test Org',
+                    'AutoTest - Flag Issue V2',
+                    userData,
+                    '2500',
+                    'fl'
+                );
 
-        flagIssueSession = sessionId;
+                flagIssueSession = sessionId;
+                console.log('✅ Session created for flag issue test');
+            } catch (error) {
+                console.error('❌ Test failed:', error.message);
+                allTestsPassed = false;
+                throw error;
+            }
         });
 
         test('Check Session Flag', { tag: [ '@core', '@smoke', '@regression', '@staging-ready' ] }, async ({ page }) => {
-        const sessionId = flagIssueSession;
+            try {
+                const sessionId = flagIssueSession;
 
-        // Step 1: Login and navigate to session
-        await loginForm.adminLoginAndNavigate(page, admin);
-        await page.waitForTimeout(2000); // Wait longer for page to fully load
+                // Step 1: Login and navigate to session
+                await loginForm.adminLoginAndNavigate(page, admin);
+                await page.waitForTimeout(2000); // Wait longer for page to fully load
 
-        // Step 1.1: Navigate to sessions page (not applications)
-        // Check if applicants menu is already open before clicking
-        const applicantsMenu = page.getByTestId('applicants-menu');
-        const isMenuOpen = await applicantsMenu.evaluate(el => el.classList.contains('sidebar-item-open'));
+                // Step 1.1: Navigate to sessions page (not applications)
+                // Check if applicants menu is already open before clicking
+                const applicantsMenu = page.getByTestId('applicants-menu');
+                const isMenuOpen = await applicantsMenu.evaluate(el => el.classList.contains('sidebar-item-open'));
+                
+                if (!isMenuOpen) {
+                    await applicantsMenu.click();
+                    await page.waitForTimeout(500);
+                }
+                
+                await page.getByTestId('applicants-submenu').click();
+                await page.waitForTimeout(2000); // Wait longer for sessions to load
+
+                await searchSessionWithText(page, sessionId);
+                await page.waitForTimeout(1000); // Wait after search
+                await navigateToSessionById(page, sessionId);
+
+                // Step 2: Navigate to flags and validate sections
+                const { flagSection } = await navigateToSessionFlags(page, sessionId);
+                const { icdsElement, irrsElement } = await validateFlagSections(
+                    page,
+                    'GROSS_INCOME_RATIO_EXCEEDED',
+                    'NO_INCOME_SOURCES_DETECTED'
+                );
+
+                // Step 3: Mark NO_INCOME_SOURCES_DETECTED as issue
+                await markFlagAsIssue(
+                    page,
+                    sessionId,
+                    'NO_INCOME_SOURCES_DETECTED',
+                    'this flag is marked as issue by playwright test run'
+                );
+
+                // Step 4: Verify flag moved to decline section
+                await expect(
+                    icdsElement.getByTestId('NO_INCOME_SOURCES_DETECTED')
+                ).toBeVisible();
+
+                await page.getByTestId('close-event-history-modal').click();
+
+                const applicantRaw = await page.getByTestId(`raw-${sessionId}`);
+
+                await applicantRaw.getByTestId('raw-financial-verification-status').click();
+
+                await expect(page.getByTestId('report-financial-status-modal')).toBeVisible();
+
+                const financialModalFlagSection = await page.getByTestId('report-financial-status-modal');
+
+                // Step 5: Mark MISSING_TRANSACTIONS as non-issue
+                await markFlagAsNonIssue(
+                    page,
+                    sessionId,
+                    'MISSING_TRANSACTIONS',
+                    'this flag is marked as non issue by playwright test run'
+                );
+
+                // Step 6: Verify flag moved to reviewed section
+                const riSection = await financialModalFlagSection.getByTestId(
+                    'reviewed-items-section'
+                );
+                await expect(
+                    riSection.getByTestId('MISSING_TRANSACTIONS')
+                ).toBeVisible({ timeout: 30_000 });
+                
+                console.log('✅ Session flag test completed successfully');
+            } catch (error) {
+                console.error('❌ Test failed:', error.message);
+                allTestsPassed = false;
+                throw error;
+            }
+        });
         
-        if (!isMenuOpen) {
-            await applicantsMenu.click();
-            await page.waitForTimeout(500);
-        }
-        
-        await page.getByTestId('applicants-submenu').click();
-        await page.waitForTimeout(2000); // Wait longer for sessions to load
-
-        await searchSessionWithText(page, sessionId);
-        await page.waitForTimeout(1000); // Wait after search
-        await navigateToSessionById(page, sessionId);
-
-        // Step 2: Navigate to flags and validate sections
-        const { flagSection } = await navigateToSessionFlags(page, sessionId);
-        const { icdsElement, irrsElement } = await validateFlagSections(
-            page,
-            'GROSS_INCOME_RATIO_EXCEEDED',
-            'NO_INCOME_SOURCES_DETECTED'
-        );
-
-        // Step 3: Mark NO_INCOME_SOURCES_DETECTED as issue
-        await markFlagAsIssue(
-            page,
-            sessionId,
-            'NO_INCOME_SOURCES_DETECTED',
-            'this flag is marked as issue by playwright test run'
-        );
-
-        // Step 4: Verify flag moved to decline section
-        await expect(
-            icdsElement.getByTestId('NO_INCOME_SOURCES_DETECTED')
-        ).toBeVisible();
-
-        await page.getByTestId('close-event-history-modal').click();
-
-        const applicantRaw = await page.getByTestId(`raw-${sessionId}`);
-
-        await applicantRaw.getByTestId('raw-financial-verification-status').click();
-
-        await expect(page.getByTestId('report-financial-status-modal')).toBeVisible();
-
-        const financialModalFlagSection = await page.getByTestId('report-financial-status-modal');
-
-        // Step 5: Mark MISSING_TRANSACTIONS as non-issue
-        await markFlagAsNonIssue(
-            page,
-            sessionId,
-            'MISSING_TRANSACTIONS',
-            'this flag is marked as non issue by playwright test run'
-        );
-
-        // Step 6: Verify flag moved to reviewed section
-        const riSection = await financialModalFlagSection.getByTestId(
-            'reviewed-items-section'
-        );
-        await expect(
-            riSection.getByTestId('MISSING_TRANSACTIONS')
-        ).toBeVisible({ timeout: 30_000 });
+        // ✅ Centralized cleanup
+        test.afterAll(async ({ request }) => {
+            await cleanupSession(request, flagIssueSession, allTestsPassed);
         });
     });
 
     test.describe('Session Approve/Reject', () => {
         test.describe.configure({ mode: 'serial' });
         test.setTimeout(200_000);
+        
+        // Global state for cleanup
+        let approveRejectSession = null;
+        let allTestsPassed = true;
+        
         // Note: first_name will be auto-prefixed with 'AutoT - ' by the helper
         // Note: email will be auto-suffixed with '+autotest' by the helper
         const userData2 = {
@@ -142,33 +170,38 @@ test.describe('user_flags_approve_reject_test', () => {
             email: 'ApprovalRejecttesting@verifast.com'
         };
 
-        let approveRejectSession = 'null';
-
         test('Should create applicant session for approve reject', { tag: [ '@core', '@smoke', '@regression' ,'@staging-ready'] }, async ({
-        page,
-        browser
-    }) => {
-
-        // Create session with VERIDOCS_PAYLOAD simulator
-        const { sessionId } = await createSessionWithSimulator(
             page,
-            browser,
-            admin,
-            'Permissions Test Org',
-            'AutoTest - Flag Issue V2',
-            userData2,
-            '2500',
-            'fl'
-        );
+            browser
+        }) => {
+            try {
+                // Create session with VERIDOCS_PAYLOAD simulator
+                const { sessionId } = await createSessionWithSimulator(
+                    page,
+                    browser,
+                    admin,
+                    'Permissions Test Org',
+                    'AutoTest - Flag Issue V2',
+                    userData2,
+                    '2500',
+                    'fl'
+                );
 
-        approveRejectSession = sessionId;
+                approveRejectSession = sessionId;
+                console.log('✅ Session created for approve/reject test');
+            } catch (error) {
+                console.error('❌ Test failed:', error.message);
+                allTestsPassed = false;
+                throw error;
+            }
         });
 
         test('Check session by Approving and Rejecting', { tag: [ '@core', '@smoke', '@regression' , '@staging-ready'] }, async ({ page }) => {
-        const sessionId = approveRejectSession;
+            try {
+                const sessionId = approveRejectSession;
 
-        // Login and navigate to session
-        await loginForm.adminLoginAndNavigate(page, admin);
+                // Login and navigate to session
+                await loginForm.adminLoginAndNavigate(page, admin);
         await page.waitForTimeout(1000); // Wait for page to fully load
 
         // Navigate to sessions page (not applications)
@@ -366,9 +399,21 @@ test.describe('user_flags_approve_reject_test', () => {
         const finalStatus = await householdStatusAlert.textContent();
         console.log(`✅ Session ready with status: "${finalStatus}"`);
 
-        // Step 11: Now proceed with session approve/reject flow
-        console.log('🚀 Starting session approve/reject flow...');
-        await checkSessionApproveReject(page, sessionId);
+                // Step 11: Now proceed with session approve/reject flow
+                console.log('🚀 Starting session approve/reject flow...');
+                await checkSessionApproveReject(page, sessionId);
+                
+                console.log('✅ Session approve/reject test completed successfully');
+            } catch (error) {
+                console.error('❌ Test failed:', error.message);
+                allTestsPassed = false;
+                throw error;
+            }
+        });
+        
+        // ✅ Centralized cleanup
+        test.afterAll(async ({ request }) => {
+            await cleanupSession(request, approveRejectSession, allTestsPassed);
         });
     });
 });
