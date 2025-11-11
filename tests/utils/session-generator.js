@@ -26,7 +26,7 @@ import {
 } from '../mock-data/permission-test-simulators';
 
 /**
- * Creates a complete session for permission tests
+ * Creates a session for permission/heartbeat tests
  * 
  * @param {Page} adminPage - Admin page for session creation
  * @param {Browser} browser - Browser for applicant context
@@ -36,7 +36,11 @@ import {
  * @param {string} options.lastName - User last name (default: "Test")
  * @param {string} options.email - User email (default: auto-generated)
  * @param {string} options.rentBudget - Rent budget (default: "2000")
- * @returns {Promise<{ sessionId: string, userData: object }>}
+ * @param {boolean} options.completeIdentity - Complete identity step (default: true)
+ * @param {boolean} options.completeFinancial - Complete financial step (default: true)
+ * @param {boolean} options.completeEmployment - Complete employment step (default: true)
+ * @param {boolean} options.addChildApplicant - Add child applicant (default: true)
+ * @returns {Promise<{ sessionId: string, userData: object, applicantContext: BrowserContext }>}
  */
 export async function createPermissionTestSession(adminPage, browser, options = {}) {
     const {
@@ -44,7 +48,12 @@ export async function createPermissionTestSession(adminPage, browser, options = 
         firstName = 'Permission',
         lastName = 'Test',
         email = `perm-test-${Date.now()}@verifast.com`,
-        rentBudget = '2000'
+        rentBudget = '2000',
+        // ✅ NEW: Control which steps to complete
+        completeIdentity = true,
+        completeFinancial = true,
+        completeEmployment = true,
+        addChildApplicant = true
     } = options;
     
     const userData = {
@@ -131,69 +140,126 @@ export async function createPermissionTestSession(adminPage, browser, options = 
     ]);
     console.log('✅ Rent budget set');
     
-    // Step 4: APPLICANTS Step - Add one child applicant
-    console.log('\n👥 Adding child applicant...');
-    await applicantPage.getByTestId('applicant-invite-step').waitFor({ state: 'visible' });
+    // ✅ Check if this is a minimal session (no steps to complete)
+    const isMinimalSession = !completeIdentity && !completeFinancial && !completeEmployment && !addChildApplicant;
     
-    const childData = {
-        first_name: `${firstName} Child`,
-        last_name: lastName,
-        email: `child-${Date.now()}@verifast.com`
-    };
+    if (isMinimalSession) {
+        // ✅ Minimal session - stop here (don't navigate to applicant invite step)
+        console.log('\n⏭️  Minimal session requested - stopping after rent budget');
+        console.log('   ℹ️  Applicant invite step requires adding at least one person to continue');
+        console.log('   ℹ️  Skipping all remaining steps');
+        
+        await applicantPage.close();
+        
+        console.log('\n✅ MINIMAL SESSION CREATION COMPLETED!');
+        console.log(`   🆔 Session ID: ${sessionId}`);
+        console.log(`   👤 Primary: ${userData.first_name} ${userData.last_name}`);
+        console.log(`   💰 Rent Budget: $${rentBudget}`);
+        console.log(`   ✅ Session ready for PDF export or other basic operations`);
+        console.log(`   ⚠️  Remember to close the applicant context in test cleanup!`);
+        
+        return { sessionId, userData, applicantContext: context };
+    }
     
-    console.log(`   Adding child: ${childData.first_name} ${childData.last_name}`);
-    await fillhouseholdForm(applicantPage, childData);
-    await applicantPage.waitForTimeout(800);
+    // Step 4: APPLICANTS Step - Add one child applicant (REQUIRED if continuing)
+    let childData = null;
+    if (addChildApplicant) {
+        console.log('\n👥 Adding child applicant...');
+        await applicantPage.getByTestId('applicant-invite-step').waitFor({ state: 'visible' });
+        
+        childData = {
+            first_name: `${firstName} Child`,
+            last_name: lastName,
+            email: `child-${Date.now()}@verifast.com`
+        };
+        
+        console.log(`   Adding child: ${childData.first_name} ${childData.last_name}`);
+        await fillhouseholdForm(applicantPage, childData);
+        await applicantPage.waitForTimeout(800);
+        
+        // Click continue to add child
+        await applicantPage.locator('[data-testid="applicant-invite-continue-btn"]:visible').click({ timeout: 18000 });
+        await applicantPage.waitForTimeout(2000);
+        console.log('✅ Child applicant added to household');
+    } else {
+        // ⚠️  If we reach here, we MUST complete at least identity step
+        // Cannot skip applicant invite without adding someone
+        console.log('\n👥 No child applicant requested, but must add primary to continue...');
+        await applicantPage.getByTestId('applicant-invite-step').waitFor({ state: 'visible' });
+        
+        // Add the primary applicant as the household member to enable continue
+        const primaryData = {
+            first_name: firstName,
+            last_name: lastName,
+            email: `primary-${Date.now()}@verifast.com`
+        };
+        
+        console.log(`   Adding primary as household member to enable continue`);
+        await fillhouseholdForm(applicantPage, primaryData);
+        await applicantPage.waitForTimeout(800);
+        
+        await applicantPage.locator('[data-testid="applicant-invite-continue-btn"]:visible').click({ timeout: 18000 });
+        await applicantPage.waitForTimeout(2000);
+        console.log('✅ Primary added to household, continuing...');
+    }
     
-    // Click continue to add child
-    await applicantPage.locator('[data-testid="applicant-invite-continue-btn"]:visible').click({ timeout: 18000 });
-    await applicantPage.waitForTimeout(2000);
-    console.log('✅ Child applicant added to household');
+    // Step 5: IDENTITY Step - Real UI via Persona (OPTIONAL)
+    if (completeIdentity) {
+        console.log('\n📸 IDENTITY STEP: Completing via Persona UI (real images)...');
+        await identityStep(applicantPage);
+        console.log('✅ Identity verification completed with REAL IMAGES');
+    } else {
+        console.log('\n⏭️  Skipping identity verification...');
+    }
     
-    // Step 5: IDENTITY Step - Real UI via Persona (gets real images)
-    console.log('\n📸 IDENTITY STEP: Completing via Persona UI (real images)...');
-    await identityStep(applicantPage);
-    console.log('✅ Identity verification completed with REAL IMAGES');
-    
-    // Get guest auth token for API calls
-    console.log('\n🔑 Getting guest authentication token...');
-    const guestToken = linkUrl.searchParams.get('token');
-    const generateUUID = () => 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'
-        .replace(/[xy]/g, c => {
-            const r = Math.random() * 16 | 0;
-            return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+    // Only get auth token and complete steps if needed
+    if (completeFinancial || completeEmployment) {
+        // Get guest auth token for API calls
+        console.log('\n🔑 Getting guest authentication token...');
+        const guestToken = linkUrl.searchParams.get('token');
+        const generateUUID = () => 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'
+            .replace(/[xy]/g, c => {
+                const r = Math.random() * 16 | 0;
+                return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+            });
+        
+        const authResponse = await applicantPage.request.post(`${app.urls.api}/auth/guests`, {
+            data: { token: guestToken, uuid: generateUUID(), os: 'web' }
         });
-    
-    const authResponse = await applicantPage.request.post(`${app.urls.api}/auth/guests`, {
-        data: { token: guestToken, uuid: generateUUID(), os: 'web' }
-    });
-    const auth = await authResponse.json();
-    const authToken = auth.data.token;
-    console.log('✅ Guest authenticated');
-    
-    // Wait for step transition to Financial
-    console.log('\n⏳ Waiting for transition to Financial step...');
-    await waitForStepTransition(applicantPage, sessionId, authToken, 'FINANCIAL_VERIFICATION');
-    console.log('✅ On Financial Verification step');
-    
-    // Step 6: FINANCIAL Step - VERIDOCS_PAYLOAD (bank statement document)
-    console.log('\n💳 FINANCIAL STEP: Completing via VERIDOCS_PAYLOAD (API)...');
-    
-    // ✅ FIX: Pass context reference to keep alive during verification polling
-    await completeFinancialStepViaVeridocs(applicantPage, context, sessionId, authToken, userData);
-    console.log('✅ Financial verification completed with bank statement document (6 transactions, 3 employment income)');
-    
-    // Wait for step transition to Employment
-    console.log('\n⏳ Waiting for transition to Employment step...');
-    await waitForStepTransition(applicantPage, sessionId, authToken, 'EMPLOYMENT_VERIFICATION');
-    console.log('✅ On Employment Verification step');
-    
-    // Step 7: EMPLOYMENT Step - ATOMIC_PAYLOAD (employment document)
-    console.log('\n💼 EMPLOYMENT STEP: Completing via ATOMIC_PAYLOAD (API)...');
-    
-    // ✅ FIX: Pass context reference to keep alive during verification polling
-    await completeEmploymentStepViaAtomic(applicantPage, context, sessionId, authToken, userData);
-    console.log('✅ Employment verification completed with employment document');
+        const auth = await authResponse.json();
+        const authToken = auth.data.token;
+        console.log('✅ Guest authenticated');
+        
+        // Step 6: FINANCIAL Step (OPTIONAL)
+        if (completeFinancial) {
+            // Wait for step transition to Financial
+            console.log('\n⏳ Waiting for transition to Financial step...');
+            await waitForStepTransition(applicantPage, sessionId, authToken, 'FINANCIAL_VERIFICATION');
+            console.log('✅ On Financial Verification step');
+            
+            console.log('\n💳 FINANCIAL STEP: Completing via VERIDOCS_PAYLOAD (API)...');
+            await completeFinancialStepViaVeridocs(applicantPage, context, sessionId, authToken, userData);
+            console.log('✅ Financial verification completed with bank statement document (6 transactions, 3 employment income)');
+        } else {
+            console.log('\n⏭️  Skipping financial verification...');
+        }
+        
+        // Step 7: EMPLOYMENT Step (OPTIONAL)
+        if (completeEmployment) {
+            // Wait for step transition to Employment
+            console.log('\n⏳ Waiting for transition to Employment step...');
+            await waitForStepTransition(applicantPage, sessionId, authToken, 'EMPLOYMENT_VERIFICATION');
+            console.log('✅ On Employment Verification step');
+            
+            console.log('\n💼 EMPLOYMENT STEP: Completing via ATOMIC_PAYLOAD (API)...');
+            await completeEmploymentStepViaAtomic(applicantPage, context, sessionId, authToken, userData);
+            console.log('✅ Employment verification completed with employment document');
+        } else {
+            console.log('\n⏭️  Skipping employment verification...');
+        }
+    } else {
+        console.log('\n⏭️  Skipping all API-based verifications (financial & employment)...');
+    }
     
     // ✅ Cleanup applicant page but KEEP context open for caller to close
     // (prevents Playwright tracing errors)
@@ -203,9 +269,11 @@ export async function createPermissionTestSession(adminPage, browser, options = 
     console.log('\n✅ SESSION CREATION COMPLETED!');
     console.log(`   🆔 Session ID: ${sessionId}`);
     console.log(`   👤 Primary: ${userData.first_name} ${userData.last_name}`);
-    console.log(`   👶 Child: ${childData.first_name} ${childData.last_name}`);
-    console.log(`   ✅ All steps completed with proper data matching`);
-    console.log(`   ✅ Session has 1 child applicant (household)`);
+    if (childData) {
+        console.log(`   👶 Child: ${childData.first_name} ${childData.last_name}`);
+    }
+    console.log(`   ✅ Completed steps: Identity=${completeIdentity}, Financial=${completeFinancial}, Employment=${completeEmployment}`);
+    console.log(`   ✅ Has child applicant: ${addChildApplicant}`);
     console.log(`   ⚠️ Remember to close the applicant context in test cleanup!`);
     
     return { sessionId, userData, applicantContext: context };  // ✅ Return context

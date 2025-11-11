@@ -2,7 +2,15 @@ import { test, expect } from '@playwright/test';
 import loginForm from '~/tests/utils/login-form';
 import { admin } from '~/tests/test_config';
 import { checkHeaderAndProfileMenu, checkSidebarMenusAndTitles } from '~/tests/utils/common';
-import { searchSessionWithText, navigateToSessionById } from '~/tests/utils/report-page';
+import { navigateToSessionById } from '~/tests/utils/report-page';
+import { createPermissionTestSession } from '~/tests/utils/session-generator';
+import { cleanupSessionAndContexts } from '~/tests/utils/cleanup-helper';
+
+// Global state for test 2 session
+let sharedSessionId = null;
+let applicantContextForCleanup = null;
+let adminContextForCleanup = null;
+let allTestsPassed = true;
 
 test.describe('frontend_heartbeat', () => {
     // Helper functions to reduce code duplication
@@ -55,37 +63,58 @@ test.describe('frontend_heartbeat', () => {
         await checkSidebarMenusAndTitles(page);
     });
 
+    // ✅ Create session ONCE for test 2
+    test.beforeAll(async ({ browser }) => {
+        test.setTimeout(300000);
+        
+        console.log('🏗️ Creating complete session for heartbeat test...');
+        
+        const adminContext = await browser.newContext();
+        const adminPage = await adminContext.newPage();
+        await adminPage.goto('/');
+        
+        const { sessionId, applicantContext } = await createPermissionTestSession(adminPage, browser, {
+            applicationName: 'Autotest - UI permissions tests',
+            firstName: 'Heartbeat',
+            lastName: 'Test',
+            email: `heartbeat-test-${Date.now()}@verifast.com`,
+            rentBudget: '2500'
+            // ✅ All steps enabled by default (complete session)
+        });
+        
+        sharedSessionId = sessionId;
+        console.log('✅ Shared session created:', sessionId);
+        
+        await adminPage.close();
+        adminContextForCleanup = adminContext;
+        applicantContextForCleanup = applicantContext;
+    });
+
     test('Should test session actions and section dropdowns', {
         tag: ['@core', '@smoke', '@regression', '@critical'],
     }, async ({ page }) => {
-        await page.goto('/');
-        await loginForm.fill(page, admin);
-        await loginForm.submitAndSetLocale(page);
-        await expect(page.getByTestId('household-status-alert')).toBeVisible({ timeout: 10_000 });
+        try {
+            if (!sharedSessionId) {
+                throw new Error('Session must be created in beforeAll');
+            }
+            
+            await page.goto('/');
+            await loginForm.fill(page, admin);
+            await loginForm.submitAndSetLocale(page);
+            await expect(page.getByTestId('household-status-alert')).toBeVisible({ timeout: 10_000 });
 
-        // Navigate deterministically to a fully populated session from the target application
-        // Applicants (sessions) page
-        const applicantsMenu = page.getByTestId('applicants-menu');
-        const isMenuOpen = await applicantsMenu.evaluate(el => el.classList.contains('sidebar-item-open'));
-        if (!isMenuOpen) {
-            await applicantsMenu.click();
-        }
-        
-        // Click "Meets Criteria" submenu (approved + conditionally_approved sessions)
-        const meetCriteriaMenu = page.getByTestId('reviewed-submenu');
-        await Promise.all([
-            page.waitForResponse(resp => resp.url().includes('/sessions?') && resp.ok()),
-            meetCriteriaMenu.click()
-        ]);
-        await expect(page.getByTestId('household-status-alert')).toBeVisible({ timeout: 10_000 });
+            // Navigate to applicants inbox
+            const applicantsMenu = page.getByTestId('applicants-menu');
+            const isMenuOpen = await applicantsMenu.evaluate(el => el.classList.contains('sidebar-item-open'));
+            if (!isMenuOpen) {
+                await applicantsMenu.click();
+            }
+            
+            await page.getByTestId('applicants-submenu').click();
+            await page.waitForTimeout(2000);
 
-        await page.waitForTimeout(5000);    
-
-        // Search sessions for a known app that yields full, populated sessions
-        const sessions = await searchSessionWithText(page, 'Autotest Suite - Full Test');
-        expect(sessions.length).toBeGreaterThan(0);
-        const sessionId = sessions[0].id;
-        await navigateToSessionById(page, sessionId, 'reviewed');
+            // Navigate to our created session
+            await navigateToSessionById(page, sharedSessionId, 'all');
         await expect(page.getByTestId('household-status-alert')).toBeVisible({ timeout: 10_000 });
 
         // 1) Assert action dropdown buttons exist and are enabled
@@ -124,5 +153,20 @@ test.describe('frontend_heartbeat', () => {
             await header.click();
             await expect(arrow).toHaveClass(/rotate-90/, { timeout: 2000 });
         }
+        } catch (error) {
+            allTestsPassed = false;
+            throw error;
+        }
+    });
+    
+    // ✅ Centralized cleanup
+    test.afterAll(async ({ request }) => {
+        await cleanupSessionAndContexts(
+            request,
+            sharedSessionId,
+            applicantContextForCleanup,
+            adminContextForCleanup,
+            allTestsPassed
+        );
     });
 });
