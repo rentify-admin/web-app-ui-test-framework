@@ -3,7 +3,7 @@ import loginForm from '~/tests/utils/login-form';
 import { app, admin } from '~/tests/test_config';
 import { joinUrl } from '~/tests/utils/helper';
 import { waitForJsonResponse } from '~/tests/utils/wait-response';
-import { 
+import {
     setupInviteLinkSession,
     skipApplicants,
     updateRentBudget,
@@ -14,7 +14,7 @@ import {
     waitForPaystubConnectionCompletion,
     identityStep
 } from '~/tests/utils/session-flow';
-import { gotoApplicationsPage, findAndInviteApplication } from '~/tests/utils/applications-page';
+import { gotoApplicationsPage, findAndInviteApplication, searchApplication, openInviteModal } from '~/tests/utils/applications-page';
 import generateSessionForm from '~/tests/utils/generate-session-form';
 import { cleanupSessionAndContexts } from './utils/cleanup-helper';
 
@@ -47,12 +47,20 @@ test.describe('skip_button_visibility_logic', () => {
             // Step 1: Admin login and navigate to applications
             console.log('🚀 Step 1: Admin login and navigate to applications');
             await loginForm.adminLoginAndNavigate(page, admin);
-            
-            // Step 2: Search for existing application and invite
+
+            // Step 2: Search for existing application 
             console.log('🚀 Step 2: Search for existing application and invite');
             await gotoApplicationsPage(page);
             const existingAppName = 'Autotest - Full flow skip button test';
-            await findAndInviteApplication(page, existingAppName);
+
+            const applications = await searchApplication(page, existingAppName);
+
+            // Step 2.1: making sure that application rent budget is enabled and not required.
+            const application = applications.find(item => item.name === existingAppName);
+            await updateRentBudgetSetting(page, application);
+
+            // Step 2.2 Invite Application
+            await openInviteModal(page, existingAppName);
 
             // Step 3: Generate Session and Extract Link
             console.log('🚀 Step 3: Generate Session and Extract Link');
@@ -85,7 +93,7 @@ test.describe('skip_button_visibility_logic', () => {
 
             // Step 7: Complete rent budget step
             console.log('🚀 Step 7: Complete rent budget step');
-            await updateRentBudget(applicantPage, sessionId);
+            await updateRentBudget(applicantPage, sessionId, 500, true);
             await applicantPage.waitForTimeout(1000);
 
             // Step 8: Test Skip Button Visibility for Applicants Step
@@ -146,6 +154,26 @@ test.describe('skip_button_visibility_logic', () => {
     });
 });
 
+async function updateRentBudgetSetting(page, application) {
+    await page.getByTestId(`edit-${application.id}`).click();
+    await expect(page.getByTestId('step-#workflow-setup')).toBeVisible({ timeout: 20000 });
+    await page.getByTestId('step-#approval-settings').click();
+
+    const rentBudgetEnableInput = await page.locator('input[name="rent_budget_enabled"]');
+    const rentBudgetRequireInput = await page.locator('input[name="rent_budget_required"]');
+
+    if (!(await rentBudgetEnableInput.isChecked())) {
+        await rentBudgetEnableInput.check();
+    }
+
+    if (await rentBudgetRequireInput.isChecked()) {
+        await rentBudgetRequireInput.uncheck();
+    }
+
+    await page.getByTestId('submit-application-setting-modal').click();
+    await expect(page.getByTestId('application-table')).toBeVisible({ timeout: 20000 });
+}
+
 /**
  * Test skip button visibility logic for a specific verification step
  * @param {import('@playwright/test').Page} page
@@ -153,32 +181,32 @@ test.describe('skip_button_visibility_logic', () => {
  */
 async function testSkipButtonVisibility(page, stepType) {
     console.log(`🔍 Testing skip button visibility for ${stepType} step`);
-    
+
     let skipButtonLocator;
     let continueButtonLocator;
-    
+
     // Configure step-specific locators
     switch (stepType) {
         case 'applicants':
             skipButtonLocator = page.getByTestId('applicant-invite-skip-btn');
             continueButtonLocator = page.getByTestId('applicant-invite-continue-btn').first();
             break;
-            
+
         case 'identity':
             skipButtonLocator = page.getByTestId('skip-id-verification-btn');
             continueButtonLocator = page.getByTestId('id-verification-continue-btn');
             break;
-            
+
         case 'financial':
             skipButtonLocator = page.getByTestId('skip-financials-btn');
             continueButtonLocator = page.getByTestId('financial-verification-continue-btn');
             break;
-            
+
         case 'employment':
             skipButtonLocator = page.getByTestId('employment-step-skip-btn');
             continueButtonLocator = page.getByTestId('employment-step-continue');
             break;
-            
+
         default:
             throw new Error(`Unknown step type: ${stepType}`);
     }
@@ -190,7 +218,7 @@ async function testSkipButtonVisibility(page, stepType) {
 
     // Phase 2: Complete an action and verify Skip button disappears
     console.log(`📋 Phase 2: Complete an action and verify Skip button disappears for ${stepType}`);
-    
+
     switch (stepType) {
         case 'applicants':
             // For applicants step, fill household form (this is the action that should make Skip disappear)
@@ -199,24 +227,24 @@ async function testSkipButtonVisibility(page, stepType) {
                 last_name: 'CoApplicant',
                 email: 'skipbutton.coapp@example.com'
             };
-            
+
             // TODO: create request check for household form submission API call
             await fillhouseholdForm(page, coapplicant);
             break;
-            
+
         case 'identity':
             // For identity verification, complete the full flow like in check_coapp_income_ratio_exceede_flag
             // TODO: create request check for identity verification start API call
             await identityStep(page);
             break;
-            
+
         case 'financial':
             // For financial verification, complete Plaid connection
             // TODO: create request check for financial verification start API call
             await completePlaidFinancialStep(page);
             await waitForPlaidConnectionCompletion(page);
             break;
-            
+
         case 'employment':
             // For employment verification, complete paystub connection
             // TODO: create request check for employment verification start API call
@@ -229,7 +257,7 @@ async function testSkipButtonVisibility(page, stepType) {
 
     // Phase 3: Verify Skip button is no longer visible and Continue button appears
     console.log(`📋 Phase 3: Verify Skip button is no longer visible and Continue button appears for ${stepType}`);
-    
+
     try {
         // Skip button should no longer be visible
         await expect(skipButtonLocator).not.toBeVisible({ timeout: 5000 });
@@ -248,6 +276,6 @@ async function testSkipButtonVisibility(page, stepType) {
         console.log(`⚠️ Continue button not visible for ${stepType} step`);
     }
     await page.waitForTimeout(4000); // Wait for step transition
-    
+
     console.log(`✅ ${stepType} step completed successfully`);
 }

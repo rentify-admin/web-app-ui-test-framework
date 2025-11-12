@@ -1909,7 +1909,7 @@ const completePlaidFinancialStepBetterment = async (applicantPage, username = 'c
     await applicantPage.waitForTimeout(2000);
 };
 
-const updateRentBudget = async (applicantPage, sessionId, amount = '2500') => {
+const updateRentBudget = async (applicantPage, sessionId, amount = '2500', skip = false) => {
     await applicantPage.locator('input#rent_budget').fill(amount);
 
     await Promise.all([
@@ -1918,7 +1918,7 @@ const updateRentBudget = async (applicantPage, sessionId, amount = '2500') => {
                 && resp.request().method() === 'PATCH'
                 && resp.ok()
         ),
-        applicantPage.getByTestId('rent-budget-step-continue').click()
+        applicantPage.getByTestId(skip ? 'rent-budget-step-skip' : 'rent-budget-step-continue').click()
     ]);
 };
 
