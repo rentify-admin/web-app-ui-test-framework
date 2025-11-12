@@ -10,7 +10,7 @@ import generateSessionForm from './utils/generate-session-form';
 import { getBankData } from './mock-data/high-balance-financial-payload';
 import { searchSessionWithText, navigateToSessionById } from './utils/report-page'; 
 import { getRandomEmail } from './utils/helper';
-import { handleOptionalStateModal, updateRentBudget } from './utils/session-flow';
+import { setupInviteLinkSession, updateRentBudget } from './utils/session-flow';
 
 /**
  * Completes the applicant session flow with banking data.
@@ -22,7 +22,10 @@ async function completeSession(inviteLink, browser, sessionId, customData) {
 
     await applicantPage.goto(joinUrl(app.urls.app, `${linkUrl.pathname}${linkUrl.search}`));
 
-    await handleOptionalStateModal(applicantPage);
+    // Setup session flow: handles state modal + terms checkbox in correct order
+    // Pattern 2: NO applicant type (financial-only application)
+    await setupInviteLinkSession(applicantPage);
+    
     await updateRentBudget(applicantPage, sessionId);
 
     // Skip Pre-screening
