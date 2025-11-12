@@ -128,7 +128,7 @@ test.describe('application_step_should_skip_properly', () => {
     
         console.log('🚀 Going to rent budget')
         await page.locator('div[role=button]').filter({
-            hasText: 'Rent Budget',
+            hasText: 'Rent Amount',
             visible: true
         }).filter({
             hasText: 'Completed'

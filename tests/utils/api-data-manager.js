@@ -31,7 +31,7 @@ export class ApiDataManager {
     return {
       name: `${prefix} Application`,
       enable_verisync_integration: false,
-      organization: '01971d42-96b6-7003-bcc9-e54006284a7e',
+      organization: '01971d42-96b6-7003-bcc9-e54006284a7e', // Permissions Test Org (exists in dev & staging)
       flag_collection: '0196f6c9-e940-7043-b044-14bf92101dd6',
       settings: this.getDefaultApplicationSettings()
     };
@@ -47,7 +47,7 @@ export class ApiDataManager {
       password_confirmation: 'password',
       enable_mfa: false,
       sso_enabled: false,
-      organization: '01971d42-96b6-7003-bcc9-e54006284a7e',
+      organization: '01971d42-96b6-7003-bcc9-e54006284a7e', // Permissions Test Org (exists in dev & staging)
       role: '0196f6c9-da56-7358-84bc-56f0f80b4c19'
     };
   }
