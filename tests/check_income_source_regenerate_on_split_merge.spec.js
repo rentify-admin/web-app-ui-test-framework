@@ -1,16 +1,17 @@
 // --- Utility Functions (Place outside of the test.describe block or in dedicated utility files) ---
 
 import { test, expect } from '@playwright/test';
-import { joinUrl } from './utils/helper';
-import { waitForJsonResponse } from './utils/wait-response'; 
-import { adminLoginAndNavigateToApplications } from './utils/session-utils';
-import { admin, app } from './test_config'; 
+import { getAmount, joinUrl } from './utils/helper';
+import { waitForJsonResponse } from './utils/wait-response';
+import { adminLoginAndNavigateToApplications, loginWith } from './utils/session-utils';
+import { admin, app } from './test_config';
 import { findAndInviteApplication, openInviteModal } from './utils/applications-page';
 import generateSessionForm from './utils/generate-session-form';
 import { getBankData } from './mock-data/high-balance-financial-payload';
-import { searchSessionWithText, navigateToSessionById } from './utils/report-page'; 
+import { searchSessionWithText, navigateToSessionById } from './utils/report-page';
 import { getRandomEmail } from './utils/helper';
 import { setupInviteLinkSession, updateRentBudget } from './utils/session-flow';
+import { fillMultiselect } from './utils/common';
 
 /**
  * Completes the applicant session flow with banking data.
@@ -25,7 +26,7 @@ async function completeSession(inviteLink, browser, sessionId, customData) {
     // Setup session flow: handles state modal + terms checkbox in correct order
     // Pattern 2: NO applicant type (financial-only application)
     await setupInviteLinkSession(applicantPage);
-    
+
     await updateRentBudget(applicantPage, sessionId);
 
     // Skip Pre-screening
@@ -36,7 +37,7 @@ async function completeSession(inviteLink, browser, sessionId, customData) {
     // Financial Verification
     const financialStep = applicantPage.getByTestId('financial-verification-step');
     await expect(financialStep).toBeVisible();
-    
+
     const responsePromise = applicantPage.waitForResponse(response =>
         response.url().includes('/financial-verifications') &&
         response.request().method() === 'POST' &&
@@ -49,9 +50,9 @@ async function completeSession(inviteLink, browser, sessionId, customData) {
 
     // Click connect bank and wait for the verification POST
     await financialStep.getByTestId('connect-bank').click();
-    await responsePromise; 
+    await responsePromise;
 
-    await applicantPage.waitForTimeout(2000); 
+    await applicantPage.waitForTimeout(2000);
     await applicantPage.getByTestId('financial-verification-continue-btn').click();
 
     await applicantPage.close();
@@ -64,7 +65,7 @@ async function completeSession(inviteLink, browser, sessionId, customData) {
 async function navigateToSessionDetail(page, sessionId) {
     await searchSessionWithText(page, sessionId);
     await navigateToSessionById(page, sessionId);
-    await page.waitForTimeout(3000); 
+    await page.waitForTimeout(3000);
 
 }
 
@@ -86,7 +87,7 @@ async function checkIncomeSourcesAndAssertVisibility(page, sessionId, timeout = 
     const { data: incomeSources } = await waitForJsonResponse(incomeResp);
 
     for (const element of incomeSources) {
-        await expect(page.getByTestId(`income-source-${element.id}`)).toBeVisible({timeout: 30_000});
+        await expect(page.getByTestId(`income-source-${element.id}`)).toBeVisible({ timeout: 30_000 });
     }
 
     return incomeSources;
@@ -118,14 +119,14 @@ async function mergeSessions(page, priSessionId, coAppSessionId) {
     console.log("🚀 ~ mergeSessions ~ priSessionId:", priSessionId)
     console.log("🚀 ~ mergeSessions ~ coAppSessionId:", coAppSessionId)
     await Promise.all([
-        page.waitForResponse(resp => 
-            resp.url().includes(`/sessions/${priSessionId}`) && 
-            resp.request().method() === 'PATCH' && 
+        page.waitForResponse(resp =>
+            resp.url().includes(`/sessions/${priSessionId}`) &&
+            resp.request().method() === 'PATCH' &&
             resp.ok()
         ),
-        page.waitForResponse(resp => 
-            resp.url().includes(`/sessions/${priSessionId}?fields[session]`) && 
-            resp.request().method() === 'GET' && 
+        page.waitForResponse(resp =>
+            resp.url().includes(`/sessions/${priSessionId}?fields[session]`) &&
+            resp.request().method() === 'GET' &&
             resp.ok()
         ),
         mergeModal.locator('button', { hasText: 'Merge' }).click()
@@ -144,15 +145,15 @@ async function splitSession(page, priSessionId, coAppSessionId) {
     const splitButton = coApplicantRaw.getByTestId('split-into-new-household-btn');
     await expect(splitButton).toBeVisible();
     splitButton.click();
-    
+
     const confirmBox = page.getByTestId('confirm-box');
     await expect(confirmBox).toBeVisible();
 
     // Wait for the DELETE (split) request
     await Promise.all([
-        page.waitForResponse(resp => 
-            resp.url().includes(`/sessions/${priSessionId}/children/${coAppSessionId}`) && 
-            resp.request().method() === 'DELETE' && 
+        page.waitForResponse(resp =>
+            resp.url().includes(`/sessions/${priSessionId}/children/${coAppSessionId}`) &&
+            resp.request().method() === 'DELETE' &&
             resp.ok()
         ),
         confirmBox.getByTestId('confirm-btn').click()
@@ -174,77 +175,135 @@ test.describe('QA-210: Check Income Source Regenerate on Split/Merge', () => {
         await adminLoginAndNavigateToApplications(page, admin);
         await findAndInviteApplication(page, appName);
         const { sessionId: priSessionId, link: priLink } = await generateSessionForm.generateSessionAndExtractLink(page, primaryUser);
-        await completeSession(priLink, browser, priSessionId, getBankData(primaryUser));
-        
+
+        const primaryUserBankData = getBankData(primaryUser);
+        await completeSession(priLink, browser, priSessionId, primaryUserBankData);
+
         // 2. Co-Applicant Flow
         await page.bringToFront();
         await openInviteModal(page, appName);
         const { sessionId: coAppSessionId, link: coAppLink } = await generateSessionForm.generateSessionAndExtractLink(page, coAppUser);
-        
+
         const coAppCustomData = getBankData(coAppUser);
         coAppCustomData.institutions[0].accounts[0].account_number = '9123456780';
         coAppCustomData.institutions[0].accounts[0].balance = 25000;
         coAppCustomData.institutions[0].accounts[0].transactions[0].amount = 12000;
         coAppCustomData.institutions[0].accounts[0].transactions[1].amount = 12000;
-        
+
         await completeSession(coAppLink, browser, coAppSessionId, coAppCustomData);
 
         // --- Verify Before Merge ---
         await page.bringToFront();
         await page.getByTestId('applicants-menu').click();
         await page.getByTestId('applicants-submenu').click();
-        
+
         // 3. Check Co-Applicant Income
         await navigateToSessionDetail(page, coAppSessionId);
         await checkIncomeSourcesAndAssertVisibility(page, coAppSessionId);
-        
+
         // 4. Check Primary Applicant Income
         await navigateToSessionDetail(page, priSessionId);
         await checkIncomeSourcesAndAssertVisibility(page, priSessionId);
 
         // --- Merge Action ---
         await page.getByTestId('applicants-submenu').click(); // Navigate back to list view
-        
+
         // 5. Merge Sessions
         await mergeSessions(page, priSessionId, coAppSessionId);
-        await page.waitForTimeout(2000); 
-        await page.reload();
+        await page.waitForTimeout(2000);
 
-        await page.waitForTimeout(3000); 
+        // const priSessionId = '019a7865-7b55-7336-9e77-21283a44a30c'
+        // const coAppSessionId = '019a7865-e1e9-70e5-93d8-b97cfd794245'
+        // await navigateToSessionDetail(page, priSessionId)
+
+        const [sessionResp] = await Promise.all([
+            page.waitForResponse(resp => resp.url().includes(`/sessions/${priSessionId}?`)
+                && resp.request().method() === "GET"
+                && resp.ok()
+            ),
+            page.reload()
+        ])
+
+        const { data: session } = await waitForJsonResponse(sessionResp)
+
+        await page.waitForTimeout(3000);
         // --- Verify After Merge ---
         // 6. Check Combined Income Sources
         // After merge, both sessions' income data is expected to be loaded on the parent page
-        await Promise.all([
+        const [primaryIncomeResponse, coappIncomeResponse] = await Promise.all([
             // Primary income sources regenerated
             page.waitForResponse(resp =>
                 resp.url().includes(`/sessions/${priSessionId}/income-sources`) &&
                 resp.request().method() === 'GET' &&
                 resp.ok(),
                 { timeout: 20_000 }
-            ), 
+            ),
             // Co-App income sources regenerated
             page.waitForResponse(resp =>
                 resp.url().includes(`/sessions/${coAppSessionId}/income-sources`) &&
                 resp.request().method() === 'GET' &&
                 resp.ok(),
                 { timeout: 20_000 }
-            ), 
-            page.getByTestId('income-source-section-header').click() 
+            ),
+            page.getByTestId('income-source-section-header').click()
         ]);
+
+        // 6.1 Checking income source of primary applicant
+        const { data: primaryIncomeSources } = await waitForJsonResponse(primaryIncomeResponse);
+        const { data: coappIncomeSources } = await waitForJsonResponse(coappIncomeResponse);
+
+        await verifyIncomeSourceDetails(page, session.applicant.id, primaryIncomeSources, primaryUserBankData);
+        await verifyIncomeSourceDetails(page, session.children[0].applicant.id, coappIncomeSources, coAppCustomData);
+
+        const financialSection = page.getByTestId('financial-section');
+
+        await expect(financialSection).toBeVisible();
+
+        const [preFinancialResponse, coAppFinancialResponse] = await Promise.all([
+            page.waitForResponse(resp => {
+                const url = decodeURI(resp.url());
+                return url.includes('/financial-verifications')
+                    && url.includes(session.id)
+                    && resp.request().method() === 'GET'
+                    && resp.ok();
+            }),
+            page.waitForResponse(resp => {
+                const url = decodeURI(resp.url());
+                return url.includes('/financial-verifications')
+                    && url.includes(coAppSessionId)
+                    && resp.request().method() === 'GET'
+                    && resp.ok();
+            }),
+            financialSection.getByTestId('financial-section-header').click()
+        ])
+
+        const { data: preFinacials } = await waitForJsonResponse(preFinancialResponse);
+        const { data: coAppFinancials } = await waitForJsonResponse(coAppFinancialResponse);
+
+        await checkFinancialAccountData(page, priSessionId, primaryUserBankData, preFinacials, primaryUser);
+        await checkFinancialAccountData(page, coAppSessionId, coAppCustomData, coAppFinancials, coAppUser);
+
+        await page.getByTestId('financial-section-transactions-radio').click();
+
+        await financialTransactionVerify(page, primaryUserBankData);
+
+        await fillMultiselect(page, page.getByTestId('financial-section-applicant-filter'), [ `${coAppUser.first_name} ${coAppUser.last_name}` ]);
+        
+        await financialTransactionVerify(page, coAppCustomData);
 
         // --- Split Action ---
         // 7. Split Session
         await splitSession(page, priSessionId, coAppSessionId);
-        await page.waitForTimeout(1000); 
+        await page.waitForTimeout(1000);
         const sessionLink = page.locator(`[href="/applicants/all/${priSessionId}"]`);
         await sessionLink.click()
-        await page.waitForTimeout(1000); 
+        await page.waitForTimeout(1000);
         await page.reload();
-        await page.waitForTimeout(2000); 
+        await page.waitForTimeout(2000);
         // --- Verify After Split ---
         // 8. Check Primary Income (should be independent again)
-        await checkIncomeSourcesAndAssertVisibility(page, priSessionId);
-        
+        await checkIncomeSourcesAndAssertVisibility(page, priSessionId, primaryUserBankData);
+
         // 9. Check Co-Applicant Income (now in a new, independent session)
         await page.getByTestId('applicants-submenu').click(); // Navigate back to list view
         await navigateToSessionDetail(page, coAppSessionId);
@@ -252,3 +311,81 @@ test.describe('QA-210: Check Income Source Regenerate on Split/Merge', () => {
 
     });
 });
+
+async function financialTransactionVerify(page, primaryUserBankData) {
+    const transactionTable = await page.getByTestId('financial-section-transactios-list');
+    const mockInstitutions = primaryUserBankData.institutions;
+    const mockAccounts = mockInstitutions[0].accounts;
+    const mockTransactions = mockAccounts[0].transactions;
+    const transcationRows = await transactionTable.locator('tbody>tr');
+    
+    for (let index = 0; index < mockTransactions.length; index++) {
+        const element = mockTransactions[index];
+        await expect(transcationRows.nth(index).getByTestId('financial-section-transactios-list-date-col')).toContainText(mockTransactions[index].date);
+        await expect(transcationRows.nth(index).getByTestId('financial-section-transactios-list-description-col')).toContainText(mockTransactions[index].description);
+        await expect(transcationRows.nth(index).getByTestId('financial-section-transactios-list-paid_in-col')).toContainText(getAmount(mockTransactions[index].amount));
+        await expect(transcationRows.nth(index).getByTestId('financial-section-transactios-list-account-col')).toContainText('Checking');
+        await expect(transcationRows.nth(index).getByTestId('financial-section-transactios-list-institution-col')).toContainText(mockInstitutions[0].name);
+    }
+}
+
+async function checkFinancialAccountData(page, priSessionId, primaryUserBankData, preFinacials, primaryUser) {
+    const preFinancialDiv = await page.getByTestId(`financial-section-financials-wrapper-${priSessionId}`);
+
+    const accounts = primaryUserBankData.institutions[0].accounts;
+    for (let index = 0; index < preFinacials.length; index++) {
+        const financial = preFinacials[index];
+
+        await expect(preFinancialDiv.locator('td[data-testid*="-account-col"]')).toContainText(accounts[index].account_number.slice(-4));
+        await expect(preFinancialDiv.locator('td[data-testid*="-type-col"]')).toContainText('Checking');
+        await expect(preFinancialDiv.locator('td[data-testid*="-institution-col"]')).toContainText(primaryUserBankData.institutions[0].name);
+        // await expect(preFinancialDiv.locator('td[data-testid*="-identities-col"]')).toContainText(primaryUser.email);
+        await expect(preFinancialDiv.locator('td[data-testid*="-identities-col"]')).toContainText(`${primaryUser.first_name} ${primaryUser.last_name}`);
+        await expect(preFinancialDiv.locator('td[data-testid*="-balance-col"]')).toContainText(`${getAmount(accounts[index].balance)}`);
+        await expect(preFinancialDiv.locator('td[data-testid*="-transaction_count-col"]')).toContainText(`${accounts[index].transactions.length}`);
+        await expect(preFinancialDiv.locator('td[data-testid*="-provider-col"]')).toContainText('Simulation');
+    }
+}
+
+async function verifyIncomeSourceDetails(page, applicantId, primaryIncomeSources, primaryUserBankData) {
+    const primaryIncomeSourceDiv = page.getByTestId(`applicant-income-source-${applicantId}`);
+    for (let index = 0; index < primaryIncomeSources.length; index++) {
+        if(index === 0){
+            const element = primaryIncomeSources[index];
+            const incomeSourceDiv = primaryIncomeSourceDiv.getByTestId(`income-source-${element.id}`);
+            await expect(incomeSourceDiv).toBeVisible();
+            const lastTransaction = primaryUserBankData.institutions[0].accounts[0].transactions[0];
+            await expect(incomeSourceDiv.getByTestId(`source-${element.id}-source-col`)).toContainText('Financial Transactions');
+            await expect(incomeSourceDiv.getByTestId(`source-${element.id}-description-col`)).toContainText(lastTransaction.description);
+            await expect(incomeSourceDiv.getByTestId(`source-${element.id}-last-trans-date-col`)).toContainText(lastTransaction.date);
+            await expect(incomeSourceDiv.getByTestId(`source-${element.id}-income-type-col`)).toContainText('Employment Transactions');
+    
+            await incomeSourceDiv.getByTestId('income-source-detail-btn').click();
+            const incomeDetailsModal = page.getByTestId('income-source-details');
+            await expect(incomeDetailsModal).toBeVisible();
+    
+            const transactionTable = incomeDetailsModal.getByTestId('income-detail-transactions-table');
+    
+            await expect(transactionTable).toBeVisible();
+    
+            const mockTrans = primaryUserBankData.institutions[0].accounts[0].transactions;
+            element.transactions.reverse();
+            for (let subIndex = 0; subIndex < element.transactions.length; subIndex++) {
+                const item = element.transactions[subIndex];
+                await expect(item.paid_in).toBe(mockTrans[subIndex].amount * 100);
+                await expect(page.getByTestId(`income-transaction-${item.id}-amount`)).toContainText(getAmount(mockTrans[subIndex].amount));
+                await expect(page.getByTestId(`income-transaction-${item.id}-name`)).toContainText(mockTrans[subIndex].description);
+                await expect(page.getByTestId(`income-transaction-${item.id}-date`)).toContainText(formatDateToMonDDYYYY(mockTrans[subIndex].date));
+            }
+    
+            await page.getByTestId('income-source-details-cancel').click();
+        }
+    }
+}
+
+// Function to convert 'YYYY-MM-DD' to 'Mon DD-YYYY' format
+function formatDateToMonDDYYYY(dateString) {
+    const dateParts = dateString.split('-');
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return `${months[parseInt(dateParts[1], 10) - 1]} ${parseInt(dateParts[2], 10)}-${dateParts[0]}`;
+}
