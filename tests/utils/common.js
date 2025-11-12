@@ -64,10 +64,14 @@ const fillMultiselect = async (page, selector, values) => {
         const item = values[index];
         await selector.locator('input').fill(item);
         // Use filter with exact text match to avoid matching partial text
-        await selector.locator('ul>li').filter({ hasText: new RegExp(`^${item}$`) }).click();
+        await selector.locator('ul>li').filter({ hasText: new RegExp(escapeRegExp(item),'g') }).click();
     }
 
 };
+function escapeRegExp(string) {
+    // $& means the whole matched string
+    return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
 
 /**
  * Drag and drop Element
