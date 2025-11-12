@@ -20,7 +20,7 @@ test.describe('QA-191:create_multiple_remarks.spec', () => {
     let allTestsPassed = true;
 
     test('Should allow creating multiple remarks successfully', {
-        tag: ['@core', '@smoke', '@regression'],
+        tag: ['@core', '@smoke', '@regression', '@staging-ready'],
         timeout: 180_000
     }, async ({ page, context }) => {
         try {

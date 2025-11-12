@@ -82,7 +82,7 @@ test.describe('QA-102: org_member_application_binding_scoping_check', () => {
             await page.getByRole('textbox', { name: 'Email' }).click();
             await page.getByRole('textbox', { name: 'Email' }).fill(user.email);
             await page.getByRole('textbox', { name: 'Email' }).press('Tab');
-            await page.getByTestId('member-role-field-empty-role-v2').click();
+            await page.getByTestId('member-role-field-autotest---empty-role').click();
             await page.getByTestId('submit-create-member').click();
             await page.getByTestId('copy-invitation-link').click();
 

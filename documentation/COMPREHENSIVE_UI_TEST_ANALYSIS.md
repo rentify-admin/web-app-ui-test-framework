@@ -1264,6 +1264,7 @@ Based on the test files in the framework, I've identified these categories:
 2. `application_edit_id_template_settings.spec.js` - ID template configuration
 3. `verify_application_edit_id_step_edit.spec.js` - Application edit ID step
 4. `approval_condition_search_verify.spec.js` - Approval conditions search
+5. `default_applicant_type_override_in_application_workflow_steps.spec.js` - Default applicant type override control
 
 ---
 
@@ -1642,6 +1643,187 @@ Based on the test files in the framework, I've identified these categories:
 - Uses **URL parameter validation** (checks filters in query string)
 - Tests **case-insensitive search** across all fields
 
+---
+
+### **5. default_applicant_type_override_in_application_workflow_steps.spec.js**
+
+**Purpose**: Validates "Default" applicant type override functionality in workflow configuration - verifies override checkboxes control whether changes propagate to other applicant types
+
+**Configuration**:
+- **Organization**: "Verifast"
+- **Application**: AutoTest override_applicant_type_{random} (unique per run)
+- **Applicant Types**: 7 types (Affordable Occupant, Affordable Primary, Corporate Leasing, Employed, International, Self-Employed, Other)
+- **Workflow Template**: "Autotest-suite-fin-only"
+- **Flag Collection**: "High Risk"
+- **Minimum Amount**: $500
+- **Tags**: @regression, @application
+- **Execution**: Single test (serial mode, 180s timeout)
+- **Cleanup**: afterAll deletes application (always, even on failure)
+
+---
+
+#### **beforeAll Hook: Ensure Workflow Exists**
+
+**Purpose**: Verify workflow template exists, create if missing
+
+**Test Flow**:
+1. **Authenticate as Admin via API**
+   - Get admin token for API operations
+
+2. **Check Workflow Existence**
+   - Use WorkflowBuilder to check if "Autotest-suite-fin-only" exists
+
+3. **Create Workflow if Missing** (via API)
+   - Create workflow with Identity + Financial steps
+   - Create paths between steps
+   - Log completion
+
+**Note**: Ensures workflow template exists in any environment (dev, staging, production)
+
+---
+
+#### **Test: "Test Default Applicant Type Override Options (Financial Step Only)" (QA-215)**
+
+**Purpose**: Verify override checkboxes in "Default" applicant type control whether financial step configuration changes propagate to specific applicant types
+
+**Test Flow**:
+
+**PHASE 1: Login & Application Creation**
+
+1. **Admin Login**
+   - Navigate to homepage
+   - Fill login form with admin credentials
+   - Submit and set locale
+   - Verify applicants-menu visible
+
+2. **Create Application**
+   - Call createApplicationFlow with config:
+     - Organization: "Verifast"
+     - Application name: AutoTest override_applicant_type_{random}
+     - 7 applicant types
+     - Workflow: "Autotest-suite-fin-only"
+     - Flag collection: "High Risk"
+     - Min amount: $500
+   - Store applicationId for cleanup
+   - Wait for application table visible
+   - Search for newly created application
+
+**PHASE 2: Configure Default Type with Override (Positive Test)**
+
+3. **Navigate to Application Edit**
+   - Click edit button
+   - Wait for 4 API calls (organizations, portfolios, settings, application details)
+
+4. **Access Financial Verification Workflow**
+   - Click submit-application-setup
+   - Click "Workflow Setup" step
+   - Select "Default" applicant type
+   - Click "Financial Verification" workflow step
+   - Wait for document configurations API
+
+5. **Verify Override Checkboxes Visible**
+   - **Assert**: identity-override-settings visible
+   - **Assert**: identity-override-documents visible
+
+6. **Enable Override & Configure Financial Step**
+   - Check identity-override-settings checkbox
+   - Check identity-override-documents checkbox
+   - Fill financial step (via fillFinancialStep helper):
+     - Primary Provider: MX
+     - Secondary Provider: Plaid
+     - Max Connections: 3
+     - Retrieve Transaction Type: Debits
+     - Min Required Docs: 0
+     - Documents: Bank Statement (Always visible, max 3 uploads)
+   - Submit and wait for PATCH/POST response
+
+7. **Verify Configuration Saved on Default**
+   - Reopen Financial Verification step
+   - Verify all settings match initial data (via verifyDetails helper)
+   - Verify override checkboxes still visible
+
+**PHASE 3: Verify All Specific Types Inherited Default Settings**
+
+8. **Test Inheritance for All 7 Applicant Types**
+   - Loop through each type (affordable-occupant, affordable-primary, corporate-leasing, employed, international, self-employed, other):
+     - Click type-{type}
+     - Open Financial Verification step (wait for 4 APIs)
+     - **Assert**: Override checkboxes NOT visible (confirms type has own saved config)
+     - Verify settings match initial default data (via verifyDetailFilled helper)
+     - Close modal
+
+**PHASE 4: Update Default WITHOUT Override (Negative Test)**
+
+9. **Return to Default & Update Settings**
+   - Click type-default
+   - Open Financial Verification step
+   - **Checkboxes unchecked by default** (not checked from previous save)
+   - **Do NOT check override boxes**
+   - Fill with NEW data (via fillFinancialStep helper):
+     - Primary Provider: Plaid (changed)
+     - Secondary Provider: MX (changed)
+     - Max Connections: 2 (changed)
+     - Retrieve Transaction Type: Credits (changed)
+     - Min Required Docs: 0
+     - Documents: Bank Statement (update existing)
+   - Submit and wait for PATCH/POST response
+
+**PHASE 5: Verify Changes Only in Default (Proves Override Control)**
+
+10. **Verify Other Types Retained OLD Settings**
+    - Loop through each applicant type again (7 iterations):
+      - Click type-{type}
+      - Open Financial Verification step
+      - **Assert**: Settings STILL match OLD initial data (MX, Plaid, 3, Debits)
+      - Close modal
+    - **Result**: Changes stayed in Default only (override boxes were NOT checked)
+
+**Cleanup**:
+11. **Delete Application**
+    - afterAll hook calls cleanupApplication
+    - Application deleted (always, even on test failure)
+
+**Key API Endpoints**:
+- `POST /auth` - Admin authentication
+- `GET /organizations?fields[organization]=id,name` - Load organizations
+- `GET /portfolios?fields[portfolio]=id,name` - Load portfolios
+- `GET /settings?fields[setting]=options,key&fields[options]=label,value` - Load settings
+- `GET /organizations` - Load organizations list
+- `POST /applications` - Create application
+- `PATCH /applications/{id}` - Update workflow template
+- `PATCH /applications/{id}` - Update settings (flag collection, rent budget)
+- `PATCH /applications/{id}` - Publish to live
+- `GET /applications/{id}` - Load application details for edit
+- `GET /applications/{id}/steps/{id}/document-configurations` - Load document configs (multiple times)
+- `PATCH /applications/{id}/steps/{id}` - Update financial step configuration (2x: with override, without override)
+- `DELETE /applications/{id}` - Delete application
+
+**Business Validations**:
+- ✅ Override checkboxes appear only when "Default" type is selected
+- ✅ Override checkboxes NOT visible on specific applicant types
+- ✅ WITH override checked: changes propagate to all 7 applicant types
+- ✅ WITHOUT override checked: changes stay in Default only
+- ✅ Override controls settings inheritance across applicant types
+- ✅ Financial step configuration saves correctly
+- ✅ Checkboxes reset to unchecked after save (default behavior)
+- ✅ Each applicant type maintains its own configuration after first save
+- ✅ Workflow builder ensures workflow exists before test
+- ✅ Application creation with 7 types works correctly
+
+**Unique Aspects**:
+- Tests **Default applicant type override feature** specifically
+- Uses **2 helper functions** (fillFinancialStep, verifyDetails, verifyDetailFilled)
+- Tests **positive and negative scenarios** in single test (with override, without override)
+- Validates **settings propagation control** via checkboxes
+- Tests **7 applicant type iterations** twice (after override ON, after override OFF)
+- Uses **WorkflowBuilder** in beforeAll to ensure workflow exists
+- Implements **edit-verify-restore pattern** for specific types
+- Tests **checkbox state management** (unchecked by default on reopen)
+- Validates **configuration inheritance** from Default to specific types
+- Cleanup **always executes** (application deleted regardless of test outcome)
+
+---
+
 ## **Category 3 Summary**
 
 ### **Business Purpose Analysis:**
@@ -1652,6 +1834,7 @@ Based on the test files in the framework, I've identified these categories:
 | `application_edit_id_template_settings` | Persona template ID configuration | Tests edit-verify-restore pattern for Persona integration |
 | `verify_application_edit_id_step_edit` | Cross-test persistence validation | Tests identity toggle + guarantor value persistence across 2 tests |
 | `approval_condition_search_verify` | Flag search functionality | Tests 3 search fields (name/description/key) with partial/exact match |
+| `default_applicant_type_override_in_application_workflow_steps` | Default type override control validation | Tests override checkboxes ON/OFF, validates propagation to 7 types (2 iterations), WorkflowBuilder |
 
 **Conclusion**: No overlap - each test validates distinct application management functions
 
@@ -3671,7 +3854,7 @@ Based on the test files in the framework, I've identified these categories:
 |----------|------------------|---------------|------------------|
 | 1: Authentication & Permission | 5 | 0 | ~800 |
 | 2: Financial Verification | 4 | 1 | ~600 |
-| 3: Application Management | 4 | 0 | ~550 |
+| 3: Application Management | 5 | 0 | ~1,050 |
 | 4: Session Flow | 6 | 1 | ~2,400 |
 | 5: Document Processing | 1 | 3 | ~350 |
 | 6: System Health | 2 | 0 | ~300 |
@@ -3679,7 +3862,7 @@ Based on the test files in the framework, I've identified these categories:
 | 8: Integration | 3 | 0 | ~800 |
 | 9: Menu Heartbeat | 13 | 0 | ~900 |
 | 10: Data Management | 1 | 0 | ~230 |
-| **TOTAL** | **41 tests** | **5 deleted** | **~7,130 lines** |
+| **TOTAL** | **42 tests** | **5 deleted** | **~7,630 lines** |
 
 ---
 
