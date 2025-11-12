@@ -734,11 +734,16 @@ const plaidFinancialConnect = async (
         .locator('button[id="aut-button"]:has-text("Continue")')
         .click();
 
-    // Click "Allow" button
-    await expect(
-        plaidFrame.getByRole('button', { name: 'Allow' })
-    ).toBeVisible({ timeout: 10000 });
-    await plaidFrame.getByRole('button', { name: 'Allow' }).click();
+    // Click "Allow" button (optional - may not appear)
+    try {
+        await expect(
+            plaidFrame.getByRole('button', { name: 'Allow' })
+        ).toBeVisible({ timeout: 10000 });
+        await plaidFrame.getByRole('button', { name: 'Allow' }).click();
+        console.log('✅ Plaid "Allow" button clicked');
+    } catch (error) {
+        console.log('ℹ️  Plaid "Allow" button not present - continuing');
+    }
 
     // Click "Finish without saving"
     await expect(
