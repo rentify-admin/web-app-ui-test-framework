@@ -83,14 +83,14 @@ test('Admin should be able to update an organization member\'s application permi
         const permissionTable = await page.getByTestId('all-application-table');
         console.log('🚀 Got permission table locator.');
 
-        const lastRow = permissionTable.getByTestId('all-application-row').last();
-        console.log('🚀 Got the last row locator.');
+        const fifthRow = permissionTable.getByTestId('all-application-row').nth(4);
+        console.log('🚀 Got the 5th row locator.');
 
-        console.log('🚀 Scrolling to view the last row...');
-        await lastRow.scrollIntoViewIfNeeded();
-        console.log('✅ Last row is in view.');
+        console.log('🚀 Scrolling to view the 5th row...');
+        await fifthRow.scrollIntoViewIfNeeded();
+        console.log('✅ 5th row is in view.');
 
-        const checkbox = lastRow.getByTestId('bind-view-application-check').locator('input[type="checkbox"]');
+        const checkbox = fifthRow.getByTestId('bind-view-application-check');
         const isInitiallyChecked = await checkbox.isChecked();
 
         if (!isInitiallyChecked) {

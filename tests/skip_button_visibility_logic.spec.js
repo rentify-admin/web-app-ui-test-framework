@@ -109,7 +109,7 @@ test.describe('skip_button_visibility_logic', () => {
             await expect(applicantPage.locator('h3:has-text("Summary")')).toBeVisible({ timeout: 15000 });
 
             // Verify all steps have appropriate statuses (should be Completed after actions)
-            await expect(applicantPage.locator('div').filter({ hasText: 'Rent Budget' })
+            await expect(applicantPage.locator('div').filter({ hasText: 'Rent Amount' })
                 .nth(1)
                 .filter({ hasText: 'Complete' })).toBeVisible();
             await expect(applicantPage.locator('div').filter({ hasText: 'Identity Verification' })
