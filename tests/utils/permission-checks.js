@@ -66,12 +66,53 @@ const checkRentBudgetEdit = async page => {
 const checkSessionApproveReject = async page => {
     console.log('🚀 Should Allow user to approve/reject session');
 
-    const approveBtn = await page.getByTestId('approve-session-btn');
+    const approveBtn = page.getByTestId('approve-session-btn');
     await page.waitForTimeout(700);
-    if (!await approveBtn.isVisible()) {
+    
+    // Retry mechanism: Try up to 5 times to make approve button visible
+    let maxAttempts = 5;
+    let attempt = 0;
+    while (!await approveBtn.isVisible() && attempt < maxAttempts) {
+        attempt++;
+        console.log(`⚠️ Approve button not visible, clicking session-action-btn (attempt ${attempt}/${maxAttempts})...`);
         await page.getByTestId('session-action-btn').click();
+        await page.waitForTimeout(1000);
     }
-    approveBtn.click();
+
+    if (!await approveBtn.isVisible()) {
+        throw new Error(`❌ Approve button not visible after ${maxAttempts} attempts`);
+    }
+
+    // ✅ Poll until approve button is ENABLED (async flag processing may take time)
+    console.log('✅ Approve button visible, polling until it becomes enabled...');
+    
+    const maxPollingAttempts = 30; // 30 attempts * 1 second = 30 seconds max
+    let pollingAttempt = 0;
+    let isEnabled = false;
+    
+    while (pollingAttempt < maxPollingAttempts && !isEnabled) {
+        pollingAttempt++;
+        
+        const hasDisabledClass = await approveBtn.evaluate(el => 
+            el.classList.contains('pointer-events-none')
+        );
+        
+        if (!hasDisabledClass) {
+            isEnabled = true;
+            console.log(`✅ Approve button is now enabled (attempt ${pollingAttempt}/${maxPollingAttempts})`);
+        } else {
+            console.log(`   ⏳ Waiting for approve button to be enabled (attempt ${pollingAttempt}/${maxPollingAttempts})...`);
+            await page.waitForTimeout(1000);
+        }
+    }
+    
+    if (!isEnabled) {
+        console.log('⚠️ Approve button is still disabled after 30 seconds. This usually means flags need to be resolved or session is not in approvable state.');
+        throw new Error('❌ Approve button is disabled (has pointer-events-none class) after 30 seconds. Check if all flags are resolved and session is in approvable state.');
+    }
+    
+    console.log('✅ Approve button is ready, proceeding to click...');
+    await approveBtn.click();
 
     const confirmBtn = page.getByTestId('confirm-btn');
 

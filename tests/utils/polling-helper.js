@@ -170,7 +170,6 @@ const pollForApprovalStatus = async (page, sessionId, authToken, options) => {
  * @param {number} [options.maxPolls=15] - Max number of polls (default: 15)
  * @param {number} [options.pollInterval=2000] - Interval between polls in ms (default: 2s)
  * @param {boolean} [options.reloadPage=false] - Whether to reload page between polls
- * @param {string} [options.sessionId] - Session ID for reload response matching (if reloadPage=true)
  * @param {boolean} [options.throwOnFail=true] - Whether to throw error if text not found
  * @returns {Promise<boolean>} - True if text found, false otherwise
  * 
@@ -178,8 +177,7 @@ const pollForApprovalStatus = async (page, sessionId, authToken, options) => {
  * await pollForUIText(page, {
  *     testId: 'household-status-alert',
  *     expectedText: 'Meets Criteria',
- *     reloadPage: true,
- *     sessionId: sessionId
+ *     reloadPage: true
  * });
  */
 const pollForUIText = async (page, options) => {
@@ -189,7 +187,6 @@ const pollForUIText = async (page, options) => {
         maxPolls = 15,
         pollInterval = 2000,
         reloadPage = false,
-        sessionId,
         throwOnFail = true
     } = options;
 
@@ -213,17 +210,9 @@ const pollForUIText = async (page, options) => {
 
         if (i < maxPolls - 1) {
             if (reloadPage) {
-                await Promise.all([
-                    sessionId 
-                        ? page.waitForResponse(resp => 
-                            resp.url().includes(`/sessions/${sessionId}?fields[session]`) &&
-                            resp.ok() &&
-                            resp.request().method() === 'GET'
-                          )
-                        : page.waitForLoadState('networkidle'),
-                    page.reload()
-                ]);
-                await page.waitForTimeout(1000);
+                // Just reload and wait for load state - simpler and more reliable
+                await page.reload({ waitUntil: 'domcontentloaded' });
+                await page.waitForTimeout(2000); // Wait for content to load
             } else {
                 await page.waitForTimeout(pollInterval);
             }

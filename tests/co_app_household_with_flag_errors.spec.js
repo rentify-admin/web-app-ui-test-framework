@@ -280,8 +280,7 @@ test.describe('co_app_household_with_flag_errors', () => {
         await pollForUIText(page, {
             testId: 'household-status-alert',
             expectedText: 'Meets Criteria',
-            reloadPage: true,
-            sessionId: sessionId
+            reloadPage: true
         });
         console.log('✅ ASSERTION 1 (UI) PASSED: UI shows "Meets Criteria"');
         

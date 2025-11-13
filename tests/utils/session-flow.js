@@ -738,7 +738,7 @@ const plaidFinancialConnect = async (
     try {
         await expect(
             plaidFrame.getByRole('button', { name: 'Allow' })
-        ).toBeVisible({ timeout: 10000 });
+        ).toBeVisible({ timeout: 5000 });
         await plaidFrame.getByRole('button', { name: 'Allow' }).click();
         console.log('✅ Plaid "Allow" button clicked');
     } catch (error) {
@@ -756,6 +756,11 @@ const plaidFinancialConnect = async (
             'button[id="aut-secondary-button"]:has-text("Finish without saving")'
         )
         .click();
+
+    // Wait 3 seconds and ensure Plaid iframe is closed
+    await page.waitForTimeout(3000);
+    await expect(page.locator('[id="plaid-link-iframe-1"]')).not.toBeVisible({ timeout: 5000 });
+    console.log('✅ Plaid iframe closed successfully');
 
     // Wait for connection status to change from "Processing" to "Complete"
     await expect(
@@ -1800,13 +1805,24 @@ const completePlaidFinancialStep = async applicantPage => {
         .locator('#aut-button:not([disabled])')
         .click({ timeout: 20000 });
 
-    // Click "Allow" button
-    await expect(
-        plaidFrame.getByRole('button', { name: 'Allow' })
-    ).toBeVisible({ timeout: 10000 });
-    await plaidFrame.getByRole('button', { name: 'Allow' }).click();
+    // Click "Allow" button (optional - may not appear)
+    try {
+        await expect(
+            plaidFrame.getByRole('button', { name: 'Allow' })
+        ).toBeVisible({ timeout: 5000 });
+        await plaidFrame.getByRole('button', { name: 'Allow' }).click();
+        console.log('✅ Plaid "Allow" button clicked in completePlaidFinancialStep');
+    } catch (error) {
+        console.log('ℹ️  Plaid "Allow" button not present in completePlaidFinancialStep - continuing');
+    }
 
+    // Click "Finish without saving" button
     await plaidFrame.locator('#aut-secondary-button').click({ timeout: 20000 });
+
+    // Wait 3 seconds and ensure Plaid iframe is closed
+    await applicantPage.waitForTimeout(3000);
+    await expect(applicantPage.locator('[id="plaid-link-iframe-1"]')).not.toBeVisible({ timeout: 5000 });
+    console.log('✅ Plaid iframe closed successfully in completePlaidFinancialStep');
 };
 
 /**
@@ -1898,15 +1914,24 @@ const completePlaidFinancialStepBetterment = async (applicantPage, username = 'c
         .locator('#aut-button:not([disabled])')
         .click({ timeout: 20000 });
 
-    // Click "Allow" button
-    await expect(
-        plaidFrame.getByRole('button', { name: 'Allow' })
-    ).toBeVisible({ timeout: 10000 });
-    await plaidFrame.getByRole('button', { name: 'Allow' }).click();
+    // Click "Allow" button (optional - may not appear)
+    try {
+        await expect(
+            plaidFrame.getByRole('button', { name: 'Allow' })
+        ).toBeVisible({ timeout: 5000 });
+        await plaidFrame.getByRole('button', { name: 'Allow' }).click();
+        console.log('✅ Plaid "Allow" button clicked in Betterment flow');
+    } catch (error) {
+        console.log('ℹ️  Plaid "Allow" button not present in Betterment flow - continuing');
+    }
 
+    // Click "Finish without saving" button
     await plaidFrame.locator('#aut-secondary-button').click({ timeout: 20000 });
 
-    await applicantPage.waitForTimeout(2000);
+    // Wait 3 seconds and ensure Plaid iframe is closed
+    await applicantPage.waitForTimeout(3000);
+    await expect(applicantPage.locator('[id="plaid-link-iframe-1"]')).not.toBeVisible({ timeout: 5000 });
+    console.log('✅ Plaid iframe closed successfully in Betterment flow');
 };
 
 const updateRentBudget = async (applicantPage, sessionId, amount = '2500', skip = false) => {

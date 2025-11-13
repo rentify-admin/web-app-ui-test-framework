@@ -415,12 +415,23 @@ test.describe('property_admin_permission_test', () => {
                     await markAsNonIssueBtn.click();
                     await page.waitForTimeout(500);
                     
-                    // Click "Mark as Non Issue" submit button (without commentary)
+                    // Click "Mark as Non Issue" submit button and wait for API response
                     const submitBtn = page.getByRole('button', { name: 'Mark as Non Issue' });
-                    await submitBtn.click();
-                    await page.waitForTimeout(2000);
                     
-                    console.log(`   ✅ Flag ${i + 1} resolved`);
+                    await Promise.all([
+                        // Wait for PATCH /sessions/{id}/flags/{id} response
+                        page.waitForResponse(resp => {
+                            const url = resp.url();
+                            return url.includes('/sessions/') && 
+                                   url.includes('/flags/') &&
+                                   resp.request().method() === 'PATCH' &&
+                                   resp.ok();
+                        }),
+                        submitBtn.click()
+                    ]);
+                    
+                    await page.waitForTimeout(500); // Brief pause between flags
+                    console.log(`   ✅ Flag ${i + 1} resolved and saved to backend`);
                 }
                 
                 console.log('   ✅ All flags marked as non-issue');
