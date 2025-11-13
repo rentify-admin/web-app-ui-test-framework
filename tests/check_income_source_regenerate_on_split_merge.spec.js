@@ -10,7 +10,7 @@ import generateSessionForm from './utils/generate-session-form';
 import { getBankData } from './mock-data/high-balance-financial-payload';
 import { searchSessionWithText, navigateToSessionById } from './utils/report-page';
 import { getRandomEmail } from './utils/helper';
-import { setupInviteLinkSession, updateRentBudget } from './utils/session-flow';
+import { setupInviteLinkSession, updateRentBudget, waitForSimulatorConnectionCompletion } from './utils/session-flow';
 import { fillMultiselect } from './utils/common';
 
 /**
@@ -52,7 +52,12 @@ async function completeSession(inviteLink, browser, sessionId, customData) {
     await financialStep.getByTestId('connect-bank').click();
     await responsePromise;
 
-    await applicantPage.waitForTimeout(2000);
+    // ✅ Wait for simulator connection to complete (Processing → Complete)
+    console.log('⏳ Waiting for simulator connection to complete...');
+    await waitForSimulatorConnectionCompletion(applicantPage, 15); // 15 iterations × 2 sec = 30 sec max
+    console.log('✅ Simulator connection completed');
+
+    // Now click continue button
     await applicantPage.getByTestId('financial-verification-continue-btn').click();
 
     await applicantPage.close();

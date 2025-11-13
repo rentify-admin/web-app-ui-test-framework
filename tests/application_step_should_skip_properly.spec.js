@@ -125,6 +125,7 @@ test.describe('application_step_should_skip_properly', () => {
     
         await expect(page.getByTestId('summary-completed-section')).toBeVisible({ timeout: 10_000 });;
         console.log('✅ On Summary page')
+        await page.waitForTimeout(3000);
     
         console.log('🚀 Going to rent budget')
         await page.locator('div[role=button]').filter({
