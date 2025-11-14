@@ -223,6 +223,29 @@ const waitForPaystubConnectionCompletion = async (page, timeout = 100_000, custo
 };
 
 /**
+ * Wait for simulator (mock) financial connection completion
+ * @param {import('@playwright/test').Page} page
+ * @param {Number} maxIterations - Maximum number of retry iterations (default: 100)
+ * @param {import('@playwright/test').Locator} customLocator - Optional custom locator
+ * @returns {Boolean} true if completed, false if timeout
+ */
+const waitForSimulatorConnectionCompletion = async (page, maxIterations = 100, customLocator = null) => {
+    return await waitForConnectionCompletion(page, {
+        maxIterations,
+        customLocator,
+        selector: '[data-testid="connection-row"]',
+        successText: 'Complete',
+        timeoutInterval: 2000,
+        onSuccess: async (page) => {
+            console.log('✅ Simulator connection completed successfully');
+        },
+        onFailure: async (page) => {
+            console.log('❌ Simulator connection did not complete within timeout period');
+        }
+    });
+};
+
+/**
  * Continue financial verification process and validate response
  * @param {import('@playwright/test').Page} page
  * @returns {Object} verification data
@@ -2617,6 +2640,7 @@ export {
     waitForConnectionCompletion,
     waitForPlaidConnectionCompletion,
     waitForPaystubConnectionCompletion,
+    waitForSimulatorConnectionCompletion,
     continueFinancialVerification,
     createSessionForUser,
     createSessionWithSimulator,
