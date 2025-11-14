@@ -1,6 +1,7 @@
 import { expect } from '@playwright/test';
 import loginForm from './login-form';
 import { searchSessionWithText } from './report-page';
+import { waitForJsonResponse } from './wait-response';
 
 /**
  * Login helper function with locale set to English
@@ -129,10 +130,31 @@ const prepareSessionForFreshSelection = async (page, targetSessionId) => {
     return { locator: sessionLocator, searchResult };
 };
 
+/**
+ * Navigates to the income sources section, waits for the API response,
+ * and asserts that all returned income sources are visible on the page.
+ */
+async function gotoIncomeSourceAndCheckVisibility(page, sessionId, timeout = 20_000) {
+    const [incomeResp] = await Promise.all([
+        page.waitForResponse(resp =>
+            resp.url().includes(`/sessions/${sessionId}/income-sources`) &&
+            resp.request().method() === 'GET' &&
+            resp.ok(),
+            { timeout: timeout }
+        ),
+        page.getByTestId('income-source-section-header').click()
+    ]);
+
+    const { data: incomeSources } = await waitForJsonResponse(incomeResp);
+
+    return incomeSources;
+}
+
 export {
     loginWith,
     adminLoginAndNavigateToApplications,
     scrollDown,
     findSessionLocator,
-    prepareSessionForFreshSelection
+    prepareSessionForFreshSelection,
+    gotoIncomeSourceAndCheckVisibility
 };
