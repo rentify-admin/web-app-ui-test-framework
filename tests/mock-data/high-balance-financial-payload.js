@@ -385,5 +385,154 @@ function getBankData(user) {
     }
 }
 
+/**
+ * Generate test bank data for a user with configurable months/income types.
+ * 
+ * @param {Object} user - The user object (first_name, last_name, email, etc).
+ * @param {Object} [options] - Optional parameters:
+ *   - months: number of months to generate transactions for (default 3)
+ *   - incomeOtherTypes: array of other income types (default included)
+ *   - paycheckAmounts: array of paycheck amounts (e.g. [1000, 1200]), used randomly (default [1000, 1200, 1500])
+ *   - payDates: array of paycheck date number(s) in a month (e.g [1, 15])
+ */
+function getBankConnectionData(
+    user,
+    options = {}
+) {
+    // --- Parse options with defaults
+    const months = options.months || 3;
+    const incomeOtherTypes = options.incomeOtherTypes || [
+        { description: "Investment Income", amount: 800 },
+        { description: "Side Business Income", amount: 1200 },
+        { description: "Freelance", amount: 1100 },
+    ];
+    const paycheckAmounts = options.paycheckAmounts || [1000, 1200, 1500];
+    const payDates = Array.isArray(options.payDates) ? options.payDates : [1, 15];
 
-export { highBalanceBankStatementData, getBankData, getBankStatementData };
+    // Utility to format date as yyyy-mm-dd
+    function formatDateISO(d) {
+        return d.toISOString().split('T')[0];
+    }
+
+    // Get today's date at midnight for consistency
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    // Generate date objects for the past n months (EXCLUDING current month)
+    // E.g. if today is June 2024, and months=3, it'll generate March, April, May (not June)
+    const transactionMonths = [];
+    for (let i = months; i > 0; i--) {
+        const stamp = new Date(today);
+        stamp.setMonth(stamp.getMonth() - i);
+        transactionMonths.push({
+            year: stamp.getFullYear(),
+            month: stamp.getMonth()
+        });
+    }
+
+    // Generate dynamic transactions
+    const transactions = [];
+    let transactionId = 1;
+
+    // Utility to randomize a day in the month, but keep it within the current/valid days (avoid very end of month)
+    function getRandomDay(year, month, date = null) {
+        // Always use the full month's length since current month is excluded
+        const daysInMonth = new Date(year, month + 1, 0).getDate();
+        return date || 1 + Math.floor(Math.random() * Math.max(daysInMonth - 3, 1));
+    }
+
+    // For each month: paycheck incomes must be exactly as passed in payDates, amounts chosen per config
+    transactionMonths.forEach(({ year, month }) => {
+        // Paycheck incomes at exactly payDates for the month, each date once (unless duplicates in payDates array)
+        payDates.forEach((payDate, idx) => {
+            // Clamp to month days if payDate passed is too big
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+            const validDay = Math.max(1, Math.min(payDate, daysInMonth));
+            const amount = paycheckAmounts[Math.min(idx, paycheckAmounts.length - 1)] || paycheckAmounts[0];
+            const date = new Date(Date.UTC(year, month, validDay, 0, 0, 0, 0));
+            transactions.push({
+                id: null,
+                date: formatDateISO(date),
+                amount: amount,
+                description: "Paycheck",
+                category: "income"
+            });
+        });
+
+        // Add all "other" income types (one entry each per month, random days)
+        incomeOtherTypes.forEach((itype, idx) => {
+            const day = Math.min(getRandomDay(year, month), 26) + (idx % 3);
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+            const validDay = Math.max(1, Math.min(day, daysInMonth));
+            const date = new Date(Date.UTC(year, month, validDay, 0, 0, 0, 0));
+            transactions.push({
+                id: null,
+                date: formatDateISO(date),
+                amount: itype.amount,
+                description: itype.description,
+                category: "income"
+            });
+        });
+
+        // 4-6 expense transactions (random dates)
+        const expenseTypes = [
+            { description: "Grocery Store", category: "groceries", min: 60, max: 180 },
+            { description: "Online Shopping", category: "shopping", min: 30, max: 220 },
+            { description: "Pharmacy", category: "health", min: 18, max: 75 },
+            { description: "Restaurant", category: "dining", min: 50, max: 120 },
+            { description: "Gas Station", category: "transportation", min: 40, max: 90 }
+        ];
+        const expensesThisMonth = 4 + Math.floor(Math.random() * 3); // 4, 5, or 6
+        for (let i = 0; i < expensesThisMonth; i++) {
+            const expenseIdx = i % expenseTypes.length;
+            const expenseBase = expenseTypes[expenseIdx];
+            const randDay = Math.min(getRandomDay(year, month), 27) + (i % 3); // More spacing
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+            const validDay = Math.max(1, Math.min(randDay, daysInMonth));
+            const date = new Date(Date.UTC(year, month, validDay, 0, 0, 0, 0));
+            const amount = (Math.round(expenseBase.min + Math.random() * (expenseBase.max - expenseBase.min)));
+            transactions.push({
+                id: `txn_exp_${transactionId++}`,
+                date: formatDateISO(date),
+                amount: -amount,
+                description: expenseBase.description,
+                category: expenseBase.category
+            });
+        }
+    });
+
+    // Sort transactions by date (most recent first)
+    transactions.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+    return {
+        id: null,
+        institutions: [{
+            name: "Test Bank",
+            accounts: [
+                {
+                    id: null,
+                    account_number: "1234567890",
+                    name: "Checking Account",
+                    type: "checking",
+                    balance: 12500.00,
+                    currency: "USD",
+                    owner: {
+                        first_name: user.first_name,
+                        last_name: user.last_name,
+                        email: user.email,
+                        address: {
+                            street: "123 Test St",
+                            city: "Test City",
+                            state: "CA",
+                            postal_code: "90210",
+                            country: "US"
+                        }
+                    },
+                    transactions: transactions
+                }
+            ]
+        }]
+    }
+}
+
+export { highBalanceBankStatementData, getBankData, getBankStatementData, getBankConnectionData };
