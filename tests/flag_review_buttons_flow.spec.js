@@ -1,6 +1,5 @@
-import { expect } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 import { admin, app, session as sessionConf } from './test_config';
-import { test } from './fixtures/enhanced-cleanup-fixture';
 import { ApiClient, ApplicantApi, GuestApi, ProviderApi, SessionApi } from './api';
 import { getBankStatementData } from './mock-data/high-balance-financial-payload';
 import loginForm from './utils/login-form';
@@ -9,9 +8,10 @@ import { waitForJsonResponse } from './utils/wait-response';
 import { personaConnectData } from './mock-data/identity-payload';
 import { getEmploymentSimulationMockData } from './mock-data/employment-simulation-mock-data';
 import { customUrlDecode } from './utils/helper';
-import { createCurrentStep, waitForStepTransition } from './endpoint-utils/session-helpers';
+import { createCurrentStep, inviteUser, loginWithGuestUser, simulateVerification, waitForStepTransition } from './endpoint-utils/session-helpers';
 import { loginWithAdmin } from './endpoint-utils/auth-helper';
 import { getApplicationByName } from './endpoint-utils/application-helper';
+import { cleanupSessionAndContexts } from './utils/cleanup-helper';
 
 
 const apiClient = new ApiClient(app.urls.api, null, 15000);
@@ -24,339 +24,390 @@ const providerApi = new ProviderApi(guestClient)
 const applicantApi = new ApplicantApi(guestClient)
 const { STEP_KEYS } = sessionConf;
 
+let allTestsPassed = true;
+let cleanpSessionId = null;
+
 const appName = 'Autotest - Full flow skip button test';
 
 test.describe('QA-202 flag_review_buttons_flow', () => {
 
-
     test('Verify Report Flag Review Buttons Workflow', async ({ page }) => {
         test.setTimeout(200000)
 
-        // Login With Admin
-        await loginWithAdmin(apiClient);
+        try {
 
-        const adminResponse = await apiClient.get('/users/self', {
-            params: { 'fields[user]': ':all' }
-        })
-        const adminUser = adminResponse.data.data
+            // Login With Admin
+            await loginWithAdmin(apiClient);
 
-        // Search Application
-        const application = await getApplicationByName(apiClient, appName);
-        console.log("🚀 ~ application:", application.name)
-
-        // Invite User in application
-        const user = {
-            first_name: 'ReviewBtn',
-            last_name: 'Test',
-            email: 'reviewbtn.playwright@verifast.com',
-            password: 'password'
-        }
-
-
-        let session = await inviteUser(adminSessionApi, application, user);
-
-        const guarantor = {
-            "session": session.id,
-            "first_name": "Playwright",
-            "last_name": "guarantor",
-            "role": "Applicant",
-            "email": "guarantor@playwright.com",
-            "invite": true
-        }
-
-        await loginWithGuestUser(guestClient, session.url)
-
-        // get guest user
-        await getGuestUser();
-
-        // update state
-        await guestApi.update('self', { administrative_area: "AL", country: "US" })
-
-        await sessionApi.update(session.id, { type: 'affordable_occupant' })
-
-        session = (await sessionApi.retrive(session.id)).data;
-
-        const provider = await providerApi.getByName('Simulation');
-
-        if (session.state.current_step.type === STEP_KEYS.START) {
-            console.log('📄 Starting START step...');
-            const sessionStep = await createCurrentStep(sessionApi, session);
-
-            // update rent budget
-            await sessionApi.update(session.id, { target: 2500 })
-
-            const stepUpdateData = { status: "COMPLETED" };
-            await sessionApi.step(session.id).update(sessionStep.id, stepUpdateData);
-
-            console.log('✅ START step completed.');
-            session = await waitForStepTransition(sessionApi, session, STEP_KEYS.START);
-            console.log('✅ Session transitioned from START step.');
-        }
-
-
-        if (session.state.current_step?.task?.key === STEP_KEYS.APPLICANTS) {
-            const sessionStep = await createCurrentStep(sessionApi, session);
-            await applicantApi.create(guarantor)
-            const stepUpdateData = { status: "COMPLETED" };
-            await sessionApi.step(session.id).update(sessionStep.id, stepUpdateData);
-            session = await waitForStepTransition(sessionApi, session, STEP_KEYS.APPLICANTS);
-        }
-
-        if (session.state.current_step?.task?.key === STEP_KEYS.IDENTITY) {
-            const sessionStep = await createCurrentStep(sessionApi, session);
-
-            const data = personaConnectData({
-                email: 'dummyuser@test.com',
-                first_name: 'Test',
-                last_name: 'User'
+            const adminResponse = await apiClient.get('/users/self', {
+                params: { 'fields[user]': ':all' }
             })
+            const adminUser = adminResponse.data.data
 
-            const identitySimulationData = {
-                simulation_type: 'PERSONA_PAYLOAD',
-                custom_payload: data
+            // Search Application
+            const application = await getApplicationByName(apiClient, appName);
+            console.log("🚀 ~ application:", application.name)
+
+            // Invite User in application
+            const user = {
+                first_name: 'ReviewBtn',
+                last_name: 'Test',
+                email: 'reviewbtn.playwright@verifast.com',
             }
-            const type = "Identity"
-            await simulateVerification(guestClient, '/identity-verifications', provider, sessionStep, identitySimulationData, type);
 
-            const stepUpdateData = { status: "COMPLETED" };
-            await sessionApi.step(session.id).update(sessionStep.id, stepUpdateData);
-            console.log(`✅ ${STEP_KEYS.IDENTITY} step completed.`);
-            session = await waitForStepTransition(sessionApi, session, STEP_KEYS.IDENTITY);
-            console.log(`✅ Session transitioned from ${STEP_KEYS.IDENTITY} step.`);
 
-        }
+            let session = await inviteUser(adminSessionApi, application, user);
 
-        if (session.state.current_step?.task?.key === STEP_KEYS.QUESTIONS) {
-            console.log(`📄 Skiping ${STEP_KEYS.QUESTIONS} step...`);
-            const sessionStep = await createCurrentStep(sessionApi, session);
-
-            const stepUpdateData = { status: "SKIPPED" };
-            await sessionApi.step(session.id).update(sessionStep.id, stepUpdateData);
-            console.log(`✅ ${STEP_KEYS.QUESTIONS} step skipped.`);
-            session = await waitForStepTransition(sessionApi, session, STEP_KEYS.QUESTIONS);
-            console.log(`✅ Session transitioned from ${STEP_KEYS.QUESTIONS} step.`);
-        }
-
-        if (session.state.current_step?.task?.key === STEP_KEYS.FINANCIAL) {
-            const type = 'financial';
-            console.log(`📄 Starting ${STEP_KEYS.FINANCIAL} step...`);
-            const sessionStep = await createCurrentStep(sessionApi, session);
-
-            const docData = getBankStatementData(user, 1)
-            docData.documents[0].documents[0].data.accounts[0].balance_total_end = 20000;
-            docData.documents[0].documents[0].data.accounts[0].transactions[1].balance = 1000000;
-            docData.documents[0].documents[0].data.accounts[0].transactions[2].date = getNDaysAgoDate(2);
-            docData.documents[0].documents[0].data.accounts[0].transactions[2].type = 'debit';
-            docData.documents[0].documents[0].data.accounts[0].transactions[2].amount = -500;
-            docData.documents[0].documents[0].data.accounts[0].transactions[2].description = 'Shoping';
-            docData.documents[0].documents[0].data.accounts[0].transactions[4].type = 'debit';
-            docData.documents[0].documents[0].data.accounts[0].transactions[4].amount = -1000;
-            docData.documents[0].documents[0].data.accounts[0].transactions[4].description = 'Travel';
-
-            const docSimulationData = {
-                simulation_type: 'VERIDOCS_PAYLOAD',
-                custom_payload: docData
+            cleanpSessionId = session.id;
+            const guarantor = {
+                "session": session.id,
+                "first_name": "Playwright",
+                "last_name": "guarantor",
+                "role": "Applicant",
+                "email": "guarantor@playwright.com",
+                "invite": true
             }
-            // await simulateVerification('/financial-verifications', provider, sessionStep, docSimulationData, type);
 
+            await loginWithGuestUser(guestClient, session.url)
 
-            // const mxSimulationData = {
-            //     simulation_type: 'CUSTOM_PAYLOAD',
-            //     custom_payload: getCustomPayload({ email: 'dummyemail@test.com', first_name: 'test', last_name: 'user' })
-            // }
+            // get guest user
+            await getGuestUser();
 
-            // await simulateVerification('/financial-verifications', provider, sessionStep, mxSimulationData, type);
+            // update state
+            await guestApi.update('self', { administrative_area: "AL", country: "US" })
 
-            const stepUpdateData = { status: "SKIPPED" };
-            await sessionApi.step(session.id).update(sessionStep.id, stepUpdateData);
-            console.log(`✅ ${STEP_KEYS.FINANCIAL} step completed.`);
-            session = await waitForStepTransition(sessionApi, session, STEP_KEYS.FINANCIAL);
-            console.log(`✅ Session transitioned from ${STEP_KEYS.FINANCIAL} step.`);
-        }
+            await sessionApi.update(session.id, { type: 'affordable_occupant' })
 
-        if (session.state.current_step?.task?.key === STEP_KEYS.EMPLOYMENT) {
-            const type = 'Employment';
-            console.log(`📄 Starting ${STEP_KEYS.EMPLOYMENT} step...`);
-            const sessionStep = await createCurrentStep(sessionApi, session);
+            session = (await sessionApi.retrive(session.id)).data;
 
-            const simulationPayload = getEmploymentSimulationMockData({
-                connectorName: 'Paytomic',
-                companyName: 'SIG Developments LLC',
-                income: { annualIncome: 72000, currentPayPeriodStart: daysAgo(35), payCycle: 'monthly' },
-                statements: { count: 3, hoursPerPeriod: 32, hourlyRate: 16.5, netFactor: 0.77 }
-            });
+            const provider = await providerApi.getByName('Simulation');
 
-            const docSimulationData = {
-                simulation_type: 'ATOMIC_PAYLOAD',
-                custom_payload: simulationPayload
+            if (session.state.current_step.type === STEP_KEYS.START) {
+                console.log('📄 Starting START step...');
+                const sessionStep = await createCurrentStep(sessionApi, session);
+
+                // update rent budget
+                await sessionApi.update(session.id, { target: 2500 })
+
+                const stepUpdateData = { status: "COMPLETED" };
+                await sessionApi.step(session.id).update(sessionStep.id, stepUpdateData);
+
+                console.log('✅ START step completed.');
+                session = await waitForStepTransition(sessionApi, session, STEP_KEYS.START);
+                console.log('✅ Session transitioned from START step.');
             }
-            await simulateVerification(guestClient,'/employment-verifications', provider, sessionStep, docSimulationData, type);
-
-            const stepUpdateData = { status: "COMPLETED" };
-            await sessionApi.step(session.id).update(sessionStep.id, stepUpdateData);
-            console.log(`✅ ${STEP_KEYS.EMPLOYMENT} step completed.`);
-            session = await waitForStepTransition(sessionApi, session, STEP_KEYS.EMPLOYMENT);
-            console.log(`✅ Session transitioned from ${STEP_KEYS.EMPLOYMENT} step.`);
-
-        }
 
 
-        await loginForm.adminLoginAndNavigate(page, admin)
+            if (session.state.current_step?.task?.key === STEP_KEYS.APPLICANTS) {
+                const sessionStep = await createCurrentStep(sessionApi, session);
+                await applicantApi.create(guarantor)
+                const stepUpdateData = { status: "COMPLETED" };
+                await sessionApi.step(session.id).update(sessionStep.id, stepUpdateData);
+                session = await waitForStepTransition(sessionApi, session, STEP_KEYS.APPLICANTS);
+            }
 
-        await navigateToSessionById(page, session.id);
+            if (session.state.current_step?.task?.key === STEP_KEYS.IDENTITY) {
+                const sessionStep = await createCurrentStep(sessionApi, session);
 
-        await expect(page.getByTestId('household-status-alert')).toBeVisible({ timeout: 10_000 });
+                const data = personaConnectData({
+                    email: 'dummyuser@test.com',
+                    first_name: 'Test',
+                    last_name: 'User'
+                })
 
-        const viewDetailsBtn = await page.getByTestId('view-details-btn');
+                const identitySimulationData = {
+                    simulation_type: 'PERSONA_PAYLOAD',
+                    custom_payload: data
+                }
+                const type = "Identity"
+                await simulateVerification(guestClient, '/identity-verifications', provider, sessionStep, identitySimulationData, type);
 
-        let flagResponse = await Promise.all([
-            page.waitForResponse(buildFlagsFetchPredicate(session.id)),
-            viewDetailsBtn.click()
-        ]);
+                const stepUpdateData = { status: "COMPLETED" };
+                await sessionApi.step(session.id).update(sessionStep.id, stepUpdateData);
+                console.log(`✅ ${STEP_KEYS.IDENTITY} step completed.`);
+                session = await waitForStepTransition(sessionApi, session, STEP_KEYS.IDENTITY);
+                console.log(`✅ Session transitioned from ${STEP_KEYS.IDENTITY} step.`);
 
-        let flags = await waitForJsonResponse(flagResponse[0]);
+            }
 
-        await expect(page.getByTestId('report-view-details-flags-section')).toBeVisible();
+            if (session.state.current_step?.task?.key === STEP_KEYS.QUESTIONS) {
+                console.log(`📄 Skiping ${STEP_KEYS.QUESTIONS} step...`);
+                const sessionStep = await createCurrentStep(sessionApi, session);
+
+                const stepUpdateData = { status: "SKIPPED" };
+                await sessionApi.step(session.id).update(sessionStep.id, stepUpdateData);
+                console.log(`✅ ${STEP_KEYS.QUESTIONS} step skipped.`);
+                session = await waitForStepTransition(sessionApi, session, STEP_KEYS.QUESTIONS);
+                console.log(`✅ Session transitioned from ${STEP_KEYS.QUESTIONS} step.`);
+            }
+
+            if (session.state.current_step?.task?.key === STEP_KEYS.FINANCIAL) {
+                const type = 'financial';
+                console.log(`📄 Starting ${STEP_KEYS.FINANCIAL} step...`);
+                const sessionStep = await createCurrentStep(sessionApi, session);
+
+                const docData = getBankStatementData(user, 1)
+                docData.documents[0].documents[0].data.accounts[0].balance_total_end = 20000;
+                docData.documents[0].documents[0].data.accounts[0].transactions[1].balance = 1000000;
+                docData.documents[0].documents[0].data.accounts[0].transactions[2].date = getNDaysAgoDate(2);
+                docData.documents[0].documents[0].data.accounts[0].transactions[2].type = 'debit';
+                docData.documents[0].documents[0].data.accounts[0].transactions[2].amount = -500;
+                docData.documents[0].documents[0].data.accounts[0].transactions[2].description = 'Shoping';
+                docData.documents[0].documents[0].data.accounts[0].transactions[4].type = 'debit';
+                docData.documents[0].documents[0].data.accounts[0].transactions[4].amount = -1000;
+                docData.documents[0].documents[0].data.accounts[0].transactions[4].description = 'Travel';
+
+                const docSimulationData = {
+                    simulation_type: 'VERIDOCS_PAYLOAD',
+                    custom_payload: docData
+                }
+                // await simulateVerification('/financial-verifications', provider, sessionStep, docSimulationData, type);
 
 
-        const flagSection = await page.getByTestId('report-view-details-flags-section');
+                // const mxSimulationData = {
+                //     simulation_type: 'CUSTOM_PAYLOAD',
+                //     custom_payload: getCustomPayload({ email: 'dummyemail@test.com', first_name: 'test', last_name: 'user' })
+                // }
 
-        const startReviewBtn = flagSection.getByTestId('flags-start-review-btn');
+                // await simulateVerification('/financial-verifications', provider, sessionStep, mxSimulationData, type);
 
-        await expect(startReviewBtn).toBeVisible({ timeout: 10_000 })
+                const stepUpdateData = { status: "SKIPPED" };
+                await sessionApi.step(session.id).update(sessionStep.id, stepUpdateData);
+                console.log(`✅ ${STEP_KEYS.FINANCIAL} step completed.`);
+                session = await waitForStepTransition(sessionApi, session, STEP_KEYS.FINANCIAL);
+                console.log(`✅ Session transitioned from ${STEP_KEYS.FINANCIAL} step.`);
+            }
 
-        flagResponse = await Promise.all([
-            page.waitForResponse(buildFlagsFetchPredicate(session.id)),
-            startReviewBtn.click()
-        ])
+            if (session.state.current_step?.task?.key === STEP_KEYS.EMPLOYMENT) {
+                const type = 'Employment';
+                console.log(`📄 Starting ${STEP_KEYS.EMPLOYMENT} step...`);
+                const sessionStep = await createCurrentStep(sessionApi, session);
 
-        flags = await waitForJsonResponse(flagResponse[0]);
+                const simulationPayload = getEmploymentSimulationMockData({
+                    connectorName: 'Paytomic',
+                    companyName: 'SIG Developments LLC',
+                    income: { annualIncome: 72000, currentPayPeriodStart: daysAgo(35), payCycle: 'monthly' },
+                    statements: { count: 3, hoursPerPeriod: 32, hourlyRate: 16.5, netFactor: 0.77 }
+                });
 
-        const completeReview = page.getByTestId('flags-complete-review-btn')
-        await expect(completeReview).toBeVisible();
+                const docSimulationData = {
+                    simulation_type: 'ATOMIC_PAYLOAD',
+                    custom_payload: simulationPayload
+                }
+                await simulateVerification(guestClient, '/employment-verifications', provider, sessionStep, docSimulationData, type);
 
-        for (let index = 0; index < flags.data.length; index++) {
-            const element = flags.data[index];
-            await expect(element.in_review).toBeTruthy();
-        }
+                const stepUpdateData = { status: "COMPLETED" };
+                await sessionApi.step(session.id).update(sessionStep.id, stepUpdateData);
+                console.log(`✅ ${STEP_KEYS.EMPLOYMENT} step completed.`);
+                session = await waitForStepTransition(sessionApi, session, STEP_KEYS.EMPLOYMENT);
+                console.log(`✅ Session transitioned from ${STEP_KEYS.EMPLOYMENT} step.`);
 
-        for (let index = 0; index < flags.data.length; index++) {
-            const element = flags.data[index];
-            await expect(page.locator(`li[id=flag-${element.id}]`)).toContainText(`In review by: ${adminUser.full_name}`, { timeout: 20_000 })
-        }
+            }
 
-        const reviewedFlags = [];
 
-        const errorFlag = flags.data.find(flag => flag.severity === 'ERROR' && !flag.ignored);
-        await expect(errorFlag).toBeDefined()
+            await loginForm.adminLoginAndNavigate(page, admin)
 
-        if (errorFlag) {
-            const flagDiv = await page.locator(`li[id=flag-${errorFlag.id}]`)
-            await flagDiv.getByTestId('mark_as_issue').click();
+            await navigateToSessionById(page, session.id);
 
-            await expect(flagDiv.locator('#description')).toBeVisible();
-            await flagDiv.locator('#description').locator('textarea').fill('Flag 1 marked as issue during automated test');
-            await flagDiv.locator('[type="submit"]').click();
-            reviewedFlags.push(errorFlag)
+            await expect(page.getByTestId('household-status-alert')).toBeVisible({ timeout: 10_000 });
 
-            const iciSection = page.getByTestId('items-causing-decline-section');
+            const viewDetailsBtn = await page.getByTestId('view-details-btn');
 
-            const newFlagDiv = iciSection.locator(`li[id=flag-${errorFlag.id}]`)
-            await expect(newFlagDiv).toBeVisible({ timeout: 20_000 })
-            await expect(newFlagDiv).toContainText('Flag 1 marked as issue during automated test', { timeout: 20_000 })
-            // NOTE: item is still in review so reviewed by not showing now
-        }
+            let flagResponse = await Promise.all([
+                page.waitForResponse(buildFlagsFetchPredicate(session.id)),
+                viewDetailsBtn.click()
+            ]);
 
-        const mmddyy = formatTodayMmDdYyyy();
+            let flags = await waitForJsonResponse(flagResponse[0]);
 
-        const criticalFlag = flags.data.find(flag => flag.severity === 'CRITICAL' && !reviewedFlags.map(({ id }) => id).includes(flag.id) && !flag.ignored);
-        await expect(criticalFlag).toBeDefined();
-        if (criticalFlag) {
-            const flagDiv = await page.locator(`li[id=flag-${criticalFlag.id}]`)
-            await flagDiv.getByTestId('mark_as_non_issue').click();
-            await expect(flagDiv.locator('#description')).toBeVisible();
-            await flagDiv.locator('#description').locator('textarea').fill('Flag 2 not an issue');
+            await expect(page.getByTestId('report-view-details-flags-section')).toBeVisible();
+
+
+            const flagSection = await page.getByTestId('report-view-details-flags-section');
+
+            const startReviewBtn = flagSection.getByTestId('flags-start-review-btn');
+
+            await expect(startReviewBtn).toBeVisible({ timeout: 10_000 })
+
             flagResponse = await Promise.all([
                 page.waitForResponse(buildFlagsFetchPredicate(session.id)),
-                flagDiv.locator('[type="submit"]').click()
+                startReviewBtn.click()
+            ])
+
+            flags = await waitForJsonResponse(flagResponse[0]);
+
+            const completeReview = page.getByTestId('flags-complete-review-btn')
+            await expect(completeReview).toBeVisible();
+
+            for (let index = 0; index < flags.data.length; index++) {
+                const element = flags.data[index];
+                await expect(element.in_review).toBeTruthy();
+            }
+
+            for (let index = 0; index < flags.data.length; index++) {
+                const element = flags.data[index];
+                await expect(page.locator(`li[id=flag-${element.id}]`)).toContainText(`In review by: ${adminUser.full_name}`, { timeout: 20_000 })
+            }
+
+            const reviewedFlags = [];
+
+            const errorFlag = flags.data.find(flag => flag.severity === 'ERROR' && !flag.ignored);
+            await expect(errorFlag).toBeDefined()
+
+            if (errorFlag) {
+                const flagDiv = await page.locator(`li[id=flag-${errorFlag.id}]`)
+                await flagDiv.getByTestId('mark_as_issue').click();
+
+                await expect(flagDiv.locator('#description')).toBeVisible();
+                await flagDiv.locator('#description').locator('textarea').fill('Flag 1 marked as issue during automated test');
+                await flagDiv.locator('[type="submit"]').click();
+                reviewedFlags.push(errorFlag)
+
+                const iciSection = page.getByTestId('items-causing-decline-section');
+
+                const newFlagDiv = iciSection.locator(`li[id=flag-${errorFlag.id}]`)
+                await expect(newFlagDiv).toBeVisible({ timeout: 20_000 })
+                await expect(newFlagDiv).toContainText('Flag 1 marked as issue during automated test', { timeout: 20_000 })
+                // NOTE: item is still in review so reviewed by not showing now
+            }
+
+            const mmddyy = formatTodayMmDdYyyy();
+
+            const criticalFlag = flags.data.find(flag => flag.severity === 'CRITICAL' && !reviewedFlags.map(({ id }) => id).includes(flag.id) && !flag.ignored);
+            await expect(criticalFlag).toBeDefined();
+            if (criticalFlag) {
+                const flagDiv = await page.locator(`li[id=flag-${criticalFlag.id}]`)
+                await flagDiv.getByTestId('mark_as_non_issue').click();
+                await expect(flagDiv.locator('#description')).toBeVisible();
+                await flagDiv.locator('#description').locator('textarea').fill('Flag 2 not an issue');
+                flagResponse = await Promise.all([
+                    page.waitForResponse(buildFlagsFetchPredicate(session.id)),
+                    flagDiv.locator('[type="submit"]').click()
+                ])
+                flags = await waitForJsonResponse(flagResponse[0]);
+                reviewedFlags.push(criticalFlag)
+
+                const riSection = page.getByTestId('reviewed-items-section');
+                const newFlagDiv = riSection.locator(`li[id=flag-${criticalFlag.id}]`)
+                await expect(newFlagDiv).toBeVisible()
+                await expect(newFlagDiv).toContainText('Flag 2 not an issue', { timeout: 20_000 })
+
+                await expect(newFlagDiv).toContainText(`Reviewed by: ${adminUser.full_name} ${mmddyy}`, { timeout: 20_000 });
+            }
+
+            const otherCriticalFlag = flags.data.find(flag => flag.severity === 'CRITICAL' && !reviewedFlags.map(({ id }) => id).includes(flag.id) && !flag.ignored);
+            await expect(otherCriticalFlag).toBeDefined();
+            if (otherCriticalFlag) {
+                const flagDiv = await page.locator(`li[id=flag-${otherCriticalFlag.id}]`)
+                await flagDiv.getByTestId('mark_as_non_issue').click();
+                await flagDiv.locator('[type="submit"]').click();
+                reviewedFlags.push(otherCriticalFlag)
+
+                const riSection = page.getByTestId('reviewed-items-section');
+                const newFlagDiv = riSection.locator(`li[id=flag-${otherCriticalFlag.id}]`)
+                await expect(newFlagDiv).toBeVisible()
+
+                // Get today's date in mm/dd/YYYY format
+
+
+                await expect(newFlagDiv).toContainText(`Reviewed by: ${adminUser.full_name} ${mmddyy}`, { timeout: 20_000 });
+            }
+
+            const completeReviewBtn = await page.getByTestId('flags-complete-review-btn');
+
+            completeReviewBtn.click();
+
+            const confirmModal = page.getByTestId('complete-review-confirm-modal')
+
+            await expect(confirmModal).toBeVisible();
+
+            await page.waitForTimeout(3000);
+            flagResponse = await Promise.all([
+                page.waitForResponse(buildFlagsFetchPredicate(session.id)),
+                confirmModal.getByTestId('review-confirm-ok-btn').click()
             ])
             flags = await waitForJsonResponse(flagResponse[0]);
-            reviewedFlags.push(criticalFlag)
 
-            const riSection = page.getByTestId('reviewed-items-section');
-            const newFlagDiv = riSection.locator(`li[id=flag-${criticalFlag.id}]`)
-            await expect(newFlagDiv).toBeVisible()
-            await expect(newFlagDiv).toContainText('Flag 2 not an issue', { timeout: 20_000 })
-
-            await expect(newFlagDiv).toContainText(`Reviewed by: ${adminUser.full_name} ${mmddyy}`, { timeout: 20_000 });
-        }
-
-        const otherCriticalFlag = flags.data.find(flag => flag.severity === 'CRITICAL' && !reviewedFlags.map(({ id }) => id).includes(flag.id) && !flag.ignored);
-        await expect(otherCriticalFlag).toBeDefined();
-        if (otherCriticalFlag) {
-            const flagDiv = await page.locator(`li[id=flag-${otherCriticalFlag.id}]`)
-            await flagDiv.getByTestId('mark_as_non_issue').click();
-            await flagDiv.locator('[type="submit"]').click();
-            reviewedFlags.push(otherCriticalFlag)
-
-            const riSection = page.getByTestId('reviewed-items-section');
-            const newFlagDiv = riSection.locator(`li[id=flag-${otherCriticalFlag.id}]`)
-            await expect(newFlagDiv).toBeVisible()
-
-            // Get today's date in mm/dd/YYYY format
-
-
-            await expect(newFlagDiv).toContainText(`Reviewed by: ${adminUser.full_name} ${mmddyy}`, { timeout: 20_000 });
-        }
-
-        const completeReviewBtn = await page.getByTestId('flags-complete-review-btn');
-
-        completeReviewBtn.click();
-
-        const confirmModal = page.getByTestId('complete-review-confirm-modal')
-
-        await expect(confirmModal).toBeVisible();
-
-        await page.waitForTimeout(3000);
-        flagResponse = await Promise.all([
-            page.waitForResponse(buildFlagsFetchPredicate(session.id)),
-            confirmModal.getByTestId('review-confirm-ok-btn').click()
-        ])
-        flags = await waitForJsonResponse(flagResponse[0]);
-
-        for (let index = 0; index < flags.data.length; index++) {
-            const element = flags.data[index];
-            await expect(element.in_review).toBeFalsy();
-        }
-
-        for (let index = 0; index < flags.data.length; index++) {
-            const element = flags.data[index];
-            await expect(page.locator(`li[id=flag-${element.id}]`)).toContainText(`Reviewed by: ${adminUser.full_name} ${mmddyy}`, { timeout: 20_000 })
-        }
-
-
-        // Checking event history
-
-        const eventResponse = await apiClient.get(`/sessions/${session.id}/events`, {
-            params: {
-                order: 'created_at:desc',
-                limit: 50,
-                page: 1,
-                all: true,
-                'fields[user]': "full_name,email,phone"
+            for (let index = 0; index < flags.data.length; index++) {
+                const element = flags.data[index];
+                await expect(element.in_review).toBeFalsy();
             }
-        })
 
-        let events = eventResponse.data.data;
-        events = events.filter(evt => !!evt.meta && evt.title === 'Flag reviewed');
+            for (let index = 0; index < flags.data.length; index++) {
+                const element = flags.data[index];
+                await expect(page.locator(`li[id=flag-${element.id}]`)).toContainText(`Reviewed by: ${adminUser.full_name} ${mmddyy}`, { timeout: 20_000 })
+            }
 
-        for (let index = 0; index < reviewedFlags.length; index++) {
-            const element = reviewedFlags[index];
-            await expect(events.some(evt => evt?.meta?.flag === element.flag.key)).toBeTruthy()
+
+            // Checking event history
+
+            const eventResponse = await apiClient.get(`/sessions/${session.id}/events`, {
+                params: {
+                    order: 'created_at:desc',
+                    limit: 50,
+                    page: 1,
+                    all: true,
+                    'fields[user]': "full_name,email,phone"
+                }
+            })
+
+            let events = eventResponse.data.data;
+            events = events.filter(evt => !!evt.meta && evt.title === 'Flag reviewed');
+
+            for (let index = 0; index < reviewedFlags.length; index++) {
+                const element = reviewedFlags[index];
+                await expect(events.some(evt => evt?.meta?.flag === element.flag.key)).toBeTruthy()
+            }
+        } catch (err) {
+            console.error('❌ Test failed:', error.message);
+            allTestsPassed = false;
+            throw error;
         }
     });
 
+    test.afterAll(async ({ request }) => {
+        await cleanupSessionAndContexts(
+            request,
+            cleanpSessionId,
+            null,
+            null,  // No admin context
+            allTestsPassed
+        )
+    })
+
 })
+
+// async function inviteUser(adminSessionApi, application, user) {
+//     try {
+//         const response = await adminSessionApi.create({
+//                 application: application.id,
+//                 invite: true,
+//                 ...user
+//             })
+//         return response.data;
+//     } catch (err) {
+//         console.error('Failed to invite user')
+//         throw err;
+//     }
+// }
+// async function loginWithGuestUser(guestClient, url) {
+//     const sessionUrl = new URL(url)
+//     const params = new URLSearchParams(sessionUrl.search)
+//     const token = params.get('token')
+//     try {
+//         const response = await guestClient.post(
+//             '/auth/guests',
+//             {
+//                 "token": token,
+//                 "os": "web",
+//                 "uuid": generateUUID()
+//             })
+//         return response.data.data
+//     } catch (err) {
+//         console.error('Failed to login with guest user using token')
+//         throw err;
+//     }
+// }
 
 // Helper: standard predicate for waiting flags GET fetch excluding APPLICANT scope
 function buildFlagsFetchPredicate(sessionId) {
