@@ -358,7 +358,7 @@ test.describe('QA-202 flag_review_buttons_flow', () => {
                 const element = reviewedFlags[index];
                 await expect(events.some(evt => evt?.meta?.flag === element.flag.key)).toBeTruthy()
             }
-        } catch (err) {
+        } catch (error) {
             console.error('❌ Test failed:', error.message);
             allTestsPassed = false;
             throw error;
@@ -376,38 +376,6 @@ test.describe('QA-202 flag_review_buttons_flow', () => {
     })
 
 })
-
-// async function inviteUser(adminSessionApi, application, user) {
-//     try {
-//         const response = await adminSessionApi.create({
-//                 application: application.id,
-//                 invite: true,
-//                 ...user
-//             })
-//         return response.data;
-//     } catch (err) {
-//         console.error('Failed to invite user')
-//         throw err;
-//     }
-// }
-// async function loginWithGuestUser(guestClient, url) {
-//     const sessionUrl = new URL(url)
-//     const params = new URLSearchParams(sessionUrl.search)
-//     const token = params.get('token')
-//     try {
-//         const response = await guestClient.post(
-//             '/auth/guests',
-//             {
-//                 "token": token,
-//                 "os": "web",
-//                 "uuid": generateUUID()
-//             })
-//         return response.data.data
-//     } catch (err) {
-//         console.error('Failed to login with guest user using token')
-//         throw err;
-//     }
-// }
 
 // Helper: standard predicate for waiting flags GET fetch excluding APPLICANT scope
 function buildFlagsFetchPredicate(sessionId) {
