@@ -1,3 +1,4 @@
+import { expect } from "@playwright/test";
 import { generateUUID, wait } from "../utils/helper";
 
 // Helper: creates the current step for the given session and returns it

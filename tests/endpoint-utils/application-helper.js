@@ -1,3 +1,5 @@
+import { expect } from "@playwright/test";
+
 async function getApplicationByName(apiClient, appName) {
 
     const applicationResponse = await apiClient.get('/applications', {
