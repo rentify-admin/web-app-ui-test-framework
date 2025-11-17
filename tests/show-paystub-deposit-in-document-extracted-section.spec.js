@@ -13,13 +13,14 @@ import { pollForVerificationStatus } from "./utils/polling-helper";
 
 let createdSessionId = null;
 let allTestsPassed = true;
+let guestAuthToken = null;  // ✅ Store guest token for API polling
 
 test.describe('QA-213 show-paystub-deposit-in-document-extracted-section.spec', () => {
 
     const appName = 'Autotest - Heartbeat Test - Employment';
 
     test('Verify Display Paystub Deposits in Document → Extracted Section', { 
-        tag: ['@need-review']
+        tag: ['@regression']
     }, async ({ page, browser }) => {
         try {
             const user = {
@@ -47,8 +48,30 @@ test.describe('QA-213 show-paystub-deposit-in-document-extracted-section.spec', 
 
         const applicationPage = await context.newPage()
 
-        console.log('🚀 Navigating to applicant link');
+        console.log('🚀 Navigating to applicant link and capturing auth token');
+        
+        // ✅ Intercept the auth response to capture guest token
+        const tokenPromise = applicationPage.waitForResponse(
+            resp => resp.url().includes('/auth/guest') && resp.ok(),
+            { timeout: 30000 }  // ✅ Add explicit timeout
+        ).then(async resp => {
+            const body = await resp.json();
+            const token = body.data?.token || body.token;
+            console.log('✅ Captured guest auth token');
+            return token;
+        }).catch(error => {
+            console.log('⚠️ Failed to capture auth token:', error.message);
+            return null;  // ✅ Return null instead of crashing
+        });
+        
         await applicationPage.goto(link);
+        guestAuthToken = await tokenPromise;
+        
+        // ✅ Validate token was captured
+        if (!guestAuthToken) {
+            throw new Error('Failed to capture guest authentication token - cannot proceed with API polling');
+        }
+        
         console.log('✅ Navigated to applicant link');
 
         console.log('🚀 Starting invite link session setup');
@@ -190,7 +213,14 @@ test.describe('QA-213 show-paystub-deposit-in-document-extracted-section.spec', 
 
 async function checkDeposits(page, file, paystubData) {
     console.log(`🚀 Opening files section for file id: ${file.id}`);
-    await page.getByTestId('files-section').click();
+    const filesSection = page.getByTestId('files-section');
+    
+    // ✅ Check if section is already expanded before clicking
+    const isExpanded = await filesSection.getAttribute('aria-expanded').catch(() => null);
+    if (isExpanded !== 'true') {
+        await filesSection.click();
+        await page.waitForTimeout(500);  // ✅ Wait for section to expand
+    }
 
     const fileRow = await page.getByTestId('all-tr-' + file.id);
 
@@ -204,7 +234,7 @@ async function checkDeposits(page, file, paystubData) {
     await expect(extractedSection).toBeVisible();
     console.log('✅ Paystub extracted section visible');
 
-    const depositCol = await extractedSection.getByTestId('paystub-deposit-col');
+    const depositCol = extractedSection.getByTestId('paystub-deposit-col');  // ✅ Removed unnecessary await
     for (let index = 0; index < paystubData.documents[0].data.deposits.length; index++) {
         const element = paystubData.documents[0].data.deposits[index];
         console.log(`🚀 Checking deposit ${index + 1} (Account: ${element.account_name}, Amount: ${element.amount})`);
@@ -221,7 +251,7 @@ async function checkDeposits(page, file, paystubData) {
 
 async function uploadVeridocsDoc(applicationPage, paystubData) {
     console.log('🚀 Waiting for pay_stub document tile to be visible');
-    await expect(applicationPage.getByTestId('document-pay_stub')).toBeVisible();
+    await expect(applicationPage.getByTestId('document-pay_stub')).toBeVisible({ timeout: 20000 });  // ✅ Added explicit timeout
     console.log('✅ pay_stub tile visible, clicking...');
     await applicationPage.getByTestId('document-pay_stub').click()
 
@@ -263,10 +293,12 @@ async function uploadVeridocsDoc(applicationPage, paystubData) {
     ]);
     console.log('✅ Uploaded doc and received backend POST /employment-verifications');
 
-    console.log('🚀 Polling for employment-verification COMPLETED status using reusable helper...');
+    // ✅ API POLLING: Poll verification status with authentication
+    console.log('🚀 Polling for employment-verification COMPLETED status via API...');
     await pollForVerificationStatus(applicationPage.context(), uploadResponseId, 'employment-verifications', {
         maxAttempts: 20,
-        pollInterval: 2000
+        pollInterval: 2000,
+        authToken: guestAuthToken  // ✅ Pass the captured guest token
     });
-    console.log('✅ Document verification step completed for uploaded doc');
+    console.log('✅ Document verification completed via API polling');
 }

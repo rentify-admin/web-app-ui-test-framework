@@ -298,13 +298,24 @@ const pollUntil = async (conditionFn, options = {}) => {
  * @param {string[]} [options.successStatuses=['COMPLETED']] - Statuses considered successful
  * @param {string[]} [options.failureStatuses=['FAILED', 'EXPIRED']] - Statuses considered terminal failures
  * @param {string} [options.apiBaseUrl] - API base URL (default: from app.urls.api)
+ * @param {string} [options.authToken] - Optional Bearer token for authentication
+ * @param {string} [options.stepId] - Optional step ID for filtering (more precise than ID filter)
  * @returns {Promise<Object>} - The completed verification object
  * @throws {Error} - If verification fails or times out
  * 
  * @example
+ * // With authentication token:
  * const verification = await pollForVerificationStatus(context, verificationId, 'employment-verifications', {
  *     maxAttempts: 25,
- *     pollInterval: 4000
+ *     pollInterval: 4000,
+ *     authToken: guestToken
+ * });
+ * 
+ * @example
+ * // With step ID for more precise filtering:
+ * const verification = await pollForVerificationStatus(context, verificationId, 'employment-verifications', {
+ *     stepId: stepId,
+ *     authToken: guestToken
  * });
  */
 const pollForVerificationStatus = async (context, verificationId, endpoint, options = {}) => {
@@ -313,7 +324,9 @@ const pollForVerificationStatus = async (context, verificationId, endpoint, opti
         pollInterval = 4000,
         successStatuses = ['COMPLETED'],
         failureStatuses = ['FAILED', 'EXPIRED'],
-        apiBaseUrl
+        apiBaseUrl,
+        authToken,
+        stepId
     } = options;
 
     // Import app config here to avoid circular dependencies
@@ -321,28 +334,73 @@ const pollForVerificationStatus = async (context, verificationId, endpoint, opti
     const baseUrl = apiBaseUrl || app.urls.api;
 
     console.log(`🔍 Polling for verification ${verificationId} on ${endpoint} (max ${maxAttempts} attempts, ${pollInterval}ms interval)...`);
+    if (authToken) {
+        console.log('   🔐 Using authentication token');
+    } else {
+        console.log('   ⚠️  No auth token provided - API may reject request');
+    }
 
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
         try {
-            // Make direct API call to check verification status by ID
-            const apiUrl = `${baseUrl}/${endpoint}/${verificationId}`;
-            const response = await context.request.get(apiUrl);
+            // ✅ Use proper filter format matching API test framework pattern (session-flow.js:2324-2334)
+            const filters = stepId 
+                ? {
+                    "$has": {
+                        "step": {
+                            "id": stepId
+                        }
+                    },
+                    "status": {
+                        "$neq": "EXPIRED"
+                    }
+                }
+                : {
+                    "id": verificationId
+                };
+
+            const apiUrl = `${baseUrl}/${endpoint}`;
+            
+            const requestOptions = {
+                params: {
+                    filters: JSON.stringify(filters)
+                }
+            };
+
+            // Add authentication if provided
+            if (authToken) {
+                requestOptions.headers = {
+                    'Authorization': `Bearer ${authToken}`,
+                    'Content-Type': 'application/json'
+                };
+            }
+            
+            console.log(`   🔍 Attempt ${attempt}/${maxAttempts}: GET ${apiUrl} with filters:`, JSON.stringify(filters, null, 2));
+            const response = await context.request.get(apiUrl, requestOptions);
 
             if (!response.ok()) {
-                // 404 means verification not found yet (may still be creating)
-                if (response.status() === 404) {
-                    console.log(`   ⏳ Attempt ${attempt}/${maxAttempts}: Verification not found yet (404)`);
+                const responseText = await response.text();
+                const isHtml = responseText.trim().startsWith('<!DOCTYPE') || responseText.trim().startsWith('<html');
+                
+                if (isHtml) {
+                    console.log(`   ❌ Attempt ${attempt}/${maxAttempts}: API returned HTML instead of JSON - authentication required!`);
+                    if (!authToken) {
+                        throw new Error('Authentication required: API endpoint needs Bearer token. Pass authToken in options.');
+                    }
                 } else {
-                    console.log(`   ⚠️ Attempt ${attempt}/${maxAttempts}: API returned status ${response.status()}`);
+                    console.log(`   ⚠️ Attempt ${attempt}/${maxAttempts}: API returned status ${response.status()}: ${responseText.substring(0, 100)}`);
                 }
             } else {
                 const body = await response.json();
+                
+                // List endpoint returns { data: [...] } array format
+                const verifications = body.data || [];
+                console.log(`   📊 Attempt ${attempt}/${maxAttempts}: Found ${verifications.length} verification(s)`);
+                
+                // Find our specific verification by ID
+                const verification = verifications.find(v => v.id === verificationId);
 
-                // Direct ID lookup returns single object with 'data' property
-                const verification = body.data || body;
-
-                if (verification && verification.id) {
-                    console.log(`   📊 Attempt ${attempt}/${maxAttempts}: Status = ${verification.status}`);
+                if (verification) {
+                    console.log(`   📊 Verification ${verificationId}: Status = ${verification.status}`);
 
                     // Check for success
                     if (successStatuses.includes(verification.status)) {
@@ -358,8 +416,9 @@ const pollForVerificationStatus = async (context, verificationId, endpoint, opti
                     }
 
                     // Still processing - continue polling
+                    console.log(`   ⏳ Status is ${verification.status}, waiting for ${successStatuses.join(' or ')}...`);
                 } else {
-                    console.log(`   ⚠️ Attempt ${attempt}/${maxAttempts}: Invalid response structure`);
+                    console.log(`   ⏳ Attempt ${attempt}/${maxAttempts}: Verification not found in list yet`);
                 }
             }
         } catch (error) {
