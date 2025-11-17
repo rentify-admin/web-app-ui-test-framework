@@ -1,6 +1,5 @@
-import { expect } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 import { admin, app, session as sessionConf } from './test_config';
-import { test } from './fixtures/enhanced-cleanup-fixture';
 import { ApiClient, ApplicantApi, GuestApi, ProviderApi, SessionApi } from './api';
 import { getBankStatementData } from './mock-data/high-balance-financial-payload';
 import loginForm from './utils/login-form';
