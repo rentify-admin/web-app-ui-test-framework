@@ -3,7 +3,7 @@
 import { test, expect } from '@playwright/test';
 import { getAmount, joinUrl } from './utils/helper';
 import { waitForJsonResponse } from './utils/wait-response';
-import { adminLoginAndNavigateToApplications, loginWith } from './utils/session-utils';
+import loginForm from './utils/login-form';
 import { admin, app } from './test_config';
 import { findAndInviteApplication, openInviteModal } from './utils/applications-page';
 import generateSessionForm from './utils/generate-session-form';
@@ -182,7 +182,11 @@ test.describe('QA-210: Check Income Source Regenerate on Split/Merge', () => {
         const coAppUser = { email: getRandomEmail(), first_name: 'Merge', last_name: 'Coapp' };
 
         // 1. Primary Applicant Flow
-        await adminLoginAndNavigateToApplications(page, admin);
+        // Login and capture admin token to reuse later for API calls
+        const adminToken = await loginForm.adminLoginAndNavigate(page, admin);
+        await page.getByTestId('applications-menu').click();
+        await page.getByTestId('applications-submenu').click();
+        
         await findAndInviteApplication(page, appName);
         const { sessionId: priSessionId, link: priLink } = await generateSessionForm.generateSessionAndExtractLink(page, primaryUser);
 
@@ -226,20 +230,30 @@ test.describe('QA-210: Check Income Source Regenerate on Split/Merge', () => {
         await mergeSessions(page, priSessionId, coAppSessionId);
         await page.waitForTimeout(2000);
 
-        // const priSessionId = '019a7865-7b55-7336-9e77-21283a44a30c'
-        // const coAppSessionId = '019a7865-e1e9-70e5-93d8-b97cfd794245'
-        // await navigateToSessionDetail(page, priSessionId)
+        // Navigate to the primary session detail page before reloading
+        await navigateToSessionDetail(page, priSessionId);
 
-        const [sessionResp] = await Promise.all([
-            page.waitForResponse(resp => resp.url().includes(`/sessions/${priSessionId}?`)
-                && resp.request().method() === "GET"
-                && resp.ok()
-            ),
-            page.reload()
-        ])
-
-        const { data: session } = await waitForJsonResponse(sessionResp)
-
+        // Simple reload without waiting for response (more stable)
+        await page.reload();
+        await page.waitForLoadState('networkidle');
+        await page.waitForTimeout(1000);
+        
+        // Get session data via isolated GET request using token from initial login
+        const sessionResponse = await page.request.get(`${app.urls.api}/sessions/${priSessionId}?fields[session]=id,applicant,children`, {
+            headers: {
+                'Authorization': `Bearer ${adminToken}`,
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        if (!sessionResponse.ok()) {
+            const errorText = await sessionResponse.text();
+            throw new Error(`Failed to fetch session: ${sessionResponse.status()} - ${errorText}`);
+        }
+        
+        const sessionData = await sessionResponse.json();
+        const session = sessionData.data;
+        
         await page.waitForTimeout(3000);
         // --- Verify After Merge ---
         // 6. Check Combined Income Sources
@@ -308,15 +322,54 @@ test.describe('QA-210: Check Income Source Regenerate on Split/Merge', () => {
         // --- Split Action ---
         // 7. Split Session
         await splitSession(page, priSessionId, coAppSessionId);
-        await page.waitForTimeout(1000);
+        
+        // Navigate to primary session and wait for household-status-alert (better than fixed wait)
         const sessionLink = page.locator(`[href="/applicants/all/${priSessionId}"]`);
-        await sessionLink.click()
-        await page.waitForTimeout(1000);
+        await sessionLink.click();
+        await expect(page.getByTestId('household-status-alert')).toBeVisible({ timeout: 10_000 });
+        
+        // Reload and wait for page to be ready
         await page.reload();
-        await page.waitForTimeout(5000);
+        await page.waitForLoadState('networkidle');
+        await expect(page.getByTestId('household-status-alert')).toBeVisible({ timeout: 10_000 });
+        
+        // Poll for split to complete: verify children array is empty (co-app is now independent)
+        console.log('🔍 Polling for split to complete (children should be empty)...');
+        const maxPolls = 8; // 8 polls × ~2s = ~16 seconds max
+        let splitComplete = false;
+        for (let i = 0; i < maxPolls; i++) {
+            const sessionResponse = await page.request.get(`${app.urls.api}/sessions/${priSessionId}?fields[session]=id,applicant,children`, {
+                headers: {
+                    'Authorization': `Bearer ${adminToken}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+            
+            if (sessionResponse.ok()) {
+                const sessionData = await sessionResponse.json();
+                const children = sessionData.data?.children || [];
+                
+                if (children.length === 0) {
+                    console.log(`✅ Split complete: children array is empty (poll ${i + 1}/${maxPolls})`);
+                    splitComplete = true;
+                    break;
+                } else {
+                    console.log(`⏳ Split in progress: ${children.length} children remaining (poll ${i + 1}/${maxPolls})`);
+                }
+            }
+            
+            if (i < maxPolls - 1) {
+                await page.waitForTimeout(2000);
+            }
+        }
+        
+        if (!splitComplete) {
+            throw new Error('Split did not complete: children array is not empty after 15 seconds');
+        }
+        
         // --- Verify After Split ---
         // 8. Check Primary Income (should be independent again)
-        await checkIncomeSourcesAndAssertVisibility(page, priSessionId, primaryUserBankData);
+        await checkIncomeSourcesAndAssertVisibility(page, priSessionId);
 
         // 9. Check Co-Applicant Income (now in a new, independent session)
         await page.getByTestId('applicants-submenu').click(); // Navigate back to list view

@@ -63,9 +63,29 @@ const fillMultiselect = async (page, selector, values) => {
     for (let index = 0; index < values.length; index++) {
         const item = values[index];
         await selector.locator('input').fill(item);
-        // Use filter with exact text match (not regex) to avoid matching partial text
-        // hasText with string does exact match, not substring
-        await selector.locator('ul>li').filter({ hasText: new RegExp(`^${escapeRegExp(item)}$`) }).click();
+        
+        // Wait a bit for the dropdown options to appear after typing
+        await page.waitForTimeout(500);
+        
+        // Use substring match (case-insensitive) since applicant names may have prefixes like "Autotest - "
+        // This allows matching "Merge Coapp" in "Autotest - Merge Coapp"
+        const trimmedItem = item.trim();
+        const options = selector.locator('ul>li');
+        const matchedOption = options.filter({ hasText: new RegExp(escapeRegExp(trimmedItem), 'i') });
+        
+        // If no match, log available options for debugging
+        if (await matchedOption.count() === 0) {
+            const optionCount = await options.count();
+            console.error(`❌ Could not find option containing "${trimmedItem}"`);
+            console.error(`Available options (${optionCount}):`);
+            for (let i = 0; i < Math.min(optionCount, 10); i++) {
+                const optionText = await options.nth(i).textContent();
+                console.error(`  - "${optionText}"`);
+            }
+            throw new Error(`Option not found: "${trimmedItem}". Available options: ${await options.first().textContent().catch(() => 'none')}`);
+        }
+        
+        await matchedOption.first().click();
     }
 
 };

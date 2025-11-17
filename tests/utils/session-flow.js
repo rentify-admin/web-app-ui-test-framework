@@ -577,6 +577,7 @@ const handleOptionalStateModal = async page => {
     try {
         await stateModal.waitFor({ state: 'visible', timeout: 6000 });
         isModalVisible = true;
+        await page.waitForTimeout(1000);
     } catch (error) {
         // Modal not visible within 6 seconds, continue without it
         console.log('⏭️ State modal not visible, continuing...');
@@ -594,20 +595,32 @@ const handleOptionalStateModal = async page => {
             console.log('First state is already US, skipping to second state');
         } else {
 
-            // First state is not US, click the parent of the parent with class containing "multiselect"
-            await page.getByTestId('state-modal-country-select-search')
-                .locator('xpath=../../..')
-                .filter({ hasClass: /multiselect/ }) // TODO: request to add testid
-                .click();
+            // First state is not US, click the country select multiselect if dropdown is closed
+            const countryListbox = page.locator('#listbox-state-modal-country-select');
+            const countryListboxParent = countryListbox.locator('..');
+            const countryIsHidden = await countryListboxParent.evaluate(el => {
+                const style = window.getComputedStyle(el);
+                return style.display === 'none';
+            });
+            
+            if (countryIsHidden) {
+                await page.getByTestId('state-modal-country-select').click();
+            }
             await page.waitForTimeout(500);
             await page.keyboard.press('Enter');
         }
 
-        // 4. Click second multiselect (parent of parent with class containing "multiselect")
-        await page.getByTestId('state-modal-state-select-search')
-            .locator('xpath=../../..')
-            .filter({ hasClass: /multiselect/ }) // TODO: request to add testid
-            .click();
+        // 4. Click state select multiselect if dropdown is closed
+        const stateListbox = page.locator('#listbox-state-modal-state-select');
+        const stateListboxParent = stateListbox.locator('..');
+        const stateIsHidden = await stateListboxParent.evaluate(el => {
+            const style = window.getComputedStyle(el);
+            return style.display === 'none';
+        });
+        
+        if (stateIsHidden) {
+            await page.getByTestId('state-modal-state-select').click();
+        }
 
         // 5. Wait 500ms
         await page.waitForTimeout(500);

@@ -1849,6 +1849,7 @@ Based on the test files in the framework, I've identified these categories:
 4. `co_app_household_with_flag_errors.spec.js` - **Co-Applicant Household with Flag Errors**
 5. `skip_button_visibility_logic.spec.js` - **Skip Button Visibility Logic Testing**
 6. `user_flags_approve_reject_test.spec.js` - **User Flags Approve Reject Test**
+7. `check_income_source_regenerate_on_split_merge.spec.js` - **Income Source Regenerate on Split/Merge**
 
 ---
 
@@ -2565,6 +2566,239 @@ Based on the test files in the framework, I've identified these categories:
 
 ---
 
+### **7. check_income_source_regenerate_on_split_merge.spec.js**
+
+**Purpose**: Validates income source regeneration when sessions are merged and split - verifies income sources are correctly aggregated after merge and independently regenerated after split
+
+**Configuration**:
+- **Application**: "Autotest - Heartbeat Test - Financial"
+- **Primary User**: Merge Primary (random email via `getRandomEmail()`)
+- **Co-Applicant User**: Merge Coapp (random email via `getRandomEmail()`)
+- **Timeout**: 300 seconds
+- **Tags**: @needs-review
+
+---
+
+#### **Test: "Verify Regenerate Income After Merge/Split"**
+
+**Purpose**: Verify that income sources correctly aggregate when two sessions are merged and independently regenerate when merged sessions are split back into separate households
+
+**Test Flow**:
+
+1. **Admin Setup**
+   - Login as admin via `adminLoginAndNavigate` (capture adminToken for API calls)
+   - Navigate to applications menu → applications submenu
+   - Find and invite "Autotest - Heartbeat Test - Financial" application
+
+2. **Primary Applicant Setup**
+   - Generate session with primary user data (Merge, Primary, random email)
+   - Store primary sessionId (`priSessionId`) and invite link (`priLink`)
+   - Prepare primary bank data via `getBankData(primaryUser)`:
+     - Institution: Wells Fargo
+     - Account type: Checking
+     - Account number: ending in 4565
+     - Balance: default from mock data
+     - 5 transactions with various amounts
+   - Complete session via `completeSession` helper (new browser context):
+     - Navigate to invite link
+     - Complete `setupInviteLinkSession` (no applicant type - financial-only app)
+     - Update rent budget (default from helper)
+     - Skip pre-screening step
+     - Complete financial verification with VERIDOCS simulator:
+       - Click connect-bank button
+       - Accept dialog with primary bank data JSON payload
+       - Wait for POST `/financial-verifications` response
+       - Poll for simulator connection completion (15 iterations, 2s interval)
+     - Click financial-verification-continue button
+     - Close applicant page
+
+3. **Co-Applicant Setup**
+   - Bring admin page to front
+   - Open invite modal for same application
+   - Generate session with co-applicant user data (Merge, Coapp, random email)
+   - Store co-applicant sessionId (`coAppSessionId`) and invite link (`coAppLink`)
+   - Prepare co-applicant bank data via `getBankData(coAppUser)` with modifications:
+     - Account number: '9123456780' (different from primary)
+     - Balance: 25000 (different from primary)
+     - Transaction amounts: [12000, 12000] (different from primary)
+   - Complete session via `completeSession` helper (new browser context):
+     - Same flow as primary (setupInviteLinkSession → rent budget → skip pre-screening → financial verification)
+     - Use modified co-applicant bank data
+     - Close applicant page
+
+4. **Pre-Merge Verification**
+   - Bring admin page to front
+   - Navigate to applicants menu → applicants submenu
+   - **Verify Co-Applicant Income**:
+     - Navigate to co-applicant session detail page via `navigateToSessionDetail`
+     - Call `checkIncomeSourcesAndAssertVisibility` helper:
+       - Click income-source-section-header
+       - Wait for GET `/sessions/{coAppSessionId}/income-sources` response
+       - Verify all income sources visible in UI
+   - **Verify Primary Applicant Income**:
+     - Navigate to primary session detail page via `navigateToSessionDetail`
+     - Call `checkIncomeSourcesAndAssertVisibility` helper:
+       - Click income-source-section-header
+       - Wait for GET `/sessions/{priSessionId}/income-sources` response
+       - Verify all income sources visible in UI
+
+5. **Merge Sessions**
+   - Navigate back to applicants list view
+   - Call `mergeSessions` helper:
+     - Search for 'merge' (clears filters)
+     - Navigate to primary session
+     - Select both sessions via checkboxes (primary + co-applicant)
+     - Click merge-session-btn
+     - Confirm merge in modal (click Merge button)
+     - Wait for PATCH `/sessions/{priSessionId}` response
+     - Wait for GET `/sessions/{priSessionId}?fields[session]=` response
+
+6. **Post-Merge Verification**
+   - Navigate to primary session detail page via `navigateToSessionDetail`
+   - Reload page and wait for networkidle
+   - Fetch session data via isolated API GET request using `adminToken`:
+     - GET `/sessions/{priSessionId}?fields[session]=id,applicant,children`
+     - Verify session has children array with co-applicant
+   - **Verify Combined Income Sources**:
+     - Click income-source-section-header
+     - Wait for parallel GET responses:
+       - Primary income sources: GET `/sessions/{priSessionId}/income-sources`
+       - Co-applicant income sources: GET `/sessions/{coAppSessionId}/income-sources`
+     - Extract income sources arrays from both responses
+     - Call `verifyIncomeSourceDetails` for primary applicant:
+       - Verify first income source visible
+       - Verify source type: "Financial Transactions"
+       - Verify description matches primary transaction description
+       - Verify last transaction date matches primary transaction date
+       - Verify income type: "Employment Transactions"
+       - Open income source details modal
+       - Verify transaction table visible
+       - Verify all transactions match primary bank data (amounts, descriptions, dates)
+       - Close modal
+     - Call `verifyIncomeSourceDetails` for co-applicant:
+       - Verify first income source visible
+       - Verify source type, description, dates match co-applicant data
+       - Open income source details modal
+       - Verify all transactions match co-applicant bank data
+       - Close modal
+
+7. **Verify Combined Financial Data**
+   - Expand financial-section-header
+   - Wait for parallel GET responses:
+     - Primary financial verifications: GET `/financial-verifications` with session.id filter
+     - Co-applicant financial verifications: GET `/financial-verifications` with coAppSessionId filter
+   - Extract financial verifications arrays from both responses
+   - Call `checkFinancialAccountData` for primary:
+     - Verify account number (last 4 digits)
+     - Verify account type: "Checking"
+     - Verify institution name: Wells Fargo
+     - Verify applicant name matches primary user
+     - Verify balance matches primary bank data (formatted via `getAmount`)
+     - Verify transaction count matches primary transactions array length
+     - Verify provider: "Simulation"
+   - Call `checkFinancialAccountData` for co-applicant:
+     - Verify account number, type, institution match co-applicant data
+     - Verify applicant name matches co-applicant user
+     - Verify balance matches co-applicant bank data (25000)
+     - Verify transaction count matches co-applicant transactions
+   - Switch to transactions radio button
+   - Call `financialTransactionVerify` for primary:
+     - Verify transaction table visible
+     - Loop through primary transactions:
+       - Verify date column contains transaction date
+       - Verify description column contains transaction description
+       - Verify paid_in column contains formatted amount (via `getAmount`)
+       - Verify account column contains "Checking"
+       - Verify institution column contains institution name
+   - Filter by co-applicant name via `fillMultiselect`:
+     - Fill multiselect with co-applicant full name
+     - Use substring matching (case-insensitive) for applicant name
+   - Call `financialTransactionVerify` for co-applicant:
+     - Verify transaction table shows only co-applicant transactions
+     - Verify all transaction data matches co-applicant bank data
+
+8. **Split Sessions**
+   - Call `splitSession` helper:
+     - Locate co-applicant section via `raw-{coAppSessionId}`
+     - Click overview-applicant-btn
+     - Click split-into-new-household-btn
+     - Confirm split in confirm-box modal
+     - Wait for DELETE `/sessions/{priSessionId}/children/{coAppSessionId}` response
+   - Navigate to primary session via session link
+   - Wait for household-status-alert to be visible
+   - Reload page and wait for networkidle
+   - Wait for household-status-alert again (ensures UI updated)
+   - **Poll for split completion**:
+     - Poll every 2 seconds (up to 8 attempts, 16 seconds max)
+     - For each poll:
+       - GET `/sessions/{priSessionId}?fields[session]=id,applicant,children` via API with `adminToken`
+       - Extract children array from response
+       - **Assert**: children.length === 0 (split complete)
+       - If children.length === 0: break polling loop
+       - If children.length > 0: continue polling
+     - **Assert**: splitComplete === true (throws error if not complete after 15s)
+
+9. **Post-Split Verification**
+   - **Verify Primary Income (Independent Again)**:
+     - Call `checkIncomeSourcesAndAssertVisibility` for primary session
+     - Verify income sources visible and match original primary data only
+   - Navigate back to applicants list view
+   - **Verify Co-Applicant Income (Independent Session)**:
+     - Navigate to co-applicant session detail page
+     - Call `checkIncomeSourcesAndAssertVisibility` for co-applicant session
+     - Verify income sources visible and match original co-applicant data only
+
+10. **Cleanup**
+    - afterAll hook calls `cleanupSession` for both `priSessionId` and `coAppSessionId`
+
+**Key API Endpoints**:
+- `POST /auth` - Admin authentication (returns adminToken)
+- `GET /applications?` - Search applications
+- `POST /sessions` - Create sessions (2x: primary + co-applicant)
+- `POST /auth/guests` - Guest authentication (2x: primary + co-applicant)
+- `PATCH /sessions/{id}` - Update rent budget (2x)
+- `PATCH /sessions/{id}/steps/{id}` - Skip pre-screening step (2x)
+- `POST /financial-verifications` - Upload bank statements (2x via VERIDOCS simulator)
+- `GET /sessions/{id}/income-sources` - Get income sources (multiple times for both sessions)
+- `GET /sessions/{id}?fields[session]=` - Get session details (multiple times, includes children field)
+- `GET /financial-verifications` - Get financial verifications (multiple times for both sessions)
+- `PATCH /sessions/{priSessionId}` - Merge sessions (link co-app to primary)
+- `DELETE /sessions/{priSessionId}/children/{coAppSessionId}` - Split sessions (remove child relationship)
+
+**Business Validations**:
+- ✅ Primary applicant can complete session with financial verification
+- ✅ Co-applicant can complete separate session with different bank data
+- ✅ Income sources generate correctly from bank transactions for both applicants
+- ✅ Income sources are independent before merge (separate sessions)
+- ✅ Sessions can be merged (primary + co-applicant linked)
+- ✅ After merge, both applicants' income sources visible on parent session page
+- ✅ Income source details match original bank transaction data for each applicant
+- ✅ Financial account data displays correctly for both applicants after merge
+- ✅ Financial transactions filter correctly by applicant name (multiselect)
+- ✅ Sessions can be split (co-applicant becomes independent again)
+- ✅ Split completion verified via API polling (children array empty)
+- ✅ After split, primary income sources independent (no co-app data)
+- ✅ After split, co-applicant income sources independent in new session
+- ✅ Admin token can be reused for multiple API calls
+- ✅ Polling mechanism works for split completion verification
+
+**Unique Aspects**:
+- Tests **income source regeneration** during merge/split lifecycle
+- Uses **2 browser contexts** for primary and co-applicant flows
+- Implements **admin token capture** from initial login for API polling
+- Uses **isolated API GET requests** with authentication token (decoupled from UI)
+- Tests **merge workflow** (select sessions → merge button → confirm modal)
+- Tests **split workflow** (co-app section → split button → confirm modal)
+- Implements **split completion polling** (checks children array via API, 8 attempts max)
+- Uses **substring matching** in `fillMultiselect` for applicant name filtering (handles "Autotest -" prefix)
+- Validates **income source details modal** for both applicants (transaction table verification)
+- Validates **financial transactions table** with applicant name filtering
+- Tests **currency formatting** via `getAmount` helper throughout
+- Uses **inline helper functions** (`completeSession`, `navigateToSessionDetail`, `checkIncomeSourcesAndAssertVisibility`, `mergeSessions`, `splitSession`, `verifyIncomeSourceDetails`, `checkFinancialAccountData`, `financialTransactionVerify`)
+- Validates **both sessions cleaned up** in afterAll hook
+
+---
+
 ## **Category 4 Summary**
 
 ### **Business Purpose Analysis:**
@@ -2577,6 +2811,7 @@ Based on the test files in the framework, I've identified these categories:
 | `co_app_household_with_flag_errors` | Household status lifecycle (4 stages) | API-based completion, 8 assertions (API+UI), flag transition validation |
 | `skip_button_visibility_logic` | Skip button UI visibility rules | Tests visible→action→hidden pattern for 4 steps, reusable helper function |
 | `user_flags_approve_reject_test` | Flag management workflows | 2 sessions in serial mode, batch flag marking, document approval prerequisite |
+| `check_income_source_regenerate_on_split_merge` | Income source regeneration on merge/split | Tests merge→aggregate→split→independent pattern, API polling for split completion, admin token reuse |
 
 **Conclusion**: No overlap - each test validates distinct session flow patterns and workflows
 
@@ -2586,6 +2821,7 @@ Based on the test files in the framework, I've identified these categories:
 
 ### **Files Analyzed:**
 1. `document_rejection_from_any_state.spec.js` - **Document Rejection from Any Processing State**
+2. `show-paystub-deposit-in-document-extracted-section.spec.js` - **Paystub Deposit Display in Document Extracted Section**
 
 ---
 
@@ -2695,6 +2931,147 @@ Based on the test files in the framework, I've identified these categories:
 
 ---
 
+### **2. show-paystub-deposit-in-document-extracted-section.spec.js**
+
+**Purpose**: Validates that paystub deposit information is correctly displayed in the document extracted section when viewing uploaded paystub documents
+
+**Configuration**:
+- **Application**: "Autotest - Heartbeat Test - Employment"
+- **User**: Test User (test.user@verifast.com)
+- **Rent Budget**: $500
+- **Tags**: @regression
+- **Timeout**: Default (no explicit timeout set)
+
+---
+
+#### **Test: "Verify Display Paystub Deposits in Document → Extracted Section"**
+
+**Purpose**: Verify that deposit information (account names and amounts) from uploaded paystub documents is correctly displayed in the extracted section of the document viewer modal
+
+**Test Flow**:
+
+1. **Admin Setup**
+   - Login as admin via `adminLoginAndNavigateToApplications`
+   - Navigate to applications page
+   - Find and invite "Autotest - Heartbeat Test - Employment" application
+   - Generate session with user data (Test, User, test.user@verifast.com)
+   - Extract sessionId, sessionUrl, and invite link
+   - Store sessionId for cleanup
+
+2. **Applicant Context Setup**
+   - Create new browser context for applicant
+   - Navigate to invite link
+   - Intercept `/auth/guest` response to capture guest authentication token (stored in `guestAuthToken` variable)
+   - Validate token was captured (throws error if missing)
+
+3. **Applicant Initial Setup**
+   - Complete `setupInviteLinkSession` (terms → applicant type → state)
+   - Update rent budget to $500 via `updateRentBudget`
+   - Wait for pre-screening step visibility
+   - Skip pre-screening questions (click skip button, wait for PATCH response)
+
+4. **First Paystub Upload**
+   - Wait for employment verification step visibility
+   - Prepare mock paystub data via `createPaystubData(1)`:
+     - Employer: "FOLIAGE FACTORY LANDSCAPE, INC."
+     - Employee: "Roberto Almendarez Cruz"
+     - Gross pay: $888, Net pay: $792.80
+     - **Deposit 1**: "CHECKING Acct: ************9647", Amount: $792.80
+   - Upload paystub via `uploadVeridocsDoc` helper:
+     - Click `document-pay_stub` tile
+     - Click `employment-upload-paystub-btn`
+     - Wait for browser dialog prompt
+     - Accept dialog with JSON payload: `{ documents: [paystubData] }`
+     - Click `employment-simulation-upload-btn`
+     - Wait for POST `/employment-verifications` response
+     - Extract verification ID from response
+     - **Poll for verification COMPLETED status** via `pollForVerificationStatus`:
+       - Uses captured `guestAuthToken` for API authentication
+       - Max 20 attempts, 2s interval
+       - Endpoint: `employment-verifications`
+
+5. **Admin: Verify First Upload Deposits**
+   - Switch to admin page
+   - Navigate to applicants menu → applicants submenu
+   - Search for session by sessionId
+   - Click session card (wait for GET /sessions/{id} and GET /sessions/{id}/files responses)
+   - Extract files array from response
+   - **Assert**: files.data.length > 0
+   - Get first file from files array
+   - Call `checkDeposits` helper for first file:
+     - Expand files section (check aria-expanded, click if needed)
+     - Find file row by `all-tr-{file.id}`
+     - Click `all-files-view-btn` to open document modal
+     - Verify `view-document-modal` visible
+     - Verify `paystub-extracted-section` visible
+     - Get `paystub-deposit-col` element
+     - Loop through `paystubData.documents[0].data.deposits`:
+       - **Assert**: deposit column contains account name
+       - **Assert**: deposit column contains formatted amount (via `getAmount` helper)
+     - Close modal via `view-document-modal-cancel`
+
+6. **Second Paystub Upload (With Additional Deposit)**
+   - Switch to applicant page
+   - Add new deposit to paystub data:
+     - Account: "CHECKING Acct: ************4565"
+     - Amount: $12943.32
+   - Upload updated paystub via `uploadVeridocsDoc` helper (same flow as first upload)
+   - Poll for verification COMPLETED status again
+
+7. **Admin: Verify Second Upload Deposits**
+   - Switch to admin page
+   - Reload page (wait for GET /sessions/{id} and GET /sessions/{id}/files responses)
+   - Extract files array again
+   - **Assert**: files.data.length > 0
+   - Find second file (file where id !== firstFile.id)
+   - **Assert**: second file exists (throws error if not found)
+   - Call `checkDeposits` helper for second file:
+     - Verify both deposits visible (original + new deposit)
+     - Verify account names and amounts match expected values
+
+8. **Cleanup**
+   - afterAll hook calls `cleanupSession` with sessionId and test result flag
+
+**Key API Endpoints**:
+- `POST /auth` - Admin authentication
+- `GET /applications?` - Search applications
+- `POST /sessions` - Create session
+- `POST /auth/guests` - Guest authentication (token captured for polling)
+- `PATCH /sessions/{id}` - Update rent budget
+- `PATCH /sessions/{id}/steps/{id}` - Skip pre-screening step
+- `POST /employment-verifications` - Upload paystub document
+- `GET /employment-verifications?filters=` - Poll for verification status (with auth token)
+- `GET /sessions/{id}?fields[session]=` - Get session details (multiple times)
+- `GET /sessions/{id}/files` - Get files list (multiple times)
+
+**Business Validations**:
+- ✅ Paystub documents can be uploaded via VERIDOCS simulator dialog
+- ✅ Deposit information is extracted from paystub documents correctly
+- ✅ Deposit account names display correctly in extracted section
+- ✅ Deposit amounts display correctly (formatted currency) in extracted section
+- ✅ Multiple deposits from same paystub all display correctly
+- ✅ Updated paystub with additional deposits shows all deposits (original + new)
+- ✅ Document viewer modal opens correctly from files section
+- ✅ Paystub extracted section is visible in document modal
+- ✅ Files section expansion/collapse state management works
+- ✅ Guest authentication token can be captured for API polling
+- ✅ Verification status polling works with authentication token
+- ✅ Multiple file uploads tracked correctly (first vs second file)
+
+**Unique Aspects**:
+- Tests **paystub deposit extraction and display** specifically
+- Uses **VERIDOCS simulator dialog** for paystub upload (browser prompt accepts JSON payload)
+- Implements **guest token capture** from `/auth/guest` response for authenticated API polling
+- Uses **pollForVerificationStatus helper** with authentication token for status polling
+- Tests **multiple deposits** in single paystub document
+- Validates **deposit updates** (adding new deposit to existing data and re-uploading)
+- Uses **inline helper functions** (`checkDeposits`, `uploadVeridocsDoc`)
+- Validates **currency formatting** via `getAmount` helper
+- Checks **section expansion state** before clicking (aria-expanded attribute)
+- Tests **file tracking** across multiple uploads (first vs second file identification)
+
+---
+
 ## **Category 5 Summary**
 
 ### **Business Purpose Analysis:**
@@ -2702,8 +3079,9 @@ Based on the test files in the framework, I've identified these categories:
 | Test File | Primary Business Purpose | Key Differences |
 |-----------|-------------------------|-----------------|
 | `document_rejection_from_any_state` | Document lifecycle management | Tests rejection from any state, accept→reject override, status polling |
+| `show-paystub-deposit-in-document-extracted-section` | Paystub deposit extraction display | Tests deposit information display in extracted section, multiple deposits, guest token capture for polling |
 
-**Conclusion**: Only 1 test in this category - validates complete document decision workflow
+**Conclusion**: 2 tests in this category - validates document decision workflow and paystub deposit extraction display
 
 ---
 
