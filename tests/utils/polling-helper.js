@@ -286,10 +286,108 @@ const pollUntil = async (conditionFn, options = {}) => {
     return false;
 };
 
+/**
+ * Poll for verification status completion via API
+ * 
+ * @param {BrowserContext} context - Playwright browser context (for API requests)
+ * @param {string} verificationId - Verification ID to poll
+ * @param {string} endpoint - API endpoint (e.g., 'employment-verifications', 'identity-verifications')
+ * @param {Object} options - Polling configuration
+ * @param {number} [options.maxAttempts=25] - Max polling attempts (default: 25)
+ * @param {number} [options.pollInterval=4000] - Interval between polls in ms (default: 4s)
+ * @param {string[]} [options.successStatuses=['COMPLETED']] - Statuses considered successful
+ * @param {string[]} [options.failureStatuses=['FAILED', 'EXPIRED']] - Statuses considered terminal failures
+ * @param {string} [options.apiBaseUrl] - API base URL (default: from app.urls.api)
+ * @returns {Promise<Object>} - The completed verification object
+ * @throws {Error} - If verification fails or times out
+ * 
+ * @example
+ * const verification = await pollForVerificationStatus(context, verificationId, 'employment-verifications', {
+ *     maxAttempts: 25,
+ *     pollInterval: 4000
+ * });
+ */
+const pollForVerificationStatus = async (context, verificationId, endpoint, options = {}) => {
+    const {
+        maxAttempts = 25,
+        pollInterval = 4000,
+        successStatuses = ['COMPLETED'],
+        failureStatuses = ['FAILED', 'EXPIRED'],
+        apiBaseUrl
+    } = options;
+
+    // Import app config here to avoid circular dependencies
+    const { app } = await import('../test_config');
+    const baseUrl = apiBaseUrl || app.urls.api;
+
+    console.log(`🔍 Polling for verification ${verificationId} on ${endpoint} (max ${maxAttempts} attempts, ${pollInterval}ms interval)...`);
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        try {
+            // Make direct API call to check verification status by ID
+            const apiUrl = `${baseUrl}/${endpoint}/${verificationId}`;
+            const response = await context.request.get(apiUrl);
+
+            if (!response.ok()) {
+                // 404 means verification not found yet (may still be creating)
+                if (response.status() === 404) {
+                    console.log(`   ⏳ Attempt ${attempt}/${maxAttempts}: Verification not found yet (404)`);
+                } else {
+                    console.log(`   ⚠️ Attempt ${attempt}/${maxAttempts}: API returned status ${response.status()}`);
+                }
+            } else {
+                const body = await response.json();
+
+                // Direct ID lookup returns single object with 'data' property
+                const verification = body.data || body;
+
+                if (verification && verification.id) {
+                    console.log(`   📊 Attempt ${attempt}/${maxAttempts}: Status = ${verification.status}`);
+
+                    // Check for success
+                    if (successStatuses.includes(verification.status)) {
+                        console.log(`✅ Verification ${verificationId} ${verification.status}`);
+                        return verification;
+                    }
+
+                    // Check for terminal failure
+                    if (failureStatuses.includes(verification.status)) {
+                        const errorMsg = `Verification ${verification.status}: ${JSON.stringify(verification)}`;
+                        console.log(`❌ ${errorMsg}`);
+                        throw new Error(errorMsg);
+                    }
+
+                    // Still processing - continue polling
+                } else {
+                    console.log(`   ⚠️ Attempt ${attempt}/${maxAttempts}: Invalid response structure`);
+                }
+            }
+        } catch (error) {
+            // Re-throw terminal errors
+            if (failureStatuses.some(status => error.message.includes(status))) {
+                throw error;
+            }
+            // Log transient errors and continue
+            console.log(`   ⚠️ Attempt ${attempt}/${maxAttempts}: Error checking status - ${error.message}`);
+        }
+
+        // Wait before next attempt (skip on last attempt)
+        if (attempt < maxAttempts) {
+            await new Promise(resolve => setTimeout(resolve, pollInterval));
+        }
+    }
+
+    // Timeout - verification did not complete
+    const errorMsg = `❌ Verification ${verificationId} did not complete after ${maxAttempts} attempts (${(maxAttempts * pollInterval) / 1000} seconds)`;
+    console.log(errorMsg);
+    throw new Error(errorMsg);
+};
+
 export {
     pollForFlag,
     pollForApprovalStatus,
     pollForUIText,
-    pollUntil
+    pollUntil,
+    pollForVerificationStatus
 };
 

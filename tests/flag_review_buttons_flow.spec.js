@@ -31,7 +31,7 @@ const appName = 'Autotest - Full flow skip button test';
 
 test.describe('QA-202 flag_review_buttons_flow', () => {
 
-    test('Verify Report Flag Review Buttons Workflow', async ({ page }) => {
+    test('Verify Report Flag Review Buttons Workflow', { tag: ['@need-review'] }, async ({ page }) => {
         test.setTimeout(200000)
 
         try {
