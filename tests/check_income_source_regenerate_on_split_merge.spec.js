@@ -12,6 +12,7 @@ import { searchSessionWithText, navigateToSessionById } from './utils/report-pag
 import { getRandomEmail } from './utils/helper';
 import { setupInviteLinkSession, updateRentBudget, waitForSimulatorConnectionCompletion } from './utils/session-flow';
 import { fillMultiselect } from './utils/common';
+import { cleanupSession } from './utils/cleanup-helper';
 
 /**
  * Completes the applicant session flow with banking data.
@@ -165,6 +166,10 @@ async function splitSession(page, priSessionId, coAppSessionId) {
     ]);
 }
 
+let cleanpSessionId = null;
+let cleanpCoAppSessionId = null;
+let allTestsPassed = true;
+
 
 test.describe('QA-210: Check Income Source Regenerate on Split/Merge', () => {
 
@@ -172,7 +177,7 @@ test.describe('QA-210: Check Income Source Regenerate on Split/Merge', () => {
         // --- Setup ---
         test.setTimeout(300_000);
         const appName = 'Autotest - Heartbeat Test - Financial';
-
+        try {
         const primaryUser = { email: getRandomEmail(), first_name: 'Merge', last_name: 'Primary', password: 'password' };
         const coAppUser = { email: getRandomEmail(), first_name: 'Merge', last_name: 'Coapp' };
 
@@ -181,6 +186,8 @@ test.describe('QA-210: Check Income Source Regenerate on Split/Merge', () => {
         await findAndInviteApplication(page, appName);
         const { sessionId: priSessionId, link: priLink } = await generateSessionForm.generateSessionAndExtractLink(page, primaryUser);
 
+        cleanpSessionId = priSessionId;
+
         const primaryUserBankData = getBankData(primaryUser);
         await completeSession(priLink, browser, priSessionId, primaryUserBankData);
 
@@ -188,6 +195,8 @@ test.describe('QA-210: Check Income Source Regenerate on Split/Merge', () => {
         await page.bringToFront();
         await openInviteModal(page, appName);
         const { sessionId: coAppSessionId, link: coAppLink } = await generateSessionForm.generateSessionAndExtractLink(page, coAppUser);
+
+        cleanpCoAppSessionId = coAppSessionId;
 
         const coAppCustomData = getBankData(coAppUser);
         coAppCustomData.institutions[0].accounts[0].account_number = '9123456780';
@@ -304,7 +313,7 @@ test.describe('QA-210: Check Income Source Regenerate on Split/Merge', () => {
         await sessionLink.click()
         await page.waitForTimeout(1000);
         await page.reload();
-        await page.waitForTimeout(2000);
+        await page.waitForTimeout(5000);
         // --- Verify After Split ---
         // 8. Check Primary Income (should be independent again)
         await checkIncomeSourcesAndAssertVisibility(page, priSessionId, primaryUserBankData);
@@ -313,8 +322,18 @@ test.describe('QA-210: Check Income Source Regenerate on Split/Merge', () => {
         await page.getByTestId('applicants-submenu').click(); // Navigate back to list view
         await navigateToSessionDetail(page, coAppSessionId);
         await checkIncomeSourcesAndAssertVisibility(page, coAppSessionId);
-
+        } catch (error){
+            console.error('❌ Test failed:', error.message);
+            allTestsPassed = false;
+            throw error;
+        }
     });
+
+    test.afterAll(async ({request}) => {
+        await cleanupSession(request, cleanpSessionId, allTestsPassed);
+        await cleanupSession(request, cleanpCoAppSessionId, allTestsPassed);
+    })
+
 });
 
 async function financialTransactionVerify(page, primaryUserBankData) {
@@ -388,9 +407,12 @@ async function verifyIncomeSourceDetails(page, applicantId, primaryIncomeSources
     }
 }
 
-// Function to convert 'YYYY-MM-DD' to 'Mon DD-YYYY' format
+// Function to convert 'YYYY-MM-DD' to 'Mon DD-YYYY' format, e.g., 2025-11-03 => Nov 03-2025
 function formatDateToMonDDYYYY(dateString) {
     const dateParts = dateString.split('-');
     const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    return `${months[parseInt(dateParts[1], 10) - 1]} ${parseInt(dateParts[2], 10)}-${dateParts[0]}`;
+    const year = dateParts[0];
+    const month = months[parseInt(dateParts[1], 10) - 1];
+    const day = dateParts[2].padStart(2, '0');
+    return `${month} ${day}-${year}`;
 }
