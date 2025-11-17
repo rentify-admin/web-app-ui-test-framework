@@ -63,8 +63,9 @@ const fillMultiselect = async (page, selector, values) => {
     for (let index = 0; index < values.length; index++) {
         const item = values[index];
         await selector.locator('input').fill(item);
-        // Use filter with exact text match to avoid matching partial text
-        await selector.locator('ul>li').filter({ hasText: new RegExp(escapeRegExp(item),'g') }).click();
+        // Use filter with exact text match (not regex) to avoid matching partial text
+        // hasText with string does exact match, not substring
+        await selector.locator('ul>li').filter({ hasText: new RegExp(`^${escapeRegExp(item)}$`) }).click();
     }
 
 };
