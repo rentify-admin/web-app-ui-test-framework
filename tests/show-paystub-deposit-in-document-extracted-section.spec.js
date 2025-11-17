@@ -9,6 +9,7 @@ import { findSessionLocator, searchSessionWithText } from "./utils/report-page";
 import { setupInviteLinkSession, updateRentBudget } from "./utils/session-flow";
 import { adminLoginAndNavigateToApplications } from "./utils/session-utils";
 import { waitForJsonResponse } from "./utils/wait-response";
+import { pollForVerificationStatus } from "./utils/polling-helper";
 
 let createdSessionId = null;
 let allTestsPassed = true;
@@ -17,10 +18,11 @@ test.describe('QA-213 show-paystub-deposit-in-document-extracted-section.spec', 
 
     const appName = 'Autotest - Heartbeat Test - Employment';
 
-    test('Verify Display Paystub Deposits in Document → Extracted Section', async ({ page, browser }) => {
-
-
-        const user = {
+    test('Verify Display Paystub Deposits in Document → Extracted Section', { 
+        tag: ['@need-review']
+    }, async ({ page, browser }) => {
+        try {
+            const user = {
             firstName: "Test",
             lastName: "User",
             email: 'test.user@verifast.com',
@@ -157,12 +159,24 @@ test.describe('QA-213 show-paystub-deposit-in-document-extracted-section.spec', 
         console.log('✅ Files count valid after second upload:', files?.data?.length);
 
         const secondFile = files.data.find(file => file.id !== firstFile.id);
+        if (!secondFile) {
+            throw new Error(
+                `Second file not found after second upload. ` +
+                `First file ID: ${firstFile.id}. ` +
+                `Available files: ${files.data.map(f => f.id).join(', ')}`
+            );
+        }
 
         console.log('🚀 Checking deposits in extracted section for second file');
         await checkDeposits(page, secondFile, paystubData);
         console.log('✅ Deposits verified for second file');
 
-        allTestsPassed = true
+            allTestsPassed = true;
+        } catch (error) {
+            allTestsPassed = false;
+            console.error('❌ Test failed:', error.message);
+            throw error;
+        }
     })
 
     // ✅ Cleanup session after test
@@ -249,29 +263,10 @@ async function uploadVeridocsDoc(applicationPage, paystubData) {
     ]);
     console.log('✅ Uploaded doc and received backend POST /employment-verifications');
 
-    console.log('🚀 Waiting for employment-verifications GET for COMPLETED status');
-    await Promise.all([
-        applicationPage.waitForResponse(async (resp) => {
-            if (resp.url().includes('/employment-verifications') &&
-                resp.request().method() === 'GET' &&
-                resp.ok()) {
-                try {
-                    const body = await resp.json();
-                    // Defensive: array is usually in 'data'
-                    const arr = Array.isArray(body) ? body : (body.data || []);
-                    const completed = arr.some(item => item.status === 'COMPLETED' && item.id === uploadResponseId);
-                    if (completed) {
-                        console.log('✅ Employment-verification status COMPLETED for id:', uploadResponseId);
-                    }
-                    return completed;
-                } catch (e) {
-                    // Not valid JSON yet, keep waiting
-                    console.log('❌ Error parsing GET /employment-verifications response', e);
-                    return false;
-                }
-            }
-            return false;
-        }, { timeout: 100000 }),
-    ]);
+    console.log('🚀 Polling for employment-verification COMPLETED status using reusable helper...');
+    await pollForVerificationStatus(applicationPage.context(), uploadResponseId, 'employment-verifications', {
+        maxAttempts: 20,
+        pollInterval: 2000
+    });
     console.log('✅ Document verification step completed for uploaded doc');
 }
