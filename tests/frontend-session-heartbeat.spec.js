@@ -16,7 +16,7 @@ test.describe('frontend-session-heartbeat', () => {
 
     // Test includes improved state modal handling and uses utility function
     // for intelligent button interaction (handles manual clicks and auto-advance)
-    test('Verify Frontend session heartbeat', { tag: ['@regression', '@staging-ready'] }, async ({ page }) => {
+    test('Verify Frontend session heartbeat', { tag: ['@regression', '@staging-ready', '@rc-ready'] }, async ({ page }) => {
         test.setTimeout(250_000);
 
         try {

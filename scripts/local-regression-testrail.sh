@@ -37,6 +37,10 @@ while [[ $# -gt 0 ]]; do
             ENV_FILE="tests/.env.develop"
             shift
             ;;
+        --rc)
+            ENV_FILE="tests/.env.rc"
+            shift
+            ;;
         --skip-document-upload)
             SKIP_DOCUMENT_UPLOAD=true
             shift
@@ -48,6 +52,7 @@ while [[ $# -gt 0 ]]; do
             echo "  --env ENV        Use specific environment file (tests/.env.ENV)"
             echo "  --staging        Use staging environment (tests/.env.staging)"
             echo "  --develop        Use develop environment (tests/.env.develop) [default]"
+            echo "  --rc             Use RC environment (tests/.env.rc)"
             echo "  --skip-document-upload  Skip tests tagged with @document-upload"
             echo "  --help, -h       Show this help message"
             echo ""
@@ -55,6 +60,7 @@ while [[ $# -gt 0 ]]; do
             echo "  $0                    # Run against develop (default)"
             echo "  $0 --develop          # Run against develop"
             echo "  $0 --staging          # Run against staging"
+            echo "  $0 --rc               # Run against RC"
             echo "  $0 --env production   # Run against tests/.env.production"
             echo "  $0 --develop --skip-document-upload  # Run develop without document upload tests"
             echo ""

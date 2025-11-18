@@ -58,8 +58,8 @@ jobs:
             TEST_TAG="@rc-ready"
             TAG_DESCRIPTION="rc-ready tests (RC environment)"
           else
-            TEST_TAG="@try-test-rail-names"
-            TAG_DESCRIPTION="try-test-rail-names tests"
+            TEST_TAG="@regression"
+            TAG_DESCRIPTION="regression tests"
           fi
           
           echo "🧪 Starting test suite (Shard ${{ matrix.shard }}/4)..."
@@ -212,7 +212,7 @@ jobs:
           elif [ "${{ github.event.inputs.environment }}" == "rc" ]; then
             TEST_TAG="@rc-ready"
           else
-            TEST_TAG="@try-test-rail-names"
+            TEST_TAG="@regression"
           fi
           
           TEST_RUN_TITLE="$TEST_TAG Tests (4 Shards): ${{ github.event.inputs.environment || 'development' }} - Browser: chromium - Date $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
@@ -355,7 +355,7 @@ jobs:
           elif [ "${{ github.event.inputs.environment }}" == "rc" ]; then
             SUITE_NAME="RC Environment Tests"
           else
-            SUITE_NAME="Try TestRail Names Suite"
+            SUITE_NAME="Full Regression Suite"
           fi
           
           echo "📤 Sending Slack notification with attachments..."

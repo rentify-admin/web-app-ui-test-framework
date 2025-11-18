@@ -12,7 +12,7 @@ let allTestsPassed = true;
 
 test.describe('applicant_type_workflow_affordable_occupant', () => {
     test('Should complete applicant flow with affordable occupant applicant type', { 
-        tag: ['@core', '@regression', '@staging-ready'],
+        tag: ['@core', '@regression', '@staging-ready', '@rc-ready'],
     }, async ({ page }) => {
         test.setTimeout(450000);
         

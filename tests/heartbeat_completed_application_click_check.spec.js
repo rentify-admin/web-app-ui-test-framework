@@ -40,7 +40,7 @@ test.describe('heartbeat_completed_application_click_check', () => {
     });
     
     test('Heartbeat Test: Completed Application Clicks (frontend)', { 
-        tag: ['@regression', '@staging-ready']
+        tag: ['@regression', '@staging-ready', '@rc-ready']
     }, async ({ page }) => {
         
         try {

@@ -10,7 +10,7 @@ test.beforeEach(async ({ page }) => {
 
 test.describe('application_create_delete_test', () => {
     test('Should create and delete an application with multiple applicant types', { 
-        tag: [ '@core', '@regression', '@staging-ready', '@try-test-rail-names'],
+        tag: [ '@core', '@regression', '@staging-ready', '@rc-ready', '@try-test-rail-names'],
     }, async ({ page }) => {
         // Step 1-5: Login as admin (dhaval)
         await loginForm.fill(page, admin);
@@ -29,7 +29,7 @@ test.describe('application_create_delete_test', () => {
                 'Self-Employed',
                 'Other'
             ],
-            workflowTemplate: 'Autotest-suite-fin-only',
+            workflowTemplate: 'Autotest-full-id-fin-employ-simulation',
             flagCollection: 'High Risk',
             minimumAmount: '500'
         };

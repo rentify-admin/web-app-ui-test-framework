@@ -74,7 +74,7 @@ async function openAndSubmitRequestDialog(page) {
 test.describe('request_additional_information', () => {
     test.setTimeout(360000); // Set timeout for the suite
     
-    test('Document Request: Complete validation (happy path + negative tests) @request-docs @integration @permissions @state-safetys @negative @validation @network-error @regression @staging-ready', async ({ page, context }) => {
+    test('Document Request: Complete validation (happy path + negative tests) @request-docs @integration @permissions @state-safetys @negative @validation @network-error @regression @staging-ready @rc-ready', async ({ page, context }) => {
         
         try {
             // Error collection for comprehensive validation

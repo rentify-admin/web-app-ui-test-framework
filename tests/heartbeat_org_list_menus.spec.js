@@ -7,7 +7,7 @@ import { navigateToSubMenu, verifyListContent } from './utils/heartbeat-helper';
 test.describe('heartbeat_org_list_menus.spec', () => {
 
     test('Should check Organization List menu heartbeat', {
-        tag: ['@core', '@smoke', '@regression', '@critical', '@staging-ready'],
+        tag: ['@core', '@smoke', '@regression', '@critical', '@staging-ready', '@rc-ready'],
     }, async ({ page }) => {
 
         await page.goto('/');

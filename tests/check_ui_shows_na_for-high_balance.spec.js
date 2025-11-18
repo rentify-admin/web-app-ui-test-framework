@@ -28,7 +28,7 @@ test.describe('check_ui_not_show_na_for-high_balance.spec', () => {
     let allTestsPassed = true;
 
     test('Should check UI not shows N/A for high balance accounts', {
-        tag: ['@core', '@regression', '@staging-ready'],
+        tag: ['@core', '@regression', '@staging-ready', '@rc-ready'],
     }, async ({ page }, testInfo) => {
         try {
             const adminToken = await loginForm.adminLoginAndNavigate(page, admin);

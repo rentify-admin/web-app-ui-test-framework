@@ -68,7 +68,7 @@ test.describe('user_flags_approve_reject_test', () => {
             }
         });
 
-        test('Check Session Flag', { tag: [ '@core', '@smoke', '@regression', '@staging-ready' ] }, async ({ page }) => {
+        test('Check Session Flag', { tag: [ '@core', '@smoke', '@regression', '@staging-ready', '@rc-ready' ] }, async ({ page }) => {
             try {
                 const sessionId = flagIssueSession;
 
@@ -170,7 +170,7 @@ test.describe('user_flags_approve_reject_test', () => {
             email: 'ApprovalRejecttesting@verifast.com'
         };
 
-        test('Should create applicant session for approve reject', { tag: [ '@core', '@smoke', '@regression' ,'@staging-ready'] }, async ({
+        test('Should create applicant session for approve reject', { tag: [ '@core', '@smoke', '@regression' ,'@staging-ready', '@rc-ready'] }, async ({
             page,
             browser
         }) => {
@@ -196,7 +196,7 @@ test.describe('user_flags_approve_reject_test', () => {
             }
         });
 
-        test('Check session by Approving and Rejecting', { tag: [ '@core', '@smoke', '@regression' , '@staging-ready'] }, async ({ page }) => {
+        test('Check session by Approving and Rejecting', { tag: [ '@core', '@smoke', '@regression' , '@staging-ready', '@rc-ready'] }, async ({ page }) => {
             try {
                 const sessionId = approveRejectSession;
 

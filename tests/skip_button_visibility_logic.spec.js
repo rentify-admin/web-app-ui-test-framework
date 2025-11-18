@@ -41,7 +41,7 @@ test.describe('skip_button_visibility_logic', () => {
     let allTestsPassed = true;
 
     test('Should ensure skip button visibility logic across verification steps using existing application', {
-        tag: ['@regression', '@external-integration', '@staging-ready'],
+        tag: ['@regression', '@external-integration', '@staging-ready', '@rc-ready'],
     }, async ({ page, browser }) => {
         try {
             // Step 1: Admin login and navigate to applications
@@ -159,16 +159,15 @@ async function updateRentBudgetSetting(page, application) {
     await expect(page.getByTestId('step-#workflow-setup')).toBeVisible({ timeout: 20000 });
     await page.getByTestId('step-#approval-settings').click();
 
-    const rentBudgetEnableInput = await page.locator('input[name="rent_budget_enabled"]');
-    const rentBudgetRequireInput = await page.locator('input[name="rent_budget_required"]');
+    const rentBudgetEnableInput = page.locator('input[name="rent_budget_enabled"]');
+    const rentBudgetRequireInput = page.locator('input[name="rent_budget_required"]');
 
-    if (!(await rentBudgetEnableInput.isChecked())) {
-        await rentBudgetEnableInput.check();
-    }
-
-    if (await rentBudgetRequireInput.isChecked()) {
-        await rentBudgetRequireInput.uncheck();
-    }
+    // Use setChecked for more reliable state changes with custom switches
+    await rentBudgetEnableInput.setChecked(true);
+    await page.waitForTimeout(500); // Wait for any debounced handlers
+    
+    await rentBudgetRequireInput.setChecked(false);
+    await page.waitForTimeout(500); // Wait for any debounced handlers
 
     await page.getByTestId('submit-application-setting-modal').click();
     await expect(page.getByTestId('application-table')).toBeVisible({ timeout: 20000 });

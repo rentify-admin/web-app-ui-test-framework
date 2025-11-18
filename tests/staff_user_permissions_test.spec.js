@@ -65,7 +65,7 @@ test.describe('staff_user_permissions_test', () => {
         applicantContextForCleanup = applicantContext;  // ✅ Will close in afterAll
     });
 
-    test('Should create member record and assign it to the Staff role', { tag: [ '@regression', '@staging-ready' ] }, async ({ page, dataManager }) => {
+    test('Should create member record and assign it to the Staff role', { tag: [ '@regression', '@staging-ready', '@rc-ready' ] }, async ({ page, dataManager }) => {
         try {
             // Store global references for other tests
             globalDataManager = dataManager;
@@ -133,7 +133,7 @@ test.describe('staff_user_permissions_test', () => {
         }
     });
 
-    test('Verify permission of Staff role', { tag: [ '@regression', '@staging-ready' ] }, async ({ page, context, dataManager }) => {
+    test('Verify permission of Staff role', { tag: [ '@regression', '@staging-ready', '@rc-ready' ] }, async ({ page, context, dataManager }) => {
         try {
             // Use the globally created user
             if (!globalStaffUser) {

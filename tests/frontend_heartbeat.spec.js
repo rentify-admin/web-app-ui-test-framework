@@ -49,7 +49,7 @@ test.describe('frontend_heartbeat', () => {
     };
 
     test('Should check frontend heartbeat', {
-        tag: ['@core', '@smoke', '@regression', '@staging-ready'],
+        tag: ['@core', '@smoke', '@regression', '@staging-ready', '@rc-ready'],
     }, async ({ page }) => {
         await page.goto('/');
         await loginForm.fill(page, admin);
@@ -91,7 +91,7 @@ test.describe('frontend_heartbeat', () => {
     });
 
     test('Should test session actions and section dropdowns', {
-        tag: ['@core', '@smoke', '@regression', '@critical'],
+        tag: ['@core', '@smoke', '@regression', '@critical', '@staging-ready', '@rc-ready'],
     }, async ({ page }) => {
         try {
             if (!sharedSessionId) {

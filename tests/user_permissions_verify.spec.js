@@ -90,7 +90,7 @@ test.describe('user_permissions_verify', () => {
         );
     }); 
 
-    test('Should allow admin to create user via API', { tag: ['@regression', '@staging-ready'] }, async ({ page, dataManager }) => {
+    test('Should allow admin to create user via API', { tag: ['@regression', '@staging-ready', '@rc-ready'] }, async ({ page, dataManager }) => {
         try {
             // Store global references for other tests
             globalDataManager = dataManager;
@@ -160,7 +160,7 @@ test.describe('user_permissions_verify', () => {
         }
     });
 
-    test('Should allow user to edit the application', { tag: ['@regression', '@staging-ready'] }, async ({ page, dataManager }) => {
+    test('Should allow user to edit the application', { tag: ['@regression', '@staging-ready', '@rc-ready'] }, async ({ page, dataManager }) => {
         try {
             // Use the globally created user
             if (!globalTestUser) {
@@ -261,7 +261,7 @@ test.describe('user_permissions_verify', () => {
         }
     });
 
-    test('Should allow user to perform permited actions', { tag: ['@regression', '@staging-ready'] }, async ({ page, context, dataManager }) => {
+    test('Should allow user to perform permited actions', { tag: ['@regression', '@staging-ready', '@rc-ready'] }, async ({ page, context, dataManager }) => {
         try {
             // Use the globally created user
             if (!globalTestUser) {

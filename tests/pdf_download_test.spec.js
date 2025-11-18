@@ -47,35 +47,35 @@ test.describe('pdf_download_test', () => {
     });
     
     test('Should successfully export PDF for an application', { 
-        tag: ['@core', '@regression', '@staging-ready'],
-    }, async ({ page, context }) => {
+        tag: ['@core', '@regression', '@staging-ready', '@rc-ready'],
+    }, async ({ context }) => {
         try {
             if (!sharedSessionId) {
                 throw new Error('Session must be created in beforeAll');
             }
             
-            // Staff user credentials for testing
-            const staff = {
-                email: 'staff+testing@verifast.com',
-                password: 'password'
-            };
+            if (!adminContextForCleanup) {
+                throw new Error('Admin context must be available from beforeAll');
+            }
 
-            // Step 1: Login as staff user
-            await page.goto('/');
-            await loginForm.fill(page, staff);
-            await loginForm.submitAndSetLocale(page);
-            await expect(page.getByTestId('applicants-menu')).toBeVisible();
+            // ✅ Create new page from existing admin context (already authenticated)
+            console.log('📄 Creating page from authenticated admin context...');
+            const page = await adminContextForCleanup.newPage();
+            console.log('✅ Admin context is already authenticated with cookies');
 
-            // Step 2: Navigate directly to session detail page (skip searching in list)
+            // Step 1: Navigate directly to session detail page (no login needed - context has cookies)
             console.log(`📄 Navigating directly to session ${sharedSessionId}...`);
             await page.goto(`/applicants/applicants/${sharedSessionId}`);
             await expect(page.getByTestId('household-status-alert')).toBeVisible({ timeout: 10_000 });
-            console.log('✅ Session page loaded');
+            console.log('✅ Session page loaded (using admin authentication from context)');
 
-            // Step 3: Export PDF using existing utility function
+            // Step 2: Export PDF using existing utility function
             console.log(`📄 Exporting PDF for session ${sharedSessionId}...`);
             await checkExportPdf(page, context, sharedSessionId);
             console.log(`✅ PDF exported successfully from session ${sharedSessionId}`);
+            
+            // Clean up the page we created
+            await page.close();
             
         } catch (error) {
             allTestsPassed = false;

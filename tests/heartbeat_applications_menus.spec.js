@@ -8,7 +8,7 @@ import { customUrlDecode, kebabToTitleCase } from './utils/helper';
 test.describe('heartbeat_applications_menus.spec', () => {
 
     test('Should check Applications menu heartbeat', {
-        tag: ['@core', '@smoke', '@regression', '@critical', '@staging-ready'],
+        tag: ['@core', '@smoke', '@regression', '@critical', '@staging-ready', '@rc-ready'],
     }, async ({ page }) => {
 
         await page.goto('/');

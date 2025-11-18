@@ -90,7 +90,7 @@ test('Admin should be able to update an organization member\'s application permi
         await fifthRow.scrollIntoViewIfNeeded();
         console.log('✅ 5th row is in view.');
 
-        const checkbox = fifthRow.getByTestId('bind-view-application-check');
+        const checkbox = fifthRow.locator('input[type="checkbox"][data-testid="bind-view-application-check"]');
         const isInitiallyChecked = await checkbox.isChecked();
 
         if (!isInitiallyChecked) {
