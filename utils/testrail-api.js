@@ -112,8 +112,36 @@ export class TestRailAPI {
   }
 
   async getCases(suiteId = null) {
-    const endpoint = suiteId ? `get_cases/${this.projectId}&suite_id=${suiteId}` : `get_cases/${this.projectId}`;
-    return this.request(endpoint);
+    // ✅ CRITICAL: Handle pagination (TestRail returns max 250 per request)
+    // ✅ CRITICAL: section_id is included by default, no need to specify fields
+    console.log('📡 Fetching cases from TestRail with pagination...');
+    
+    let allCases = [];
+    let offset = 0;
+    const limit = 250;  // TestRail API limit per request
+    
+    while (true) {
+      const endpoint = suiteId 
+        ? `get_cases/${this.projectId}&suite_id=${suiteId}&limit=${limit}&offset=${offset}`
+        : `get_cases/${this.projectId}&limit=${limit}&offset=${offset}`;
+      
+      const response = await this.request(endpoint);
+      const cases = response.cases || [];
+      
+      console.log(`   📦 Fetched ${cases.length} cases (offset: ${offset})`);
+      allCases.push(...cases);
+      
+      // Break if we got fewer than the limit (last page)
+      if (cases.length < limit) {
+        console.log(`   ✅ Reached last page. Total cases: ${allCases.length}`);
+        break;
+      }
+      
+      offset += limit;
+    }
+    
+    console.log(`📊 Total cases fetched: ${allCases.length}`);
+    return { cases: allCases };
   }
 
   async addCase(sectionId, caseData) {

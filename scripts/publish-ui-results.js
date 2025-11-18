@@ -85,8 +85,13 @@ class UIResultsPublisher {
    * Get or create section based on file name
    */
   async getOrCreateSection(fileName) {
+    // ✅ Validate fileName is not empty
+    if (!fileName || fileName.trim() === '') {
+      throw new Error('Cannot create section: fileName is empty or undefined');
+    }
+    
     // Use EXACT file name as section name (no formatting!)
-    const sectionName = fileName;
+    const sectionName = fileName.trim();
     
     console.log(`📁 Looking for section: "${sectionName}"`);
     
@@ -119,8 +124,28 @@ class UIResultsPublisher {
   async findOrCreateCases(tag, testResults) {
     console.log(`🔍 Finding/creating test cases for tag: ${tag}`);
     
-    const executedTests = testResults.filter(test => test.status !== 'skipped');
-    console.log(`✅ Found ${executedTests.length} executed tests`);
+    // ✅ Filter out skipped tests AND tests with empty names/classnames
+    const executedTests = testResults.filter(test => 
+      test.status !== 'skipped' && 
+      test.classname && 
+      test.classname.trim() !== '' &&
+      test.name &&
+      test.name.trim() !== ''
+    );
+    
+    const skippedEmpty = testResults.filter(test => 
+      test.status !== 'skipped' && 
+      (!test.classname || test.classname.trim() === '' || !test.name || test.name.trim() === '')
+    );
+    
+    if (skippedEmpty.length > 0) {
+      console.log(`⚠️  Skipping ${skippedEmpty.length} tests with empty filename or name:`);
+      skippedEmpty.forEach(test => {
+        console.log(`    • Name: "${test.name || '(empty)'}", File: "${test.classname || '(empty)'}"`);
+      });
+    }
+    
+    console.log(`✅ Found ${executedTests.length} executed tests with valid data`);
 
     if (executedTests.length === 0) return new Map();
 

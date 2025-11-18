@@ -20,7 +20,7 @@ test.describe('QA-213 show-paystub-deposit-in-document-extracted-section.spec', 
     const appName = 'Autotest - Heartbeat Test - Employment';
 
     test('Verify Display Paystub Deposits in Document → Extracted Section', { 
-        tag: ['@regression']
+        tag: ['@regression', '@try-test-rail-names']
     }, async ({ page, browser }) => {
         try {
             const user = {

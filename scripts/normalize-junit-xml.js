@@ -21,8 +21,8 @@ let content = fs.readFileSync(xmlPath, 'utf8');
 const replacements = [
     { from: /—/g, to: '-' },        // Em-dash
     { from: /–/g, to: '-' },        // En-dash
-    { from: /→/g, to: '->' },       // Right arrow
-    { from: /←/g, to: '<-' },       // Left arrow
+    { from: /→/g, to: ' - ' },      // Right arrow (safe replacement, won't break XML)
+    { from: /←/g, to: ' - ' },      // Left arrow (safe replacement, won't break XML)
     { from: /"/g, to: '"' },        // Left double quote
     { from: /"/g, to: '"' },        // Right double quote
     { from: /'/g, to: "'" },        // Left single quote

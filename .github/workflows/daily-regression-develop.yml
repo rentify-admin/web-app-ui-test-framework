@@ -54,8 +54,8 @@ jobs:
             TEST_TAG="@staging-ready"
             TAG_DESCRIPTION="staging-ready tests (staging-safe)"
           else
-            TEST_TAG="@regression"
-            TAG_DESCRIPTION="regression tests"
+            TEST_TAG="@try-test-rail-names"
+            TAG_DESCRIPTION="try-test-rail-names tests"
           fi
           
           echo "🧪 Starting test suite (Shard ${{ matrix.shard }}/4)..."
@@ -206,7 +206,7 @@ jobs:
           if [ "${{ github.event.inputs.environment }}" == "staging" ]; then
             TEST_TAG="@staging-ready"
           else
-            TEST_TAG="@regression"
+            TEST_TAG="@try-test-rail-names"
           fi
           
           TEST_RUN_TITLE="$TEST_TAG Tests (4 Shards): ${{ github.event.inputs.environment || 'development' }} - Browser: chromium - Date $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
@@ -347,7 +347,7 @@ jobs:
           if [ "${{ github.event.inputs.environment }}" == "staging" ]; then
             SUITE_NAME="Staging-Ready Tests"
           else
-            SUITE_NAME="Full Regression Suite"
+            SUITE_NAME="Try TestRail Names Suite"
           fi
           
           echo "📤 Sending Slack notification with attachments..."
