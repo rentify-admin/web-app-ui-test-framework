@@ -12,7 +12,7 @@ let allTestsPassed = true;
 
 test.describe('application_step_should_skip_properly', () => {
     test('Check Application step skip works propertly', {
-        tag: ['@regression', '@staging-ready']
+        tag: ['@regression', '@staging-ready', '@rc-ready']
     }, async ({ page, browser }) => {
         test.setTimeout(300_000);
         

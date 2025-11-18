@@ -18,7 +18,7 @@ test.describe('QA-102: org_member_application_binding_scoping_check', () => {
 
     test('Check Application Binding Scoping (Inbox Visibility)',
         {
-            tag: ['@regression', '@staging-ready'],
+            tag: ['@regression', '@staging-ready', '@rc-ready'],
             timeout: 180_000  // 3 minutes
         }, async ({ page, browser }) => {
             

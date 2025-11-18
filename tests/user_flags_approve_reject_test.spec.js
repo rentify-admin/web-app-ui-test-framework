@@ -42,7 +42,7 @@ test.describe('user_flags_approve_reject_test', () => {
             email: 'FlagIssueTesting@verifast.com'
         };
 
-        test('Should create applicant session for flag issue', { tag: [ '@core', '@smoke', '@regression', '@staging-ready' ] }, async ({
+        test('Should create applicant session for flag issue', { tag: [ '@core', '@smoke', '@regression', '@staging-ready', '@rc-ready' ] }, async ({
             page,
             browser
         }) => {

@@ -13,6 +13,7 @@ on:
         options:
           - development
           - staging
+          - rc
         default: 'development'
 
 env:
@@ -53,6 +54,9 @@ jobs:
           if [ "${{ github.event.inputs.environment }}" == "staging" ]; then
             TEST_TAG="@staging-ready"
             TAG_DESCRIPTION="staging-ready tests (staging-safe)"
+          elif [ "${{ github.event.inputs.environment }}" == "rc" ]; then
+            TEST_TAG="@rc-ready"
+            TAG_DESCRIPTION="rc-ready tests (RC environment)"
           else
             TEST_TAG="@try-test-rail-names"
             TAG_DESCRIPTION="try-test-rail-names tests"
@@ -72,8 +76,8 @@ jobs:
           find . -name "*.xml" -type f || echo "No XML files found"
         env:
           APP_ENV: ${{ github.event.inputs.environment || 'development' }}
-          APP_URL: ${{ github.event.inputs.environment == 'staging' && 'https://staging.verifast.app' || vars.APP_URL || 'https://dev.verifast.app' }}
-          API_URL: ${{ github.event.inputs.environment == 'staging' && 'https://api-staging.verifast.app' || vars.API_URL || 'https://api-dev.verifast.app' }}
+          APP_URL: ${{ (github.event.inputs.environment == 'staging' && 'https://staging.verifast.app') || (github.event.inputs.environment == 'rc' && 'https://rc.verifast.app') || vars.APP_URL || 'https://dev.verifast.app' }}
+          API_URL: ${{ (github.event.inputs.environment == 'staging' && 'https://api-staging.verifast.app') || (github.event.inputs.environment == 'rc' && 'https://api-rc.verifast.app') || vars.API_URL || 'https://api-dev.verifast.app' }}
           TESTRAIL_HOST: ${{ secrets.TESTRAIL_HOST }}
           TESTRAIL_PROJECT_ID: ${{ secrets.TESTRAIL_PROJECT_ID }}
           TESTRAIL_SUITE_ID: ${{ secrets.TESTRAIL_SUITE_ID }}
@@ -205,6 +209,8 @@ jobs:
           # Determine which tag was run (same as test execution step)
           if [ "${{ github.event.inputs.environment }}" == "staging" ]; then
             TEST_TAG="@staging-ready"
+          elif [ "${{ github.event.inputs.environment }}" == "rc" ]; then
+            TEST_TAG="@rc-ready"
           else
             TEST_TAG="@try-test-rail-names"
           fi
@@ -346,6 +352,8 @@ jobs:
           # Determine which tag was run based on environment
           if [ "${{ github.event.inputs.environment }}" == "staging" ]; then
             SUITE_NAME="Staging-Ready Tests"
+          elif [ "${{ github.event.inputs.environment }}" == "rc" ]; then
+            SUITE_NAME="RC Environment Tests"
           else
             SUITE_NAME="Try TestRail Names Suite"
           fi
