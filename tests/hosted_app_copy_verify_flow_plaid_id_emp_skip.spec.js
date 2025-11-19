@@ -105,7 +105,7 @@ test.describe('hosted_app_copy_verify_flow_plaid_id_emp_skip', () => {
             await expect(page.locator('h3:has-text("Summary")')).toBeVisible({ timeout: 15000 });
 
             // Step 13: Verify statuses - using filter to find the specific parent div
-            await expect(page.locator('div').filter({ hasText: 'Rent Budget' })
+            await expect(page.locator('div').filter({ hasText: 'Rent Amount' })
                 .nth(1)
                 .filter({ hasText: 'Complete' })).toBeVisible();
             await expect(page.locator('div').filter({ hasText: 'Identity Verification' })

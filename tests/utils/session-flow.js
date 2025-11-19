@@ -726,7 +726,7 @@ const plaidFinancialConnect = async (
     {
         username = 'custom_onetxn',
         password = 'test',
-        bankName = 'Regions Bank'
+        bankName = 'Betterment'
     } = {}
 ) => {
 
@@ -737,19 +737,31 @@ const plaidFinancialConnect = async (
     await page.locator('button:has-text("Alternate Connect Bank")').click();
 
     // Wait for Plaid iframe to load
-    const plaidFrame = page.frameLocator('[id="plaid-link-iframe-1"]');
+    await page.waitForSelector('#plaid-link-iframe-1', { timeout: 60000 });
+    await page.waitForTimeout(3000);
+    const plaidFrame = page.frameLocator('[id="plaid-link-iframe-1"]').locator('reach-portal');
 
-    // Click "Continue as guest" (using nth to select the second element)
+    // Click "Continue as guest"
     await expect(
         plaidFrame.locator('button[id="aut-secondary-button"]')
     ).toBeVisible({ timeout: 20000 });
     await plaidFrame.locator('button[id="aut-secondary-button"]').click();
 
-    // Wait for and click "www.regions.com" button
+    // Search for Betterment
+    try {
+        const searchBox = plaidFrame.getByRole('textbox', { name: 'Search' });
+        await expect(searchBox).toBeVisible({ timeout: 30000 });
+        await searchBox.fill('Betterment');
+        await page.waitForTimeout(2000);
+    } catch (error) {
+        // Search box not found, continue
+    }
+
+    // Click Betterment button
     await expect(
-        plaidFrame.locator(`button[aria-label="${bankName}"]`)
+        plaidFrame.locator('[aria-label="Betterment"]')
     ).toBeVisible({ timeout: 10000 });
-    await plaidFrame.locator(`button[aria-label="${bankName}"]`).click();
+    await plaidFrame.locator('[aria-label="Betterment"]').click();
 
     // Fill username
     await plaidFrame.locator('#aut-input-0-input').fill(username);
@@ -757,18 +769,13 @@ const plaidFinancialConnect = async (
     // Fill password
     await plaidFrame.locator('#aut-input-1-input').fill(password);
 
-    // Click Submit (using nth to select the second element)
-    await plaidFrame
-        .locator('button[id="aut-button"]:has-text("Submit")')
-        .click();
+    // Click aut-button (Betterment flow)
+    await plaidFrame.locator('#aut-button').click({ timeout: 20000 });
 
-    // Click Continue
-    await expect(
-        plaidFrame.locator('button[id="aut-button"]:has-text("Continue")')
-    ).toBeVisible({ timeout: 10000 });
+    // Wait for the button to be enabled and click it
     await plaidFrame
-        .locator('button[id="aut-button"]:has-text("Continue")')
-        .click();
+        .locator('#aut-button:not([disabled])')
+        .click({ timeout: 20000 });
 
     // Click "Allow" button (optional - may not appear)
     try {
@@ -1796,47 +1803,26 @@ const completePlaidFinancialStep = async applicantPage => {
 
     await plaidFrame.locator('#aut-secondary-button').click({ timeout: 20000 });
 
+    // Search for Betterment
+    try {
+        const searchBox = plaidFrame.getByRole('textbox', { name: 'Search' });
+        await expect(searchBox).toBeVisible({ timeout: 30000 });
+        await searchBox.fill('Betterment');
+        await applicantPage.waitForTimeout(2000);
+    } catch (error) {
+        // Search box not found, continue
+    }
+
     await plaidFrame
-        .locator('[aria-label="Bank of America"]')
+        .locator('[aria-label="Betterment"]')
         .click({ timeout: 20000 });
 
-    const [popup] = await Promise.all([
-        applicantPage.waitForEvent('popup'),
-        plaidFrame.locator('#aut-button').click({ timeout: 20000 })
-    ]);
+    // Fill credentials directly in the frame (no popup for Betterment)
+    await plaidFrame.locator('#aut-input-0-input').fill('custom_gig');
+    await plaidFrame.locator('#aut-input-1-input').fill('test');
 
-    await popup.waitForLoadState();
+    await plaidFrame.locator('#aut-button').click({ timeout: 20000 });
 
-    await popup.locator('#username').fill('custom_gig');
-    await popup.locator('#password').fill('test');
-    await popup.locator('#submit-credentials').click({ timeout: 20000 });
-    await popup.waitForTimeout(1000);
-    await popup.locator('#submit-device').click({ timeout: 20000 });
-    await popup.waitForTimeout(1000);
-    await popup.locator('#code').fill('11111111');
-    await popup.locator('#submit-code').click({ timeout: 20000 });
-    await popup.waitForTimeout(1000);
-    await popup
-        .locator('#accounts-list')
-        .getByRole('checkbox')
-        .click({ timeout: 20000 });
-    await popup
-        .locator('#additional-info-select')
-        .locator('#name')
-        .click({ timeout: 20000 });
-    await popup
-        .locator('#additional-info-select')
-        .locator('#account-number')
-        .click({ timeout: 20000 });
-
-    await popup.locator('#submit-accounts').click({ timeout: 20000 });
-
-    await popup.waitForTimeout(1000);
-
-    await popup.locator('#terms').click({ timeout: 20000 });
-    await popup.locator('#submit-confirmation').click({ timeout: 20000 });
-
-    await applicantPage.waitForTimeout(5000);
     await plaidFrame
         .locator('#aut-button:not([disabled])')
         .click({ timeout: 20000 });
