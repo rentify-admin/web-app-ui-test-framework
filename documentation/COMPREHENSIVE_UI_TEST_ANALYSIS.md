@@ -3408,14 +3408,14 @@ Based on the test files in the framework, I've identified these categories:
 ## **Category 7: Workflow Management Tests**
 
 ### **Files Analyzed:**
-1. `applicant_edits_a_workflow_used_by_another_applicant.spec.js` - **Workflow Isolation Testing**
+1. `workflow_configuration_isolation_between_applications.spec.js` - **Workflow Configuration Isolation Testing**
 2. `applicant_type_workflow_affordable_occupant.spec.js` - **Affordable Occupant Workflow Testing**
 
 ---
 
-### **1. applicant_edits_a_workflow_used_by_another_applicant.spec.js**
+### **1. workflow_configuration_isolation_between_applications.spec.js**
 
-**Purpose**: Validates workflow isolation - editing a workflow in one application shouldn't affect other applications using the same workflow template
+**Purpose**: Validates workflow configuration isolation - editing Financial step configuration in one application shouldn't affect other applications using the same workflow template
 
 **Configuration**:
 - **Organization**: "Verifast"
@@ -3423,7 +3423,7 @@ Based on the test files in the framework, I've identified these categories:
 - **App 2**: AutoTest Edit_2_{Browser}_{RandomNumber} (generated unique name)
 - **Both Apps Config**:
   - Applicant Types: 6 types (Affordable Occupant, Affordable Primary, Employed, International, Self-Employed, Other)
-  - Workflow Template: "Autotest-suite-fin-only"
+  - Workflow Template: "Autotest-full-id-fin-employ-simulation"
   - Flag Collection: "High Risk"
   - Minimum Amount: $500
 - **Timeout**: 200s
@@ -3431,9 +3431,9 @@ Based on the test files in the framework, I've identified these categories:
 
 ---
 
-#### **Test: "Should edit a workflow used by another applicant and only reflects changes to current"**
+#### **Test: "Should verify workflow configuration changes remain isolated between applications"**
 
-**Purpose**: Verify that removing an applicant type from App 1's workflow doesn't affect App 2's workflow (workflow isolation)
+**Purpose**: Verify that editing Financial step configuration in App 1 doesn't affect App 2's configuration (workflow isolation)
 
 **Test Flow**:
 
@@ -3447,50 +3447,81 @@ Based on the test files in the framework, I've identified these categories:
 
 3. **Create Application #1**
    - Call createApplicationFlow with app1Config
-   - Store applicationId as app1Id
+   - Store applicationId as app1Id and name as app1Name
 
 4. **Create Application #2**
    - Call createApplicationFlow with app2Config  
-   - Store applicationId as app2Id
+   - Store applicationId as app2Id and name as app2Name
 
-5. **Edit Application #1: Remove Applicant Type**
-   - Call searchAndEditApplication with:
-     - Application name: app1Name
-     - removeApplicantType: 'Other'
-     - applicationId: app1Id
+5. **Edit Application #1: Financial Step Configuration**
+   - Navigate to App 1 edit page via gotoApplicationEditById
+   - Access Financial Verification workflow step
+   - Call configureFinancialStep with new configuration:
+     - Primary Provider: Simulation → **Plaid**
+     - Secondary Provider: Plaid → **MX**
+     - Max Connections: 1 → **3**
+     - Transaction Type: Both → **Credits**
+     - Add document: **Bank Statement** (Always visible, max 2 uploads, Sample Bank Statement Policy)
+   - Submit and save changes
 
-6. **Verify Workflow Isolation**
-   - Call searchAndVerifyApplication for App 2 → returns 6 applicant types
-   - Call searchAndVerifyApplication for App 1 → returns 5 applicant types
-   - **Assert**: App 2 applicant type count > App 1 count (6 > 5)
+6. **Verify Application #1 Configuration**
+   - Navigate to App 1 edit page
+   - Access Financial Verification workflow step
+   - Call verifyFinancialStepConfiguration
+   - **Assert**: Primary Provider = Plaid
+   - **Assert**: Secondary Provider = MX
+   - **Assert**: Max Connections = 3
+   - **Assert**: Transaction Type = Credits
+   - **Assert**: Bank Statement document exists
 
-7. **Cleanup**
-   - afterEach hook:
-     - Delete app1 using searchAndDeleteApplication (with app1Id)
-     - Delete app2 using searchAndDeleteApplication (with app2Id)
+7. **Verify Application #2 Configuration (Unchanged)**
+   - Navigate to App 2 edit page via gotoApplicationEditById
+   - Access Financial Verification workflow step
+   - Call verifyFinancialStepConfiguration
+   - **Assert**: Primary Provider = Simulation (original)
+   - **Assert**: Secondary Provider = Plaid (original)
+   - **Assert**: Max Connections = 1 (original)
+   - **Assert**: Transaction Type = Both (original)
+   - **Assert**: No documents configured (original)
+
+8. **Cleanup**
+   - afterAll hook:
+     - Delete app1 using cleanupApplication (with app1Id)
+     - Delete app2 using cleanupApplication (with app2Id)
 
 **Key API Endpoints**:
 - `POST /auth` - Admin authentication
 - `POST /applications` - Create applications (2x)
-- `PATCH /applications/{id}` - Edit application (remove applicant type)
+- `PATCH /applications/{id}` - Update workflow template
+- `PATCH /applications/{id}` - Update settings (flag collection, rent budget)
+- `PATCH /applications/{id}` - Publish to live
+- `GET /applications/{id}` - Load application details for edit
+- `GET /applications/{id}/steps/{id}/document-configurations` - Load document configs
+- `PATCH /applications/{id}/steps/{id}` - Update Financial step configuration
 - `DELETE /applications/{id}` - Delete applications (2x in cleanup)
 
 **Business Validations**:
 - ✅ Multiple applications can share same workflow template
-- ✅ Editing workflow in one application doesn't affect others
-- ✅ Applicant types can be removed from application
-- ✅ Workflow isolation maintained across applications
+- ✅ Financial step configuration can be edited (providers, connections, transaction type, documents)
+- ✅ Editing workflow configuration in one application doesn't affect others
+- ✅ Primary/Secondary provider changes isolated
+- ✅ Max connections changes isolated
+- ✅ Transaction type changes isolated
+- ✅ Document configuration changes isolated
+- ✅ Workflow configuration isolation maintained across applications
 - ✅ Unique names prevent parallel test conflicts
-- ✅ Cleanup handles both successful and failed test cases
+- ✅ Cleanup handles both applications in afterAll hook
 
 **Unique Aspects**:
-- Tests **workflow isolation** between applications
+- Tests **workflow configuration isolation** between applications (not just applicant types)
 - Uses **generateUniqueName** for parallel test safety
-- Creates **2 identical applications** with same workflow
-- Tests **applicant type removal** in one app
-- Validates **other app unchanged** (isolation proof)
+- Creates **2 identical applications** with same workflow template
+- Tests **Financial step configuration editing** (providers, max connections, transaction type, documents)
+- Validates **App 2 configuration unchanged** (isolation proof)
+- Uses **configureFinancialStep and verifyFinancialStepConfiguration helpers**
 - Uses **applicationId for robust deletion** in cleanup
-- Tests **shared workflow template** behavior
+- Tests **shared workflow template** behavior with actual configuration changes
+- Enhanced from original Ghost Inspector test which only tested applicant type isolation
 
 ---
 
@@ -3590,10 +3621,10 @@ Based on the test files in the framework, I've identified these categories:
 
 | Test File | Primary Business Purpose | Key Differences |
 |-----------|-------------------------|-----------------|
-| `applicant_edits_a_workflow_used_by_another_applicant` | Workflow isolation validation | Creates 2 apps, edits 1, verifies other unchanged |
+| `workflow_configuration_isolation_between_applications` | Workflow configuration isolation validation | Tests 2 apps with same template, edits Financial step in App1, verifies App2 unchanged |
 | `applicant_type_workflow_affordable_occupant` | Affordable occupant workflow | Tests specific applicant type through ID verification |
 
-**Conclusion**: No overlap - one tests isolation, other tests specific applicant type workflow
+**Conclusion**: No overlap - one tests workflow configuration isolation, other tests specific applicant type workflow
 
 ---
 

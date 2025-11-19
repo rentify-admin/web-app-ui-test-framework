@@ -212,7 +212,7 @@ const pollForUIText = async (page, options) => {
             if (reloadPage) {
                 // Just reload and wait for load state - simpler and more reliable
                 await page.reload({ waitUntil: 'domcontentloaded' });
-                await page.waitForTimeout(2000); // Wait for content to load
+                await page.waitForTimeout(5000); // Wait for content to load
             } else {
                 await page.waitForTimeout(pollInterval);
             }
