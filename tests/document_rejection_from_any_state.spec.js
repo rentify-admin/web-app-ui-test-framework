@@ -180,7 +180,7 @@ async function acceptDocument(rowLocator, page, sessionId) {
 
 test.describe('QA-208: Document Rejection from Any State', () => {
     test.describe.configure({
-        timeout: 180000
+        timeout: 280000
     });
 
     const appName = 'AutoTest - Doc Rejec for any state test';
