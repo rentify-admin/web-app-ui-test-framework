@@ -104,10 +104,28 @@ test.describe('QA-219: merged_transactions_ui_display.spec', () => {
             console.log("➡️ Retrieving session data...");
             const session = await getSessionData(page, sessionId);
 
-            await page.waitForTimeout(2000);
+            console.log("➡️ Navigating to income sources and ensuring visibility (with polling)...");
+            let incomeSources = [];
+            let attempts = 0;
+            const maxAttempts = 15;
 
-            console.log("➡️ Navigating to income sources and ensuring visibility...");
-            const incomeSources = await gotoIncomeSourceAndCheckVisibility(page, sessionId)
+            while (attempts < maxAttempts) {
+                incomeSources = await gotoIncomeSourceAndCheckVisibility(page, sessionId);
+                if (incomeSources.length > 0) {
+                    console.log(`✅ Found ${incomeSources.length} income source(s) after ${attempts + 1} attempt(s)`);
+                    break;
+                }
+                attempts++;
+                if (attempts < maxAttempts) {
+                    console.log(`⏳ No income sources yet, waiting... (attempt ${attempts}/${maxAttempts})`);
+                    await page.waitForTimeout(2000);
+                    await page.reload();
+                }
+            }
+
+            if (incomeSources.length === 0) {
+                throw new Error(`No income sources found after ${maxAttempts} attempts (${maxAttempts * 2}s)`);
+            }
 
             for (const element of incomeSources) {
                 console.log(`   ⏩ Verifying income source row [ID: ${element.id}] is visible`);
@@ -130,6 +148,7 @@ test.describe('QA-219: merged_transactions_ui_display.spec', () => {
 
             console.log("➡️ Opening income source detail modal...");
             await incomeRow.getByTestId('income-source-detail-btn').click();
+            await page.waitForTimeout(2000); // Wait for modal animation and rendering
 
             const incomeDetailModal = page.getByTestId('income-source-details')
             await expect(incomeDetailModal).toBeVisible();

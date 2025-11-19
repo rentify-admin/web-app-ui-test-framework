@@ -381,7 +381,13 @@ export class ApiDataManager {
       console.log('🔍 Fetching organizations from:', fullUrl);
       
       const response = await this.api.get(fullUrl, {
-        headers: this.getHeaders()
+        headers: this.getHeaders(),
+        params: {
+          'all': true,
+          'fields[organization]': 'id,name',
+          'order': 'name:asc',
+          'limit': 500
+        }
       });
 
       if (!response.ok()) {

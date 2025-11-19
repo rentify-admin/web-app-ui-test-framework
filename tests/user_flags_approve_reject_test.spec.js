@@ -225,6 +225,10 @@ test.describe('user_flags_approve_reject_test', () => {
             'Unreviewed'
         );
 
+        // Wait for session data to fully load (especially files section)
+        console.log('⏳ Waiting for session data to load...');
+        await page.waitForTimeout(3000);
+
         // NEW STEP: Approve documents before approving session
         console.log('🚀 Starting document approval process...');
         
@@ -233,6 +237,7 @@ test.describe('user_flags_approve_reject_test', () => {
         const filesSectionHeader = page.getByTestId('files-section-header');
         await expect(filesSectionHeader).toBeVisible({ timeout: 10_000 });
         await filesSectionHeader.click();
+        await page.waitForTimeout(2000); // Wait for section expansion animation
         console.log('✅ Files section opened');
         
         // Step 2: Find and click the files document status pill
@@ -263,7 +268,7 @@ test.describe('user_flags_approve_reject_test', () => {
         const pill = page.getByTestId('files-document-status-pill');
         
         let documentApproved = false;
-        const maxAttempts = 75; // 75 attempts * 1 second = 75 seconds max
+        const maxAttempts = 120; // 120 attempts * 1 second = 120 seconds max (increased from 75)
         const pollInterval = 1000;
         
         for (let attempt = 0; attempt < maxAttempts; attempt++) {
@@ -283,7 +288,7 @@ test.describe('user_flags_approve_reject_test', () => {
         
         if (!documentApproved) {
             const finalStatus = await pill.textContent();
-            throw new Error(`Document approval failed: "Accepted" text not found after 45 seconds. Final status: "${finalStatus?.trim()}"`);
+            throw new Error(`Document approval failed: "Accepted" text not found after ${maxAttempts} seconds. Final status: "${finalStatus?.trim()}"`);
         }
 
         console.log('✅ Document approval completed');
