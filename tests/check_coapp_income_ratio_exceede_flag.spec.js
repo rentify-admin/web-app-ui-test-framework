@@ -53,11 +53,65 @@ const checkDollarText = async (rentBudget, rentLocator) => {
     }
 };
 
+const checkMonthlyIncomeText = async (monthlyIncome, incomeLocator) => {
+    // Always format as currency, even if 0 (UI shows $0.00, not N/A)
+    const incomeText = getCentsToDollarsSafe(monthlyIncome ?? 0);
+    await expect(incomeLocator).toContainText(String(incomeText));
+};
+
+/**
+ * Poll for income sources to be generated after employment connection
+ * @param {import('@playwright/test').Page} page - Page object
+ * @param {string} sessionId - Session ID to poll
+ * @param {number} maxAttempts - Maximum polling attempts (default: 20)
+ * @param {number} intervalMs - Interval between attempts in ms (default: 3000)
+ * @returns {Promise<Array>} Array of income sources found
+ */
+const pollForIncomeSources = async (page, sessionId, maxAttempts = 20, intervalMs = 3000) => {
+    const apiUrl = `${app.urls.api}/sessions/${sessionId}/income-sources`;
+    
+    console.log(`🔍 Polling for income sources on session ${sessionId}...`);
+    
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+        try {
+            const response = await page.request.get(apiUrl, {
+                params: {
+                    'fields[income_source]': ':all',
+                    all: true
+                }
+            });
+            
+            if (response.ok()) {
+                const data = await response.json();
+                const sources = data.data || [];
+                
+                console.log(`🔍 Poll attempt ${attempt + 1}/${maxAttempts}: Found ${sources.length} income source(s)`);
+                
+                if (sources.length > 0) {
+                    console.log(`✅ Income sources generated after ${attempt + 1} attempt(s) (${(attempt + 1) * intervalMs / 1000}s)`);
+                    return sources;
+                }
+            } else {
+                console.log(`⚠️ Poll attempt ${attempt + 1}: Response status ${response.status()}`);
+            }
+        } catch (error) {
+            console.log(`⚠️ Poll attempt ${attempt + 1} error: ${error.message}`);
+        }
+        
+        if (attempt < maxAttempts - 1) {
+            await page.waitForTimeout(intervalMs);
+        }
+    }
+    
+    console.log(`⚠️ No income sources found after ${maxAttempts * intervalMs / 1000}s`);
+    return [];
+};
+
 test.describe('check_coapp_income_ratio_exceede_flag', () => {
     test('Should confirm co-applicant income is considered when generating/removing Gross Income Ratio Exceeded flag', { 
         tag: ['@smoke', '@external-integration', '@regression', '@staging-ready', '@rc-ready', '@try-test-rail-names'],
     }, async ({ page, browser }) => {
-        test.setTimeout(450000);
+        test.setTimeout(550000);
         
         try {
             // Step 1: Admin Login and Navigate to Applications
@@ -161,7 +215,7 @@ test.describe('check_coapp_income_ratio_exceede_flag', () => {
     
         const monthlyIncomeLocator = await page.getByTestId('report-monthly-income-card');
         let monthlyIncome = session.data.state?.summary?.total_income;
-        await checkDollarText(monthlyIncome, monthlyIncomeLocator);
+        await checkMonthlyIncomeText(monthlyIncome, monthlyIncomeLocator);
         
         // Log initial values for debugging
         console.log('🚀 ~ Initial Rent Budget:', rentBudget);
@@ -254,6 +308,11 @@ test.describe('check_coapp_income_ratio_exceede_flag', () => {
         ]);
     
         await coAppPage.close();
+        
+        // Poll for income sources after both sessions (primary + co-app) are fully completed
+        console.log('⏳ Polling for income sources after both sessions completion...');
+        await pollForIncomeSources(page, sessionId, 20, 3000); // 20 attempts * 3s = 60s max
+        
         page.off('response', responseSession);
         const [ sessionResponse1 ] = await Promise.all([
             page.waitForResponse(resp => resp.url().includes(`/sessions/${sessionId}?fields[session]`)
@@ -275,7 +334,7 @@ test.describe('check_coapp_income_ratio_exceede_flag', () => {
     
         const monthlyIncomeNew = newSession.data.state?.summary?.total_income;
         const monthlyIncomeLocatorNew = await page.getByTestId('report-monthly-income-card');
-        await checkDollarText(monthlyIncomeNew, monthlyIncomeLocatorNew);
+        await checkMonthlyIncomeText(monthlyIncomeNew, monthlyIncomeLocatorNew);
         
         // Validate that monthly income has increased after co-applicant completion
         await expect(monthlyIncomeNew).toBeGreaterThan(monthlyIncome);

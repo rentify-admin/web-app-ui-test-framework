@@ -334,7 +334,8 @@ test.describe('co_app_household_with_flag_errors', () => {
         await pollForFlag(page, {
             flagTestId: 'GROUP_MISSING_IDENTITY',
             shouldExist: true,
-            maxPollTime: 30000
+            maxPollTime: 30000,
+            refreshModal: true  // Close and reopen modal to trigger fresh API request
         });
         console.log('✅ ASSERTION 2a PASSED: GROUP_MISSING_IDENTITY flag is present (co-app invited but incomplete)');
         
@@ -452,7 +453,8 @@ test.describe('co_app_household_with_flag_errors', () => {
         await pollForFlag(page, {
             flagTestId: 'GROUP_MISSING_IDENTITY',
             shouldExist: false,
-            maxPollTime: 30000
+            maxPollTime: 30000,
+            refreshModal: true  // Close and reopen modal to trigger fresh API request
         });
         console.log('✅ ASSERTION 3a PASSED: GROUP_MISSING_IDENTITY flag is GONE (co-app completed ID)');
         
@@ -460,7 +462,8 @@ test.describe('co_app_household_with_flag_errors', () => {
         await pollForFlag(page, {
             flagTestId: 'IDENTITY_NAME_MISMATCH_CRITICAL',
             shouldExist: true,
-            maxPollTime: 30000
+            maxPollTime: 30000,
+            refreshModal: true  // Close and reopen modal to trigger fresh API request
         });
         console.log('✅ ASSERTION 3b PASSED: IDENTITY_NAME_MISMATCH_CRITICAL flag is present');
         
@@ -513,7 +516,8 @@ test.describe('co_app_household_with_flag_errors', () => {
         await pollForUIText(page, {
             testId: 'household-status-alert',
             expectedText: 'Meets Criteria',
-            maxPolls: 15
+            maxPolls: 15,
+            reloadPage: true  // Reload page to get fresh UI state
         });
         console.log('✅ ASSERTION 4 (UI) PASSED: UI shows "Meets Criteria" after resolving all flags');
         
