@@ -141,27 +141,51 @@ test.describe('hosted_app_copy_verify_flow_plaid_id_emp_skip', () => {
 
             const { data: financials } = await waitForJsonResponse(financialResp);
 
+
             const financialSection = await page.getByTestId('financial-section');
-
             await expect(financialSection).toBeVisible();
+            
+            const [ accountsResp ] = await Promise.all([
+                page.waitForResponse(resp => {
+                    return resp.url().includes(`/sessions/${session.id}/accounts?fields[account]`)
+                    && resp.request().method() === 'GET'
+                    && resp.ok();
+                }),
+                financialSection.getByTestId('financial-section-header').click()
+            ])
 
-            await financialSection.getByTestId('financial-section-header').click();
+            const { data: accounts } = await waitForJsonResponse(accountsResp);
+
             const sessionFinancialSection = await page.getByTestId(`financial-section-financials-wrapper-${session.id}`);
             const accountCols = sessionFinancialSection.locator('tbody>tr');
             
+            for (let index = 0; index < accounts.length; index++) {
+                const account = accounts[index];
+
+                // Verifying identity in endpoint response
+                await expect(account.identities?.[0]?.full_name).toBeDefined();
+                await expect(account.identities?.[0]?.full_name).not.toBe('-');
+
+                // Verifying identity in identity column
+                if (account.identities?.[0]?.full_name) {
+                    await expect(accountCols.nth(index).getByTestId(`financial-section-financials-wrapper-${session.id}-identities-col`))
+                        .toContainText(account.identities?.[0]?.full_name);
+                }
+            }
+
             for (let index = 0; index < financials.length; index++) {
                 const element = financials[index];
 
                 // Verifying identity in endpoint response
                 await expect(element.accounts).toBeDefined();
                 await expect(element.accounts.length).toBeGreaterThan(0);
-                await expect(element.accounts[0].full_name).toBeDefined();
-                await expect(element.accounts[0].full_name).not.toBe('-');
+                await expect(element.accounts[0].identities?.[0]?.full_name).toBeDefined();
+                await expect(element.accounts[0].identities?.[0]?.full_name).not.toBe('-');
 
                 // Verifying identity in identity column
-                if (element.accounts?.[0]?.full_name) {
+                if (element.accounts[0].identities?.[0]?.full_name) {
                     await expect(accountCols.nth(index).getByTestId(`financial-section-financials-wrapper-${session.id}-identities-col`))
-                        .toContainText(element.accounts[0].full_name);
+                        .toContainText(element.accounts[0].identities?.[0]?.full_name);
                 }
             }
 
