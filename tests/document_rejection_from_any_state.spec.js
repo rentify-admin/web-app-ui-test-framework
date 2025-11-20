@@ -189,7 +189,7 @@ test.describe('QA-208: Document Rejection from Any State', () => {
     let allTestsPassed = true;
 
     test('Reject a Document Regardless of Processing State', {
-        tag: ['@regression']
+        tag: ['@regression', '@rc-ready']
     }, async ({ page, browser }) => {
         try {
             // Note: first_name will be auto-prefixed with 'AutoT - ' by the helper

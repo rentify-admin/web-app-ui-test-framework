@@ -9,7 +9,7 @@ import { plaidFinancialConnect } from './utils/session-flow';
 
 test.describe('financial_plaid_one_transaction_error_decline', () => {
     test('Should handle Plaid Fin verification with insufficient transactions and decline flag', { 
-        tag: ['@smoke', '@needs-review', '@external-integration', '@regression', '@staging-ready'],
+        tag: ['@smoke', '@needs-review', '@external-integration', '@regression', '@staging-ready', '@rc-ready'],
     }, async ({ page }) => {
         // Step 1: Login as admin
         await page.goto('/');

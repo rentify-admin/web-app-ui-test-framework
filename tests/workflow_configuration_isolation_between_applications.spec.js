@@ -157,6 +157,107 @@ test.describe('Workflow Configuration Isolation Between Applications', () => {
         console.log('✅ Application 1 configuration verified successfully');
 
         // ========================================================================
+        // STEP 5.5: Edit EXISTING Document Config (Tests Persistence Bug)
+        // ========================================================================
+        console.log('\n📍 STEP 5.5: Edit Existing Document - Increment Max Upload');
+        console.log('Testing: Edit existing doc config → close → reopen → verify persisted');
+        
+        // Click Workflow Setup step (if not already active)
+        const workflowSetupStep = page.getByTestId('step-#workflow-setup');
+        const hasPointerEventsNone = await workflowSetupStep.evaluate(el => {
+            const style = window.getComputedStyle(el);
+            return style.pointerEvents === 'none';
+        });
+        
+        if (!hasPointerEventsNone) {
+            await workflowSetupStep.scrollIntoViewIfNeeded();
+            await page.waitForTimeout(500);
+            await workflowSetupStep.click({ timeout: 10_000 });
+            console.log('✅ Clicked Workflow Setup step');
+        }
+        
+        // Select Default applicant type
+        await page.getByTestId('type-default').click({ timeout: 20_000 });
+        
+        // Click Financial Verification step
+        const finDocConfigPromise = page.waitForResponse(resp => {
+            const apiRegex = new RegExp(`/applications/.{36}/steps/.{36}/document-configurations`);
+            return apiRegex.test(resp.url()) && resp.request().method() === 'GET' && resp.ok();
+        }, { timeout: 20_000 });
+        
+        await page.getByTestId('workflow-financial-verification').click();
+        await finDocConfigPromise;
+        await page.waitForTimeout(2000);
+        
+        // Edit EXISTING Bank Statement document - increment max upload from 2 to 3
+        console.log('Editing Bank Statement: Max Upload 2 → 3');
+        const bankStatementMaxUpload = page.getByTestId('doc-bank-statement-max');
+        await expect(bankStatementMaxUpload).toBeVisible();
+        
+        // Clear and fill with new value
+        await bankStatementMaxUpload.fill('');
+        await bankStatementMaxUpload.fill('3');
+        console.log('✅ Changed max upload to 3');
+        
+        // Wait after editing field
+        await page.waitForTimeout(1000);
+        
+        // Save changes (correct test-id: submit-financial-step-form)
+        await page.getByTestId('submit-financial-step-form').click();
+        console.log('✅ Clicked save button');
+        
+        // Wait for save to complete
+        await page.waitForTimeout(3000);
+        
+        // Close and reopen modal to verify persistence
+        console.log('Reopening Financial Verification modal to verify persistence...');
+        
+        // Check if Workflow Setup step is still active (has pointer-events: none)
+        const stillActive = await workflowSetupStep.evaluate(el => {
+            const style = window.getComputedStyle(el);
+            return style.pointerEvents === 'none';
+        });
+        
+        if (!stillActive) {
+            // Only click if not already active
+            await workflowSetupStep.scrollIntoViewIfNeeded();
+            await page.waitForTimeout(500);
+            await workflowSetupStep.click({ timeout: 10_000 });
+            console.log('✅ Clicked Workflow Setup step');
+        } else {
+            console.log('ℹ️  Workflow Setup step still active, skipping click');
+        }
+        
+        // Select Default applicant type again
+        await page.getByTestId('type-default').click({ timeout: 20_000 });
+        
+        // Reopen Financial Verification step
+        const finDocConfigPromise2 = page.waitForResponse(resp => {
+            const apiRegex = new RegExp(`/applications/.{36}/steps/.{36}/document-configurations`);
+            return apiRegex.test(resp.url()) && resp.request().method() === 'GET' && resp.ok();
+        }, { timeout: 20_000 });
+        
+        await page.getByTestId('workflow-financial-verification').click();
+        await finDocConfigPromise2;
+        
+        // Wait for modal to fully load
+        await page.waitForTimeout(3000);
+        
+        // Verify the change persisted
+        console.log('Verifying max upload persisted as 3...');
+        const bankStatementMaxUploadAfter = page.getByTestId('doc-bank-statement-max');
+        await expect(bankStatementMaxUploadAfter).toHaveValue('3');
+        console.log('✅ Document max upload change persisted correctly (2 → 3)');
+        console.log('✅ Bug test passed: Existing document config changes persist on first save');
+        
+        // Close the Financial Verification modal
+        console.log('Closing Financial Verification modal...');
+        const closeModalBtn = page.getByTestId('financial-setup-modal-cancel');
+        await closeModalBtn.click();
+        await page.waitForTimeout(1000);
+        console.log('✅ Financial modal closed');
+
+        // ========================================================================
         // STEP 6: Verify Application 2 Remains UNCHANGED (Original Config)
         // ========================================================================
         console.log('\n📍 STEP 6: Verify Application 2 Remains Unchanged');
