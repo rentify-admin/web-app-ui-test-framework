@@ -1020,6 +1020,82 @@ const navigateToSessionById = async (page, sessionId, submenu = 'all') => {
 };
 
 /**
+ * Navigate to session by ID and capture flags response from page load
+ * This function uses a conditional approach:
+ * 1. Try to capture flags automatically from page load (10s timeout)
+ * 2. If that fails, click "View Details" button to trigger the flags request (10s timeout)
+ * 
+ * @param {import('@playwright/test').Page} page - Playwright page object
+ * @param {string} sessionId - Session ID to navigate to
+ * @param {Function} buildFlagsPredicate - Function that builds the flags response predicate
+ * @param {string} submenu - Submenu to use ('all', 'approved', etc.)
+ * @returns {Promise<Object>} - Flags data object
+ */
+const navigateToSessionByIdAndGetFlags = async (page, sessionId, buildFlagsPredicate, submenu = 'all') => {
+    console.log(`🧭 Navigating to session ${sessionId} and capturing flags response...`);
+
+    // Navigate directly to the session
+    const sessionLink = page.locator(`[href="/applicants/${submenu}/${sessionId}"]`);
+
+    // Wait for the session link to be visible and clickable
+    await expect(sessionLink).toBeVisible({ timeout: 10000 });
+    await sessionLink.waitFor({ state: 'visible' });
+
+    // Verify the element exists
+    const count = await sessionLink.count();
+    if (count === 0) {
+        throw new Error(`Session link with href="/applicants/${submenu}/${sessionId}" not found`);
+    }
+    console.log('✅ Session link found:', sessionId);
+
+    await sessionLink.click();
+
+    // Start listening for BOTH responses BEFORE reload
+    const sessionResponsePromise = page.waitForResponse(resp => {
+        return resp.url().includes(`/sessions/${sessionId}`)
+            && resp.request().method() === 'GET'
+            && resp.ok();
+    }, { timeout: 15000 });
+
+    const flagsResponsePromise = page.waitForResponse(buildFlagsPredicate(sessionId), { timeout: 10000 });
+
+    // Wait a bit to ensure response listeners are active
+    await page.waitForTimeout(100);
+
+    // Reload the page (this triggers both API calls)
+    await page.reload();
+
+    // Wait for session response first
+    await sessionResponsePromise;
+    console.log('✅ Session loaded');
+
+    // Try to get flags from page load (conditional approach)
+    let flags;
+    try {
+        console.log('🔍 Attempting to capture flags from page load (10s timeout)...');
+        const flagsResponse = await flagsResponsePromise;
+        flags = await waitForJsonResponse(flagsResponse);
+        console.log('✅ Flags captured from automatic page load');
+    } catch (error) {
+        console.log('⚠️  Flags not captured from page load, clicking "View Details" button...');
+        
+        // Fallback: Click View Details to trigger flags request
+        const viewDetailsBtn = page.getByTestId('view-details-btn');
+        await expect(viewDetailsBtn).toBeVisible({ timeout: 10000 });
+        
+        const flagsResponseFallback = await Promise.all([
+            page.waitForResponse(buildFlagsPredicate(sessionId), { timeout: 10000 }),
+            viewDetailsBtn.click()
+        ]);
+        
+        flags = await waitForJsonResponse(flagsResponseFallback[0]);
+        console.log('✅ Flags captured after clicking View Details');
+    }
+
+    return flags;
+};
+
+/**
  * Complete admin panel navigation and financial data validation
  * @param {import('@playwright/test').Page} page
  * @param {String} sessionId
@@ -1269,6 +1345,7 @@ export {
     checkMergeWithDragAndDrop,
     navigateAndValidateFinancialData,
     navigateToSessionById,
+    navigateToSessionByIdAndGetFlags,
     navigateToSessionFlags,
     markFlagAsIssue,
     markFlagAsNonIssue,

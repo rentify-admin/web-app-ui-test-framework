@@ -1849,7 +1849,8 @@ Based on the test files in the framework, I've identified these categories:
 4. `co_app_household_with_flag_errors.spec.js` - **Co-Applicant Household with Flag Errors**
 5. `skip_button_visibility_logic.spec.js` - **Skip Button Visibility Logic Testing**
 6. `user_flags_approve_reject_test.spec.js` - **User Flags Approve Reject Test**
-7. `check_income_source_regenerate_on_split_merge.spec.js` - **Income Source Regenerate on Split/Merge**
+7. `flag_review_buttons_flow.spec.js` - **Flag Review Buttons Flow Test**
+8. `check_income_source_regenerate_on_split_merge.spec.js` - **Income Source Regenerate on Split/Merge**
 
 ---
 
@@ -2566,7 +2567,131 @@ Based on the test files in the framework, I've identified these categories:
 
 ---
 
-### **7. check_income_source_regenerate_on_split_merge.spec.js**
+### **7. flag_review_buttons_flow.spec.js**
+
+**Purpose**: Validates flag review workflow including marking flags for review, reviewing flags, and completing review process with robust API polling
+
+**Configuration**:
+- **Application**: Auto-generated via API (createApplicationFlow)
+- **User**: Random email (getRandomEmail)
+- **Rent Budget**: $500
+- **Timeout**: 400s
+- **Tags**: @regression, @staging-ready, @rc-ready
+- **Session**: Created via inviteUser helper with API-based verification completion
+
+---
+
+#### **Test: "Verify Report Flag Review Buttons Workflow"**
+
+**Purpose**: Verify complete flag review workflow from marking flags for review to completing review, with dynamic flag handling and robust polling
+
+**Test Flow**:
+
+1. **Admin: Create Application & Session**
+   - Login as admin
+   - Create application via createApplicationFlow
+   - Invite user via inviteUser helper (returns session object)
+   - Store sessionId for cleanup
+
+2. **Applicant: Complete Verification Steps** (API-based)
+   - Authenticate as guest via loginWithGuestUser
+   - Complete Identity via createCurrentStep + simulateVerification
+   - Complete Financial via createCurrentStep + simulateVerification
+   - Complete Employment via createCurrentStep + simulateVerification
+   - Wait for step transitions to COMPLETED state
+   - **Session now has verification data with auto-generated flags**
+
+3. **Admin: Navigate to Session & Get Flags**
+   - Call navigateToSessionByIdAndGetFlags helper:
+     - Navigates to session detail page
+     - Reloads page to trigger API calls
+     - Listens for **both** session and flags responses in parallel before reload
+     - Attempts to capture flags from page load (10s timeout)
+     - If flags not captured: clicks "View Details" button (fallback, 10s timeout)
+     - Returns flags data
+   - Verify View Details section is open
+
+4. **Dynamic Flag Handling**
+   - **Flag #1 (ERROR priority)**:
+     - Search for first available ERROR flag (not ignored)
+     - If found: mark for review → verify moved to "In Review" section
+     - If not found: log warning and skip
+   - **Flag #2 (CRITICAL priority)**:
+     - Search for first available CRITICAL flag (not already reviewed, not ignored)
+     - If found: mark for review → verify moved to "In Review" section
+     - If not found: log warning and skip
+   - **Flag #3 (second CRITICAL)**:
+     - Search for another CRITICAL flag (not already reviewed, not ignored)
+     - If found: mark for review → verify moved to "In Review" section
+     - If not found: log warning and skip (OK - test continues with available flags)
+   - **Safety Check**: Ensure at least 1 flag was reviewed (throws error if 0)
+
+5. **Review Flags**
+   - For each flag marked for review:
+     - Fill review textarea with "Test review comment"
+     - Click "Mark for Review" button
+     - Verify flag appears in "In Review" section
+
+6. **Complete Review Process** (With Robust Polling)
+   - Click "Complete Review" button
+   - Click "Confirm" in confirmation modal
+   - **Poll flags API directly** (not via page.waitForResponse to avoid race conditions):
+     - Max 30 attempts (500ms interval = 15 seconds total)
+     - For each attempt:
+       - GET `/sessions/{sessionId}/flags` via apiClient
+       - Check if ALL flags have `in_review: false`
+       - If all false: polling complete ✅
+       - If any still true: wait 500ms and try again
+       - Log progress: "Attempt N/30: X flag(s) still in_review=true, waiting 500ms..."
+     - **Assert**: All flags completed within 15 seconds
+   - **Verify**: All flags have `in_review: false`
+
+7. **Cleanup**
+   - afterAll hook calls cleanupSessionAndContexts
+
+**Key API Endpoints**:
+- `POST /auth` - Admin authentication
+- `POST /applications` - Create application
+- `POST /sessions` - Create session
+- `POST /auth/guests` - Guest authentication
+- `POST /sessions/{id}/steps` - Create verification steps (ID, Financial, Employment)
+- `PATCH /sessions/{id}/steps/{id}` - Mark steps as COMPLETED
+- `GET /sessions/{id}?fields[session]=` - Get session details (navigateToSessionByIdAndGetFlags)
+- `GET /sessions/{id}/flags` - Get session flags (multiple times: initial load + polling)
+- `PATCH /sessions/{id}/flags` - Mark flags for review
+- `PATCH /sessions/{id}/flags` - Complete review (backend updates all flags)
+- `GET /sessions/{id}/flags` - Poll for completion status (30 attempts max)
+
+**Business Validations**:
+- ✅ Flags auto-generate from verification data
+- ✅ Flags can be marked for review (move to "In Review" section)
+- ✅ Dynamic flag handling works (adapts to available flags)
+- ✅ Review process handles variable flag counts (1-3 flags)
+- ✅ Review comments can be added
+- ✅ Complete Review process updates all flags to `in_review: false`
+- ✅ Polling mechanism waits for backend completion (up to 15s)
+- ✅ No race conditions (polling directly via API, not page.waitForResponse)
+- ✅ Test continues with at least 1 flag (doesn't require specific count)
+- ✅ navigateToSessionByIdAndGetFlags prevents flags response race conditions
+
+**Unique Aspects**:
+- Tests **complete flag review workflow** (mark for review → review → complete)
+- Uses **dynamic flag selection** (adapts to ERROR/CRITICAL availability)
+- Implements **robust API polling** (direct apiClient calls, not page.waitForResponse)
+- Tests **"In Review" section** specifically
+- Uses **safety check** (ensures at least 1 flag reviewed)
+- Handles **variable flag counts** gracefully
+- Uses **navigateToSessionByIdAndGetFlags** helper (listens for session + flags in parallel before reload)
+- Prevents **flags response race condition** (response captured before listener active)
+- Uses **API-based verification** (no UI interaction for verification steps)
+- Tests **review comment submission**
+- Implements **15-second polling** with 500ms intervals (30 attempts)
+- Logs **detailed polling progress** for debugging
+- No reliance on `page.waitForResponse` for completion (prevents stale response capture)
+
+---
+
+### **8. check_income_source_regenerate_on_split_merge.spec.js**
 
 **Purpose**: Validates income source regeneration when sessions are merged and split - verifies income sources are correctly aggregated after merge and independently regenerated after split
 
@@ -2811,6 +2936,7 @@ Based on the test files in the framework, I've identified these categories:
 | `co_app_household_with_flag_errors` | Household status lifecycle (4 stages) | API-based completion, 8 assertions (API+UI), flag transition validation |
 | `skip_button_visibility_logic` | Skip button UI visibility rules | Tests visible→action→hidden pattern for 4 steps, reusable helper function |
 | `user_flags_approve_reject_test` | Flag management workflows | 2 sessions in serial mode, batch flag marking, document approval prerequisite |
+| `flag_review_buttons_flow` | Flag review workflow with robust polling | Dynamic flag handling (1-3 flags), API polling for completion (15s max), navigateToSessionByIdAndGetFlags helper |
 | `check_income_source_regenerate_on_split_merge` | Income source regeneration on merge/split | Tests merge→aggregate→split→independent pattern, API polling for split completion, admin token reuse |
 
 **Conclusion**: No overlap - each test validates distinct session flow patterns and workflows
