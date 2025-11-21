@@ -23,7 +23,7 @@ test.describe('QA-219: merged_transactions_ui_display.spec', () => {
     });
 
     test('UI Validation for Combined Transactions Display', {
-        tag: ['@regression'],
+        tag: ['@regression', '@staging-ready', '@rc-ready'],
         timeout: 180_000
     }, async ({ page, browser }) => {
         try {

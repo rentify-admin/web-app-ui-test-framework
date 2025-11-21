@@ -60,7 +60,7 @@ test.describe('QA-215 default_applicant_type_override_in_application_workflow_st
     // Main test case: Testing the override options specifically on the Financial Verification step.
     test('Test Default Applicant Type Override Options (Financial Step Only)',
         {
-            tag: ['@regression', '@application']
+            tag: ['@regression', '@application', '@staging-ready', '@rc-ready']
         }, async ({ page }) => {
             console.log(`--- Starting Test: Test Default Applicant Type Override Options (Financial Step Only) ---`);
             test.setTimeout(180_000); // Set a timeout for this individual test.

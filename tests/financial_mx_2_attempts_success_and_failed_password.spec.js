@@ -36,7 +36,7 @@ test.describe('financial_mx_2_attempts_success_and_failed_password', () => {
     let allTestsPassed = true;
 
     test('Financial - mx - 2 attempts + Eligibility status transitions', {
-      tag: ['@regression', '@external-integration', '@eligibility', '@core'],
+      tag: ['@regression', '@external-integration', '@eligibility', '@core', '@staging-ready', '@rc-ready'],
     }, async ({ page, browser }) => {
         test.setTimeout(350_000);
         
