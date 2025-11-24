@@ -2629,6 +2629,17 @@ const completeEmploymentStepViaAPI = async (page, sessionId, guestToken, userDat
     }
 };
 
+async function startSessionFlow(link, browser) {
+    const linkUrl = new URL(link);
+    console.log("➡️ Launching new browser context for applicant...");
+    const context = await browser.newContext();
+    const applicantPage = await context.newPage();
+    const gotoUrl = joinUrl(app.urls.app, `${linkUrl.pathname}${linkUrl.search}`);
+    console.log("➡️ Navigating applicant page to:", gotoUrl);
+    await applicantPage.goto(gotoUrl);
+    return applicantPage;
+}
+
 export {
     uploadStatementFinancialStep,
     simulatorFinancialStepWithVeridocs,
@@ -2661,6 +2672,7 @@ export {
     connectBankOAuthFlow,
     identityStep,
     completePlaidFinancialStepBetterment,
-    waitForButtonOrAutoAdvance
+    waitForButtonOrAutoAdvance,
+    startSessionFlow
 };
 
