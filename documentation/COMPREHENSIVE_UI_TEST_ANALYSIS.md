@@ -18,16 +18,16 @@ This document provides a complete analysis of ALL UI test files in the framework
 
 Based on the test files in the framework, I've identified these categories:
 
-1. **Authentication & Permission Tests** (4 files)
-2. **Financial Verification Tests** (5 files) 
-3. **Application Management Tests** (4 files)
-4. **Session Flow Tests** (7 files)
-5. **Document Processing Tests** (4 files)
+1. **Authentication & Permission Tests** (5 files)
+2. **Financial Verification Tests** (4 files) 
+3. **Application Management Tests** (5 files)
+4. **Session Flow Tests** (6 files)
+5. **Document Processing Tests** (1 file)
 6. **System Health Tests** (2 files)
 7. **Workflow Management Tests** (2 files)
 8. **Integration Tests** (3 files)
 9. **Menu Heartbeat Tests** (13 files)
-10. **Data Management Tests** (1 file)
+10. **Data Management Tests** (2 files)
 
 ---
 
@@ -4224,6 +4224,7 @@ Based on the test files in the framework, I've identified these categories:
 
 ### **Files Analyzed:**
 1. `create_multiple_remarks.spec.js` - **Income Source Remarks Management**
+2. `report_remarks_section.spec.js` - **Session Remarks Management**
 
 ---
 
@@ -4357,15 +4358,166 @@ Based on the test files in the framework, I've identified these categories:
 
 ---
 
+### **2. report_remarks_section.spec.js**
+
+**Purpose**: Validates the Remarks (Comments) feature on the session report, including creation with notification options, display, and hide/unhide functionality
+
+**Configuration**:
+- **Application**: "Autotest - Heartbeat Test - Financial"
+- **User**: Test user "Remark Btn test" (test-remarkbtn@verifast.com)
+- **Timeout**: 150,000ms (2.5 minutes)
+- **Tags**: `@core`, `@smoke`, `@regression`
+
+---
+
+#### **Test: "Check Remarks (Comments) Section on Applicant Report"**
+
+**Purpose**: Validates the complete lifecycle of session remarks/comments including internal and external notifications, form clearing, and hide/unhide functionality with proper API validation
+
+**Test Flow**:
+
+1. **Session Setup**
+   - Admin login via adminLoginAndNavigateToApplications
+   - Find and invite "Autotest - Heartbeat Test - Financial" application
+   - Generate session with test user data (Remark Btn test)
+   - Navigate to sessions list and search for created session
+   - Click session to open detail page
+   - Wait for GET /sessions/{id} response
+
+2. **Open Remarks Modal**
+   - Click view-remarks-btn
+   - **Assert**: remark-history-modal visible
+   - **Assert**: remark-history-form-section visible
+   - **Assert**: remark-textarea visible
+   - **Assert**: remark-history-display-section visible
+
+3. **Create Internal Remark (No Notifications)**
+   - Fill #remark-content with "Internal remark without notifications"
+   - Click submit-remark-btn
+   - Wait for POST /sessions/{id}/comments with payload: `{comment: "Internal remark without notifications"}`
+   - Wait for GET /sessions/{id}/comments refresh
+   - **Assert**: Comment appears with correct text
+   - **Assert**: remark-comment-{id} visible
+
+4. **Create Remark with Organization Notification**
+   - Fill #remark-content with "Remark with organization notification"
+   - Check remark-notify-org-checkbox
+   - Click submit-remark-btn
+   - Wait for POST /sessions/{id}/comments with payload: `{comment: "...", notify_organization: true}`
+   - Wait for GET /sessions/{id}/comments refresh
+   - **Assert**: Comment appears with correct text
+   - **Assert**: notify-comment-btn (bell icon) visible
+
+5. **Create Remark with Applicant Notification**
+   - Fill #remark-content with "Remark with applicant notification"
+   - Select applicant from remark-applicant-dropdown multiselect
+   - Click submit-remark-btn
+   - Wait for POST /sessions/{id}/comments with payload: `{comment: "...", notify_applicant: true, applicants: [applicantId]}`
+   - Wait for GET /sessions/{id}/comments refresh
+   - **Assert**: Comment appears with correct text
+   - **Assert**: notify-comment-btn (bell icon) visible
+
+6. **Create Remark with Both Notifications**
+   - Fill #remark-content with "Remark with organization and applicant notification"
+   - Select applicant from remark-applicant-dropdown
+   - Check remark-notify-org-checkbox
+   - Click submit-remark-btn
+   - Wait for POST /sessions/{id}/comments with payload: `{comment: "...", notify_organization: true, notify_applicant: true, applicants: [applicantId]}`
+   - Wait for GET /sessions/{id}/comments refresh
+   - **Assert**: Comment appears with correct text
+   - **Assert**: notify-comment-btn (bell icon) visible
+
+7. **Test Clear Button Functionality**
+   - Fill #remark-content with "Clear comment notification"
+   - Select applicant from remark-applicant-dropdown
+   - Check remark-notify-org-checkbox
+   - Click clear-remark-btn
+   - **Assert**: #remark-content has empty value
+   - **Assert**: remark-notify-org-checkbox is unchecked
+   - **Assert**: multiselect__tags-wrap not visible (dropdown cleared)
+
+8. **Validate Remark List Display**
+   - Loop through all comments from GET response
+   - For each comment using remark-comment-{id}:
+     - **Assert**: Comment text matches API response
+     - **Assert**: Author full_name displayed (from author.user.full_name)
+     - **Assert**: Timestamp formatted correctly (formatIsoToCustom: "Jan 24th 2025, 3:45 PM")
+     - **Assert**: hide-comment-btn visible
+   - **Validate**: Remarks ordered from most recent to oldest (implicit via API ordering)
+
+9. **Test Hide Functionality**
+   - Click hide-comment-btn on first comment (comments[0])
+   - Wait for PATCH /sessions/{id}/comments/{commentId} response
+   - Wait for GET /sessions/{id}/comments refresh
+   - **Assert**: toggle-hidden-comments-btn visible
+   - Click toggle-hidden-comments-btn
+   - **Assert**: Hidden comment visible with bg-slate-100 class (dimmed styling)
+   - Click toggle again
+   - **Assert**: Hidden comment not visible
+
+10. **Test Unhide Functionality**
+    - Click toggle-hidden-comments-btn to show hidden comments
+    - **Assert**: Hidden comment visible
+    - **Assert**: unhide-comment-btn visible
+    - Click unhide-comment-btn
+    - Wait for PATCH /sessions/{id}/comments/{commentId} response
+    - Wait for GET /sessions/{id}/comments refresh
+    - **Assert**: Comment visible without bg-slate-100 class
+    - **Assert**: Comment restored to main list
+
+11. **Cleanup**
+    - Session deleted via cleanupSession helper
+
+**Key API Endpoints**:
+- `GET /sessions/{id}?fields[session]` - Get session details
+- `POST /sessions/{id}/comments` - Create remark (4 scenarios: no notifications, org only, applicant only, both)
+- `GET /sessions/{id}/comments` - List all remarks
+- `PATCH /sessions/{id}/comments/{id}` - Update remark (hide/unhide functionality, 2x)
+
+**Business Validations**:
+- ✅ View Remarks button opens Household Remarks modal
+- ✅ Internal remarks created without notifications (no checkboxes)
+- ✅ Organization notification remarks created with notify_organization: true
+- ✅ Applicant notification remarks created with notify_applicant: true and applicants array
+- ✅ Combined notifications remarks created with both flags
+- ✅ Bell icon (notify-comment-btn) displays for all notification types
+- ✅ Clear button resets textarea, checkbox, and multiselect dropdown
+- ✅ All remarks display with author name, formatted timestamp, and comment text
+- ✅ Remarks ordered from most recent to oldest
+- ✅ Hide functionality works (PATCH updates comment state)
+- ✅ Hidden remarks don't display by default
+- ✅ Toggle shows/hides hidden remarks with visual distinction (dimmed styling)
+- ✅ Unhide functionality restores remark to main list
+- ✅ Each remark identifiable by unique ID via remark-comment-{id} data-testid
+- ✅ Payload validation ensures exact POST data matching (custom requestContainsPayload helper)
+
+**Unique Aspects**:
+- Tests **session remarks/comments** (different from income source remarks in test #1)
+- Tests **4 notification scenarios**: none, org only, applicant only, both
+- Uses **custom payload validation helper** (requestContainsPayload) for exact POST data matching
+- Uses **custom timestamp formatter** (formatIsoToCustom) for UI-API consistency validation
+- Tests **multiselect dropdown** interaction for applicant selection
+- Validates **bell icon visibility** (notify-comment-btn) for notification indicators
+- Tests **Clear button** functionality (resets all form fields)
+- Uses **reusable hideComment helper** for both hide and unhide operations
+- Validates **visual distinction** for hidden comments (bg-slate-100 CSS class)
+- Uses **Promise.all pattern** to capture concurrent POST + GET responses
+- Tests **toggle button** for showing/hiding hidden comments
+- Validates **author attribution** from nested author.user.full_name
+- **Note**: Email notification delivery NOT tested (per ticket scope)
+
+---
+
 ## **Category 10 Summary**
 
 ### **Business Purpose Analysis:**
 
 | Test File | Primary Business Purpose | Key Differences |
 |-----------|-------------------------|-----------------|
-| `create_multiple_remarks` | Income source remarks management | Tests creation, hide/unhide, ordering, timestamp/author validation |
+| `create_multiple_remarks` | Income source remarks management | Tests creation, hide/unhide, ordering, timestamp/author validation for **income source comments** |
+| `report_remarks_section` | Session remarks management | Tests creation with 4 notification scenarios, clear button, hide/unhide toggle, payload validation for **session comments** |
 
-**Conclusion**: Only 1 test in this category - validates complete remarks lifecycle
+**Conclusion**: 2 tests in this category - both validate remarks lifecycle but for different entities (income sources vs sessions) with different notification capabilities
 
 ---
 
@@ -4396,8 +4548,8 @@ Based on the test files in the framework, I've identified these categories:
 | 7: Workflow Management | 2 | 0 | ~200 |
 | 8: Integration | 3 | 0 | ~800 |
 | 9: Menu Heartbeat | 13 | 0 | ~900 |
-| 10: Data Management | 1 | 0 | ~230 |
-| **TOTAL** | **42 tests** | **5 deleted** | **~7,630 lines** |
+| 10: Data Management | 2 | 0 | ~620 |
+| **TOTAL** | **43 tests** | **5 deleted** | **~8,020 lines** |
 
 ---
 
