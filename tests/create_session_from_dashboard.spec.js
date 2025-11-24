@@ -37,7 +37,7 @@ test.describe('QA-223 create_session_from_dashboard.spec', () => {
                 // Step 2: Open create session modal, and check close modal functionality
                 console.log('🟢 Step 2: Opening create session modal...');
 
-                await page.getByTestId('create-new-sessson-btn').click();
+                await page.getByTestId('create-new-session-btn').click();
                 let createSessionModal = page.getByTestId('create-session-modal')
                 await expect(createSessionModal).toBeVisible();
                 console.log('👀 Create session modal opened (first time)');
@@ -47,7 +47,7 @@ test.describe('QA-223 create_session_from_dashboard.spec', () => {
                 await expect(createSessionModal).not.toBeVisible();
                 console.log('❌ Modal closed via X button');
 
-                await page.getByTestId('create-new-sessson-btn').click();
+                await page.getByTestId('create-new-session-btn').click();
                 await expect(createSessionModal).toBeVisible();
                 console.log('👀 Create session modal opened (second time)');
 
@@ -56,7 +56,7 @@ test.describe('QA-223 create_session_from_dashboard.spec', () => {
                 await expect(createSessionModal).not.toBeVisible();
                 console.log('❌ Modal closed via Cancel button');
 
-                await page.getByTestId('create-new-sessson-btn').click();
+                await page.getByTestId('create-new-session-btn').click();
                 await expect(createSessionModal).toBeVisible();
                 console.log('👀 Create session modal opened (third time)');
 
@@ -83,7 +83,7 @@ test.describe('QA-223 create_session_from_dashboard.spec', () => {
                 console.log('🟢 Step 5: Checking validation for only application field...');
                 await page.reload();
                 await page.waitForTimeout(3000)
-                await page.getByTestId('create-new-sessson-btn').click();
+                await page.getByTestId('create-new-session-btn').click();
                 await expect(createSessionModal).toBeVisible();
                 await fillOrganizationField(page, orgnization);
                 const appField = page.getByTestId('crt-session-application-field')
