@@ -27,7 +27,7 @@ export const navigateToApplicationCreate = async page => {
     await page.goto('/application/create');
 
     // Wait for all responses to complete
-    const [ createResponse, organizationsResponse, portfoliosResponse, settingsResponse ] = await Promise.all([
+    const [createResponse, organizationsResponse, portfoliosResponse, settingsResponse] = await Promise.all([
         createResponsePromise,
         organizationsResponsePromise,
         portfoliosResponsePromise,
@@ -87,7 +87,7 @@ export const submitApplicationSetup = async (page, config = {}) => {
 
     // Wait for the response
     const setupResponse = await setupResponsePromise;
-    
+
     // Extract application ID from response
     const setupResponseData = await setupResponse.json();
     const applicationId = setupResponseData.data.id;
@@ -130,6 +130,9 @@ export const submitApplicationSetup = async (page, config = {}) => {
  * @param {string} [config.maximumAmount] - Optional maximum amount
  */
 export const configureApplicationSettings = async (page, config) => {
+
+    // wait for income source templates to load
+    await defaultIncomeTemplateVisibility(page);
 
     // Configure flag collection and rent budget range
     await page.getByText('Select option').click();
@@ -196,13 +199,13 @@ export const searchAndDeleteApplication = async (page, applicationName, applicat
         page.on('dialog', dialog => dialog.accept());
     }
 
-    const [ deleteResponse ] = await Promise.all([
+    const [deleteResponse] = await Promise.all([
         page.waitForResponse(resp => resp.url().match(/\/applications\/[a-f0-9-]+$/)
             && resp.request().method() === 'DELETE'
             && resp.ok()),
         expect(page.locator('div[role="alert"] p:has-text("Application deleted successfully")')).toBeVisible({ timeout: 10_000 }),
         // Use applicationId if provided, otherwise fallback to title
-        applicationId ? 
+        applicationId ?
             page.getByTestId(`delete-${applicationId}`).click() :
             page.locator('a[title="Delete"]').click()
     ]);
@@ -267,3 +270,23 @@ export const createApplicationFlow = async (page, config) => {
 
     return responses;
 };
+async function defaultIncomeTemplateVisibility(page) {
+    try {
+        await page.waitForResponse(resp => {
+            return resp.url().includes('/income-source-templates')
+                && resp.request().method() === 'GET'
+                && resp.ok();
+        }, { timeout: 1500 });
+        // check default is selected with case insensitive
+        await expect(page.getByTestId('application-income-source-tags').locator('span.multiselect__single')).toContainText('Default', {
+            timeout: 1500,
+            ignoreCase: true
+        });
+    } catch (err) {
+        const defaultValue = await page.getByTestId('application-income-source-tags').locator('span.multiselect__single').textContent();
+        console.log(`Actual income source template default value: ${defaultValue}`);
+        console.error(`Failed checking default income source template value: ${err.message}`);
+        throw err;
+    }
+}
+
