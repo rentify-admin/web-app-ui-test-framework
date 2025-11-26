@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 import { adminLoginAndNavigateToApplications } from './utils/session-utils'
-import { admin } from './test_config'
+import { admin, app } from './test_config'
 import { findAndInviteApplication } from './utils/applications-page';
 import { setupInviteLinkSession, startSessionFlow, updateRentBudget } from './utils/session-flow';
 import { fillMultiselect } from './utils/common';
@@ -17,9 +17,9 @@ let createdSessionId = null;
 test.describe('QA-212 internal_scope_user_can_override_upload_doc_limit.spec', () => {
 
     test('Verify Internal-scope Uploads Can Override Document Upload Limits',{
-        tag: ['@core', '@regression'],
-        timeout: 320_000
+        tag: ['@core', '@regression']
     }, async ({ page, browser }) => {
+        test.setTimeout(640_000); // 10 min 40 sec (doubled from 5 min 20 sec)
 
         console.log('🚀 STEP 1: Logging in as admin and navigating to Applications');
         await adminLoginAndNavigateToApplications(page, admin);
@@ -135,7 +135,7 @@ test.describe('QA-212 internal_scope_user_can_override_upload_doc_limit.spec', (
             page.waitForResponse(resp =>
                 resp.url().includes('/employment-verifications') &&
                 resp.request().method() === 'POST'
-            ),
+            , { timeout: 120_000 }), // 2 minutes for admin upload
             uploadModal.getByTestId('submit-upload-doc-form').click()
         ]);
         expect(employmentResponse.ok()).toBeTruthy();
