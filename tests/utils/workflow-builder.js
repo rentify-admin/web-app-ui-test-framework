@@ -34,8 +34,16 @@ class WorkflowBuilder {
     async checkWorkflowExists() {
         console.log('[WorkflowBuilder] Checking if workflow exists...');
         let workflowResponse = await this.request.get(
-            `${this.app.urls.api}/workflows?filters[name]=${encodeURIComponent(this.workflowTemplate)}`,
-            { headers: getHeaders(this.token) }
+            `${this.app.urls.api}/workflows`,
+            {
+                headers: getHeaders(this.token),
+                params: JSON.stringify({
+                    "$and": {
+                        "name": this.workflowTemplate,
+                        "status": { "$in": ["READY", "PUBLISHED"] }
+                    }
+                })
+            }
         );
         let workflowJson = workflowResponse.ok() ? await workflowResponse.json() : null;
         if (workflowJson && workflowJson.data && workflowJson.data.length > 0) {

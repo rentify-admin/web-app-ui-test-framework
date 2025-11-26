@@ -262,8 +262,10 @@ export const createApplicationFlow = async (page, config) => {
     // Configure settings
     responses.settings = await configureApplicationSettings(page, config);
 
-    // Publish to live
-    responses.publish = await publishApplicationToLive(page);
+    if (!config.noPublish) {
+        // Publish to live
+        responses.publish = await publishApplicationToLive(page);
+    }
 
     return responses;
 };
