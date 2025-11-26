@@ -10,11 +10,27 @@ import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { waitForJsonResponse } from './utils/wait-response';
 import { navigateToSessionById, searchSessionWithText } from './utils/report-page';
+import { cleanupSession } from './utils/cleanup-helper';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const appName = 'AutoTest - Internal Scope No Doc Limit';
 let createdSessionId = null;
+
 test.describe('QA-212 internal_scope_user_can_override_upload_doc_limit.spec', () => {
+
+    test.afterEach(async ({ request }, testInfo) => {
+        if (createdSessionId) {
+            if (testInfo.status === 'passed') {
+                console.log(`🧹 Test passed. Cleaning up session ${createdSessionId}...`);
+                await cleanupSession(request, createdSessionId, true);
+                console.log('✅ Cleanup complete');
+            } else {
+                console.log(`⚠️  Test ${testInfo.status}. Skipping cleanup for session ${createdSessionId} (left for debugging)`);
+            }
+        }
+        // Reset for next test
+        createdSessionId = null;
+    });
 
     test('Verify Internal-scope Uploads Can Override Document Upload Limits',{
         tag: ['@core', '@regression']

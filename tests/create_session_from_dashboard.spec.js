@@ -8,9 +8,20 @@ import { findSessionLocator, searchSessionWithText } from "./utils/report-page";
 import { cleanupSession } from "./utils/cleanup-helper";
 
 let createdSessionId = null;
-let allTestsPassed = true;
 
 test.describe('QA-223 create_session_from_dashboard.spec', () => {
+
+    test.afterAll(async ({ request }, testInfo) => {
+        if (createdSessionId) {
+            if (testInfo.status === 'passed') {
+                console.log(`🧹 Test passed. Cleaning up session ${createdSessionId}...`);
+                await cleanupSession(request, createdSessionId, true);
+                console.log('✅ Cleanup complete');
+            } else {
+                console.log(`⚠️  Test ${testInfo.status}. Skipping cleanup for session ${createdSessionId} (left for debugging)`);
+            }
+        }
+    });
 
     test('Create New Session from Dashboard',
         {
@@ -19,20 +30,19 @@ test.describe('QA-223 create_session_from_dashboard.spec', () => {
         },
         async ({ page }) => {
 
-            try {
-                const orgnization = 'Permissions Test Org'
-                const application = 'AutoTest - Flag Issue V2'
-                const userData = {
-                    first_name: 'Dashboard',
-                    last_name: 'Session',
-                    email: `dashboard-session-${Date.now()}@verifast.com`,
-                }
+            const orgnization = 'Permissions Test Org'
+            const application = 'AutoTest - Flag Issue V2'
+            const userData = {
+                first_name: 'Dashboard',
+                last_name: 'Session',
+                email: `dashboard-session-${Date.now()}@verifast.com`,
+            }
 
-                // Step 1: Admin login and navigate to Dashboard
-                console.log('🟢 Step 1: Logging in as admin and navigating to dashboard...');
-                await loginForm.adminLoginAndNavigate(page, admin)
-                await page.waitForTimeout(4000);
-                console.log('✅ Login successful and dashboard loaded.');
+            // Step 1: Admin login and navigate to Dashboard
+            console.log('🟢 Step 1: Logging in as admin and navigating to dashboard...');
+            await loginForm.adminLoginAndNavigate(page, admin)
+            await page.waitForTimeout(4000);
+            console.log('✅ Login successful and dashboard loaded.');
 
                 // Step 2: Open create session modal, and check close modal functionality
                 console.log('🟢 Step 2: Opening create session modal...');
@@ -144,10 +154,10 @@ test.describe('QA-223 create_session_from_dashboard.spec', () => {
                     console.log('🧭 User landed directly on applicants/all page.');
                     await expect(page.locator(`.application-card[data-session='${session.id}']`)).toBeVisible();
                     console.log('✅ Application card for session is visible.');
-                } else {
-                    console.log('🔎 Searching for created session in grid...');
-                    await searchSessionWithText(session.id);
-                    const sessionLocator = await findSessionLocator(page, `.application-card[data-session="${session.id}"]`);
+            } else {
+                console.log('🔎 Searching for created session in grid...');
+                await searchSessionWithText(page, session.id);
+                const sessionLocator = await findSessionLocator(page, `.application-card[data-session="${session.id}"]`);
 
                     const [sessionResponse] = await Promise.all([
                         page.waitForResponse(resp => resp.url().includes(`/sessions/${session.id}?fields[session]`)
@@ -155,20 +165,11 @@ test.describe('QA-223 create_session_from_dashboard.spec', () => {
                         sessionLocator.click()
                     ]);
 
-                    await expect(sessionResponse.ok()).toBeTruthy();
-                    console.log('✅ Able to locate and open the application card for created session.');
-                }
-                console.log('🎉✅ All steps completed successfully!');
-
-            } catch (error) {
-                allTestsPassed = false;
-                console.log('❌ Test failed at some step. Error:', error);
-                throw error;
+                await expect(sessionResponse.ok()).toBeTruthy();
+                console.log('✅ Able to locate and open the application card for created session.');
             }
+            console.log('🎉✅ All steps completed successfully!');
         })
-    test.afterAll(async ({ request }) => {
-        await cleanupSession(request, createdSessionId, allTestsPassed);
-    });
 })
 
 async function fillOrganizationField(page, orgnization) {

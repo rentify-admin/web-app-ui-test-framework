@@ -213,7 +213,7 @@ const searchSessionWithText = async (page, searchText) => {
                 console.log('🚀 ~ Session response:', resp.url(), 'matches:', matches);
             }
             return matches;
-        }),
+        }, { timeout: 180_000 }), // 3 minutes timeout for session search
         sessionSearchInput.fill(searchText)
     ]);
 
