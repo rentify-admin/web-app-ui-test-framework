@@ -23,6 +23,7 @@ class WorkflowBuilder {
         this.workflow = null;
         this.taskTypes = [];
         this.documentTypes = [];
+        this.documentPolicies = [];
         this.providers = [];
         this.createdSteps = [];
         console.log(`[WorkflowBuilder] Initialized with template: ${this.workflowTemplate}`);
@@ -104,6 +105,14 @@ class WorkflowBuilder {
         this.documentTypes = (await documentTypesResp.json()).data;
         console.log(`[WorkflowBuilder] Got ${this.documentTypes.length} document types`);
 
+        const documentPoliciesResp = await this.request.get(
+            `${this.app.urls.api}/document-policies?fields[document_type]=id,name,key&fields[policy]=id,name&order=created_at:desc&limit=300&page=1`,
+            { headers: getHeaders(this.token) }
+        );
+        if (!documentPoliciesResp.ok()) throw new Error("Could not get document policies");
+        this.documentPolicies = (await documentPoliciesResp.json()).data;
+        console.log(`[WorkflowBuilder] Got ${this.documentPolicies.length} document policies`);
+
         // 7. Get settings (throw on failure, but don't store)
         const settingsResp = await this.request.get(
             `${this.app.urls.api}/settings?fields[settings]=:all&limit=100`,
@@ -134,7 +143,7 @@ class WorkflowBuilder {
      * Create Identity Step with optional override of settings.
      * @param {object} settingsOverrides - Optional identity step settings to override default.
      */
-    async createIdentityStep(settingsOverrides = {}) {
+    async createIdentityStep(settingsOverrides = {}, { providerName = 'Persona' } = {}) {
         console.log('[WorkflowBuilder] Step 3: Creating Identity step');
         // 10. Find IDENTITY_VERIFICATION task
         const identityTask = this.taskTypes.find(t => t && t.key === "IDENTITY_VERIFICATION");
@@ -160,14 +169,14 @@ class WorkflowBuilder {
 
         // 12. Find Persona provider with IDENTITY service
         const personaProvider = this.providers.find(
-            p => p.services && p.services.includes("IDENTITY") && p.name === "Persona"
+            p => p.services && p.services.includes("IDENTITY") && p.name === providerName
         );
         if (!personaProvider) throw new Error("Persona provider not found");
         console.log(`[WorkflowBuilder] Found Persona provider for IDENTITY: id=${personaProvider.id}`);
 
         // 13. PATCH settings for identity step with ability to override via param
         const defaultIdentitySettings = {
-            "settings.workflows.tasks.verifications.identity.required": true,
+            "settings.workflows.tasks.verifications.identity.required": false,
             "settings.workflows.tasks.verifications.identity.skip.authority": "anyone",
             "settings.workflows.tasks.verifications.identity.hidden": false,
             "settings.workflows.tasks.verifications.identity.provider": personaProvider.id,
@@ -289,64 +298,56 @@ class WorkflowBuilder {
 
     async createPaths() {
         console.log('[WorkflowBuilder] Step 6: Creating workflow paths (start->identity->financial->end)');
-        // 20. Find start step (type === START)
+
+        // Find required steps
         const startStep = this.getStepByType("START");
         if (!startStep) throw new Error("Start step not found");
         console.log(`[WorkflowBuilder] Found Start step: id=${startStep.id}`);
 
-        // 21. Find end step (type === END)
         const endStep = this.getStepByType("END");
         if (!endStep) throw new Error("End step not found");
         console.log(`[WorkflowBuilder] Found End step: id=${endStep.id}`);
 
-        // 22. Find identity step (type === TASK, task.key === IDENTITY_VERIFICATION)
         const identityStepFinal = this.getStepByType("TASK", "IDENTITY_VERIFICATION");
-        if (!identityStepFinal) throw new Error("Final Identity step not found");
-        console.log(`[WorkflowBuilder] Found Identity step: id=${identityStepFinal.id}`);
+        if (identityStepFinal) {
+            console.log(`[WorkflowBuilder] Found Identity step: id=${identityStepFinal.id}`);
+        } else {
+            console.log(`[WorkflowBuilder] Identity step not found, will skip identity->financial path if needed`);
+        }
 
-        // 23. Find financial step (type === TASK, task.key === FINANCIAL_VERIFICATION)
         const financialStepFinal = this.getStepByType("TASK", "FINANCIAL_VERIFICATION");
-        if (!financialStepFinal) throw new Error("Final Financial step not found");
-        console.log(`[WorkflowBuilder] Found Financial step: id=${financialStepFinal.id}`);
+        if (financialStepFinal) {
+            console.log(`[WorkflowBuilder] Found Financial step: id=${financialStepFinal.id}`);
+        } else {
+            console.log(`[WorkflowBuilder] Financial step not found, will skip related path`);
+        }
 
-        // 24. POST path from start to identity step
-        const path1Resp = await this.request.post(
-            `${this.app.urls.api}/workflows/${this.workflowId}/paths`,
-            {
-                headers: getHeaders(this.token, { withContentType: true }),
-                data: { from: startStep.id, to: identityStepFinal.id }
-            }
-        );
-        if (!path1Resp.ok()) throw new Error("Could not create path start -> identity");
-        console.log(
-            `[WorkflowBuilder] Created path: START (${startStep.id}) -> IDENTITY (${identityStepFinal.id})`
-        );
+        // Build steps chain ignoring missing steps
+        // Always: startStep ... [identityStepFinal] ... [financialStepFinal] ... endStep
+        const stepChain = [startStep];
+        if (identityStepFinal) stepChain.push(identityStepFinal);
+        if (financialStepFinal) stepChain.push(financialStepFinal);
+        stepChain.push(endStep);
 
-        // 25. POST path from identity to financial step
-        const path2Resp = await this.request.post(
-            `${this.app.urls.api}/workflows/${this.workflowId}/paths`,
-            {
-                headers: getHeaders(this.token, { withContentType: true }),
-                data: { from: identityStepFinal.id, to: financialStepFinal.id }
-            }
-        );
-        if (!path2Resp.ok()) throw new Error("Could not create path identity -> financial");
-        console.log(
-            `[WorkflowBuilder] Created path: IDENTITY (${identityStepFinal.id}) -> FINANCIAL (${financialStepFinal.id})`
-        );
+        // Create paths between present steps
+        for (let i = 0; i < stepChain.length - 1; ++i) {
+            const fromStep = stepChain[i];
+            const toStep = stepChain[i + 1];
+            const fromType = fromStep.type === "TASK" ? (fromStep.task ? fromStep.task.key : "TASK") : fromStep.type;
+            const toType = toStep.type === "TASK" ? (toStep.task ? toStep.task.key : "TASK") : toStep.type;
 
-        // 26. POST path from financial to end step
-        const path3Resp = await this.request.post(
-            `${this.app.urls.api}/workflows/${this.workflowId}/paths`,
-            {
-                headers: getHeaders(this.token, { withContentType: true }),
-                data: { from: financialStepFinal.id, to: endStep.id }
-            }
-        );
-        if (!path3Resp.ok()) throw new Error("Could not create path financial -> end");
-        console.log(
-            `[WorkflowBuilder] Created path: FINANCIAL (${financialStepFinal.id}) -> END (${endStep.id})`
-        );
+            const resp = await this.request.post(
+                `${this.app.urls.api}/workflows/${this.workflowId}/paths`,
+                {
+                    headers: getHeaders(this.token, { withContentType: true }),
+                    data: { from: fromStep.id, to: toStep.id }
+                }
+            );
+            if (!resp.ok()) throw new Error(`Could not create path ${fromType} (${fromStep.id}) -> ${toType} (${toStep.id})`);
+            console.log(
+                `[WorkflowBuilder] Created path: ${fromType} (${fromStep.id}) -> ${toType} (${toStep.id})`
+            );
+        }
     }
 
     /**
