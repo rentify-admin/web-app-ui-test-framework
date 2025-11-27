@@ -55,7 +55,7 @@ test.describe('QA-226 document_policy_auto_selection_validation.spec', () => {
     // Test case: Ensure that default applicant type in Financial step auto-selects policy and override checkboxes are displayed as expected.
     test('Test Document policy auto selection validation',
         {
-            tag: ['@regression', '@application', '@staging-ready', '@rc-ready']
+            tag: [ '@application', '@staging-ready', '@rc-ready']
         }, async ({ page }) => {
             console.log(`=== QA-226: Starting Document Policy Auto Selection Validation Test ===`);
             test.setTimeout(180_000); // ensure sufficient timeout

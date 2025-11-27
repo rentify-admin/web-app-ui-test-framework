@@ -21,8 +21,8 @@ Based on the test files in the framework, I've identified these categories:
 1. **Authentication & Permission Tests** (5 files)
 2. **Financial Verification Tests** (4 files) 
 3. **Application Management Tests** (5 files)
-4. **Session Flow Tests** (6 files)
-5. **Document Processing Tests** (1 file)
+4. **Session Flow Tests** (9 files)
+5. **Document Processing Tests** (3 files)
 6. **System Health Tests** (2 files)
 7. **Workflow Management Tests** (2 files)
 8. **Integration Tests** (3 files)
@@ -1851,6 +1851,7 @@ Based on the test files in the framework, I've identified these categories:
 6. `user_flags_approve_reject_test.spec.js` - **User Flags Approve Reject Test**
 7. `flag_review_buttons_flow.spec.js` - **Flag Review Buttons Flow Test**
 8. `check_income_source_regenerate_on_split_merge.spec.js` - **Income Source Regenerate on Split/Merge**
+9. `create_session_from_dashboard.spec.js` - **Create Session from Admin Dashboard**
 
 ---
 
@@ -2924,6 +2925,140 @@ Based on the test files in the framework, I've identified these categories:
 
 ---
 
+### **9. create_session_from_dashboard.spec.js**
+
+**Purpose**: Validates session creation directly from the admin dashboard, including modal interactions, form validation, and successful session creation with navigation
+
+**Configuration**:
+- **Organization**: "Permissions Test Org"
+- **Application**: "AutoTest - Flag Issue V2"
+- **User**: Dashboard Session (dynamic email: `dashboard-session-{timestamp}@verifast.com`)
+- **Timeout**: 180s
+- **Tags**: @core, @regression
+- **Cleanup**: Conditional via testInfo.status pattern (test.afterAll)
+
+---
+
+#### **Test: "Create New Session from Dashboard" (QA-223)**
+
+**Purpose**: Verify admins can create new sessions directly from the dashboard using the "Create New Session" button, with proper modal interactions and form validation
+
+**Test Flow**:
+
+1. **Admin Login**
+   - Login as admin via loginForm.adminLoginAndNavigate
+   - Wait 4s for dashboard to load
+   - **Assert**: Dashboard loaded successfully
+
+2. **Modal Open/Close Testing**
+   - Click create-new-session-btn
+   - **Assert**: create-session-modal visible
+   - **Test Close via X Button**:
+     - Click cancel-create-session (X button)
+     - **Assert**: Modal closed
+   - Reopen modal
+   - **Test Close via Cancel Button**:
+     - Click create-session-modal-cancel
+     - **Assert**: Modal closed
+   - Reopen modal (3rd time for validation tests)
+
+3. **Validation Test: Both Fields Blank**
+   - Click submit-create-session without filling fields
+   - **Assert**: Modal stays visible
+   - **Assert**: crt-session-application-error visible
+   - **Assert**: crt-session-email-error visible
+   - **Result**: Both validation errors shown
+
+4. **Validation Test: Only Email Filled**
+   - Fill crt-session-email-field with dynamic email
+   - Click submit-create-session
+   - **Assert**: Modal stays visible
+   - **Assert**: crt-session-application-error visible
+   - **Assert**: crt-session-email-error NOT visible
+   - **Result**: Only application error shown
+
+5. **Validation Test: Only Application Filled**
+   - Reload page (clear previous state)
+   - Wait 3s
+   - Reopen modal
+   - Call fillOrganizationField helper (inline function):
+     - Fill organization via fillMultiselect: "Permissions Test Org"
+     - Wait for GET /applications response with filters containing organization ID
+   - Fill application via fillMultiselect: "AutoTest - Flag Issue V2"
+   - Click submit-create-session
+   - **Assert**: Modal stays visible
+   - **Assert**: crt-session-application-error NOT visible
+   - **Assert**: crt-session-email-error visible
+   - **Result**: Only email error shown
+
+6. **Fill Complete Session Form**
+   - Fill crt-session-first-name-field: "Dashboard"
+   - Fill crt-session-last-name-field: "Session"
+   - Fill crt-session-email-field: dynamic email
+   - Check crt-session-invite-checkbox (if not already checked)
+
+7. **Submit Session Creation**
+   - Click submit-create-session
+   - Wait for POST /sessions response
+   - Extract session data from response
+   - Store sessionId in createdSessionId (for cleanup)
+   - **Assert**: Session ID exists
+
+8. **Verify Session Data**
+   - **Assert**: session.applicant.guest.first_name = "Dashboard"
+   - **Assert**: session.applicant.guest.last_name = "Session"
+   - **Assert**: session.applicant.guest.email = dynamic email
+   - **Assert**: session.application.name = "AutoTest - Flag Issue V2"
+
+9. **Navigate to Created Session**
+   - Check current URL
+   - **IF** URL includes `/applicants/all/{sessionId}`:
+     - **Assert**: Application card with `data-session='{sessionId}'` visible
+     - **Result**: Auto-redirected to session detail page
+   - **ELSE**:
+     - Call searchSessionWithText with sessionId
+     - Call findSessionLocator with `.application-card[data-session="{sessionId}"]`
+     - Click session locator
+     - Wait for GET /sessions/{sessionId}?fields[session] response
+     - **Assert**: sessionResponse.ok() = true
+     - **Result**: Navigated to session via search
+
+10. **Conditional Cleanup**
+    - test.afterAll hook with testInfo.status pattern:
+      - If testInfo.status === 'passed': cleanup session
+      - Else: skip cleanup (session left for debugging)
+
+**Key API Endpoints**:
+- `POST /auth` - Admin authentication
+- `GET /applications?filters=` - Load applications filtered by organization
+- `POST /sessions` - Create session
+- `GET /sessions/{id}?fields[session]` - Get session details (conditional navigation)
+
+**Business Validations**:
+- ✅ Create New Session button accessible from dashboard
+- ✅ Modal opens/closes via X button and Cancel button
+- ✅ Form validation shows errors for missing required fields
+- ✅ Validation shows correct errors based on filled fields
+- ✅ Organization selection triggers application loading
+- ✅ Session creation returns complete session object
+- ✅ Session data matches form inputs
+- ✅ Auto-redirect to session detail page works (if enabled)
+- ✅ Manual navigation to session works (search + click pattern)
+- ✅ Conditional cleanup preserves sessions for failed tests
+
+**Unique Aspects**:
+- Tests **dashboard session creation** (not application invite flow)
+- Tests **3 modal close patterns** (X button, Cancel button, 3 reopens)
+- Tests **3 validation scenarios** (both blank, email only, application only)
+- Uses **inline fillOrganizationField helper** for complex organization filter validation
+- Tests **conditional navigation** (auto-redirect vs manual search)
+- Uses **dynamic email with timestamp** for uniqueness
+- Uses **testInfo.status pattern** for conditional cleanup (test.afterAll)
+- Validates **API filter query structure** for organization selection
+- Tests **invite checkbox** state management
+
+---
+
 ## **Category 4 Summary**
 
 ### **Business Purpose Analysis:**
@@ -2938,6 +3073,7 @@ Based on the test files in the framework, I've identified these categories:
 | `user_flags_approve_reject_test` | Flag management workflows | 2 sessions in serial mode, batch flag marking, document approval prerequisite |
 | `flag_review_buttons_flow` | Flag review workflow with robust polling | Dynamic flag handling (1-3 flags), API polling for completion (15s max), navigateToSessionByIdAndGetFlags helper |
 | `check_income_source_regenerate_on_split_merge` | Income source regeneration on merge/split | Tests merge→aggregate→split→independent pattern, API polling for split completion, admin token reuse |
+| `create_session_from_dashboard` | Admin dashboard session creation | Tests modal interactions, 3 validation scenarios, conditional navigation, inline helper for organization filter |
 
 **Conclusion**: No overlap - each test validates distinct session flow patterns and workflows
 
@@ -2948,6 +3084,7 @@ Based on the test files in the framework, I've identified these categories:
 ### **Files Analyzed:**
 1. `document_rejection_from_any_state.spec.js` - **Document Rejection from Any Processing State**
 2. `show-paystub-deposit-in-document-extracted-section.spec.js` - **Paystub Deposit Display in Document Extracted Section**
+3. `internal_scope_user_can_override_upload_doc_limit.spec.js` - **Internal Scope Document Upload Limit Override**
 
 ---
 
@@ -3198,6 +3335,122 @@ Based on the test files in the framework, I've identified these categories:
 
 ---
 
+### **3. internal_scope_user_can_override_upload_doc_limit.spec.js**
+
+**Purpose**: Validates that internal-scope users (admins) can override document upload limits, while regular applicants are correctly restricted by the configured limits
+
+**Configuration**:
+- **Application**: "AutoTest - Internal Scope No Doc Limit"
+- **User**: DocLimit Upload (doclimit.upload@verifast.com)
+- **Rent Budget**: $500
+- **Timeout**: 640s (10 min 40 sec)
+- **Tags**: @core, @regression
+- **Cleanup**: Conditional via testInfo.status pattern
+
+---
+
+#### **Test: "Verify Internal-scope Uploads Can Override Document Upload Limits" (QA-212)**
+
+**Purpose**: Verify that document upload limits apply to applicants but can be bypassed by internal-scope admin users via manual upload
+
+**Test Flow**:
+
+1. **Admin: Create Session**
+   - Login as admin via adminLoginAndNavigateToApplications
+   - Navigate to applications page
+   - Find and invite "AutoTest - Internal Scope No Doc Limit"
+   - Generate session for applicant (DocLimit Upload)
+   - Store sessionId for conditional cleanup
+
+2. **Applicant: Session Setup** (New Browser Context)
+   - Open invite link via startSessionFlow
+   - Complete setupInviteLinkSession (terms → applicant type → state)
+   - Update rent budget: $500
+   - Wait for pre-screening step
+   - Skip pre-screening step
+   - Verify employment verification step visible
+
+3. **Applicant: Upload Documents to Hit Limit**
+   - Call uploadDocument helper (inline function):
+     - Click document-pay_stub
+     - Click "Upload Paystubs" button
+     - Select pay cadence: Bi-Weekly
+     - Upload 2 paystub files:
+       - paystub_recent.pdf
+       - paystub_recent.png
+     - Submit and wait for POST /employment-verifications response
+   - Return employmentVerification data
+
+4. **Poll for Employment Verification Completion**
+   - Implement passive polling loop (35 attempts max, 15s interval):
+     - Wait for GET /employment-verifications response
+     - Check if verification status = 'COMPLETED'
+     - If COMPLETED: break loop
+     - If not COMPLETED after 35 attempts: throw error
+   - **Assert**: Employment verification reaches COMPLETED status
+
+5. **Applicant: Attempt Extra Upload (Verify Limit)**
+   - Click document-pay_stub again
+   - **Assert**: pay_stub-limit-error visible
+   - **Result**: Applicant correctly blocked by upload limit
+
+6. **Admin: Navigate to Session**
+   - Switch to admin page (bring to front)
+   - Click applicants-menu → applicants-submenu
+   - Search for session by sessionId via searchSessionWithText
+   - Navigate to session by ID via navigateToSessionById
+   - Wait 3s for page to load
+
+7. **Admin: Override Upload Limit**
+   - Click session-action-btn
+   - Click upload-document-btn
+   - **Assert**: upload-document modal visible
+   - Fill upload form via fillMultiselect:
+     - Select applicant: "Autot - Doclimit Upload"
+     - Select document type: "Pay Stub (Employment)"
+     - Fill employer name: "Abc Inc"
+     - Select pay cadence (first option: pay_cadence-0)
+   - Upload paystub file: paystub_recent.pdf
+   - Submit and wait for POST /employment-verifications response (120s timeout)
+   - **Assert**: employmentResponse.ok() = true
+   - **Result**: Admin successfully bypassed upload limit
+
+8. **Conditional Cleanup**
+   - test.afterEach hook with testInfo.status pattern:
+     - If testInfo.status === 'passed': cleanup session
+     - Else: skip cleanup (session left for debugging)
+
+**Key API Endpoints**:
+- `POST /auth` - Admin authentication
+- `GET /applications?` - Search applications
+- `POST /sessions` - Create session
+- `PATCH /sessions/{id}` - Update rent budget
+- `POST /employment-verifications` - Upload paystub documents (2x: applicant upload, admin upload)
+- `GET /employment-verifications` - Poll for verification status
+
+**Business Validations**:
+- ✅ Applicants can upload documents up to configured limit
+- ✅ Employment verification processing completes (polling validates COMPLETED status)
+- ✅ Upload limit error displays when applicant exceeds limit
+- ✅ Internal-scope admins can access Upload Document modal
+- ✅ Admin upload form accepts applicant selection, document type, and employer details
+- ✅ Admin uploads bypass document upload limits
+- ✅ Admin override uploads trigger employment verification API successfully
+- ✅ Conditional cleanup preserves sessions for failed tests
+
+**Unique Aspects**:
+- Tests **upload limit enforcement** for applicants
+- Tests **admin override capability** for internal-scope users
+- Uses **passive polling pattern** for employment verification completion (35 attempts, 15s interval)
+- Uses **2 browser contexts** (admin + applicant)
+- Uses **inline uploadDocument helper** for applicant paystub upload
+- Tests **pay cadence selection** via multiselect
+- Validates **error message visibility** (pay_stub-limit-error)
+- Uses **testInfo.status pattern** for conditional cleanup (modern approach)
+- Tests **manual upload modal** functionality from admin session detail page
+
+---
+
 ## **Category 5 Summary**
 
 ### **Business Purpose Analysis:**
@@ -3206,8 +3459,9 @@ Based on the test files in the framework, I've identified these categories:
 |-----------|-------------------------|-----------------|
 | `document_rejection_from_any_state` | Document lifecycle management | Tests rejection from any state, accept→reject override, status polling |
 | `show-paystub-deposit-in-document-extracted-section` | Paystub deposit extraction display | Tests deposit information display in extracted section, multiple deposits, guest token capture for polling |
+| `internal_scope_user_can_override_upload_doc_limit` | Document upload limit enforcement and override | Tests applicant upload limits, admin override capability, passive polling for verification completion |
 
-**Conclusion**: 2 tests in this category - validates document decision workflow and paystub deposit extraction display
+**Conclusion**: 3 tests in this category - validates document decision workflow, paystub deposit extraction display, and upload limit enforcement with admin override
 
 ---
 
@@ -4542,14 +4796,14 @@ Based on the test files in the framework, I've identified these categories:
 | 1: Authentication & Permission | 5 | 0 | ~800 |
 | 2: Financial Verification | 4 | 1 | ~600 |
 | 3: Application Management | 5 | 0 | ~1,050 |
-| 4: Session Flow | 6 | 1 | ~2,400 |
-| 5: Document Processing | 1 | 3 | ~350 |
+| 4: Session Flow | 9 | 1 | ~2,600 |
+| 5: Document Processing | 3 | 3 | ~550 |
 | 6: System Health | 2 | 0 | ~300 |
 | 7: Workflow Management | 2 | 0 | ~200 |
 | 8: Integration | 3 | 0 | ~800 |
 | 9: Menu Heartbeat | 13 | 0 | ~900 |
 | 10: Data Management | 2 | 0 | ~620 |
-| **TOTAL** | **43 tests** | **5 deleted** | **~8,020 lines** |
+| **TOTAL** | **48 tests** | **5 deleted** | **~8,420 lines** |
 
 ---
 
