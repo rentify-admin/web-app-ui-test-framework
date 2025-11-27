@@ -91,10 +91,10 @@ test.describe('QA-227 identity_flag_reevaluation_on_guest_update.spec', () => {
 
     // 🧹 After all: clean up test application and session
     test.afterAll(async ({ request }, testInfo) => {
-        // if(testInfo.status === 'passed'){
+        if(testInfo.status === 'passed'){
             await cleanupSession(request, createdSessionId, allTestsPassed);
             console.log(`✅ [Cleanup] Session #${createdSessionId} cleaned up.`);
-        // }
+        }
     });
 
     // ✅ MAIN TEST
