@@ -91,10 +91,10 @@ test.describe('QA-227 identity_flag_reevaluation_on_guest_update.spec', () => {
 
     // 🧹 After all: clean up test application and session
     test.afterAll(async ({ request }, testInfo) => {
-        if(testInfo.status === 'passed'){
+        // if(testInfo.status === 'passed'){
             await cleanupSession(request, createdSessionId, allTestsPassed);
             console.log(`✅ [Cleanup] Session #${createdSessionId} cleaned up.`);
-        }
+        // }
     });
 
     // ✅ MAIN TEST
@@ -233,7 +233,7 @@ test.describe('QA-227 identity_flag_reevaluation_on_guest_update.spec', () => {
             );
             await page.waitForTimeout(1000);
             count++;
-        } while (!flagUpdated && count < 15)
+        } while (!firstTestFlag || !flagUpdated || count < 15)
         count = 0
         if (flagUpdated) {
             flagUpdated = false;
@@ -289,7 +289,7 @@ test.describe('QA-227 identity_flag_reevaluation_on_guest_update.spec', () => {
             );
             await page.waitForTimeout(800);
             count++;
-        } while (!flagUpdated && count < 15)
+        } while (!secondTestFlag || !flagUpdated || count < 15)
         count = 0
         if (flagUpdated) {
             flagUpdated = false;
@@ -393,7 +393,7 @@ async function checkFlagChanges(page, previousFlag) {
         await page.waitForTimeout(1500);
         const flagsArray = latestSessionFlags || [];
         // Look for the flag with key
-        foundFlag = flagsArray.find(f => f.flag?.key === 'IDENTITY_NAME_MISMATCH_CRITICAL');
+        foundFlag = flagsArray.find(f => f.flag?.key === 'IDENTITY_NAME_MISMATCH_WARNING');
         if (foundFlag) {
             console.debug("🚀 ~ checkFlagChanges ~ foundFlag.id:", foundFlag.id, "prev:", previousFlag && previousFlag.id);
         } else {
@@ -401,7 +401,7 @@ async function checkFlagChanges(page, previousFlag) {
         }
         // If flag is present and status (id) changed, or flag now missing, break
         if (!foundFlag || !previousFlag || (foundFlag && foundFlag.id !== previousFlag.id)) {
-            console.log(`🔄   [Flag Change] Detected IDENTITY_NAME_MISMATCH_CRITICAL (flag id: ${foundFlag.id})`);
+            console.log(`🔄   [Flag Change] Detected IDENTITY_NAME_MISMATCH_WARNING (flag id: ${foundFlag.id})`);
             break;
         }
         count++;
