@@ -16,7 +16,7 @@ const EMAIL_SUFFIX = '+autotest';
  */
 const hasPrefix = (name) => {
     if (!name || typeof name !== 'string') return false;
-    return name.startsWith(NAME_PREFIX);
+    return name.toLowerCase().startsWith(NAME_PREFIX.toLowerCase());
 };
 
 /**

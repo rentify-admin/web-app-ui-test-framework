@@ -1325,6 +1325,16 @@ async function verifyTransactionErrorAndDeclineFlag(page, randomName) {
         .toHaveText('Gross Income Ratio Exceeded');
 }
 
+async function openReportSection(page, sectionId) {
+    const reportSection = page.getByTestId(sectionId);
+    await expect(reportSection).toBeVisible();
+    const sectionHeader = reportSection.getByTestId(`${sectionId}-header`);
+    await expect(sectionHeader).toBeVisible();
+    await sectionHeader.click();
+    console.log(`🧑‍💼 [Open] ${sectionId} section expanded`);
+    return reportSection;
+}
+
 export {
     checkSessionApproveReject,
     checkFlagsPresentInSection,
@@ -1350,5 +1360,6 @@ export {
     markFlagAsIssue,
     markFlagAsNonIssue,
     validateFlagSections,
-    verifyTransactionErrorAndDeclineFlag
+    verifyTransactionErrorAndDeclineFlag,
+    openReportSection
 };
