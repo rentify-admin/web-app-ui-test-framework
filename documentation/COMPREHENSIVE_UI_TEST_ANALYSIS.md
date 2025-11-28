@@ -1320,6 +1320,11 @@ Based on the test files in the framework, I've identified these categories:
    **Step D: Configure Settings**
    - Set flag collection: "High Risk"
    - Set rent budget min: $500, max: $10,000
+   - **Verify Default Income Source Template** (via `verifyDefaultIncomeSourceTemplate` helper):
+     - Wait for income source templates API to load
+     - Verify "Default" template is selected in income source template field (case-insensitive)
+     - Poll until field value is populated (5s timeout)
+     - Log success confirmation
    - Submit and wait for PATCH response
 
    **Step E: Publish to Live**
@@ -1353,6 +1358,9 @@ Based on the test files in the framework, I've identified these categories:
 - ✅ Workflow template assignment works
 - ✅ Flag collection can be set to "High Risk"
 - ✅ Rent budget range configurable ($500-$10k)
+- ✅ Default income source template automatically selected during settings configuration
+- ✅ Income source template field populated with "Default" value (explicit verification)
+- ✅ Template verification includes polling for async loading (5s timeout)
 - ✅ Application publishes to live
 - ✅ Application deletion works with confirmation
 - ✅ Success message appears after deletion
@@ -1364,6 +1372,8 @@ Based on the test files in the framework, I've identified these categories:
 - Validates **6 applicant types** in single application
 - Uses **random application name** for isolation
 - Implements **robust deletion** with application ID selector
+- **Explicit verification** of default income source template selection (QA-224)
+- Uses **verifyDefaultIncomeSourceTemplate** helper (exported, reusable)
 - No session creation (application-level test only)
 
 ---
@@ -1824,17 +1834,182 @@ Based on the test files in the framework, I've identified these categories:
 
 ---
 
+### **6. document_policy_auto_selection_validation.spec.js**
+
+**Purpose**: Validates document policy auto-selection logic - ensures "Sample System" policies are NOT auto-selected by default (to prevent data loss from system updates), while still allowing manual selection
+
+**Configuration**:
+- **Organization**: "Verifast"
+- **Application**: AutoTest Policy_Selection_{random} (unique per run)
+- **Applicant Types**: 7 types (Affordable Occupant, Affordable Primary, Corporate Leasing, Employed, International, Self-Employed, Other)
+- **Workflow Template**: "Heartbeat-application"
+- **Flag Collection**: "High Risk"
+- **Minimum Amount**: $500
+- **Tags**: @application, @regression, @staging-ready, @rc-ready
+- **Execution**: Single test (serial mode, 200s timeout)
+- **Cleanup**: afterAll deletes application
+
+---
+
+#### **beforeAll Hook: Ensure Workflow Exists**
+
+**Purpose**: Verify workflow template exists, create if missing
+
+**Test Flow**:
+1. **Authenticate as Admin via API**
+   - Get admin token for API operations
+
+2. **Check Workflow Existence**
+   - Use WorkflowBuilder to check if "Heartbeat-application" exists
+
+3. **Create Workflow if Missing** (via API)
+   - Create workflow with Identity + Financial steps
+   - Create paths between steps
+   - Log completion
+
+**Note**: Ensures workflow template exists in any environment (dev, staging, RC, production)
+
+---
+
+#### **Test: "Test Document policy auto selection validation" (QA-226)**
+
+**Purpose**: Verify that when configuring Financial step for "Default" applicant type, document policies do NOT auto-select "Sample System" policies (which get overwritten with system updates), but users can still manually select them if needed
+
+**Test Flow**:
+
+**PHASE 1: Login & Application Creation**
+
+1. **Admin Login**
+   - Navigate to homepage
+   - Fill login form with admin credentials
+   - Submit and set locale
+   - Verify applicants-menu visible
+
+2. **Create Application**
+   - Call createApplicationFlow with config:
+     - Organization: "Verifast"
+     - Application name: AutoTest Policy_Selection_{random}
+     - 7 applicant types
+     - Workflow: "Heartbeat-application"
+     - Flag collection: "High Risk"
+     - Min amount: $500
+     - noPublish: true (prevents environment pollution)
+   - Store applicationId for cleanup
+
+**PHASE 2: Configure Financial Step & Validate Auto-Selection**
+
+3. **Navigate to Application Edit**
+   - Search for newly created application
+   - Click edit button
+   - Wait for 4 API calls (organizations, portfolios, settings, application details)
+
+4. **Access Financial Verification Workflow**
+   - Click submit-application-setup
+   - Click "Workflow Setup" step
+   - Select "Default" applicant type
+   - Click "Financial Verification" workflow step
+   - Wait for document configurations API
+
+5. **Add Bank Statement Document**
+   - Fill financial step (via fillFinancialStep helper):
+     - Primary Provider: MX
+     - Secondary Provider: Plaid
+     - Max Connections: 3
+     - Retrieve Transaction Type: Debits
+     - Min Required Docs: 0
+     - Add document type: "Bank Statement"
+     - Visibility: Always
+     - Max uploads: 3
+
+6. **Verify Policy Auto-Selection Logic**
+   - Read auto-selected policy value from multiselect
+   - **Assert**: Policy does NOT start with "Sample System" (negative check)
+   - **Result**: Prevents data loss from system updates
+
+7. **Test Manual "Sample System" Selection Still Works**
+   - Clear policy selection
+   - Manually select "Sample System Bank Statement Policy" from dropdown
+   - Verify selection persists
+   - **Assert**: Policy = "Sample System Bank Statement Policy" (manual override successful)
+   - **Result**: Users retain ability to manually choose "Sample System" policies when needed
+
+8. **Add Pay Stub Document**
+   - Add document type: "Pay Stub"
+   - Visibility: Always
+   - Max uploads: 3
+   - Verify auto-selected policy does NOT start with "Sample System"
+
+9. **Save Configuration**
+   - Submit and wait for PATCH/POST response
+
+**PHASE 3: Verify Configuration Persists**
+
+10. **Reopen Financial Verification Modal**
+    - Close modal
+    - Reopen Financial Verification step
+    - Verify all settings match saved data (via verifyDetails helper)
+    - **Assert**: Primary Provider = MX
+    - **Assert**: Secondary Provider = Plaid
+    - **Assert**: Max Connections = 3
+    - **Assert**: Transaction Type = Debits
+    - **Assert**: Bank Statement policy = "Sample System Bank Statement Policy" (manual selection persisted)
+    - **Assert**: Pay Stub policy does NOT contain "Sample System"
+
+**Cleanup**:
+11. **Delete Application**
+    - afterAll hook calls cleanupApplication
+    - Application deleted (always, even on test failure)
+
+**Key API Endpoints**:
+- `POST /auth` - Admin authentication
+- `GET /organizations?fields[organization]=id,name` - Load organizations
+- `GET /portfolios?fields[portfolio]=id,name` - Load portfolios
+- `GET /settings?` - Load settings
+- `POST /applications` - Create application
+- `PATCH /applications/{id}` - Update workflow template
+- `PATCH /applications/{id}` - Update settings (flag collection, rent budget)
+- `PATCH /applications/{id}` - Publish to live
+- `GET /applications/{id}` - Load application details for edit
+- `GET /applications/{id}/steps/{id}/document-configurations` - Load document configs
+- `PATCH /applications/{id}/steps/{id}` - Update Financial step configuration
+- `DELETE /applications/{id}` - Delete application
+
+**Business Validations**:
+- ✅ Application creation with 7 applicant types works
+- ✅ Financial step configuration modal opens for Default applicant type
+- ✅ Document types can be added (Bank Statement, Pay Stub)
+- ✅ Auto-selected policies do NOT contain "Sample System" (prevents data loss)
+- ✅ Manual selection of "Sample System" policies still works (user choice)
+- ✅ Configuration persists correctly after save/reopen
+- ✅ WorkflowBuilder ensures workflow exists before test
+- ✅ Application cleanup always executes (even on failure)
+
+**Unique Aspects**:
+- Tests **document policy auto-selection logic** to prevent data loss
+- Tests **negative scenario** (what should NOT be auto-selected)
+- Tests **manual override capability** (Sample System still selectable)
+- Uses **2 helper functions** (fillFinancialStep, verifyDetails)
+- Uses **WorkflowBuilder** in beforeAll to ensure workflow exists
+- Tests **Default applicant type** policy configuration
+- Validates **configuration persistence** (close/reopen verification)
+- Uses **noPublish: true** to prevent environment pollution
+- Cleanup **always executes** (application deleted regardless of test outcome)
+- Tests **policy selection for 2 document types** (Bank Statement, Pay Stub)
+
+---
+
 ## **Category 3 Summary**
 
 ### **Business Purpose Analysis:**
 
 | Test File | Primary Business Purpose | Key Differences |
 |-----------|-------------------------|-----------------|
-| `application_create_delete_test` | Full application lifecycle (create → delete) | Tests 6 applicant types, workflow template, flag collection, publishing |
+| `application_create_delete_test` | Full application lifecycle (create → delete) | Tests 6 applicant types, workflow template, flag collection, **default income source template verification (QA-224)**, publishing |
 | `application_edit_id_template_settings` | Persona template ID configuration | Tests edit-verify-restore pattern for Persona integration |
 | `verify_application_edit_id_step_edit` | Cross-test persistence validation | Tests identity toggle + guarantor value persistence across 2 tests |
 | `approval_condition_search_verify` | Flag search functionality | Tests 3 search fields (name/description/key) with partial/exact match |
 | `default_applicant_type_override_in_application_workflow_steps` | Default type override control validation | Tests override checkboxes ON/OFF, validates propagation to 7 types (2 iterations), WorkflowBuilder |
+| `document_policy_auto_selection_validation` | Document policy auto-selection logic (QA-226) | Tests negative scenario (NOT "Sample System"), manual override works, 2 document types, WorkflowBuilder |
 
 **Conclusion**: No overlap - each test validates distinct application management functions
 

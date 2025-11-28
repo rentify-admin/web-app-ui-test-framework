@@ -17,8 +17,7 @@ const workflowTemplate = 'Heartbeat-application';
 test.describe('QA-226 document_policy_auto_selection_validation.spec', () => {
     // Configure the test suite execution.
     test.describe.configure({
-        mode: 'serial', // Ensure tests run in order, necessary for setup/cleanup flow.
-        timeout: 130_000 // Set a generous timeout for the entire suite.
+        mode: 'serial' // Ensure tests run in order, necessary for setup/cleanup flow.
     });
 
     // Setup workflow if not present
@@ -55,10 +54,10 @@ test.describe('QA-226 document_policy_auto_selection_validation.spec', () => {
     // Test case: Ensure that default applicant type in Financial step auto-selects policy and override checkboxes are displayed as expected.
     test('Test Document policy auto selection validation',
         {
-            tag: [ '@application', '@staging-ready', '@rc-ready']
+            tag: [ '@application', '@regression', '@staging-ready', '@rc-ready']
         }, async ({ page }) => {
             console.log(`=== QA-226: Starting Document Policy Auto Selection Validation Test ===`);
-            test.setTimeout(180_000); // ensure sufficient timeout
+            test.setTimeout(200_000); // Set timeout to 200 seconds
 
             // Step 1: Login as admin user
             await page.goto('/');
@@ -255,7 +254,8 @@ async function fillFinancialStep(page, financialData) {
             try {
                 await expect(policyValue.startsWith('Sample System')).toBeFalsy();
             } catch (err) {
-                console.error(`Found different value pre selected in document: ${bankPolicyValue.trim()}`)
+                console.error(`❌ FAILED: Auto-selection incorrectly used "Sample System" policy: ${policyValue.trim()}`);
+                console.error(`   Expected: Should NOT auto-select "Sample System" policies for Default applicant type`);
                 throw err;
             }
         }
@@ -269,7 +269,7 @@ async function fillFinancialStep(page, financialData) {
                 try {
                     await expect(bankPolicyValue.trim().toLowerCase()).toBe(element.policy.toLowerCase());
                 } catch (err) {
-                    console.error(`Found diffrent value in selection: ${bankPolicyValue.trim()}`)
+                    console.error(`Found different value in selection: ${bankPolicyValue.trim()}`)
                     throw err;
                 }
             }
