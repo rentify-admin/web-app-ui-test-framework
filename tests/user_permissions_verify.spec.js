@@ -368,27 +368,53 @@ test.describe('user_permissions_verify', () => {
             
             if (hasFlags) {
                 console.log('   ⚠️ Flags requiring review found - marking as non-issue...');
-                const flagItems = await itemsRequiringReview.locator('li[id^="flag-"]').all();
-                console.log(`   📊 Found ${flagItems.length} flag(s) to resolve`);
                 
-                for (let i = 0; i < flagItems.length; i++) {
-                    const flagItem = flagItems[i];
+                let flagCount = 0;
+                let maxAttempts = 20; // Safety limit to prevent infinite loops
+                let attempts = 0;
+                
+                while (attempts < maxAttempts) {
+                    // ✅ REFRESH: Query flags on each iteration
+                    const flagItems = await itemsRequiringReview.locator('li[id^="flag-"]').all();
+                    
+                    if (flagItems.length === 0) {
+                        console.log(`   ✅ All ${flagCount} flag(s) resolved`);
+                        break;
+                    }
+                    
+                    // ✅ Always process the FIRST flag (index 0) since list shrinks
+                    const flagItem = flagItems[0];
                     const flagId = await flagItem.getAttribute('id');
-                    console.log(`   🏴 Resolving flag ${i + 1}/${flagItems.length}: ${flagId}`);
+                    flagCount++;
+                    console.log(`   🏴 Resolving flag ${flagCount}: ${flagId} (${flagItems.length} remaining)`);
                     
                     const markAsNonIssueBtn = flagItem.getByTestId('mark_as_non_issue');
                     await markAsNonIssueBtn.click();
                     await page.waitForTimeout(500);
                     
                     const submitBtn = page.getByRole('button', { name: 'Mark as Non Issue' });
-                    await submitBtn.click();
+                    
+                    // ✅ Wait for API response instead of fixed timeout
+                    await Promise.all([
+                        page.waitForResponse(resp => 
+                            resp.url().includes('/flags/') && 
+                            resp.request().method() === 'PATCH' &&
+                            resp.ok(),
+                            { timeout: 10000 }
+                        ),
+                        submitBtn.click()
+                    ]);
+                    
                     await page.waitForTimeout(2000);
                     
-                    console.log(`   ✅ Flag ${i + 1} resolved`);
+                    attempts++;
                 }
                 
-                console.log('   ✅ All flags marked as non-issue');
-                await page.waitForTimeout(5000);
+                if (attempts >= maxAttempts) {
+                    console.warn(`   ⚠️ Reached max attempts (${maxAttempts}) - some flags may remain`);
+                }
+                
+                await page.waitForTimeout(2000); // Final wait for UI to stabilize
             } else {
                 console.log('   ✅ No flags requiring review');
             }

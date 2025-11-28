@@ -34,7 +34,7 @@ test.describe('application_create_delete_test', () => {
             minimumAmount: '500'
         };
 
-        // Complete application flow
+        // Complete application flow (includes verification of default income source template)
         await completeApplicationFlow(page, appConfig);
 
         console.log('Application create and delete test completed successfully');

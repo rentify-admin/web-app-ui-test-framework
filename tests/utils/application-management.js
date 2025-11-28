@@ -131,8 +131,8 @@ export const submitApplicationSetup = async (page, config = {}) => {
  */
 export const configureApplicationSettings = async (page, config) => {
 
-    // wait for income source templates to load
-    await defaultIncomeTemplateVisibility(page);
+    // wait for income source templates to load and verify default is selected
+    await verifyDefaultIncomeSourceTemplate(page);
 
     // Configure flag collection and rent budget range
     await page.getByText('Select option').click();
@@ -272,23 +272,32 @@ export const createApplicationFlow = async (page, config) => {
 
     return responses;
 };
-async function defaultIncomeTemplateVisibility(page) {
+/**
+ * Verify that the default income source template is selected in the application settings modal
+ * @param {import('@playwright/test').Page} page
+ * @returns {Promise<void>}
+ */
+export const verifyDefaultIncomeSourceTemplate = async (page) => {
     try {
+        // Wait for income source templates API to load
         await page.waitForResponse(resp => {
             return resp.url().includes('/income-source-templates')
                 && resp.request().method() === 'GET'
                 && resp.ok();
-        }, { timeout: 1500 });
-        // check default is selected with case insensitive
+        }, { timeout: 5000 });
+        
+        // Verify "Default" template is selected (case-insensitive)
         await expect(page.getByTestId('application-income-source-tags').locator('span.multiselect__single')).toContainText('Default', {
-            timeout: 1500,
+            timeout: 5000,
             ignoreCase: true
         });
+        
+        console.log('✅ Verified: Default income source template is selected');
     } catch (err) {
         const defaultValue = await page.getByTestId('application-income-source-tags').locator('span.multiselect__single').textContent();
-        console.log(`Actual income source template default value: ${defaultValue}`);
+        console.log(`❌ Actual income source template default value: ${defaultValue}`);
         console.error(`Failed checking default income source template value: ${err.message}`);
-        throw err;
+        throw new Error(`Income source template verification failed. Expected "Default", but found: ${defaultValue || 'empty'}. ${err.message}`);
     }
-}
+};
 

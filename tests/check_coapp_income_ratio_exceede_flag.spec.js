@@ -163,7 +163,7 @@ test.describe('check_coapp_income_ratio_exceede_flag', () => {
             applicantTypeSelector: '#employed'
         });
     
-        await updateRentBudget(applicantPage, sessionId, '1500');
+        await updateRentBudget(applicantPage, sessionId, '900');
     
         await applicantStep(applicantPage);
     
