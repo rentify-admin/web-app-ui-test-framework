@@ -19,12 +19,20 @@ const __dirname = path.dirname(__filename);
 
 const TESTS_DIR = path.join(__dirname, '../tests');
 const TEMPLATE_FILE = path.join(__dirname, '../documentation/TEST_DOCUMENTATION_TEMPLATE.md');
+const QODO_PROMPT_TEMPLATE = path.join(__dirname, 'qodo-prompt-template.md');
 const CODA_DOC_ID = process.env.CODA_DOC_ID || 'dza2s1eOIhA';
 const CODA_PAGE_ID = process.env.CODA_PAGE_ID || 'suLCLolD';
 const CODA_API_TOKEN = process.env.CODA_API_TOKEN;
+const QODO_API_KEY = process.env.QODO_API_KEY;
+const QODO_API_URL = process.env.QODO_API_URL || 'https://api.qodo.ai/v1/chat/completions';
 
 if (!CODA_API_TOKEN) {
     console.error('❌ CODA_API_TOKEN environment variable is required');
+    process.exit(1);
+}
+
+if (!QODO_API_KEY) {
+    console.error('❌ QODO_API_KEY environment variable is required');
     process.exit(1);
 }
 
@@ -36,6 +44,89 @@ const CODA_API_BASE = 'https://coda.io/apis/v1';
 function loadTemplate() {
     const template = fs.readFileSync(TEMPLATE_FILE, 'utf-8');
     return template;
+}
+
+/**
+ * Load QODO prompt template
+ */
+function loadQodoPrompt() {
+    const prompt = fs.readFileSync(QODO_PROMPT_TEMPLATE, 'utf-8');
+    return prompt;
+}
+
+/**
+ * Call QODO API to parse test file and generate structured documentation
+ */
+async function parseTestWithQodo(testFilePath, testContent) {
+    try {
+        const promptTemplate = loadQodoPrompt();
+        const fileName = path.basename(testFilePath);
+        
+        // Construct the full prompt
+        const fullPrompt = `${promptTemplate}
+
+## Test File to Analyze
+
+\`\`\`javascript
+${testContent}
+\`\`\`
+
+Please analyze this test file and return the JSON structure as specified in the output format above.`;
+
+        console.log(`   🤖 Calling QODO API for ${fileName}...`);
+        
+        // Call QODO API
+        const response = await axios.post(
+            QODO_API_URL,
+            {
+                model: 'gpt-4', // or whatever model QODO uses
+                messages: [
+                    {
+                        role: 'system',
+                        content: 'You are a test documentation expert. Analyze test files and return structured JSON documentation.'
+                    },
+                    {
+                        role: 'user',
+                        content: fullPrompt
+                    }
+                ],
+                temperature: 0.3, // Lower temperature for more consistent output
+                response_format: { type: 'json_object' } // Request JSON response
+            },
+            {
+                headers: {
+                    'Authorization': `Bearer ${QODO_API_KEY}`,
+                    'Content-Type': 'application/json'
+                },
+                timeout: 60000 // 60 second timeout
+            }
+        );
+        
+        // Extract JSON from response
+        let parsedData;
+        try {
+            const content = response.data.choices[0].message.content;
+            // Try to parse as JSON
+            parsedData = typeof content === 'string' ? JSON.parse(content) : content;
+        } catch (parseError) {
+            console.error(`   ⚠️  Failed to parse QODO response as JSON: ${parseError.message}`);
+            // Try to extract JSON from markdown code blocks
+            const jsonMatch = response.data.choices[0].message.content.match(/```json\n([\s\S]*?)\n```/) ||
+                            response.data.choices[0].message.content.match(/```\n([\s\S]*?)\n```/);
+            if (jsonMatch) {
+                parsedData = JSON.parse(jsonMatch[1]);
+            } else {
+                throw new Error('Could not extract JSON from QODO response');
+            }
+        }
+        
+        console.log(`   ✅ QODO analysis completed for ${fileName}`);
+        return parsedData;
+        
+    } catch (error) {
+        console.error(`   ❌ QODO API error for ${path.basename(testFilePath)}:`, error.response?.data || error.message);
+        throw error;
+    }
 }
 
 /**
@@ -126,7 +217,176 @@ function parseTestFile(filePath) {
 }
 
 /**
- * Generate test entry using template format
+ * Generate test entry from QODO analysis result
+ */
+function generateTestEntryFromQodo(qodoTest, fileName, filePath, template) {
+    const timestamp = new Date().toISOString();
+    const testId = qodoTest.testId || fileName.replace('.spec.js', '');
+    const humanReadableTime = new Date(timestamp).toLocaleString('en-US', { 
+        timeZone: 'UTC', 
+        year: 'numeric', 
+        month: '2-digit', 
+        day: '2-digit', 
+        hour: '2-digit', 
+        minute: '2-digit', 
+        second: '2-digit', 
+        hour12: false 
+    });
+
+    // Format test steps table
+    const testStepsRows = qodoTest.testSteps && qodoTest.testSteps.length > 0
+        ? qodoTest.testSteps.map(step => 
+            `| **${step.stepNumber}. ${step.stepName}** | ${step.action || '{data not found for this field}'} | ${step.input || '{data not found for this field}'} | ${step.expectedResult || '{data not found for this field}'} | ${step.apiCalls && step.apiCalls.length > 0 ? step.apiCalls.join(', ') : '{data not found for this field}'} | ${step.uiElements && step.uiElements.length > 0 ? step.uiElements.map(id => `\`${id}\``).join(', ') : '{data not found for this field}'} |`
+        ).join('\n')
+        : '| {data not found for this field} | {data not found for this field} | {data not found for this field} | {data not found for this field} | {data not found for this field} | {data not found for this field} |';
+
+    // Format expected outcomes
+    const expectedOutcomes = qodoTest.expectedOutcomes && qodoTest.expectedOutcomes.length > 0
+        ? qodoTest.expectedOutcomes.map(outcome => `- ✅ ${outcome}`).join('\n')
+        : '- ✅ {data not found for this field}';
+
+    // Format validation points
+    const validationPoints = qodoTest.validationPoints && qodoTest.validationPoints.length > 0
+        ? qodoTest.validationPoints.map(validation => `- ✅ ${validation}`).join('\n')
+        : '- ✅ {data not found for this field}';
+
+    // Format cleanup
+    const cleanup = qodoTest.cleanup && qodoTest.cleanup.length > 0
+        ? qodoTest.cleanup.map(item => `- 🗑️ ${item}`).join('\n')
+        : '{data not found for this field}';
+
+    // Format API endpoints
+    const apiEndpointsRows = qodoTest.apiEndpoints && qodoTest.apiEndpoints.length > 0
+        ? qodoTest.apiEndpoints.map(ep => 
+            `| \`${ep.method || 'N/A'}\` | \`${ep.endpoint || 'N/A'}\` | ${ep.purpose || '{data not found for this field}'} |`
+        ).join('\n')
+        : '| {data not found for this field} | {data not found for this field} | {data not found for this field} |';
+
+    // Format UI test IDs
+    const uiTestIdsRows = qodoTest.uiTestIds && qodoTest.uiTestIds.length > 0
+        ? qodoTest.uiTestIds.map(ui => 
+            `| \`${ui.testId || ui}\` | ${typeof ui === 'object' && ui.purpose ? ui.purpose : '{data not found for this field}'} |`
+        ).join('\n')
+        : '| {data not found for this field} | {data not found for this field} |';
+
+    // Format tags
+    const tags = qodoTest.tags && qodoTest.tags.length > 0
+        ? qodoTest.tags.map(t => `\`${t}\``).join(' ')
+        : '\`{data not found for this field}\`';
+
+    // Format dependencies
+    const dependencies = qodoTest.dependencies && qodoTest.dependencies.length > 0
+        ? qodoTest.dependencies.map(dep => `- 📦 \`${dep}\``).join('\n')
+        : '- 📦 {data not found for this field}';
+
+    // Format related tests
+    const relatedTests = qodoTest.relatedTests && qodoTest.relatedTests.length > 0
+        ? qodoTest.relatedTests.map(test => `- 🔗 \`${test}\``).join('\n')
+        : '- 🔗 {data not found for this field}';
+
+    // Format prerequisites
+    const prerequisites = qodoTest.prerequisites && qodoTest.prerequisites.length > 0
+        ? qodoTest.prerequisites.join(', ')
+        : '{data not found for this field}';
+
+    return `### 🧪 \`${fileName}\` → \`${qodoTest.testName}\`
+
+| Field | Value |
+|-------|-------|
+| **Test ID** | \`${testId}\` |
+| **Test File** | \`${filePath}\` |
+| **Last Updated** | \`${timestamp}\` |
+| **Status** | \`active\` |
+
+---
+
+## 📋 Test Scenario
+
+> **Purpose:** ${qodoTest.purpose || '{data not found for this field}'}
+
+> **Business Context:** ${qodoTest.businessContext || '{data not found for this field}'}
+
+### Test Conditions
+
+| Condition | Value |
+|-----------|-------|
+| **Application** | \`${qodoTest.application || '{data not found for this field}'}\` |
+| **User Role** | ${qodoTest.userRole ? `\`${qodoTest.userRole}\`` : '{data not found for this field}'} |
+| **Environment** | \`${qodoTest.environment || 'staging|production'}\` |
+| **Prerequisites** | ${prerequisites} |
+| **Test Data Setup** | ${qodoTest.testDataSetup || '{data not found for this field}'} |
+
+### Test Data Used
+
+| Data Type | Details |
+|-----------|---------|
+| **Users** | ${qodoTest.users && qodoTest.users.length > 0 ? qodoTest.users.join(', ') : '{data not found for this field}'} |
+| **Sessions** | ${qodoTest.sessions || '{data not found for this field}'} |
+| **Applications** | ${qodoTest.applications || '{data not found for this field}'} |
+| **Mock Data** | ${qodoTest.mockData && qodoTest.mockData.length > 0 ? qodoTest.mockData.join(', ') : '{data not found for this field}'} |
+| **API Payloads** | ${qodoTest.apiPayloads && qodoTest.apiPayloads.length > 0 ? qodoTest.apiPayloads.join(', ') : '{data not found for this field}'} |
+
+### Expected Outcomes
+
+${expectedOutcomes}
+
+---
+
+## 📝 Test Case
+
+### Test Steps
+
+| Step | Action | Input | Expected Result | API Calls | UI Elements |
+|------|--------|-------|-----------------|-----------|-------------|
+${testStepsRows}
+
+### Validation Points
+
+${validationPoints}
+
+### Cleanup
+
+${cleanup}
+
+### API Endpoints Used
+
+| Method | Endpoint | Purpose |
+|--------|----------|---------|
+${apiEndpointsRows}
+
+### UI Test IDs Used
+
+| Test ID | Purpose |
+|---------|---------|
+${uiTestIdsRows}
+
+### Tags
+
+${tags}
+
+### Dependencies
+
+${dependencies}
+
+### Known Issues/Limitations
+
+⚠️ ${qodoTest.knownIssues || '{data not found for this field}'}
+💡 {Workarounds if any}
+
+### Related Tests
+
+${relatedTests}
+
+---
+
+**Last Updated:** ${humanReadableTime} UTC (\`${timestamp}\`)
+
+---
+`;
+}
+
+/**
+ * Generate test entry using template format (legacy - kept for fallback)
  */
 function generateTestEntry(testInfo, test, testContent, template) {
     const timestamp = new Date().toISOString();
@@ -539,17 +799,30 @@ async function main() {
     
     for (const testFile of testFiles) {
         try {
-            const { testInfo, content: testContent } = parseTestFile(testFile);
+            const testContent = fs.readFileSync(testFile, 'utf-8');
+            const fileName = path.basename(testFile);
             
-            for (const test of testInfo.tests) {
-                const entry = generateTestEntry(testInfo, test, testContent, template);
+            console.log(`\n📄 Processing: ${fileName}`);
+            
+            // Call QODO to parse the test file
+            const qodoResult = await parseTestWithQodo(testFile, testContent);
+            
+            // Process each test from QODO result
+            if (!qodoResult.tests || qodoResult.tests.length === 0) {
+                console.log(`   ⚠️  No tests found in QODO result for ${fileName}`);
+                continue;
+            }
+            
+            for (const qodoTest of qodoResult.tests) {
+                // Generate entry using QODO data
+                const entry = generateTestEntryFromQodo(qodoTest, fileName, path.relative(TESTS_DIR, testFile), template);
                 const exists = currentPageContent ? 
-                    findTestEntryInCoda(currentPageContent, testInfo.fileName, test.name) : 
+                    findTestEntryInCoda(currentPageContent, fileName, qodoTest.testName) : 
                     false;
                 
                 entries.push({
-                    fileName: testInfo.fileName,
-                    testName: test.name,
+                    fileName: fileName,
+                    testName: qodoTest.testName,
                     entry,
                     exists
                 });

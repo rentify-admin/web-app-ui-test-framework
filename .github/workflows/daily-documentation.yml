@@ -95,6 +95,8 @@ jobs:
           CODA_API_TOKEN: ${{ secrets.CODA_API_TOKEN }}
           CODA_DOC_ID: ${{ secrets.CODA_DOC_ID || 'dza2s1eOIhA' }}
           CODA_PAGE_ID: ${{ secrets.CODA_PAGE_ID || 'suLCLolD' }}
+          QODO_API_KEY: ${{ secrets.QODO_API_KEY }}
+          QODO_API_URL: ${{ secrets.QODO_API_URL || 'https://api.qodo.ai/v1/chat/completions' }}
 
       - name: Send Slack notification
         if: always()
