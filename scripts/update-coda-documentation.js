@@ -436,46 +436,35 @@ async function updateCodaPage(newContent) {
         
         console.log('📄 Page found, attempting to update content...');
         
-        // Use coda-js library for content updates
-        // The coda-js library may have better support for content updates
-        try {
-            console.log('   Using coda-js library for content update...');
-            const coda = new Coda(CODA_API_TOKEN);
-            const doc = await coda.getDoc(CODA_DOC_ID);
-            const page = await doc.getPage(CODA_PAGE_ID);
-            
-            // Try to update page content using coda-js
-            // Note: coda-js may also have limitations, but let's try
-            await page.update({ content: newContent });
-            
-            console.log('✅ Page content updated successfully using coda-js');
-            return { success: true, method: 'coda-js' };
-        } catch (codaJsError) {
-            console.log(`   coda-js update failed: ${codaJsError.message}`);
-            console.log('   Falling back to direct API call...');
-            
-            // Fallback to direct API call (may not work, but worth trying)
-            // The Coda REST API v1 PUT endpoint only accepts { name, subtitle, icon }
-            const putResponse = await axios.put(
-                `${CODA_API_BASE}/docs/${CODA_DOC_ID}/pages/${CODA_PAGE_ID}`,
-                {},
-                {
-                    headers: {
-                        'Authorization': `Bearer ${CODA_API_TOKEN}`,
-                        'Content-Type': 'application/json'
-                    },
-                    validateStatus: (status) => status < 500
-                }
-            );
-            
-            if (putResponse.status === 200 || putResponse.status === 202) {
-                console.log('⚠️  PUT request accepted, but content was likely NOT updated');
-                console.log('   The Coda REST API v1 does not support content updates via PUT');
-                throw new Error('Content update failed - Coda API v1 limitation. The REST API does not support direct page content updates.');
-            }
-            
-            throw codaJsError; // Re-throw the original coda-js error
-        }
+        // IMPORTANT: The Coda REST API v1 does NOT support direct page content updates
+        // Neither the REST API nor coda-js library support updating page content
+        // 
+        // The only way to update page content programmatically is via:
+        // 1. The Coda MCP server (coda-mcp package) - not available in GitHub Actions
+        // 2. Manual update via Coda UI
+        // 3. Using Coda tables instead of pages (tables support row updates)
+        //
+        // For now, we'll log a clear error message explaining the limitation
+        console.log('❌ ERROR: Coda API v1 does not support direct page content updates');
+        console.log('');
+        console.log('   The Coda REST API v1 PUT /pages/{pageId} endpoint only accepts:');
+        console.log('   - name (page title)');
+        console.log('   - subtitle');
+        console.log('   - icon');
+        console.log('   It does NOT accept content.');
+        console.log('');
+        console.log('   Solutions:');
+        console.log('   1. Use the Coda MCP server locally (coda-mcp package)');
+        console.log('   2. Use Coda tables instead of pages for structured content');
+        console.log('   3. Use a webhook to trigger MCP server updates from GitHub Actions');
+        console.log('   4. Manually update content via Coda UI');
+        console.log('');
+        console.log('   For automated updates in CI/CD, consider:');
+        console.log('   - Setting up a local server that runs the MCP server');
+        console.log('   - Using Coda tables with row-based updates');
+        console.log('   - Using a different documentation platform that supports API updates');
+        
+        throw new Error('Coda API v1 does not support direct page content updates. Use the MCP server, Coda tables, or manual updates.');
         
     } catch (error) {
         console.error('❌ Error updating Coda page:', error.response?.data || error.message);
