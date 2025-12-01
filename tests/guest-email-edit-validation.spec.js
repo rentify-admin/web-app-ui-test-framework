@@ -14,7 +14,7 @@ let createdSessionId = null;
 test.describe('QA-234 guest-email-edit-validation.spec', () => {
 
     test('Verify Guest Email Edit: Form Save Validation (VC-1094)', {
-        tag: ['@regression', '@smoke'],
+        tag: ['@regression', '@smoke', '@staging-ready', '@rc-ready'],
         timeout: 90_000
     }, async ({ page }) => {
 

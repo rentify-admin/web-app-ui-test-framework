@@ -4654,6 +4654,7 @@ Based on the test files in the framework, I've identified these categories:
 ### **Files Analyzed:**
 1. `create_multiple_remarks.spec.js` - **Income Source Remarks Management**
 2. `report_remarks_section.spec.js` - **Session Remarks Management**
+3. `guest-email-edit-validation.spec.js` - **Guest Email Edit Validation**
 
 ---
 
@@ -4937,6 +4938,158 @@ Based on the test files in the framework, I've identified these categories:
 
 ---
 
+### **3. guest-email-edit-validation.spec.js**
+
+**Purpose**: Validates guest information editing functionality with focus on email field behavior - ensures empty email submissions do NOT clear existing email values
+
+**Configuration**:
+- **Application**: "Autotest - Household UI test"
+- **User**: Guest Emailtest (dynamic email: `guest-email-{timestamp}+autotest@verifast.com`)
+- **Timeout**: 90s
+- **Tags**: @regression, @smoke, @staging-ready, @rc-ready
+
+---
+
+#### **Test: "Verify Guest Email Edit: Form Save Validation (VC-1094)" (QA-234)**
+
+**Purpose**: Verify guest information can be edited successfully, and that submitting an empty email field does NOT clear the existing email value in the database
+
+**Test Flow**:
+
+1. **Admin: Create Session**
+   - Login as admin via adminLoginAndNavigateToApplications
+   - Navigate to applications page
+   - Find and invite "Autotest - Household UI test"
+   - Generate session with guest user data:
+     - First name: "Autot - Guest"
+     - Last name: "Emailtest"
+     - Email: dynamic email with timestamp
+   - Store sessionId for cleanup
+
+2. **Navigate to Session Report**
+   - Navigate to applicants/sessions page via gotoPage
+   - Search for session by sessionId via searchSessionWithText
+   - Click session link to open session details
+
+3. **Open Identity Section**
+   - Call openReportSection for identity-section
+   - **Assert**: identity-edit-guest-btn visible
+
+4. **Step 1: Edit Name, Keep Email (First Edit)**
+   - Click identity-edit-guest-btn
+   - **Assert**: identity-update-guest-modal visible
+   - Call expectAndFillGuestForm helper:
+     - **Verify**: First name = original value
+     - **Verify**: Last name = original value
+     - **Verify**: Email = original email (pre-filled)
+     - **Fill**: First name: "Edith"
+     - **Fill**: Last name: "Dummylast"
+     - **Leave**: Email unchanged
+   - Click submit-guest-update-form
+   - Wait for PATCH /guests/{guestId} response
+   - **Assert**: PATCH response ok() = true
+   - **Assert**: Modal hidden after successful update
+
+5. **Verify UI After Name Update**
+   - **Assert**: identity-guest-full-name contains "Edith Dummylast"
+   - **Assert**: identity-guest-email contains original email (unchanged)
+
+6. **Step 2: Change Email (Second Edit)**
+   - Click identity-edit-guest-btn again
+   - Generate new email: `guest-email-updated-{timestamp}@verifast.com`
+   - Call expectAndFillGuestForm helper:
+     - **Verify**: First name = "Edith"
+     - **Verify**: Last name = "Dummylast"
+     - **Verify**: Email = original email (still present)
+     - **Fill**: Email = new email
+   - Click submit-guest-update-form
+   - Wait for PATCH /guests/{guestId} response
+   - **Assert**: PATCH response ok() = true
+   - **Assert**: Modal hidden
+
+7. **Verify UI After Email Update**
+   - **Assert**: identity-guest-full-name still contains "Edith Dummylast"
+   - **Assert**: identity-guest-email now contains new email
+
+8. **Step 3: Clear Email + Update Phone (Third Edit) - CRITICAL TEST**
+   - Click identity-edit-guest-btn
+   - Generate random phone via generateRandomPhone helper
+   - Call expectAndFillGuestForm helper:
+     - **Verify**: First name = "Edith"
+     - **Verify**: Last name = "Dummylast"
+     - **Verify**: Email = new email (from Step 2)
+     - **Fill**: Phone = new random phone
+     - **Fill**: Email = "" (cleared/empty)
+   - Click submit-guest-update-form
+   - Wait for PATCH /guests/{guestId} response
+   - **Assert**: PATCH response ok() = true
+   - **Assert**: Modal hidden
+
+9. **Verify Email NOT Cleared (Critical Validation)**
+   - **Assert**: identity-guest-phone contains new phone (updated correctly)
+   - **Assert**: identity-guest-email STILL contains new email from Step 2 (NOT cleared)
+   - **Result**: Empty email field did NOT clear existing email value ✅
+
+10. **Step 4: Clear Email Again, No Other Changes (Fourth Edit)**
+    - Click identity-edit-guest-btn
+    - Call expectAndFillGuestForm helper:
+      - **Verify**: First name = "Edith"
+      - **Verify**: Last name = "Dummylast"
+      - **Verify**: Email = new email (still retained from Step 2)
+      - **Verify**: Phone = formatted phone with parentheses/dashes
+      - **Fill**: Email = "" (cleared again)
+    - Click submit-guest-update-form
+    - Wait for PATCH /guests/{guestId} response
+    - **Assert**: PATCH response ok() = true
+    - **Assert**: Modal hidden
+
+11. **Final Verification - Email Still Retained**
+    - **Assert**: identity-guest-full-name contains "Edith Dummylast"
+    - **Assert**: identity-guest-email STILL contains new email (retained through 2 empty submissions)
+    - **Assert**: identity-guest-phone contains phone number
+    - **Result**: Email value persisted despite multiple empty field submissions ✅
+
+12. **Cleanup**
+    - afterAll hook with conditional cleanup:
+      - If test passed: cleanup session via cleanupSession
+      - If test failed: keep session for debugging
+
+**Key API Endpoints**:
+- `POST /auth` - Admin authentication
+- `GET /applications?` - Search applications
+- `POST /sessions` - Create session
+- `GET /sessions?fields[session]` - Search sessions
+- `PATCH /guests/{guestId}` - Update guest information (4x: name update, email update, clear email + phone, clear email only)
+
+**Business Validations**:
+- ✅ Guest edit button visible in identity section
+- ✅ Guest edit modal opens correctly
+- ✅ Guest form pre-fills with existing values (name, email, phone)
+- ✅ Name fields can be updated independently
+- ✅ Email field can be updated to new value
+- ✅ Phone field can be updated
+- ✅ **CRITICAL**: Empty email field does NOT clear existing email value in database
+- ✅ **CRITICAL**: Empty email submissions persist existing email through multiple saves
+- ✅ UI displays correct values after each save
+- ✅ PATCH requests succeed for all update scenarios
+- ✅ Modal closes after successful updates
+- ✅ Conditional cleanup preserves sessions for failed tests
+
+**Unique Aspects**:
+- Tests **guest information editing** via admin session report
+- Uses **expectAndFillGuestForm helper** for reusable form fill/verify logic
+- Tests **4 sequential edit operations** in single test flow
+- Validates **email retention behavior** specifically (VC-1094 fix)
+- Tests **empty email field submission twice** to ensure consistency
+- Uses **generateRandomPhone helper** for unique test data
+- Implements **conditional cleanup** via testInfo.status pattern
+- Validates **phone formatting** in UI (parentheses and dashes)
+- Tests **PATCH API success** for all 4 edit operations
+- Uses **regex matching** for full name verification (handles whitespace variations)
+- **Core validation**: Proves backend accepts empty email without clearing existing value
+
+---
+
 ## **Category 10 Summary**
 
 ### **Business Purpose Analysis:**
@@ -4945,8 +5098,9 @@ Based on the test files in the framework, I've identified these categories:
 |-----------|-------------------------|-----------------|
 | `create_multiple_remarks` | Income source remarks management | Tests creation, hide/unhide, ordering, timestamp/author validation for **income source comments** |
 | `report_remarks_section` | Session remarks management | Tests creation with 4 notification scenarios, clear button, hide/unhide toggle, payload validation for **session comments** |
+| `guest-email-edit-validation` | Guest email edit validation | Tests guest information editing with **critical focus on email retention** - validates empty email field does NOT clear existing value (VC-1094) |
 
-**Conclusion**: 2 tests in this category - both validate remarks lifecycle but for different entities (income sources vs sessions) with different notification capabilities
+**Conclusion**: 3 tests in this category - validates remarks lifecycle for income sources and sessions, plus guest information editing with email field edge case handling
 
 ---
 
@@ -4977,8 +5131,8 @@ Based on the test files in the framework, I've identified these categories:
 | 7: Workflow Management | 2 | 0 | ~200 |
 | 8: Integration | 3 | 0 | ~800 |
 | 9: Menu Heartbeat | 13 | 0 | ~900 |
-| 10: Data Management | 2 | 0 | ~620 |
-| **TOTAL** | **48 tests** | **5 deleted** | **~8,420 lines** |
+| 10: Data Management | 3 | 0 | ~905 |
+| **TOTAL** | **49 tests** | **5 deleted** | **~8,705 lines** |
 
 ---
 

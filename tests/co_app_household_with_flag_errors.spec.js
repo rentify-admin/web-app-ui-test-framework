@@ -471,10 +471,10 @@ test.describe('co_app_household_with_flag_errors', () => {
         const idNameMismatchFlag = page.getByTestId('IDENTITY_NAME_MISMATCH_CRITICAL');
         const rawFlagText = await idNameMismatchFlag.textContent();
         const flagText = rawFlagText ? rawFlagText.replace(/\s+/g, ' ').trim() : '';
-        expect(flagText).toContain('Identity Name Mismatch (Critical)');
+        expect(flagText).toContain('Identity Name Mismatch (High)');
         // Note: Name now includes 'AutoT - ' prefix (UI may show as 'Autot - ' due to text transformation)
         expect(flagText).toContain('Coapplicant Household'); // Partial match to work with prefix
-        console.log('✅ FLAG TEXT VERIFIED: Contains "Identity Name Mismatch (Critical)" and co-applicant name');
+        console.log('✅ FLAG TEXT VERIFIED: Contains "Identity Name Mismatch (High)" and co-applicant name');
         
         // ASSERTION 3c: Status should still be REJECTED (API) and "Criteria Not Met" (UI)
         await pollForApprovalStatus(page, sessionId, primaryAuthToken, {
