@@ -36,12 +36,22 @@ jobs:
           echo "📚 Starting Coda documentation update..."
           
           # Run the update script and capture output
+          set +e  # Don't exit on error immediately
           OUTPUT=$(node scripts/update-coda-documentation.js 2>&1)
           EXIT_CODE=$?
+          set -e  # Re-enable exit on error
           
           # Save output for debugging
           echo "$OUTPUT" > coda_update_output.log
           echo "$OUTPUT"
+          
+          # If script failed, show more details
+          if [ $EXIT_CODE -ne 0 ]; then
+            echo ""
+            echo "❌ Script failed with exit code: $EXIT_CODE"
+            echo "📋 Full error output:"
+            echo "$OUTPUT"
+          fi
           
           # Extract statistics from structured output
           if echo "$OUTPUT" | grep -q "##CODA_STATS_START##"; then
