@@ -457,8 +457,15 @@ async function updateCodaPage(newContent) {
         );
         
         // Check if the update was successful
-        if (response.status === 200) {
-            console.log('✅ Page content updated successfully');
+        // 200 = Success, 202 = Accepted (async operation in progress)
+        if (response.status === 200 || response.status === 202) {
+            if (response.status === 202) {
+                console.log('✅ Page content update accepted (async operation)');
+                console.log(`   Request ID: ${response.data.requestId || 'N/A'}`);
+                console.log('   Note: The update is being processed asynchronously');
+            } else {
+                console.log('✅ Page content updated successfully');
+            }
             return response.data;
         } else {
             // If PUT doesn't support content, we need an alternative
@@ -644,9 +651,15 @@ async function main() {
     };
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+// Check if this is the main module
+const isMainModule = import.meta.url === `file://${process.argv[1]}` || 
+                     import.meta.url.endsWith(process.argv[1]) ||
+                     process.argv[1] && import.meta.url.includes(process.argv[1].replace(/\\/g, '/'));
+
+if (isMainModule || import.meta.url === `file://${process.argv[1]}`) {
     main().catch(error => {
         console.error('❌ Error:', error);
+        console.error('Stack:', error.stack);
         process.exit(1);
     });
 }
