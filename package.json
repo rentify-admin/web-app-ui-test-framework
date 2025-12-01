@@ -47,7 +47,9 @@
     "flaky:analyze:strict": "node scripts/flaky_analysis/flaky-test-analyzer.js playwright-report/results.xml flaky-analysis.json 10 3",
     "flaky:analyze:lenient": "node scripts/flaky_analysis/flaky-test-analyzer.js playwright-report/results.xml flaky-analysis.json 30 2",
     "flaky:tag": "node scripts/flaky_analysis/flaky-test-tagger.js tag",
-    "flaky:clean": "node scripts/flaky_analysis/flaky-test-tagger.js clean"
+    "flaky:clean": "node scripts/flaky_analysis/flaky-test-tagger.js clean",
+    "docs:generate": "node scripts/generate-test-documentation.js",
+    "docs:update-all": "node scripts/generate-test-documentation.js --update-all"
   },
   "devDependencies": {
     "@playwright/test": "^1.52.0",
@@ -55,6 +57,7 @@
   },
   "dependencies": {
     "axios": "^1.13.2",
+    "coda-js": "^4.2.1",
     "form-data": "^4.0.0",
     "node-fetch": "^3.3.2",
     "pdf-parse": "^1.1.1",

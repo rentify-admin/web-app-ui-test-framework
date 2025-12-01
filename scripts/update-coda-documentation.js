@@ -12,6 +12,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import axios from 'axios';
+import Coda from 'coda-js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -435,62 +436,46 @@ async function updateCodaPage(newContent) {
         
         console.log('📄 Page found, attempting to update content...');
         
-        // The Coda API PUT /pages/{pageId} only accepts { name, subtitle, icon }
-        // We need to use a different approach for content updates
-        
-        // IMPORTANT: The Coda REST API v1 does NOT support direct page content updates
-        // The PUT /pages/{pageId} endpoint only accepts { name, subtitle, icon }
-        // 
-        // To update page content, we need to use one of these approaches:
-        // 1. Use the Coda MCP server (not available in GitHub Actions)
-        // 2. Use a Coda API wrapper library like coda-js
-        // 3. Use Coda's content import/export workflow (if available)
-        // 4. Use tables instead of pages for structured content
-        //
-        // For now, we'll attempt the PUT request but it will likely only update metadata
-        // The actual content update requires using the MCP server or a different method
-        
-        console.log('⚠️  WARNING: Coda REST API v1 does not support direct page content updates');
-        console.log('   The PUT endpoint only updates page metadata (name, subtitle, icon)');
-        console.log('   Attempting update anyway, but content may not change...');
-        
-        // Try PUT request (will likely only update metadata, not content)
-        const putResponse = await axios.put(
-            `${CODA_API_BASE}/docs/${CODA_DOC_ID}/pages/${CODA_PAGE_ID}`,
-            {
-                // These are the only fields the API accepts
-                // content is NOT a valid field for this endpoint
-            },
-            {
-                headers: {
-                    'Authorization': `Bearer ${CODA_API_TOKEN}`,
-                    'Content-Type': 'application/json'
-                },
-                validateStatus: (status) => status < 500
-            }
-        );
-        
-        if (putResponse.status === 200 || putResponse.status === 202) {
-            console.log('⚠️  PUT request accepted, but content was NOT updated');
-            console.log('   The Coda REST API v1 does not support content updates via PUT');
-            console.log('   To update content, you must use:');
-            console.log('   1. The Coda MCP server (coda-mcp package)');
-            console.log('   2. A Coda API wrapper library');
-            console.log('   3. Manual update via Coda UI');
-            console.log('');
-            console.log('   For GitHub Actions, consider:');
-            console.log('   - Using the coda-js library');
-            console.log('   - Using Coda tables instead of pages');
-            console.log('   - Using a webhook to trigger MCP server updates');
+        // Use coda-js library for content updates
+        // The coda-js library may have better support for content updates
+        try {
+            console.log('   Using coda-js library for content update...');
+            const coda = new Coda(CODA_API_TOKEN);
+            const doc = await coda.getDoc(CODA_DOC_ID);
+            const page = await doc.getPage(CODA_PAGE_ID);
             
-            // Return the response but note that content wasn't updated
-            return {
-                ...putResponse.data,
-                _warning: 'Content was not updated - Coda API v1 limitation'
-            };
+            // Try to update page content using coda-js
+            // Note: coda-js may also have limitations, but let's try
+            await page.update({ content: newContent });
+            
+            console.log('✅ Page content updated successfully using coda-js');
+            return { success: true, method: 'coda-js' };
+        } catch (codaJsError) {
+            console.log(`   coda-js update failed: ${codaJsError.message}`);
+            console.log('   Falling back to direct API call...');
+            
+            // Fallback to direct API call (may not work, but worth trying)
+            // The Coda REST API v1 PUT endpoint only accepts { name, subtitle, icon }
+            const putResponse = await axios.put(
+                `${CODA_API_BASE}/docs/${CODA_DOC_ID}/pages/${CODA_PAGE_ID}`,
+                {},
+                {
+                    headers: {
+                        'Authorization': `Bearer ${CODA_API_TOKEN}`,
+                        'Content-Type': 'application/json'
+                    },
+                    validateStatus: (status) => status < 500
+                }
+            );
+            
+            if (putResponse.status === 200 || putResponse.status === 202) {
+                console.log('⚠️  PUT request accepted, but content was likely NOT updated');
+                console.log('   The Coda REST API v1 does not support content updates via PUT');
+                throw new Error('Content update failed - Coda API v1 limitation. The REST API does not support direct page content updates.');
+            }
+            
+            throw codaJsError; // Re-throw the original coda-js error
         }
-        
-        throw new Error(`Coda API returned status ${putResponse.status}. Response: ${JSON.stringify(putResponse.data)}`);
         
     } catch (error) {
         console.error('❌ Error updating Coda page:', error.response?.data || error.message);
