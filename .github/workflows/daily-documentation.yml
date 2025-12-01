@@ -6,15 +6,15 @@ on:
     - cron: '0 22 * * *'
   workflow_dispatch:
     inputs:
-      update_all:
-        description: 'Force update all documentation'
+      force_update:
+        description: 'Force update all test entries'
         required: false
         type: boolean
         default: false
 
 jobs:
-  generate-documentation:
-    name: Generate Test Documentation
+  update-coda-documentation:
+    name: Update Coda Test Documentation
     runs-on: ubuntu-latest
     
     steps:
@@ -30,106 +30,61 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Generate test documentation
-        id: generate-docs
+      - name: Update Coda documentation
+        id: update-coda
         run: |
-          echo "📚 Starting test documentation generation..."
+          echo "📚 Starting Coda documentation update..."
           
-          # Determine if we should force update all
-          UPDATE_FLAG=""
-          if [ "${{ github.event.inputs.update_all }}" == "true" ]; then
-            UPDATE_FLAG="--update-all"
-            echo "🔄 Force update all documentation enabled"
-          fi
-          
-          # Run documentation generation and capture output
-          OUTPUT=$(node scripts/generate-test-documentation.js $UPDATE_FLAG 2>&1)
+          # Run the update script and capture output
+          OUTPUT=$(node scripts/update-coda-documentation.js 2>&1)
           EXIT_CODE=$?
           
-          # Save output for later use
-          echo "$OUTPUT" > docs_output.log
+          # Save output for debugging
+          echo "$OUTPUT" > coda_update_output.log
           echo "$OUTPUT"
           
           # Extract statistics from structured output
-          if echo "$OUTPUT" | grep -q "##DOC_STATS_START##"; then
-            NEW_TESTS=$(echo "$OUTPUT" | sed -n '/##DOC_STATS_START##/,/##DOC_STATS_END##/p' | grep "NEW_TESTS:" | cut -d: -f2 | tr -d ' ')
-            UPDATED_TESTS=$(echo "$OUTPUT" | sed -n '/##DOC_STATS_START##/,/##DOC_STATS_END##/p' | grep "UPDATED_TESTS:" | cut -d: -f2 | tr -d ' ')
-            NEW_UPDATED=$(echo "$OUTPUT" | sed -n '/##DOC_STATS_START##/,/##DOC_STATS_END##/p' | grep "NEW_UPDATED:" | cut -d: -f2 | tr -d ' ')
-            TOTAL_ENTRIES=$(echo "$OUTPUT" | sed -n '/##DOC_STATS_START##/,/##DOC_STATS_END##/p' | grep "TOTAL_ENTRIES:" | cut -d: -f2 | tr -d ' ')
-            TESTS_PROCESSED=$(echo "$OUTPUT" | sed -n '/##DOC_STATS_START##/,/##DOC_STATS_END##/p' | grep "TESTS_PROCESSED:" | cut -d: -f2 | tr -d ' ')
+          if echo "$OUTPUT" | grep -q "##CODA_STATS_START##"; then
+            NEW_ENTRIES=$(echo "$OUTPUT" | sed -n '/##CODA_STATS_START##/,/##CODA_STATS_END##/p' | grep "NEW_ENTRIES:" | cut -d: -f2 | tr -d ' ')
+            UPDATED_ENTRIES=$(echo "$OUTPUT" | sed -n '/##CODA_STATS_START##/,/##CODA_STATS_END##/p' | grep "UPDATED_ENTRIES:" | cut -d: -f2 | tr -d ' ')
+            TOTAL_ENTRIES=$(echo "$OUTPUT" | sed -n '/##CODA_STATS_START##/,/##CODA_STATS_END##/p' | grep "TOTAL_ENTRIES:" | cut -d: -f2 | tr -d ' ')
+            ERRORS=$(echo "$OUTPUT" | sed -n '/##CODA_STATS_START##/,/##CODA_STATS_END##/p' | grep "ERRORS:" | cut -d: -f2 | tr -d ' ')
           else
-            # Fallback to regex parsing if structured output not available
-            NEW_TESTS=$(echo "$OUTPUT" | grep -oP 'New test files: \K\d+' || echo "0")
-            UPDATED_TESTS=$(echo "$OUTPUT" | grep -oP 'Updated test entries: \K\d+' || echo "0")
-            NEW_UPDATED=$(echo "$OUTPUT" | grep -oP 'New/Updated entries: \K\d+' || echo "0")
+            # Fallback parsing
+            NEW_ENTRIES=$(echo "$OUTPUT" | grep -oP 'New entries: \K\d+' || echo "0")
+            UPDATED_ENTRIES=$(echo "$OUTPUT" | grep -oP 'Updated entries: \K\d+' || echo "0")
             TOTAL_ENTRIES=$(echo "$OUTPUT" | grep -oP 'Total entries: \K\d+' || echo "0")
-            TESTS_PROCESSED=$(echo "$OUTPUT" | grep -oP 'Found \K\d+ test files' | grep -oP '\d+' || echo "0")
+            ERRORS=$(echo "$OUTPUT" | grep -oP 'Errors: \K\d+' || echo "0")
           fi
           
           # Set output variables
-          echo "new_tests=$NEW_TESTS" >> $GITHUB_OUTPUT
-          echo "updated_tests=$UPDATED_TESTS" >> $GITHUB_OUTPUT
-          echo "new_updated=$NEW_UPDATED" >> $GITHUB_OUTPUT
+          echo "new_entries=$NEW_ENTRIES" >> $GITHUB_OUTPUT
+          echo "updated_entries=$UPDATED_ENTRIES" >> $GITHUB_OUTPUT
           echo "total_entries=$TOTAL_ENTRIES" >> $GITHUB_OUTPUT
-          echo "tests_processed=$TESTS_PROCESSED" >> $GITHUB_OUTPUT
+          echo "errors=$ERRORS" >> $GITHUB_OUTPUT
           echo "exit_code=$EXIT_CODE" >> $GITHUB_OUTPUT
           
           # Display summary
           echo ""
-          echo "📊 Documentation Generation Summary:"
-          echo "   - Tests Processed: $TESTS_PROCESSED"
-          echo "   - New Test Files: $NEW_TESTS"
-          echo "   - Updated Test Entries: $UPDATED_TESTS"
+          echo "📊 Coda Documentation Update Summary:"
+          echo "   - New Entries: $NEW_ENTRIES"
+          echo "   - Updated Entries: $UPDATED_ENTRIES"
           echo "   - Total Entries: $TOTAL_ENTRIES"
+          echo "   - Errors: $ERRORS"
           echo "   - Exit Code: $EXIT_CODE"
           echo ""
           
           # Exit with the script's exit code
           if [ $EXIT_CODE -ne 0 ]; then
-            echo "❌ Documentation generation failed"
+            echo "❌ Coda documentation update failed"
             exit $EXIT_CODE
           fi
           
-          echo "✅ Documentation generation completed successfully"
-
-      - name: Check for documentation changes
-        id: check-changes
-        run: |
-          echo "🔍 Checking for documentation changes..."
-          
-          # Check if documentation file was modified
-          if git diff --quiet documentation/AUTOMATED_TEST_DOCUMENTATION.md; then
-            echo "has_changes=false" >> $GITHUB_OUTPUT
-            echo "📄 No changes detected in documentation"
-          else
-            echo "has_changes=true" >> $GITHUB_OUTPUT
-            echo "📝 Documentation has been updated"
-            
-            # Show summary of changes
-            echo ""
-            echo "📋 Changes Summary:"
-            git diff --stat documentation/AUTOMATED_TEST_DOCUMENTATION.md || true
-          fi
-
-      - name: Commit documentation changes
-        if: steps.check-changes.outputs.has_changes == 'true'
-        run: |
-          echo "💾 Committing documentation changes..."
-          
-          git config --local user.email "github-actions[bot]@users.noreply.github.com"
-          git config --local user.name "github-actions[bot]"
-          
-          git add documentation/AUTOMATED_TEST_DOCUMENTATION.md
-          git add documentation/.test-docs-metadata.json
-          
-          git commit -m "docs: Auto-update test documentation [skip ci]
-          
-          - Generated: $(date -u '+%Y-%m-%d %H:%M:%S UTC')
-          - New/Updated entries: ${{ steps.generate-docs.outputs.new_updated }}
-          - Total entries: ${{ steps.generate-docs.outputs.total_entries }}"
-          
-          git push
-        # Note: GITHUB_TOKEN is automatically provided by GitHub Actions - no secret needed
+          echo "✅ Coda documentation updated successfully"
+        env:
+          CODA_API_TOKEN: ${{ secrets.CODA_API_TOKEN }}
+          CODA_DOC_ID: ${{ secrets.CODA_DOC_ID || 'za2s1eOIhA' }}
+          CODA_PAGE_ID: ${{ secrets.CODA_PAGE_ID || 'canvas-MP9QLCLolD' }}
 
       - name: Send Slack notification
         if: always()
@@ -137,7 +92,7 @@ jobs:
           echo "📤 Sending Slack notification..."
           
           # Determine status and color
-          if [ "${{ steps.generate-docs.outputs.exit_code }}" == "0" ]; then
+          if [ "${{ steps.update-coda.outputs.exit_code }}" == "0" ]; then
             STATUS="✅ Success"
             COLOR="good"
             EMOJI="✅"
@@ -148,16 +103,11 @@ jobs:
           fi
           
           # Build summary message
-          SUMMARY="*Tests Processed:* ${{ steps.generate-docs.outputs.tests_processed }}\n"
-          SUMMARY="${SUMMARY}*New Test Files:* ${{ steps.generate-docs.outputs.new_tests }}\n"
-          SUMMARY="${SUMMARY}*Updated Test Entries:* ${{ steps.generate-docs.outputs.updated_tests }}\n"
-          SUMMARY="${SUMMARY}*Total Entries:* ${{ steps.generate-docs.outputs.total_entries }}\n"
-          
-          if [ "${{ steps.check-changes.outputs.has_changes }}" == "true" ]; then
-            SUMMARY="${SUMMARY}*Documentation Updated:* ✅ Yes (committed to repository)\n"
-          else
-            SUMMARY="${SUMMARY}*Documentation Updated:* ℹ️ No changes detected\n"
-          fi
+          SUMMARY="*New Entries:* ${{ steps.update-coda.outputs.new_entries }}\n"
+          SUMMARY="${SUMMARY}*Updated Entries:* ${{ steps.update-coda.outputs.updated_entries }}\n"
+          SUMMARY="${SUMMARY}*Total Entries:* ${{ steps.update-coda.outputs.total_entries }}\n"
+          SUMMARY="${SUMMARY}*Errors:* ${{ steps.update-coda.outputs.errors }}\n"
+          SUMMARY="${SUMMARY}*Coda Page:* <https://coda.io/d/${CODA_DOC_ID}/_${CODA_PAGE_ID}|View Documentation>"
           
           # Create Slack message payload
           PAYLOAD=$(cat <<EOF
@@ -167,7 +117,7 @@ jobs:
                 "type": "header",
                 "text": {
                   "type": "plain_text",
-                  "text": "${EMOJI} Daily Test Documentation Generation"
+                  "text": "${EMOJI} Daily Test Documentation Update"
                 }
               },
               {
@@ -223,15 +173,14 @@ jobs:
           GITHUB_RUN_ID: ${{ github.run_id }}
           GITHUB_RUN_NUMBER: ${{ github.run_number }}
           GITHUB_ACTOR: ${{ github.actor }}
+          CODA_DOC_ID: ${{ secrets.CODA_DOC_ID || 'za2s1eOIhA' }}
+          CODA_PAGE_ID: ${{ secrets.CODA_PAGE_ID || 'canvas-MP9QLCLolD' }}
 
-      - name: Upload documentation artifacts
+      - name: Upload logs
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: test-documentation
+          name: coda-update-logs
           path: |
-            documentation/AUTOMATED_TEST_DOCUMENTATION.md
-            documentation/.test-docs-metadata.json
-            docs_output.log
+            coda_update_output.log
           retention-days: 30
-
