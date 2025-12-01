@@ -93,8 +93,8 @@ jobs:
           echo "✅ Coda documentation updated successfully"
         env:
           CODA_API_TOKEN: ${{ secrets.CODA_API_TOKEN }}
-          CODA_DOC_ID: ${{ secrets.CODA_DOC_ID || 'za2s1eOIhA' }}
-          CODA_PAGE_ID: ${{ secrets.CODA_PAGE_ID || 'canvas-MP9QLCLolD' }}
+          CODA_DOC_ID: ${{ secrets.CODA_DOC_ID || 'dza2s1eOIhA' }}
+          CODA_PAGE_ID: ${{ secrets.CODA_PAGE_ID || 'suLCLolD' }}
 
       - name: Send Slack notification
         if: always()
@@ -183,8 +183,8 @@ jobs:
           GITHUB_RUN_ID: ${{ github.run_id }}
           GITHUB_RUN_NUMBER: ${{ github.run_number }}
           GITHUB_ACTOR: ${{ github.actor }}
-          CODA_DOC_ID: ${{ secrets.CODA_DOC_ID || 'za2s1eOIhA' }}
-          CODA_PAGE_ID: ${{ secrets.CODA_PAGE_ID || 'canvas-MP9QLCLolD' }}
+          CODA_DOC_ID: ${{ secrets.CODA_DOC_ID || 'dza2s1eOIhA' }}
+          CODA_PAGE_ID: ${{ secrets.CODA_PAGE_ID || 'suLCLolD' }}
 
       - name: Upload logs
         if: always()
