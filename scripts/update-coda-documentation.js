@@ -76,47 +76,115 @@ Please analyze this test file and return the JSON structure as specified in the 
         console.log(`   🤖 Calling QODO API for ${fileName}...`);
         
         // Call QODO API
-        const response = await axios.post(
-            QODO_API_URL,
-            {
-                model: 'gpt-4', // or whatever model QODO uses
-                messages: [
-                    {
-                        role: 'system',
-                        content: 'You are a test documentation expert. Analyze test files and return structured JSON documentation.'
-                    },
-                    {
-                        role: 'user',
-                        content: fullPrompt
-                    }
-                ],
-                temperature: 0.3, // Lower temperature for more consistent output
-                response_format: { type: 'json_object' } // Request JSON response
-            },
-            {
-                headers: {
-                    'Authorization': `Bearer ${QODO_API_KEY}`,
-                    'Content-Type': 'application/json'
+        // QODO might use a different API format - try multiple approaches
+        let response;
+        try {
+            // Try OpenAI-compatible format first
+            response = await axios.post(
+                QODO_API_URL,
+                {
+                    model: 'gpt-4', // or whatever model QODO uses
+                    messages: [
+                        {
+                            role: 'system',
+                            content: 'You are a test documentation expert. Analyze test files and return structured JSON documentation.'
+                        },
+                        {
+                            role: 'user',
+                            content: fullPrompt
+                        }
+                    ],
+                    temperature: 0.3, // Lower temperature for more consistent output
+                    response_format: { type: 'json_object' } // Request JSON response
                 },
-                timeout: 60000 // 60 second timeout
+                {
+                    headers: {
+                        'Authorization': `Bearer ${QODO_API_KEY}`,
+                        'Content-Type': 'application/json'
+                    },
+                    timeout: 60000 // 60 second timeout
+                }
+            );
+        } catch (apiError) {
+            // If OpenAI format fails, try QODO-specific format
+            if (apiError.response?.status === 404 || apiError.response?.status === 400) {
+                console.log(`   ⚠️  OpenAI format failed, trying QODO-specific format...`);
+                try {
+                    // Try QODO-specific API format
+                    response = await axios.post(
+                        QODO_API_URL,
+                        {
+                            prompt: fullPrompt,
+                            system_prompt: 'You are a test documentation expert. Analyze test files and return structured JSON documentation.',
+                            format: 'json',
+                            temperature: 0.3
+                        },
+                        {
+                            headers: {
+                                'Authorization': `Bearer ${QODO_API_KEY}`,
+                                'X-API-Key': QODO_API_KEY, // Some APIs use X-API-Key
+                                'Content-Type': 'application/json'
+                            },
+                            timeout: 60000
+                        }
+                    );
+                } catch (qodoError) {
+                    console.error(`   ❌ QODO API error (both formats failed):`, qodoError.response?.data || qodoError.message);
+                    throw new Error(`QODO API error: ${qodoError.response?.data?.detail || qodoError.response?.data?.message || qodoError.message}. Please check QODO_API_URL and QODO_API_KEY.`);
+                }
+            } else {
+                throw apiError;
             }
-        );
+        }
         
         // Extract JSON from response
+        // Handle different response formats (OpenAI-compatible vs QODO-specific)
         let parsedData;
         try {
-            const content = response.data.choices[0].message.content;
+            let content;
+            
+            // Try OpenAI-compatible format first
+            if (response.data.choices && response.data.choices[0] && response.data.choices[0].message) {
+                content = response.data.choices[0].message.content;
+            }
+            // Try QODO-specific format
+            else if (response.data.content) {
+                content = response.data.content;
+            }
+            // Try direct response
+            else if (response.data.response) {
+                content = response.data.response;
+            }
+            // Try data field
+            else if (response.data.data) {
+                content = response.data.data;
+            }
+            // Fallback to entire response data
+            else {
+                content = response.data;
+            }
+            
             // Try to parse as JSON
-            parsedData = typeof content === 'string' ? JSON.parse(content) : content;
+            if (typeof content === 'string') {
+                parsedData = JSON.parse(content);
+            } else if (typeof content === 'object') {
+                parsedData = content;
+            } else {
+                throw new Error('Unexpected response format from QODO API');
+            }
         } catch (parseError) {
             console.error(`   ⚠️  Failed to parse QODO response as JSON: ${parseError.message}`);
+            console.error(`   Response structure:`, JSON.stringify(response.data, null, 2).substring(0, 500));
+            
             // Try to extract JSON from markdown code blocks
-            const jsonMatch = response.data.choices[0].message.content.match(/```json\n([\s\S]*?)\n```/) ||
-                            response.data.choices[0].message.content.match(/```\n([\s\S]*?)\n```/);
+            const responseText = JSON.stringify(response.data);
+            const jsonMatch = responseText.match(/```json\n([\s\S]*?)\n```/) ||
+                            responseText.match(/```\n([\s\S]*?)\n```/) ||
+                            responseText.match(/\{[\s\S]*"testFile"[\s\S]*\}/);
             if (jsonMatch) {
-                parsedData = JSON.parse(jsonMatch[1]);
+                parsedData = JSON.parse(jsonMatch[1] || jsonMatch[0]);
             } else {
-                throw new Error('Could not extract JSON from QODO response');
+                throw new Error(`Could not extract JSON from QODO response: ${parseError.message}`);
             }
         }
         
