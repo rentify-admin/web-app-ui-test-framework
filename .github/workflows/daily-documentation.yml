@@ -1,0 +1,237 @@
+name: Daily Test Documentation Generation
+
+on:
+  schedule:
+    # Daily at 10:00 PM UTC
+    - cron: '0 22 * * *'
+  workflow_dispatch:
+    inputs:
+      update_all:
+        description: 'Force update all documentation'
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  generate-documentation:
+    name: Generate Test Documentation
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate test documentation
+        id: generate-docs
+        run: |
+          echo "📚 Starting test documentation generation..."
+          
+          # Determine if we should force update all
+          UPDATE_FLAG=""
+          if [ "${{ github.event.inputs.update_all }}" == "true" ]; then
+            UPDATE_FLAG="--update-all"
+            echo "🔄 Force update all documentation enabled"
+          fi
+          
+          # Run documentation generation and capture output
+          OUTPUT=$(node scripts/generate-test-documentation.js $UPDATE_FLAG 2>&1)
+          EXIT_CODE=$?
+          
+          # Save output for later use
+          echo "$OUTPUT" > docs_output.log
+          echo "$OUTPUT"
+          
+          # Extract statistics from structured output
+          if echo "$OUTPUT" | grep -q "##DOC_STATS_START##"; then
+            NEW_TESTS=$(echo "$OUTPUT" | sed -n '/##DOC_STATS_START##/,/##DOC_STATS_END##/p' | grep "NEW_TESTS:" | cut -d: -f2 | tr -d ' ')
+            UPDATED_TESTS=$(echo "$OUTPUT" | sed -n '/##DOC_STATS_START##/,/##DOC_STATS_END##/p' | grep "UPDATED_TESTS:" | cut -d: -f2 | tr -d ' ')
+            NEW_UPDATED=$(echo "$OUTPUT" | sed -n '/##DOC_STATS_START##/,/##DOC_STATS_END##/p' | grep "NEW_UPDATED:" | cut -d: -f2 | tr -d ' ')
+            TOTAL_ENTRIES=$(echo "$OUTPUT" | sed -n '/##DOC_STATS_START##/,/##DOC_STATS_END##/p' | grep "TOTAL_ENTRIES:" | cut -d: -f2 | tr -d ' ')
+            TESTS_PROCESSED=$(echo "$OUTPUT" | sed -n '/##DOC_STATS_START##/,/##DOC_STATS_END##/p' | grep "TESTS_PROCESSED:" | cut -d: -f2 | tr -d ' ')
+          else
+            # Fallback to regex parsing if structured output not available
+            NEW_TESTS=$(echo "$OUTPUT" | grep -oP 'New test files: \K\d+' || echo "0")
+            UPDATED_TESTS=$(echo "$OUTPUT" | grep -oP 'Updated test entries: \K\d+' || echo "0")
+            NEW_UPDATED=$(echo "$OUTPUT" | grep -oP 'New/Updated entries: \K\d+' || echo "0")
+            TOTAL_ENTRIES=$(echo "$OUTPUT" | grep -oP 'Total entries: \K\d+' || echo "0")
+            TESTS_PROCESSED=$(echo "$OUTPUT" | grep -oP 'Found \K\d+ test files' | grep -oP '\d+' || echo "0")
+          fi
+          
+          # Set output variables
+          echo "new_tests=$NEW_TESTS" >> $GITHUB_OUTPUT
+          echo "updated_tests=$UPDATED_TESTS" >> $GITHUB_OUTPUT
+          echo "new_updated=$NEW_UPDATED" >> $GITHUB_OUTPUT
+          echo "total_entries=$TOTAL_ENTRIES" >> $GITHUB_OUTPUT
+          echo "tests_processed=$TESTS_PROCESSED" >> $GITHUB_OUTPUT
+          echo "exit_code=$EXIT_CODE" >> $GITHUB_OUTPUT
+          
+          # Display summary
+          echo ""
+          echo "📊 Documentation Generation Summary:"
+          echo "   - Tests Processed: $TESTS_PROCESSED"
+          echo "   - New Test Files: $NEW_TESTS"
+          echo "   - Updated Test Entries: $UPDATED_TESTS"
+          echo "   - Total Entries: $TOTAL_ENTRIES"
+          echo "   - Exit Code: $EXIT_CODE"
+          echo ""
+          
+          # Exit with the script's exit code
+          if [ $EXIT_CODE -ne 0 ]; then
+            echo "❌ Documentation generation failed"
+            exit $EXIT_CODE
+          fi
+          
+          echo "✅ Documentation generation completed successfully"
+
+      - name: Check for documentation changes
+        id: check-changes
+        run: |
+          echo "🔍 Checking for documentation changes..."
+          
+          # Check if documentation file was modified
+          if git diff --quiet documentation/AUTOMATED_TEST_DOCUMENTATION.md; then
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+            echo "📄 No changes detected in documentation"
+          else
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+            echo "📝 Documentation has been updated"
+            
+            # Show summary of changes
+            echo ""
+            echo "📋 Changes Summary:"
+            git diff --stat documentation/AUTOMATED_TEST_DOCUMENTATION.md || true
+          fi
+
+      - name: Commit documentation changes
+        if: steps.check-changes.outputs.has_changes == 'true'
+        run: |
+          echo "💾 Committing documentation changes..."
+          
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          
+          git add documentation/AUTOMATED_TEST_DOCUMENTATION.md
+          git add documentation/.test-docs-metadata.json
+          
+          git commit -m "docs: Auto-update test documentation [skip ci]
+          
+          - Generated: $(date -u '+%Y-%m-%d %H:%M:%S UTC')
+          - New/Updated entries: ${{ steps.generate-docs.outputs.new_updated }}
+          - Total entries: ${{ steps.generate-docs.outputs.total_entries }}"
+          
+          git push
+        # Note: GITHUB_TOKEN is automatically provided by GitHub Actions - no secret needed
+
+      - name: Send Slack notification
+        if: always()
+        run: |
+          echo "📤 Sending Slack notification..."
+          
+          # Determine status and color
+          if [ "${{ steps.generate-docs.outputs.exit_code }}" == "0" ]; then
+            STATUS="✅ Success"
+            COLOR="good"
+            EMOJI="✅"
+          else
+            STATUS="❌ Failed"
+            COLOR="danger"
+            EMOJI="❌"
+          fi
+          
+          # Build summary message
+          SUMMARY="*Tests Processed:* ${{ steps.generate-docs.outputs.tests_processed }}\n"
+          SUMMARY="${SUMMARY}*New Test Files:* ${{ steps.generate-docs.outputs.new_tests }}\n"
+          SUMMARY="${SUMMARY}*Updated Test Entries:* ${{ steps.generate-docs.outputs.updated_tests }}\n"
+          SUMMARY="${SUMMARY}*Total Entries:* ${{ steps.generate-docs.outputs.total_entries }}\n"
+          
+          if [ "${{ steps.check-changes.outputs.has_changes }}" == "true" ]; then
+            SUMMARY="${SUMMARY}*Documentation Updated:* ✅ Yes (committed to repository)\n"
+          else
+            SUMMARY="${SUMMARY}*Documentation Updated:* ℹ️ No changes detected\n"
+          fi
+          
+          # Create Slack message payload
+          PAYLOAD=$(cat <<EOF
+          {
+            "blocks": [
+              {
+                "type": "header",
+                "text": {
+                  "type": "plain_text",
+                  "text": "${EMOJI} Daily Test Documentation Generation"
+                }
+              },
+              {
+                "type": "section",
+                "fields": [
+                  {
+                    "type": "mrkdwn",
+                    "text": "*Status:*\n${STATUS}"
+                  },
+                  {
+                    "type": "mrkdwn",
+                    "text": "*Workflow Run:*\n<${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}|#${GITHUB_RUN_NUMBER}>"
+                  },
+                  {
+                    "type": "mrkdwn",
+                    "text": "*Repository:*\n${GITHUB_REPOSITORY}"
+                  },
+                  {
+                    "type": "mrkdwn",
+                    "text": "*Triggered By:*\n${GITHUB_ACTOR}"
+                  }
+                ]
+              },
+              {
+                "type": "section",
+                "text": {
+                  "type": "mrkdwn",
+                  "text": "*Summary:*\n${SUMMARY}"
+                }
+              },
+              {
+                "type": "section",
+                "text": {
+                  "type": "mrkdwn",
+                  "text": "*Workflow:*\n<${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/workflows/daily-documentation.yml|View Workflow>"
+                }
+              }
+            ]
+          }
+          EOF
+          )
+          
+          # Send to Slack
+          curl -X POST -H 'Content-type: application/json' \
+            --data "$PAYLOAD" \
+            "$SLACK_WEBHOOK_URL"
+          
+          echo "✅ Slack notification sent"
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          GITHUB_SERVER_URL: ${{ github.server_url }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
+          GITHUB_RUN_NUMBER: ${{ github.run_number }}
+          GITHUB_ACTOR: ${{ github.actor }}
+
+      - name: Upload documentation artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-documentation
+          path: |
+            documentation/AUTOMATED_TEST_DOCUMENTATION.md
+            documentation/.test-docs-metadata.json
+            docs_output.log
+          retention-days: 30
+
