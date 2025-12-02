@@ -10,8 +10,17 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import OpenAI from 'openai';
-import { GoogleGenerativeAI } from '@google/generative-ai';
 import axios from 'axios';
+
+// Try to import Google Gemini (optional)
+let GoogleGenerativeAI;
+try {
+    const geminiModule = await import('@google/generative-ai');
+    GoogleGenerativeAI = geminiModule.GoogleGenerativeAI;
+} catch (e) {
+    console.log('⚠️  Google Generative AI module not available, Gemini providers will be skipped');
+    GoogleGenerativeAI = null;
+}
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -46,20 +55,20 @@ const AI_PROVIDERS = [
         model: 'arcee-ai/trinity-mini:free',
         endpoint: 'https://openrouter.ai/api/v1/chat/completions'
     },
-    // Provider 3: Google Gemini
-    {
+    // Provider 3: Google Gemini (only if SDK available)
+    ...(GoogleGenerativeAI ? [{
         name: 'Google-Gemini-1',
         apiKey: process.env.AI_API_KEY_3,
         type: 'gemini',
         model: 'gemini-1.5-flash'
-    },
-    // Provider 4: Google Gemini (second key)
-    {
+    }] : []),
+    // Provider 4: Google Gemini (second key, only if SDK available)
+    ...(GoogleGenerativeAI ? [{
         name: 'Google-Gemini-2',
         apiKey: process.env.AI_API_KEY_4,
         type: 'gemini',
         model: 'gemini-1.5-flash'
-    },
+    }] : []),
     // Provider 5: OpenRouter - DeepSeek
     {
         name: 'OpenRouter-DeepSeek',
