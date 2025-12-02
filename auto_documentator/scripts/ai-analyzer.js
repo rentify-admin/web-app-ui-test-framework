@@ -1,9 +1,8 @@
 #!/usr/bin/env node
 /**
- * AI-Powered Test Analyzer with Multi-Provider Fallback
+ * AI-Powered Test Analyzer with Advanced Model Balancing
  * 
- * Attempts analysis with multiple AI providers until data is complete.
- * Ensures no fields are left with "{data not found}".
+ * Uses multiple AI providers with smart load balancing across parallel batches.
  */
 
 import fs from 'fs';
@@ -12,15 +11,14 @@ import { fileURLToPath } from 'url';
 import OpenAI from 'openai';
 import axios from 'axios';
 import { isProviderRateLimited, markProviderRateLimited, markProviderWorking } from './shared-rate-limiter.js';
+import { isModelBusy, markModelBusy, markModelAvailable, cleanupStaleLocks } from './model-balancer.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Configuration
 const AI_PROMPT_FILE = path.join(__dirname, '../prompts/test-analyzer-prompt.md');
 const OUTPUT_DIR = path.join(__dirname, '../../documentation');
 
-// Get arguments
 const batchFile = process.argv[2];
 const batchNumber = process.argv[3] || '0';
 
@@ -29,83 +27,164 @@ if (!batchFile) {
     process.exit(1);
 }
 
-// AI Providers configuration
-// Using multiple OpenAI keys to distribute load (3 RPM per key)
+// AI Providers - Multiple OpenAI keys + Many free OpenRouter models
 const AI_PROVIDERS = [
+    // OpenAI Keys (3 RPM each = 12 RPM total)
     {
         name: 'OpenAI-Key1',
         apiKey: process.env.AI_API_KEY,
         type: 'openai',
-        model: 'gpt-4o-mini',
-        rateLimit: { rpm: 3, lastReset: Date.now(), count: 0 }
+        model: 'gpt-4o-mini'
     },
     {
         name: 'OpenAI-Key2',
         apiKey: process.env.AI_API_KEY_6,
         type: 'openai',
-        model: 'gpt-4o-mini',
-        rateLimit: { rpm: 3, lastReset: Date.now(), count: 0 }
+        model: 'gpt-4o-mini'
     },
     {
         name: 'OpenAI-Key3',
         apiKey: process.env.AI_API_KEY_7,
         type: 'openai',
-        model: 'gpt-4o-mini',
-        rateLimit: { rpm: 3, lastReset: Date.now(), count: 0 }
+        model: 'gpt-4o-mini'
     },
     {
         name: 'OpenAI-Key4',
         apiKey: process.env.AI_API_KEY_8,
         type: 'openai',
-        model: 'gpt-4o-mini',
-        rateLimit: { rpm: 3, lastReset: Date.now(), count: 0 }
+        model: 'gpt-4o-mini'
+    },
+    // OpenRouter Models (all using AI_API_KEY_5)
+    {
+        name: 'OR-TNG-Chimera',
+        apiKey: process.env.AI_API_KEY_5,
+        type: 'openrouter',
+        model: 'tngtech/tng-r1t-chimera:free'
     },
     {
-        name: 'OpenRouter-Trinity',
+        name: 'OR-KAT-Coder',
+        apiKey: process.env.AI_API_KEY_5,
+        type: 'openrouter',
+        model: 'kwaipilot/kat-coder-pro:free'
+    },
+    {
+        name: 'OR-Grok-Fast',
+        apiKey: process.env.AI_API_KEY_5,
+        type: 'openrouter',
+        model: 'x-ai/grok-4.1-fast:free'
+    },
+    {
+        name: 'OR-Nemotron-VL',
+        apiKey: process.env.AI_API_KEY_5,
+        type: 'openrouter',
+        model: 'nvidia/nemotron-nano-12b-v2-vl:free'
+    },
+    {
+        name: 'OR-Nemotron-9B',
+        apiKey: process.env.AI_API_KEY_5,
+        type: 'openrouter',
+        model: 'nvidia/nemotron-nano-9b-v2:free'
+    },
+    {
+        name: 'OR-GPT-OSS',
+        apiKey: process.env.AI_API_KEY_5,
+        type: 'openrouter',
+        model: 'openai/gpt-oss-20b:free'
+    },
+    {
+        name: 'OR-Qwen-Coder',
+        apiKey: process.env.AI_API_KEY_5,
+        type: 'openrouter',
+        model: 'qwen/qwen3-coder:free'
+    },
+    {
+        name: 'OR-Kimi-K2',
+        apiKey: process.env.AI_API_KEY_5,
+        type: 'openrouter',
+        model: 'moonshotai/kimi-k2:free'
+    },
+    {
+        name: 'OR-Gemma-3n-E2B',
+        apiKey: process.env.AI_API_KEY_5,
+        type: 'openrouter',
+        model: 'google/gemma-3n-e2b-it:free'
+    },
+    {
+        name: 'OR-DeepSeek-Chimera',
+        apiKey: process.env.AI_API_KEY_5,
+        type: 'openrouter',
+        model: 'tngtech/deepseek-r1t2-chimera:free'
+    },
+    {
+        name: 'OR-Gemma-3n-E4B',
+        apiKey: process.env.AI_API_KEY_5,
+        type: 'openrouter',
+        model: 'google/gemma-3n-e4b-it:free'
+    },
+    {
+        name: 'OR-Gemma-4B',
+        apiKey: process.env.AI_API_KEY_5,
+        type: 'openrouter',
+        model: 'google/gemma-3-4b-it:free'
+    },
+    {
+        name: 'OR-Gemma-12B',
+        apiKey: process.env.AI_API_KEY_5,
+        type: 'openrouter',
+        model: 'google/gemma-3-12b-it:free'
+    },
+    {
+        name: 'OR-Gemma-27B',
+        apiKey: process.env.AI_API_KEY_5,
+        type: 'openrouter',
+        model: 'google/gemma-3-27b-it:free'
+    },
+    {
+        name: 'OR-Llama-70B',
+        apiKey: process.env.AI_API_KEY_5,
+        type: 'openrouter',
+        model: 'meta-llama/llama-3.3-70b-instruct:free'
+    },
+    {
+        name: 'OR-Llama-3B',
+        apiKey: process.env.AI_API_KEY_5,
+        type: 'openrouter',
+        model: 'meta-llama/llama-3.2-3b-instruct:free'
+    },
+    {
+        name: 'OR-DeepSeek-R1T',
+        apiKey: process.env.AI_API_KEY_5,
+        type: 'openrouter',
+        model: 'tngtech/deepseek-r1t-chimera:free'
+    },
+    {
+        name: 'OR-Mistral-24B',
+        apiKey: process.env.AI_API_KEY_5,
+        type: 'openrouter',
+        model: 'mistralai/mistral-small-3.1-24b-instruct:free'
+    },
+    // OpenRouter Trinity (separate key)
+    {
+        name: 'OR-Trinity',
         apiKey: process.env.AI_API_KEY_2,
         type: 'openrouter',
-        model: 'arcee-ai/trinity-mini:free',
-        endpoint: 'https://openrouter.ai/api/v1/chat/completions',
-        useReasoning: true
+        model: 'arcee-ai/trinity-mini:free'
     }
 ].filter(p => p.apiKey && p.apiKey.length > 10);
 
 console.log(`🔑 Available AI providers: ${AI_PROVIDERS.length}`);
 AI_PROVIDERS.forEach((p, i) => console.log(`   ${i + 1}. ${p.name}`));
 
-let currentProviderIndex = parseInt(batchNumber) % Math.max(AI_PROVIDERS.length, 1);
-let providerCallCounts = new Array(AI_PROVIDERS.length).fill(0);
+// Cleanup stale locks on startup
+cleanupStaleLocks();
 
-/**
- * Check OpenAI rate limit (3 RPM)
- */
-async function checkOpenAIRateLimit(provider) {
-    if (!provider.rateLimit) return;
-    
-    const now = Date.now();
-    const elapsed = now - provider.rateLimit.lastReset;
-    
-    if (elapsed >= 60000) {
-        provider.rateLimit.count = 0;
-        provider.rateLimit.lastReset = now;
-    }
-    
-    if (provider.rateLimit.count >= provider.rateLimit.rpm) {
-        const waitMs = 60000 - elapsed + 1000;
-        console.log(`   ⏳ OpenAI rate limit: waiting ${Math.ceil(waitMs / 1000)}s...`);
-        await new Promise(r => setTimeout(r, waitMs));
-        provider.rateLimit.count = 0;
-        provider.rateLimit.lastReset = Date.now();
-    }
-    
-    provider.rateLimit.count++;
-}
+let currentProviderIndex = parseInt(batchNumber) % Math.max(AI_PROVIDERS.length, 1);
 
 /**
  * Call AI provider with timeout
  */
 async function callAIProvider(provider, systemPrompt, userPrompt) {
-    const TIMEOUT_MS = 45000; // 45 second timeout
+    const TIMEOUT_MS = 45000;
     
     const timeoutPromise = new Promise((_, reject) => 
         setTimeout(() => reject(new Error('Request timeout')), TIMEOUT_MS)
@@ -113,8 +192,7 @@ async function callAIProvider(provider, systemPrompt, userPrompt) {
     
     const apiCall = async () => {
         if (provider.type === 'openai') {
-            await checkOpenAIRateLimit(provider);
-            const client = new OpenAI({ apiKey: provider.apiKey });
+            const client = new OpenAI({ apiKey: provider.apiKey, timeout: TIMEOUT_MS });
             const response = await client.chat.completions.create({
                 model: provider.model,
                 messages: [
@@ -126,7 +204,7 @@ async function callAIProvider(provider, systemPrompt, userPrompt) {
             });
             return JSON.parse(response.choices[0].message.content);
         } else if (provider.type === 'openrouter') {
-            const response = await axios.post(provider.endpoint, {
+            const response = await axios.post('https://openrouter.ai/api/v1/chat/completions', {
                 model: provider.model,
                 messages: [
                     { role: 'system', content: systemPrompt },
@@ -144,9 +222,6 @@ async function callAIProvider(provider, systemPrompt, userPrompt) {
             const content = response.data.choices[0].message.content;
             const jsonMatch = content.match(/\{[\s\S]*\}/);
             return JSON.parse(jsonMatch ? jsonMatch[0] : content);
-        } else if (provider.type === 'gemini') {
-            // Gemini not implemented - skip
-            throw new Error('Gemini provider not implemented');
         }
         
         throw new Error(`Unsupported provider type: ${provider.type}`);
@@ -156,116 +231,118 @@ async function callAIProvider(provider, systemPrompt, userPrompt) {
 }
 
 /**
- * Check if analysis result has missing data
+ * Calculate quality score
  */
-function hasMissingData(result) {
-    const json = JSON.stringify(result);
-    return json.includes('{data not found}') || 
-           json.includes('N/A') ||
-           !result.dataUsed?.users?.length ||
-           !result.stepsAndVerifications?.length;
+function calculateQualityScore(result) {
+    let score = 0;
+    if (result.summary && result.summary.length > 50) score += 20;
+    if (result.functionalitiesCovered?.length > 0) score += 15;
+    if (result.stepsAndVerifications?.length > 0) score += 25;
+    if (result.dataUsed?.users?.length > 0) score += 10;
+    if (result.dataUsed?.applications?.length > 0) score += 10;
+    if (result.dataUsed?.otherData?.length > 0) score += 10;
+    if (result.tags?.length > 0) score += 10;
+    return Math.min(100, score);
 }
 
 /**
- * Analyze test with AI and fallback
+ * Analyze test with AI fallback and smart balancing
  */
 async function analyzeTestWithFallback(testFilePath) {
     const fileName = path.basename(testFilePath);
     const testContent = fs.readFileSync(testFilePath, 'utf-8');
     const promptTemplate = fs.readFileSync(AI_PROMPT_FILE, 'utf-8');
     
-    const systemPrompt = 'You are an expert Playwright test analyzer. Extract ALL information from test code with extreme thoroughness. Return ONLY valid JSON.';
-    const userPrompt = `${promptTemplate}
-
-## Test File: ${fileName}
-
-\`\`\`javascript
-${testContent}
-\`\`\`
-
-Analyze every line thoroughly and extract ALL information. Be specific and detailed.`;
+    const systemPrompt = "You are an expert test documentation analyst. Return ONLY valid JSON.";
+    const userPrompt = `${promptTemplate}\n\n## Test File to Analyze\n\n\`\`\`javascript\n${testContent}\n\`\`\``;
     
     console.log(`\n📄 ${fileName}`);
     
     let bestResult = null;
     let bestScore = 0;
+    let attempts = 0;
+    const MAX_ATTEMPTS = Math.min(AI_PROVIDERS.length, 5);
     
-    // Try up to 3 different providers for best results
-    const providersToTry = Math.min(3, AI_PROVIDERS.length);
-    
-    for (let attempt = 0; attempt < providersToTry; attempt++) {
-        const providerIdx = (currentProviderIndex + attempt) % AI_PROVIDERS.length;
-        const provider = AI_PROVIDERS[providerIdx];
+    while (attempts < MAX_ATTEMPTS && bestScore < 85) {
+        // Find next available provider (not busy, not rate limited)
+        let provider = null;
+        let providerIdx = currentProviderIndex;
         
-        // Skip providers that are rate limited (tracked globally across batches)
-        if (isProviderRateLimited(provider.name)) {
-            console.log(`   ⏭️  Skipping ${provider.name} (rate limited in another batch)`);
+        for (let i = 0; i < AI_PROVIDERS.length; i++) {
+            const idx = (providerIdx + i) % AI_PROVIDERS.length;
+            const candidate = AI_PROVIDERS[idx];
+            
+            // Skip if rate limited globally
+            if (isProviderRateLimited(candidate.name)) {
+                continue;
+            }
+            
+            // Skip if model is busy in another batch
+            if (isModelBusy(candidate.name)) {
+                continue;
+            }
+            
+            provider = candidate;
+            providerIdx = idx;
+            break;
+        }
+        
+        if (!provider) {
+            console.log(`   ⏳ All models busy or rate limited - waiting 2s...`);
+            await new Promise(r => setTimeout(r, 2000));
+            cleanupStaleLocks(); // Clean up any stale locks
             continue;
         }
         
-        console.log(`   🤖 Attempt ${attempt + 1}: ${provider.name}...`);
-        providerCallCounts[providerIdx]++;
+        attempts++;
+        console.log(`   🤖 Attempt ${attempts}: ${provider.name}...`);
+        
+        // Mark model as busy
+        markModelBusy(provider.name, batchNumber);
         
         try {
             const result = await callAIProvider(provider, systemPrompt, userPrompt);
-            
-            // Mark provider as working
-            markProviderWorking(provider.name);
-            
-            // Score the result based on completeness
-            let score = 0;
-            if (result.summary && result.summary.length > 50) score += 20;
-            if (result.functionalitiesCovered?.length > 0) score += 15;
-            if (result.stepsAndVerifications?.length > 0) score += 25;
-            if (result.dataUsed?.users?.length > 0) score += 10;
-            if (result.dataUsed?.applications?.length > 0) score += 10;
-            if (result.dataUsed?.otherData?.length > 0) score += 10;
-            if (result.tags?.length > 0) score += 10;
+            const score = calculateQualityScore(result);
             
             console.log(`   📊 Score: ${score}/100`);
+            
+            markProviderWorking(provider.name);
             
             if (score > bestScore) {
                 bestScore = score;
                 bestResult = result;
             }
             
-            // If we got a perfect or near-perfect score, stop
             if (score >= 85) {
-                console.log(`   ✅ Excellent result (${score}/100) - using this analysis`);
+                console.log(`   ✅ Excellent result (${score}/100)`);
                 break;
-            } else if (!hasMissingData(result)) {
-                console.log(`   ✅ Complete data found - using this analysis`);
-                break;
-            } else {
-                console.log(`   ⚠️  Incomplete data (${score}/100) - trying next provider...`);
-                await new Promise(r => setTimeout(r, 500)); // Small delay
             }
+            
+            await new Promise(r => setTimeout(r, 500));
             
         } catch (error) {
             console.log(`   ❌ ${provider.name} failed:`, error.message?.substring(0, 80));
             
-            // Mark provider as rate limited or unavailable globally
             if (error.status === 429 || error.response?.status === 429) {
-                console.log(`   🚫 Rate limit - marking ${provider.name} as unavailable`);
-                markProviderRateLimited(provider.name);
-                await new Promise(r => setTimeout(r, 2000));
-            } else if (error.status === 401 || error.response?.status === 401) {
-                console.log(`   🚫 Auth error - marking ${provider.name} as unavailable`);
+                console.log(`   🚫 Rate limit - marking as unavailable`);
                 markProviderRateLimited(provider.name);
             } else if (error.status === 402 || error.response?.status === 402) {
-                console.log(`   🚫 Payment required - marking ${provider.name} as unavailable`);
+                console.log(`   🚫 Payment required - marking as unavailable`);
                 markProviderRateLimited(provider.name);
-            } else if (error.message?.includes('timeout')) {
-                console.log(`   ⏱️  Timeout - will retry with different provider`);
+            } else if (error.status === 401 || error.response?.status === 401) {
+                console.log(`   🚫 Auth error - marking as unavailable`);
+                markProviderRateLimited(provider.name);
             }
+        } finally {
+            // Always free up the model
+            markModelAvailable(provider.name);
         }
+        
+        currentProviderIndex = (providerIdx + 1) % AI_PROVIDERS.length;
     }
     
-    // Move to next provider for next file
-    currentProviderIndex = (currentProviderIndex + 1) % AI_PROVIDERS.length;
-    
     if (!bestResult) {
-        console.log(`   ❌ All providers failed`);
+        console.log(`   ❌ All attempts failed`);
         return null;
     }
     
@@ -276,121 +353,88 @@ Analyze every line thoroughly and extract ALL information. Be specific and detai
 /**
  * Generate markdown from AI result
  */
-function generateMarkdown(aiResult, fileName, filePath) {
+function generateMarkdown(aiResult, fileName) {
     if (!aiResult) return null;
     
-    const timestamp = new Date().toISOString();
-    const humanTime = new Date(timestamp).toLocaleString('en-US', { 
-        timeZone: 'UTC', 
-        year: 'numeric', 
-        month: '2-digit', 
-        day: '2-digit', 
-        hour: '2-digit', 
-        minute: '2-digit', 
-        second: '2-digit', 
-        hour12: false 
-    });
-    
-    const formatList = (arr) => arr && arr.length > 0 ? arr.join(', ') : '{data not found}';
+    const formatArray = (arr) => arr && arr.length > 0 ? arr.map(item => `- ${item}`).join('\n') : '- {data not found}';
+    const formatInline = (arr) => arr && arr.length > 0 ? arr.map(t => `\`${t}\``).join(' ') : '{data not found}';
     
     const stepsTable = aiResult.stepsAndVerifications?.map(s => 
         `| **${s.step}** | ${s.action || '{data not found}'} | ${s.verification || '{data not found}'} |`
     ).join('\n') || '| {data not found} | {data not found} | {data not found} |';
     
-    const funcList = aiResult.functionalitiesCovered?.map(f => `- ${f}`).join('\n') || '- {data not found}';
-    
-    const tags = aiResult.tags?.length > 0 ? aiResult.tags.join(' ') : '{data not found}';
-    
-    const data = aiResult.dataUsed || {};
-    
-    return `## 🧪 \`${fileName}\` → \`${aiResult.testTitle || '{data not found}'}\`
+    return `
+## 🧪 \`${fileName}\` → \`${aiResult.testTitle || '{data not found}'}\`
 
 **Summary:** ${aiResult.summary || '{data not found}'}
 
-**Tags:** ${tags}
+**Tags:** ${formatInline(aiResult.tags)}
 
-### Functionalities Covered
+**Functionalities Covered:**
+${formatArray(aiResult.functionalitiesCovered)}
 
-${funcList}
-
-### Test Data Used
+**Test Data Used:**
 
 | Data Type | Details |
 |-----------|---------|
-| **Users** | ${formatList(data.users)} |
-| **Applications** | ${formatList(data.applications)} |
-| **Sessions** | ${formatList(data.sessions)} |
-| **API Payloads** | ${formatList(data.apiPayloads)} |
-| **Other Data** | ${formatList(data.otherData)} |
+| **Users** | ${aiResult.dataUsed?.users?.join(', ') || '{data not found}'} |
+| **Applications** | ${aiResult.dataUsed?.applications?.join(', ') || '{data not found}'} |
+| **Sessions** | ${aiResult.dataUsed?.sessions?.join(', ') || '{data not found}'} |
+| **API Payloads** | ${aiResult.dataUsed?.apiPayloads?.join(', ') || '{data not found}'} |
+| **Other Data** | ${aiResult.dataUsed?.otherData?.join(', ') || '{data not found}'} |
 
-### Steps & Verifications
+**Steps & Verifications:**
 
 | Step | Action | Verification |
 |------|--------|--------------|
 ${stepsTable}
 
 ---
-
-**Last Updated:** ${humanTime} UTC
-
----
 `;
 }
 
 /**
- * Main
+ * Main execution
  */
 async function main() {
+    const testFiles = fs.readFileSync(batchFile, 'utf-8').split('\n').filter(f => f.trim());
+    
     console.log(`📦 AI Analysis - Batch ${batchNumber}`);
+    console.log(`✅ Processing ${testFiles.length} tests with AI fallback\n`);
     
-    if (!fs.existsSync(batchFile)) {
-        console.error(`❌ Batch file not found: ${batchFile}`);
-        process.exit(1);
-    }
-    
-    const testFiles = fs.readFileSync(batchFile, 'utf-8')
-        .split('\n')
-        .filter(l => l.trim());
-    
-    console.log(`✅ Processing ${testFiles.length} tests with AI fallback`);
-    
-    const entries = [];
-    let successCount = 0;
+    const results = [];
     
     for (const testFile of testFiles) {
-        const fullPath = path.join(__dirname, '../..', testFile);
+        if (!testFile.trim()) continue;
         
-        if (!fs.existsSync(fullPath)) continue;
-        
-        const aiResult = await analyzeTestWithFallback(fullPath);
+        const aiResult = await analyzeTestWithFallback(testFile);
         
         if (aiResult) {
-            const markdown = generateMarkdown(aiResult, path.basename(testFile), testFile);
-            if (markdown) {
-                entries.push({ fileName: path.basename(testFile), markdown, aiResult });
-                successCount++;
-            }
+            results.push({
+                fileName: path.basename(testFile),
+                filePath: testFile,
+                aiResult: aiResult,
+                markdown: generateMarkdown(aiResult, path.basename(testFile))
+            });
         }
-        
-        await new Promise(r => setTimeout(r, 200)); // Delay between files
     }
     
-    // Save results
-    fs.writeFileSync(path.join(OUTPUT_DIR, `batch-${batchNumber}.json`), JSON.stringify(entries, null, 2));
+    // Save JSON results
+    const jsonFile = path.join(OUTPUT_DIR, `batch-${batchNumber}.json`);
+    fs.mkdirSync(OUTPUT_DIR, { recursive: true });
+    fs.writeFileSync(jsonFile, JSON.stringify({
+        batchNumber: parseInt(batchNumber),
+        testsProcessed: testFiles.length,
+        aiSuccess: results.length,
+        entries: results
+    }, null, 2));
     
     console.log(`\n✅ Batch ${batchNumber} complete:`);
     console.log(`   Tests processed: ${testFiles.length}`);
-    console.log(`   AI analyses successful: ${successCount}`);
-    console.log(`\n📊 Provider usage:`);
-    providerCallCounts.forEach((count, i) => {
-        if (AI_PROVIDERS[i]) {
-            console.log(`   ${AI_PROVIDERS[i].name}: ${count} calls`);
-        }
-    });
+    console.log(`   AI analyses successful: ${results.length}\n`);
 }
 
-main().catch(e => {
-    console.error('❌ Error:', e);
+main().catch(error => {
+    console.error('❌ Fatal error:', error);
     process.exit(1);
 });
-
