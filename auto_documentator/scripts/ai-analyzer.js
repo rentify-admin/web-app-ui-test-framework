@@ -25,11 +25,8 @@ if (!batchFile) {
     process.exit(1);
 }
 
-// AI Providers - Each batch gets ONE dedicated provider
+// AI Providers - OpenRouter ONLY (with credits = 1000 requests/day, 20 RPM)
 const AI_PROVIDERS = [
-    { name: 'OpenAI-Key1', apiKey: process.env.AI_API_KEY, type: 'openai', model: 'gpt-4o-mini' },
-    { name: 'OpenAI-Key2', apiKey: process.env.AI_API_KEY_6, type: 'openai', model: 'gpt-4o-mini' },
-    { name: 'OpenAI-Key3', apiKey: process.env.AI_API_KEY_7, type: 'openai', model: 'gpt-4o-mini' },
     { name: 'OR-Llama-70B', apiKey: process.env.AI_API_KEY_5, type: 'openrouter', model: 'meta-llama/llama-3.3-70b-instruct:free' },
     { name: 'OR-Llama-3B', apiKey: process.env.AI_API_KEY_5, type: 'openrouter', model: 'meta-llama/llama-3.2-3b-instruct:free' },
     { name: 'OR-Gemma-27B', apiKey: process.env.AI_API_KEY_5, type: 'openrouter', model: 'google/gemma-3-27b-it:free' },

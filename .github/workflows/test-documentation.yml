@@ -21,26 +21,26 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
-      - name: Split tests into 10 batches (1 per AI provider)
+      - name: Split tests into 7 batches (1 per OpenRouter model)
         id: split
         run: |
           TEST_FILES=$(find tests -name "*.spec.js" -o -name "*.test.js" | sort)
           TOTAL=$(echo "$TEST_FILES" | wc -l | tr -d ' ')
           
-          echo "✅ $TOTAL tests → 10 batches (1 provider per batch, modulo distribution)"
+          echo "✅ $TOTAL tests → 7 batches (OpenRouter with credits: 20 RPM, 1000/day)"
           
           mkdir -p batches
           
-          # Initialize 10 empty batch files
-          for i in {0..9}; do
+          # Initialize 7 empty batch files
+          for i in {0..6}; do
             > "batches/batch-${i}.txt"
           done
           
-          # Distribute tests using modulo (test_index % 10 = batch_number)
+          # Distribute tests using modulo (test_index % 7 = batch_number)
           INDEX=0
           echo "$TEST_FILES" | while read -r FILE; do
             if [ -n "$FILE" ]; then
-              BATCH=$((INDEX % 10))
+              BATCH=$((INDEX % 7))
               echo "$FILE" >> "batches/batch-${BATCH}.txt"
               INDEX=$((INDEX + 1))
             fi
@@ -48,8 +48,8 @@ jobs:
           
           # Show distribution
           echo ""
-          echo "📊 Batch distribution:"
-          for i in {0..9}; do
+          echo "📊 Batch distribution (OpenRouter models):"
+          for i in {0..6}; do
             COUNT=$(wc -l < "batches/batch-${i}.txt" | tr -d ' ')
             echo "   Batch $i: $COUNT tests"
           done
@@ -63,13 +63,14 @@ jobs:
           retention-days: 1
 
   # Job 2: Process batches with AI (parallel, 1 provider per batch)
+  # OpenRouter with credits: 1000 req/day, 20 RPM
   analyze:
     name: 2️⃣ AI Batch ${{ matrix.batch }}
     runs-on: ubuntu-latest
     needs: prepare
     strategy:
       matrix:
-        batch: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+        batch: [0, 1, 2, 3, 4, 5, 6]
       fail-fast: false
     
     steps:
