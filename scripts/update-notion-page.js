@@ -16,7 +16,7 @@ const __dirname = path.dirname(__filename);
 
 const DOC_FILE = path.join(__dirname, '../documentation/CONSOLIDATED_DOCUMENTATION.md');
 const NOTION_SECRET = process.env.NOTION_SECRET;
-const NOTION_PAGE_ID = process.env.NOTION_PAGE_ID;
+const NOTION_PAGE_ID = process.env.NOTION_PAGE_ID || '2bdd92a99cff809e98ddcec14e6b7bdc';
 
 if (!NOTION_SECRET) {
     console.error('❌ NOTION_SECRET environment variable is required');
