@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 /**
- * AI-Powered Test Analyzer with Advanced Model Balancing
+ * AI-Powered Test Analyzer - Dedicated Provider Mode
  * 
- * Uses multiple AI providers with smart load balancing across parallel batches.
+ * Each batch uses ONE dedicated AI provider to avoid conflicts.
  */
 
 import fs from 'fs';
@@ -10,8 +10,6 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import OpenAI from 'openai';
 import axios from 'axios';
-import { isProviderRateLimited, markProviderRateLimited, markProviderWorking } from './shared-rate-limiter.js';
-import { isModelBusy, markModelBusy, markModelAvailable, cleanupStaleLocks } from './model-balancer.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -20,97 +18,42 @@ const AI_PROMPT_FILE = path.join(__dirname, '../prompts/test-analyzer-prompt.md'
 const OUTPUT_DIR = path.join(__dirname, '../../documentation');
 
 const batchFile = process.argv[2];
-const batchNumber = process.argv[3] || '0';
+const batchNumber = parseInt(process.argv[3]) || 0;
 
 if (!batchFile) {
-    console.error('❌ Usage: node ai-analyzer.js <batch-file> [batch-number]');
+    console.error('❌ Usage: node ai-analyzer.js <batch-file> <batch-number>');
     process.exit(1);
 }
 
-// AI Providers - 3 OpenAI keys + Working OpenRouter models
+// AI Providers - Each batch gets ONE dedicated provider
 const AI_PROVIDERS = [
-    // OpenAI Keys (3 RPM each = 9 RPM total with 3 keys)
-    {
-        name: 'OpenAI-Key1',
-        apiKey: process.env.AI_API_KEY,
-        type: 'openai',
-        model: 'gpt-4o-mini'
-    },
-    {
-        name: 'OpenAI-Key2',
-        apiKey: process.env.AI_API_KEY_6,
-        type: 'openai',
-        model: 'gpt-4o-mini'
-    },
-    {
-        name: 'OpenAI-Key3',
-        apiKey: process.env.AI_API_KEY_7,
-        type: 'openai',
-        model: 'gpt-4o-mini'
-    },
-    // OpenRouter Working Models (AI_API_KEY_5)
-    {
-        name: 'OR-Llama-70B',
-        apiKey: process.env.AI_API_KEY_5,
-        type: 'openrouter',
-        model: 'meta-llama/llama-3.3-70b-instruct:free'
-    },
-    {
-        name: 'OR-Llama-3B',
-        apiKey: process.env.AI_API_KEY_5,
-        type: 'openrouter',
-        model: 'meta-llama/llama-3.2-3b-instruct:free'
-    },
-    {
-        name: 'OR-Gemma-27B',
-        apiKey: process.env.AI_API_KEY_5,
-        type: 'openrouter',
-        model: 'google/gemma-3-27b-it:free'
-    },
-    {
-        name: 'OR-Gemma-12B',
-        apiKey: process.env.AI_API_KEY_5,
-        type: 'openrouter',
-        model: 'google/gemma-3-12b-it:free'
-    },
-    {
-        name: 'OR-Mistral-24B',
-        apiKey: process.env.AI_API_KEY_5,
-        type: 'openrouter',
-        model: 'mistralai/mistral-small-3.1-24b-instruct:free'
-    },
-    {
-        name: 'OR-Qwen-Coder',
-        apiKey: process.env.AI_API_KEY_5,
-        type: 'openrouter',
-        model: 'qwen/qwen3-coder:free'
-    },
-    // OpenRouter Trinity (AI_API_KEY_2)
-    {
-        name: 'OR-Trinity',
-        apiKey: process.env.AI_API_KEY_2,
-        type: 'openrouter',
-        model: 'arcee-ai/trinity-mini:free'
-    }
+    { name: 'OpenAI-Key1', apiKey: process.env.AI_API_KEY, type: 'openai', model: 'gpt-4o-mini' },
+    { name: 'OpenAI-Key2', apiKey: process.env.AI_API_KEY_6, type: 'openai', model: 'gpt-4o-mini' },
+    { name: 'OpenAI-Key3', apiKey: process.env.AI_API_KEY_7, type: 'openai', model: 'gpt-4o-mini' },
+    { name: 'OR-Llama-70B', apiKey: process.env.AI_API_KEY_5, type: 'openrouter', model: 'meta-llama/llama-3.3-70b-instruct:free' },
+    { name: 'OR-Llama-3B', apiKey: process.env.AI_API_KEY_5, type: 'openrouter', model: 'meta-llama/llama-3.2-3b-instruct:free' },
+    { name: 'OR-Gemma-27B', apiKey: process.env.AI_API_KEY_5, type: 'openrouter', model: 'google/gemma-3-27b-it:free' },
+    { name: 'OR-Gemma-12B', apiKey: process.env.AI_API_KEY_5, type: 'openrouter', model: 'google/gemma-3-12b-it:free' },
+    { name: 'OR-Mistral-24B', apiKey: process.env.AI_API_KEY_5, type: 'openrouter', model: 'mistralai/mistral-small-3.1-24b-instruct:free' },
+    { name: 'OR-Qwen-Coder', apiKey: process.env.AI_API_KEY_5, type: 'openrouter', model: 'qwen/qwen3-coder:free' },
+    { name: 'OR-Trinity', apiKey: process.env.AI_API_KEY_2, type: 'openrouter', model: 'arcee-ai/trinity-mini:free' }
 ].filter(p => p.apiKey && p.apiKey.length > 10);
 
-console.log(`🔑 Available AI providers: ${AI_PROVIDERS.length}`);
-AI_PROVIDERS.forEach((p, i) => console.log(`   ${i + 1}. ${p.name}`));
+// Dedicated provider for this batch
+const DEDICATED_PROVIDER = AI_PROVIDERS[batchNumber % AI_PROVIDERS.length];
 
-// Cleanup stale locks on startup
-cleanupStaleLocks();
+if (!DEDICATED_PROVIDER) {
+    console.error(`❌ No provider available for batch ${batchNumber}`);
+    process.exit(1);
+}
 
-let currentProviderIndex = parseInt(batchNumber) % Math.max(AI_PROVIDERS.length, 1);
+console.log(`🎯 Batch ${batchNumber} - Dedicated Provider: ${DEDICATED_PROVIDER.name}`);
 
 /**
  * Call AI provider with timeout
  */
-async function callAIProvider(provider, systemPrompt, userPrompt) {
+async function callAI(provider, systemPrompt, userPrompt) {
     const TIMEOUT_MS = 45000;
-    
-    const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Request timeout')), TIMEOUT_MS)
-    );
     
     const apiCall = async () => {
         if (provider.type === 'openai') {
@@ -149,28 +92,17 @@ async function callAIProvider(provider, systemPrompt, userPrompt) {
         throw new Error(`Unsupported provider type: ${provider.type}`);
     };
     
+    const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Request timeout')), TIMEOUT_MS)
+    );
+    
     return Promise.race([apiCall(), timeoutPromise]);
 }
 
 /**
- * Calculate quality score
+ * Analyze single test
  */
-function calculateQualityScore(result) {
-    let score = 0;
-    if (result.summary && result.summary.length > 50) score += 20;
-    if (result.functionalitiesCovered?.length > 0) score += 15;
-    if (result.stepsAndVerifications?.length > 0) score += 25;
-    if (result.dataUsed?.users?.length > 0) score += 10;
-    if (result.dataUsed?.applications?.length > 0) score += 10;
-    if (result.dataUsed?.otherData?.length > 0) score += 10;
-    if (result.tags?.length > 0) score += 10;
-    return Math.min(100, score);
-}
-
-/**
- * Analyze test with AI fallback and smart balancing
- */
-async function analyzeTestWithFallback(testFilePath) {
+async function analyzeTest(testFilePath) {
     const fileName = path.basename(testFilePath);
     const testContent = fs.readFileSync(testFilePath, 'utf-8');
     const promptTemplate = fs.readFileSync(AI_PROMPT_FILE, 'utf-8');
@@ -180,100 +112,45 @@ async function analyzeTestWithFallback(testFilePath) {
     
     console.log(`\n📄 ${fileName}`);
     
-    let bestResult = null;
-    let bestScore = 0;
-    let attempts = 0;
-    const MAX_ATTEMPTS = Math.min(AI_PROVIDERS.length, 5);
+    const MAX_RETRIES = 3;
     
-    while (attempts < MAX_ATTEMPTS && bestScore < 85) {
-        // Find next available provider (not busy, not rate limited)
-        let provider = null;
-        let providerIdx = currentProviderIndex;
-        
-        for (let i = 0; i < AI_PROVIDERS.length; i++) {
-            const idx = (providerIdx + i) % AI_PROVIDERS.length;
-            const candidate = AI_PROVIDERS[idx];
-            
-            // Skip if rate limited globally
-            if (isProviderRateLimited(candidate.name)) {
-                continue;
-            }
-            
-            // Skip if model is busy in another batch
-            if (isModelBusy(candidate.name)) {
-                continue;
-            }
-            
-            provider = candidate;
-            providerIdx = idx;
-            break;
-        }
-        
-        if (!provider) {
-            console.log(`   ⏳ All models busy or rate limited - waiting 2s...`);
-            await new Promise(r => setTimeout(r, 2000));
-            cleanupStaleLocks(); // Clean up any stale locks
-            continue;
-        }
-        
-        attempts++;
-        console.log(`   🤖 Attempt ${attempts}: ${provider.name}...`);
-        
-        // Mark model as busy
-        markModelBusy(provider.name, batchNumber);
-        
+    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
         try {
-            const result = await callAIProvider(provider, systemPrompt, userPrompt);
-            const score = calculateQualityScore(result);
+            console.log(`   🤖 Attempt ${attempt}/${MAX_RETRIES} with ${DEDICATED_PROVIDER.name}...`);
             
-            console.log(`   📊 Score: ${score}/100`);
+            const result = await callAI(DEDICATED_PROVIDER, systemPrompt, userPrompt);
             
-            markProviderWorking(provider.name);
+            // Score quality
+            let score = 0;
+            if (result.summary && result.summary.length > 50) score += 20;
+            if (result.functionalitiesCovered?.length > 0) score += 15;
+            if (result.stepsAndVerifications?.length > 0) score += 25;
+            if (result.dataUsed?.users?.length > 0) score += 10;
+            if (result.dataUsed?.applications?.length > 0) score += 10;
+            if (result.dataUsed?.otherData?.length > 0) score += 10;
+            if (result.tags?.length > 0) score += 10;
             
-            if (score > bestScore) {
-                bestScore = score;
-                bestResult = result;
-            }
-            
-            if (score >= 85) {
-                console.log(`   ✅ Excellent result (${score}/100)`);
-                break;
-            }
-            
-            await new Promise(r => setTimeout(r, 500));
+            console.log(`   ✅ Success (Score: ${score}/100)`);
+            return result;
             
         } catch (error) {
-            console.log(`   ❌ ${provider.name} failed:`, error.message?.substring(0, 80));
+            const errorMsg = error.message?.substring(0, 80) || error.toString().substring(0, 80);
+            console.log(`   ❌ Attempt ${attempt} failed: ${errorMsg}`);
             
-            if (error.status === 429 || error.response?.status === 429) {
-                console.log(`   🚫 Rate limit - marking as unavailable`);
-                markProviderRateLimited(provider.name);
-            } else if (error.status === 402 || error.response?.status === 402) {
-                console.log(`   🚫 Payment required - marking as unavailable`);
-                markProviderRateLimited(provider.name);
-            } else if (error.status === 401 || error.response?.status === 401) {
-                console.log(`   🚫 Auth error - marking as unavailable`);
-                markProviderRateLimited(provider.name);
+            if (attempt < MAX_RETRIES) {
+                const waitTime = attempt * 5; // 5s, 10s, 15s
+                console.log(`   ⏳ Waiting ${waitTime}s before retry...`);
+                await new Promise(r => setTimeout(r, waitTime * 1000));
             }
-        } finally {
-            // Always free up the model
-            markModelAvailable(provider.name);
         }
-        
-        currentProviderIndex = (providerIdx + 1) % AI_PROVIDERS.length;
     }
     
-    if (!bestResult) {
-        console.log(`   ❌ All attempts failed`);
-        return null;
-    }
-    
-    console.log(`   ✅ Final score: ${bestScore}/100`);
-    return bestResult;
+    console.log(`   ❌ All ${MAX_RETRIES} attempts failed`);
+    return null;
 }
 
 /**
- * Generate markdown from AI result
+ * Generate markdown
  */
 function generateMarkdown(aiResult, fileName) {
     if (!aiResult) return null;
@@ -316,20 +193,21 @@ ${stepsTable}
 }
 
 /**
- * Main execution
+ * Main
  */
 async function main() {
     const testFiles = fs.readFileSync(batchFile, 'utf-8').split('\n').filter(f => f.trim());
     
-    console.log(`📦 AI Analysis - Batch ${batchNumber}`);
-    console.log(`✅ Processing ${testFiles.length} tests with AI fallback\n`);
+    console.log(`\n📦 Processing ${testFiles.length} tests sequentially`);
+    console.log(`🔒 Using dedicated provider only (no fallback)`);
+    console.log('');
     
     const results = [];
     
     for (const testFile of testFiles) {
         if (!testFile.trim()) continue;
         
-        const aiResult = await analyzeTestWithFallback(testFile);
+        const aiResult = await analyzeTest(testFile);
         
         if (aiResult) {
             results.push({
@@ -339,15 +217,15 @@ async function main() {
                 markdown: generateMarkdown(aiResult, path.basename(testFile))
             });
         }
+        
+        // Small delay between tests to avoid rate limits
+        await new Promise(r => setTimeout(r, 1000));
     }
     
-    // Save JSON results
+    // Save JSON
     const jsonFile = path.join(OUTPUT_DIR, `batch-${batchNumber}.json`);
     fs.mkdirSync(OUTPUT_DIR, { recursive: true });
     fs.writeFileSync(jsonFile, JSON.stringify({
-        batchNumber: parseInt(batchNumber),
-        testsProcessed: testFiles.length,
-        aiSuccess: results.length,
         entries: results
     }, null, 2));
     
