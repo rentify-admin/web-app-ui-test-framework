@@ -27,9 +27,9 @@ if (!batchFile) {
     process.exit(1);
 }
 
-// AI Providers - Multiple OpenAI keys + Many free OpenRouter models
+// AI Providers - 2 OpenAI keys + Working OpenRouter models
 const AI_PROVIDERS = [
-    // OpenAI Keys (3 RPM each = 12 RPM total)
+    // OpenAI Keys (3 RPM each = 6 RPM total with 2 keys)
     {
         name: 'OpenAI-Key1',
         apiKey: process.env.AI_API_KEY,
@@ -42,103 +42,7 @@ const AI_PROVIDERS = [
         type: 'openai',
         model: 'gpt-4o-mini'
     },
-    {
-        name: 'OpenAI-Key3',
-        apiKey: process.env.AI_API_KEY_7,
-        type: 'openai',
-        model: 'gpt-4o-mini'
-    },
-    {
-        name: 'OpenAI-Key4',
-        apiKey: process.env.AI_API_KEY_8,
-        type: 'openai',
-        model: 'gpt-4o-mini'
-    },
-    // OpenRouter Models (all using AI_API_KEY_5)
-    {
-        name: 'OR-TNG-Chimera',
-        apiKey: process.env.AI_API_KEY_5,
-        type: 'openrouter',
-        model: 'tngtech/tng-r1t-chimera:free'
-    },
-    {
-        name: 'OR-KAT-Coder',
-        apiKey: process.env.AI_API_KEY_5,
-        type: 'openrouter',
-        model: 'kwaipilot/kat-coder-pro:free'
-    },
-    {
-        name: 'OR-Grok-Fast',
-        apiKey: process.env.AI_API_KEY_5,
-        type: 'openrouter',
-        model: 'x-ai/grok-4.1-fast:free'
-    },
-    {
-        name: 'OR-Nemotron-VL',
-        apiKey: process.env.AI_API_KEY_5,
-        type: 'openrouter',
-        model: 'nvidia/nemotron-nano-12b-v2-vl:free'
-    },
-    {
-        name: 'OR-Nemotron-9B',
-        apiKey: process.env.AI_API_KEY_5,
-        type: 'openrouter',
-        model: 'nvidia/nemotron-nano-9b-v2:free'
-    },
-    {
-        name: 'OR-GPT-OSS',
-        apiKey: process.env.AI_API_KEY_5,
-        type: 'openrouter',
-        model: 'openai/gpt-oss-20b:free'
-    },
-    {
-        name: 'OR-Qwen-Coder',
-        apiKey: process.env.AI_API_KEY_5,
-        type: 'openrouter',
-        model: 'qwen/qwen3-coder:free'
-    },
-    {
-        name: 'OR-Kimi-K2',
-        apiKey: process.env.AI_API_KEY_5,
-        type: 'openrouter',
-        model: 'moonshotai/kimi-k2:free'
-    },
-    {
-        name: 'OR-Gemma-3n-E2B',
-        apiKey: process.env.AI_API_KEY_5,
-        type: 'openrouter',
-        model: 'google/gemma-3n-e2b-it:free'
-    },
-    {
-        name: 'OR-DeepSeek-Chimera',
-        apiKey: process.env.AI_API_KEY_5,
-        type: 'openrouter',
-        model: 'tngtech/deepseek-r1t2-chimera:free'
-    },
-    {
-        name: 'OR-Gemma-3n-E4B',
-        apiKey: process.env.AI_API_KEY_5,
-        type: 'openrouter',
-        model: 'google/gemma-3n-e4b-it:free'
-    },
-    {
-        name: 'OR-Gemma-4B',
-        apiKey: process.env.AI_API_KEY_5,
-        type: 'openrouter',
-        model: 'google/gemma-3-4b-it:free'
-    },
-    {
-        name: 'OR-Gemma-12B',
-        apiKey: process.env.AI_API_KEY_5,
-        type: 'openrouter',
-        model: 'google/gemma-3-12b-it:free'
-    },
-    {
-        name: 'OR-Gemma-27B',
-        apiKey: process.env.AI_API_KEY_5,
-        type: 'openrouter',
-        model: 'google/gemma-3-27b-it:free'
-    },
+    // OpenRouter Working Models (AI_API_KEY_5)
     {
         name: 'OR-Llama-70B',
         apiKey: process.env.AI_API_KEY_5,
@@ -152,10 +56,16 @@ const AI_PROVIDERS = [
         model: 'meta-llama/llama-3.2-3b-instruct:free'
     },
     {
-        name: 'OR-DeepSeek-R1T',
+        name: 'OR-Gemma-27B',
         apiKey: process.env.AI_API_KEY_5,
         type: 'openrouter',
-        model: 'tngtech/deepseek-r1t-chimera:free'
+        model: 'google/gemma-3-27b-it:free'
+    },
+    {
+        name: 'OR-Gemma-12B',
+        apiKey: process.env.AI_API_KEY_5,
+        type: 'openrouter',
+        model: 'google/gemma-3-12b-it:free'
     },
     {
         name: 'OR-Mistral-24B',
@@ -163,7 +73,13 @@ const AI_PROVIDERS = [
         type: 'openrouter',
         model: 'mistralai/mistral-small-3.1-24b-instruct:free'
     },
-    // OpenRouter Trinity (separate key)
+    {
+        name: 'OR-Qwen-Coder',
+        apiKey: process.env.AI_API_KEY_5,
+        type: 'openrouter',
+        model: 'qwen/qwen3-coder:free'
+    },
+    // OpenRouter Trinity (AI_API_KEY_2)
     {
         name: 'OR-Trinity',
         apiKey: process.env.AI_API_KEY_2,
