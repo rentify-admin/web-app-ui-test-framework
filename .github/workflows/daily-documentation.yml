@@ -162,6 +162,7 @@ jobs:
           AI_API_KEY_5: ${{ secrets.AI_API_KEY_5 }}
           AI_API_KEY_6: ${{ secrets.AI_API_KEY_6 }}
           AI_API_KEY_7: ${{ secrets.AI_API_KEY_7 }}
+          AI_API_KEY_8: ${{ secrets.AI_API_KEY_8 }}
 
       - name: Upload batch documentation
         uses: actions/upload-artifact@v4

@@ -10,6 +10,8 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import OpenAI from 'openai';
+import { GoogleGenerativeAI } from '@google/generative-ai';
+import axios from 'axios';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -26,44 +28,123 @@ if (!batchFile) {
     process.exit(1);
 }
 
-// Collect all available API keys
-const API_KEYS = [
-    process.env.AI_API_KEY,
-    process.env.AI_API_KEY_2,
-    process.env.AI_API_KEY_3,
-    process.env.AI_API_KEY_4,
-    process.env.AI_API_KEY_5,
-    process.env.AI_API_KEY_6,
-    process.env.AI_API_KEY_7,
-].filter(key => key && key.length > 0);
+// Configure AI providers
+const AI_PROVIDERS = [
+    // Provider 1: OpenAI (3 RPM rate limit)
+    {
+        name: 'OpenAI',
+        apiKey: process.env.AI_API_KEY,
+        type: 'openai',
+        model: 'gpt-4o-mini',
+        rateLimit: { requestsPerMinute: 3, lastResetTime: Date.now(), requestCount: 0 }
+    },
+    // Provider 2: OpenRouter - Trinity Mini (free)
+    {
+        name: 'OpenRouter-Trinity',
+        apiKey: process.env.AI_API_KEY_2,
+        type: 'openrouter',
+        model: 'arcee-ai/trinity-mini:free',
+        endpoint: 'https://openrouter.ai/api/v1/chat/completions'
+    },
+    // Provider 3: Google Gemini
+    {
+        name: 'Google-Gemini-1',
+        apiKey: process.env.AI_API_KEY_3,
+        type: 'gemini',
+        model: 'gemini-1.5-flash'
+    },
+    // Provider 4: Google Gemini (second key)
+    {
+        name: 'Google-Gemini-2',
+        apiKey: process.env.AI_API_KEY_4,
+        type: 'gemini',
+        model: 'gemini-1.5-flash'
+    },
+    // Provider 5: OpenRouter - DeepSeek
+    {
+        name: 'OpenRouter-DeepSeek',
+        apiKey: process.env.AI_API_KEY_5,
+        type: 'openrouter',
+        model: 'deepseek/deepseek-v3.2-speciale',
+        endpoint: 'https://openrouter.ai/api/v1/chat/completions'
+    },
+    // Provider 6: OpenRouter - Claude
+    {
+        name: 'OpenRouter-Claude',
+        apiKey: process.env.AI_API_KEY_6,
+        type: 'openrouter',
+        model: 'anthropic/claude-opus-4.5',
+        endpoint: 'https://openrouter.ai/api/v1/chat/completions'
+    },
+    // Provider 7: OpenRouter - Grok (free)
+    {
+        name: 'OpenRouter-Grok',
+        apiKey: process.env.AI_API_KEY_7,
+        type: 'openrouter',
+        model: 'x-ai/grok-4.1-fast:free',
+        endpoint: 'https://openrouter.ai/api/v1/chat/completions'
+    },
+    // Provider 8: OpenRouter - GPT-5.1
+    {
+        name: 'OpenRouter-GPT5',
+        apiKey: process.env.AI_API_KEY_8,
+        type: 'openrouter',
+        model: 'openai/gpt-5.1',
+        endpoint: 'https://openrouter.ai/api/v1/chat/completions'
+    }
+].filter(provider => provider.apiKey && provider.apiKey.length > 0);
 
-if (API_KEYS.length === 0) {
+if (AI_PROVIDERS.length === 0) {
     console.error('❌ No AI API keys found in environment');
-    console.error('   Please set at least one of: AI_API_KEY, AI_API_KEY_2, ..., AI_API_KEY_7');
     process.exit(1);
 }
 
-console.log(`🔑 Found ${API_KEYS.length} API key(s) for load balancing`);
+console.log(`🔑 Found ${AI_PROVIDERS.length} AI provider(s):`);
+AI_PROVIDERS.forEach((p, idx) => console.log(`   ${idx + 1}. ${p.name} (${p.type})`));
 
-// Create OpenAI clients for each API key
-const openaiClients = API_KEYS.map(key => new OpenAI({ apiKey: key }));
-
-// Track API usage for balancing
-let currentKeyIndex = parseInt(batchNumber) % API_KEYS.length; // Start with different key per batch
-let apiCallCounts = new Array(API_KEYS.length).fill(0);
+// Track API usage
+let currentProviderIndex = parseInt(batchNumber) % AI_PROVIDERS.length;
+let apiCallCounts = new Array(AI_PROVIDERS.length).fill(0);
 
 /**
- * Get next OpenAI client with round-robin balancing
+ * Check and enforce rate limits
  */
-function getNextClient() {
-    const client = openaiClients[currentKeyIndex];
-    const keyNumber = currentKeyIndex + 1;
-    apiCallCounts[currentKeyIndex]++;
+async function checkRateLimit(provider) {
+    if (!provider.rateLimit) return; // No rate limit configured
     
-    // Move to next key for next call
-    currentKeyIndex = (currentKeyIndex + 1) % API_KEYS.length;
+    const now = Date.now();
+    const timeSinceReset = now - provider.rateLimit.lastResetTime;
     
-    return { client, keyNumber };
+    // Reset counter every minute
+    if (timeSinceReset >= 60000) {
+        provider.rateLimit.requestCount = 0;
+        provider.rateLimit.lastResetTime = now;
+    }
+    
+    // Check if we've hit the limit
+    if (provider.rateLimit.requestCount >= provider.rateLimit.requestsPerMinute) {
+        const waitTime = Math.ceil((60000 - timeSinceReset) / 1000);
+        console.log(`   ⏳ Rate limit reached for ${provider.name}, waiting ${waitTime}s...`);
+        await new Promise(resolve => setTimeout(resolve, waitTime * 1000));
+        provider.rateLimit.requestCount = 0;
+        provider.rateLimit.lastResetTime = Date.now();
+    }
+    
+    provider.rateLimit.requestCount++;
+}
+
+/**
+ * Get next provider with round-robin balancing
+ */
+function getNextProvider() {
+    const provider = AI_PROVIDERS[currentProviderIndex];
+    const providerNumber = currentProviderIndex + 1;
+    apiCallCounts[currentProviderIndex]++;
+    
+    // Move to next provider for next call
+    currentProviderIndex = (currentProviderIndex + 1) % AI_PROVIDERS.length;
+    
+    return { provider, providerNumber };
 }
 
 /**
@@ -273,9 +354,11 @@ async function main() {
     console.log(`   Tests processed: ${processedCount}`);
     console.log(`   AI analyses successful: ${aiSuccessCount}`);
     console.log(`   Entries generated: ${entries.length}`);
-    console.log(`\n📊 API key usage distribution:`);
+    console.log(`\n📊 AI provider usage distribution:`);
     apiCallCounts.forEach((count, idx) => {
-        console.log(`   Key #${idx + 1}: ${count} calls`);
+        if (AI_PROVIDERS[idx]) {
+            console.log(`   ${AI_PROVIDERS[idx].name}: ${count} calls`);
+        }
     });
     
     return {
