@@ -81,8 +81,13 @@ Please analyze this test file and return the JSON structure as specified in the 
         fs.writeFileSync(tempPromptFile, fullPrompt);
         
         try {
-            // Use QODO CLI with the --ci flag for non-interactive mode
-            const command = `qodo --ci "${fullPrompt}"`;
+            // Save the full prompt to a file
+            const tempFullPromptFile = path.join(__dirname, `.temp-qodo-full-prompt-${Date.now()}.txt`);
+            fs.writeFileSync(tempFullPromptFile, fullPrompt);
+            
+            // Use QODO CLI with stdin for large prompts
+            // The --ci flag is for non-interactive mode
+            const command = `cat "${tempFullPromptFile}" | qodo --ci`;
             
             const { stdout, stderr } = await execPromise(command, {
                 timeout: 120000, // 2 minute timeout
@@ -90,7 +95,8 @@ Please analyze this test file and return the JSON structure as specified in the 
                 env: {
                     ...process.env,
                     QODO_API_KEY: QODO_API_KEY
-                }
+                },
+                shell: '/bin/bash'
             });
             
             if (stderr && !stderr.includes('Debugger')) {
@@ -119,19 +125,31 @@ Please analyze this test file and return the JSON structure as specified in the 
             
             console.log(`   ✅ QODO analysis completed for ${fileName}`);
             
-            // Clean up temp file
+            // Clean up temp files
             if (fs.existsSync(tempPromptFile)) {
                 fs.unlinkSync(tempPromptFile);
+            }
+            const tempFullPromptFile = path.join(__dirname, `.temp-qodo-full-prompt-${Date.now()}.txt`);
+            if (fs.existsSync(tempFullPromptFile)) {
+                fs.unlinkSync(tempFullPromptFile);
             }
             
             return result;
             
         } catch (execError) {
-            console.log(`   ⚠️  QODO CLI failed:`, execError.message);
+            console.log(`   ⚠️  QODO CLI failed:`, execError.message.substring(0, 200));
             
-            // Clean up temp file
+            // Clean up temp files
             if (fs.existsSync(tempPromptFile)) {
                 fs.unlinkSync(tempPromptFile);
+            }
+            // Find and clean up temp full prompt files
+            const tempFiles = fs.readdirSync(__dirname).filter(f => f.startsWith('.temp-qodo-full-prompt'));
+            for (const tempFile of tempFiles) {
+                const fullPath = path.join(__dirname, tempFile);
+                if (fs.existsSync(fullPath)) {
+                    fs.unlinkSync(fullPath);
+                }
             }
             
             return null;
@@ -275,48 +293,70 @@ ${test.relatedTests && test.relatedTests.length > 0 ? test.relatedTests.map(t =>
 }
 
 /**
- * Update Coda page using Coda MCP CLI
+ * Update Coda page using Coda MCP server tools
  */
 async function updateCodaWithMCP(content) {
     try {
-        console.log('\n📤 Updating Coda page using MCP CLI...');
+        console.log('\n📤 Updating Coda page using Coda MCP...');
         
-        // Save content to temp file
-        const tempContentFile = path.join(__dirname, '.temp-coda-content.md');
-        fs.writeFileSync(tempContentFile, content);
+        // The Coda MCP server is an MCP server, not a direct CLI
+        // We need to interact with it programmatically via the MCP protocol
+        // Or use the Node.js script to call the MCP tools directly
         
-        // Use npx to run coda-mcp replace_page_content
-        // The MCP server should be able to update content
-        const command = `npx coda-mcp replace_page_content --doc-id="${CODA_DOC_ID}" --page-id="${CODA_PAGE_ID}" --content-file="${tempContentFile}"`;
+        // For now, let's try using the mcp_coda-documentation tools directly
+        // Since we're in Node.js, we can call the MCP server's methods
         
-        console.log(`   Running: npx coda-mcp replace_page_content...`);
+        // Alternative: Save the content and use npx with proper MCP client
+        // The MCP server runs on stdio and expects JSON-RPC messages
+        
+        // Simplest approach for CI: Use the coda-mcp package's client
+        const command = `echo '${JSON.stringify({
+            method: 'tools/call',
+            params: {
+                name: 'coda_replace_page_content',
+                arguments: {
+                    docId: CODA_DOC_ID,
+                    pageIdOrName: CODA_PAGE_ID,
+                    content: content
+                }
+            }
+        })}' | npx coda-mcp`;
+        
+        console.log(`   Running MCP command...`);
         
         const { stdout, stderr } = await execPromise(command, {
             timeout: 60000,
             maxBuffer: 1024 * 1024 * 10,
             env: {
                 ...process.env,
-                CODA_API_TOKEN: CODA_API_TOKEN
+                CODA_API_KEY: CODA_API_TOKEN
             }
         });
         
-        if (stderr && !stderr.includes('Debugger')) {
+        if (stdout) {
+            console.log(`   📝 MCP output:`, stdout.substring(0, 300));
+        }
+        
+        if (stderr && !stderr.includes('running on stdio')) {
             console.log(`   📝 MCP stderr:`, stderr.substring(0, 200));
         }
         
-        console.log(`   ✅ Coda page updated successfully`);
-        
-        // Clean up temp file
-        if (fs.existsSync(tempContentFile)) {
-            fs.unlinkSync(tempContentFile);
-        }
+        console.log(`   ✅ Coda page update command sent`);
         
         return true;
         
     } catch (error) {
-        console.error(`   ❌ Coda MCP CLI error:`, error.message);
-        console.error(`   Stderr:`, error.stderr?.substring(0, 500));
-        throw error;
+        console.error(`   ❌ Coda MCP error:`, error.message.substring(0, 300));
+        
+        // MCP server interaction failed - we'll need to use a different approach
+        // Save the generated documentation to a file for manual upload
+        const outputFile = path.join(__dirname, '../documentation/QODO_GENERATED_FOR_CODA.md');
+        fs.writeFileSync(outputFile, content, 'utf-8');
+        console.log(`   📄 Documentation saved to: ${outputFile}`);
+        console.log(`   💡 Please update Coda manually or use the local MCP server`);
+        
+        // Don't throw - we still generated the documentation
+        return false;
     }
 }
 
