@@ -12,6 +12,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import axios from 'axios';
 import OpenAI from 'openai';
+import OpenAI from 'openai';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -299,7 +300,12 @@ async function updateCodaPage(content) {
  * Main function
  */
 async function main() {
-    console.log('📚 Starting documentation generation with QODO + Coda MCP...');
+    console.log('📚 Starting documentation generation with OpenAI + Coda...');
+    
+    // Initialize OpenAI client
+    const openaiClient = new OpenAI({
+        apiKey: OPENAI_API_KEY,
+    });
     
     // Find all test files
     const testFiles = findTestFiles(TESTS_DIR);
@@ -313,7 +319,7 @@ async function main() {
     
     const allEntries = [];
     
-    // Process each test file with QODO CLI
+    // Process each test file with OpenAI
     for (const testFile of testFiles) {
         try {
             const fileName = path.basename(testFile);
@@ -321,8 +327,8 @@ async function main() {
             
             console.log(`\n📄 Processing: ${fileName}`);
             
-            // Analyze with AI (OpenAI/compatible)
-            const qodoResult = await analyzeTestWithAI(testFile);
+            // Analyze with AI (OpenAI)
+            const qodoResult = await analyzeTestWithAI(testFile, openaiClient);
             
             if (qodoResult && qodoResult.tests && qodoResult.tests.length > 0) {
                 const entries = generateEntryFromQodo(qodoResult, fileName, filePath);
