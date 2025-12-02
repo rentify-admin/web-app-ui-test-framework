@@ -973,8 +973,8 @@ const connectBankOAuthFlow = async (applicantPage, context, options = {}) => {
     const mxSearchInput = mxIframe.locator('[data-test="search-input"]').or(mxIframe.locator('#mx-connect-search'));
     await mxSearchInput.click();
     await mxSearchInput.fill(bankName);
-    const oauthBankOption = mxIframe.locator('[data-test="MX-Bank-(OAuth)-row"]')
-        .or(mxIframe.locator('button[aria-label="Add account with MX Bank (OAuth)"]'));
+    const oauthBankOption = mxIframe.locator('[data-test="MX-Bank-(OAuth)-row"]');
+        // .or(mxIframe.locator('button[aria-label="Add account with MX Bank (OAuth)"]'));
     await oauthBankOption.click();
     const continueBtn = mxIframe.locator('[data-test="continue-button"]');
 
