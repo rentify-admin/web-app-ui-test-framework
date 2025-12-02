@@ -160,21 +160,30 @@ jobs:
       
       - run: npm ci
       
+      - name: Download existing documentation (if exists)
+        continue-on-error: true
+        uses: dawidd6/action-download-artifact@v2
+        with:
+          workflow: test-documentation.yml
+          name: existing-docs
+          path: documentation/
+          if_no_artifact_found: ignore
+      
       - uses: actions/download-artifact@v4
         with:
           pattern: batch-docs-*
           path: documentation/batches/
           merge-multiple: true
       
-      - name: Consolidate documentation
+      - name: Merge documentation (smart update)
         id: consolidate
         run: |
-          OUTPUT=$(node auto_documentator/scripts/consolidate-ai-docs.js 2>&1)
+          OUTPUT=$(node auto_documentator/scripts/merge-documentation.js 2>&1)
           echo "$OUTPUT"
           
-          TOTAL=$(echo "$OUTPUT" | grep -oP 'Consolidated \K\d+' || echo "0")
+          TOTAL=$(echo "$OUTPUT" | grep -oP 'TOTAL_ENTRIES:\K\d+' || echo "0")
           echo "total=$TOTAL" >> $GITHUB_OUTPUT
-          echo "✅ Consolidated $TOTAL entries"
+          echo "✅ Final documentation: $TOTAL entries"
         env:
           GITHUB_ACTOR: ${{ github.actor }}
           GIT_USER_NAME: ${{ github.event.pusher.name || github.actor }}
@@ -189,6 +198,12 @@ jobs:
           name: consolidated-docs
           path: documentation/CONSOLIDATED_DOCUMENTATION.md
           retention-days: 7
+      
+      - uses: actions/upload-artifact@v4
+        with:
+          name: existing-docs
+          path: documentation/EXISTING_DOCUMENTATION.md
+          retention-days: 365  # Keep for incremental updates
       
       - uses: actions/upload-artifact@v4
         with:
