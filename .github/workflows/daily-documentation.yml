@@ -38,14 +38,17 @@ jobs:
           mkdir -p ~/.qodo
           echo "${{ secrets.QODO_API_KEY }}" > ~/.qodo/api_key
 
+      - name: Install Coda MCP Server
+        run: npm install -g coda-mcp
+
       - name: Update Coda documentation
         id: update-coda
         run: |
-          echo "📚 Starting Coda documentation update..."
+          echo "📚 Starting documentation update with QODO + Coda..."
           
-          # Run the update script and capture output
+          # Run the new script that uses QODO CLI and Coda MCP CLI
           set +e  # Don't exit on error immediately
-          OUTPUT=$(node scripts/update-coda-documentation.js 2>&1)
+          OUTPUT=$(node scripts/update-coda-with-qodo-mcp.js 2>&1)
           EXIT_CODE=$?
           set -e  # Re-enable exit on error
           
@@ -62,11 +65,11 @@ jobs:
           fi
           
           # Extract statistics from structured output
-          if echo "$OUTPUT" | grep -q "##CODA_STATS_START##"; then
-            NEW_ENTRIES=$(echo "$OUTPUT" | sed -n '/##CODA_STATS_START##/,/##CODA_STATS_END##/p' | grep "NEW_ENTRIES:" | cut -d: -f2 | tr -d ' ')
-            UPDATED_ENTRIES=$(echo "$OUTPUT" | sed -n '/##CODA_STATS_START##/,/##CODA_STATS_END##/p' | grep "UPDATED_ENTRIES:" | cut -d: -f2 | tr -d ' ')
-            TOTAL_ENTRIES=$(echo "$OUTPUT" | sed -n '/##CODA_STATS_START##/,/##CODA_STATS_END##/p' | grep "TOTAL_ENTRIES:" | cut -d: -f2 | tr -d ' ')
-            ERRORS=$(echo "$OUTPUT" | sed -n '/##CODA_STATS_START##/,/##CODA_STATS_END##/p' | grep "ERRORS:" | cut -d: -f2 | tr -d ' ')
+          if echo "$OUTPUT" | grep -q "##STATS_START##"; then
+            NEW_ENTRIES=$(echo "$OUTPUT" | sed -n '/##STATS_START##/,/##STATS_END##/p' | grep "NEW_ENTRIES:" | cut -d: -f2 | tr -d ' ')
+            UPDATED_ENTRIES=$(echo "$OUTPUT" | sed -n '/##STATS_START##/,/##STATS_END##/p' | grep "UPDATED_ENTRIES:" | cut -d: -f2 | tr -d ' ')
+            TOTAL_ENTRIES=$(echo "$OUTPUT" | sed -n '/##STATS_START##/,/##STATS_END##/p' | grep "TOTAL_ENTRIES:" | cut -d: -f2 | tr -d ' ')
+            ERRORS=$(echo "$OUTPUT" | sed -n '/##STATS_START##/,/##STATS_END##/p' | grep "ERRORS:" | cut -d: -f2 | tr -d ' ')
           else
             # Fallback parsing
             NEW_ENTRIES=$(echo "$OUTPUT" | grep -oP 'New entries: \K\d+' || echo "0")
@@ -84,7 +87,7 @@ jobs:
           
           # Display summary
           echo ""
-          echo "📊 Coda Documentation Update Summary:"
+          echo "📊 Documentation Update Summary:"
           echo "   - New Entries: $NEW_ENTRIES"
           echo "   - Updated Entries: $UPDATED_ENTRIES"
           echo "   - Total Entries: $TOTAL_ENTRIES"
@@ -94,17 +97,16 @@ jobs:
           
           # Exit with the script's exit code
           if [ $EXIT_CODE -ne 0 ]; then
-            echo "❌ Coda documentation update failed"
+            echo "❌ Documentation update failed"
             exit $EXIT_CODE
           fi
           
-          echo "✅ Coda documentation updated successfully"
+          echo "✅ Documentation updated successfully"
         env:
           CODA_API_TOKEN: ${{ secrets.CODA_API_TOKEN }}
           CODA_DOC_ID: ${{ secrets.CODA_DOC_ID || 'dza2s1eOIhA' }}
           CODA_PAGE_ID: ${{ secrets.CODA_PAGE_ID || 'suLCLolD' }}
           QODO_API_KEY: ${{ secrets.QODO_API_KEY }}
-          QODO_API_URL: ${{ secrets.QODO_API_URL || 'https://api.qodo.ai/v1/chat/completions' }}
 
       - name: Send Slack notification
         if: always()
