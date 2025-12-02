@@ -119,22 +119,21 @@ jobs:
           name: test-batches
           path: batches/
 
-      - name: Process batch ${{ matrix.batch }}
+      - name: Process batch ${{ matrix.batch }} with AI
         id: process
         run: |
-          echo "📦 Processing batch ${{ matrix.batch }}..."
+          echo "📦 Processing batch ${{ matrix.batch }} with AI analysis..."
           
           BATCH_FILE="batches/batch-${{ matrix.batch }}.txt"
           
           if [ ! -f "$BATCH_FILE" ]; then
             echo "⚠️  Batch file not found: $BATCH_FILE"
-            echo "   This batch is empty, skipping"
             echo "tests_processed=0" >> $GITHUB_OUTPUT
             exit 0
           fi
           
-          # Run documentation generation for this batch (regex-based)
-          node scripts/generate-batch-documentation.js "$BATCH_FILE" ${{ matrix.batch }}
+          # Run AI-powered analysis with fallback
+          node auto_documentator/scripts/ai-analyzer.js "$BATCH_FILE" ${{ matrix.batch }}
           EXIT_CODE=$?
           
           # Extract statistics
@@ -154,7 +153,14 @@ jobs:
             exit $EXIT_CODE
           fi
           
-          echo "✅ Batch ${{ matrix.batch }} completed: $ENTRIES_GENERATED entries"
+          echo "✅ Batch ${{ matrix.batch }}: $ENTRIES_GENERATED entries generated"
+        env:
+          AI_API_KEY: ${{ secrets.AI_API_KEY }}
+          AI_API_KEY_2: ${{ secrets.AI_API_KEY_2 }}
+          AI_API_KEY_5: ${{ secrets.AI_API_KEY_5 }}
+          AI_API_KEY_6: ${{ secrets.AI_API_KEY_6 }}
+          AI_API_KEY_7: ${{ secrets.AI_API_KEY_7 }}
+          AI_API_KEY_8: ${{ secrets.AI_API_KEY_8 }}
 
       - name: Upload batch documentation
         uses: actions/upload-artifact@v4
@@ -190,12 +196,12 @@ jobs:
           path: documentation/batches/
           merge-multiple: true
 
-      - name: Consolidate documentation
+      - name: Consolidate AI documentation
         id: consolidate
         run: |
-          echo "📚 Consolidating batch documentation..."
+          echo "📚 Consolidating AI-generated documentation..."
           
-          OUTPUT=$(node scripts/consolidate-batch-documentation.js 2>&1)
+          OUTPUT=$(node auto_documentator/scripts/consolidate-ai-docs.js 2>&1)
           EXIT_CODE=$?
           
           echo "$OUTPUT"
