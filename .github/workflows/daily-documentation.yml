@@ -119,10 +119,10 @@ jobs:
           name: test-batches
           path: batches/
 
-      - name: Process batch ${{ matrix.batch }}
+      - name: Process batch ${{ matrix.batch }} with AI
         id: process
         run: |
-          echo "📦 Processing batch ${{ matrix.batch }}..."
+          echo "📦 Processing batch ${{ matrix.batch }} with AI analysis..."
           
           BATCH_FILE="batches/batch-${{ matrix.batch }}.txt"
           
@@ -133,8 +133,8 @@ jobs:
             exit 0
           fi
           
-          # Run documentation generation for this batch
-          OUTPUT=$(node scripts/generate-batch-documentation.js "$BATCH_FILE" ${{ matrix.batch }} 2>&1)
+          # Run AI-powered documentation generation for this batch
+          OUTPUT=$(node scripts/ai-batch-processor.js "$BATCH_FILE" ${{ matrix.batch }} 2>&1)
           EXIT_CODE=$?
           
           echo "$OUTPUT"
@@ -142,16 +142,26 @@ jobs:
           # Extract statistics
           TESTS_PROCESSED=$(echo "$OUTPUT" | grep -oP 'Tests processed: \K\d+' || echo "0")
           ENTRIES_GENERATED=$(echo "$OUTPUT" | grep -oP 'Entries generated: \K\d+' || echo "0")
+          AI_SUCCESS=$(echo "$OUTPUT" | grep -oP 'AI analyses successful: \K\d+' || echo "0")
           
           echo "tests_processed=$TESTS_PROCESSED" >> $GITHUB_OUTPUT
           echo "entries_generated=$ENTRIES_GENERATED" >> $GITHUB_OUTPUT
+          echo "ai_success=$AI_SUCCESS" >> $GITHUB_OUTPUT
           
           if [ $EXIT_CODE -ne 0 ]; then
             echo "❌ Batch processing failed"
             exit $EXIT_CODE
           fi
           
-          echo "✅ Batch ${{ matrix.batch }} completed: $ENTRIES_GENERATED entries"
+          echo "✅ Batch ${{ matrix.batch }} completed: $ENTRIES_GENERATED entries (AI: $AI_SUCCESS)"
+        env:
+          AI_API_KEY: ${{ secrets.AI_API_KEY }}
+          AI_API_KEY_2: ${{ secrets.AI_API_KEY_2 }}
+          AI_API_KEY_3: ${{ secrets.AI_API_KEY_3 }}
+          AI_API_KEY_4: ${{ secrets.AI_API_KEY_4 }}
+          AI_API_KEY_5: ${{ secrets.AI_API_KEY_5 }}
+          AI_API_KEY_6: ${{ secrets.AI_API_KEY_6 }}
+          AI_API_KEY_7: ${{ secrets.AI_API_KEY_7 }}
 
       - name: Upload batch documentation
         uses: actions/upload-artifact@v4
@@ -187,12 +197,12 @@ jobs:
           path: documentation/batches/
           merge-multiple: true
 
-      - name: Consolidate documentation
+      - name: Consolidate AI-generated documentation
         id: consolidate
         run: |
-          echo "📚 Consolidating batch documentation..."
+          echo "📚 Consolidating AI-generated documentation..."
           
-          OUTPUT=$(node scripts/consolidate-batch-documentation.js 2>&1)
+          OUTPUT=$(node scripts/consolidate-ai-documentation.js 2>&1)
           EXIT_CODE=$?
           
           echo "$OUTPUT"

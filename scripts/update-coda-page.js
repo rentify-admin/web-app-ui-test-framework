@@ -14,7 +14,7 @@ import axios from 'axios';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const DOC_FILE = path.join(__dirname, '../documentation/CONSOLIDATED_DOCUMENTATION.md');
+const DOC_FILE = path.join(__dirname, '../documentation/AI_GENERATED_DOCUMENTATION.md');
 const CODA_DOC_ID = process.env.CODA_DOC_ID || 'dza2s1eOIhA';
 const CODA_PAGE_ID = process.env.CODA_PAGE_ID || 'suLCLolD';
 const CODA_API_TOKEN = process.env.CODA_API_TOKEN;
