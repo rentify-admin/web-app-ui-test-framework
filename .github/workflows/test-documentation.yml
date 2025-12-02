@@ -81,6 +81,7 @@ jobs:
           AI_API_KEY_2: ${{ secrets.AI_API_KEY_2 }}
           AI_API_KEY_5: ${{ secrets.AI_API_KEY_5 }}
           AI_API_KEY_6: ${{ secrets.AI_API_KEY_6 }}
+          AI_API_KEY_7: ${{ secrets.AI_API_KEY_7 }}
       
       - uses: actions/upload-artifact@v4
         with:

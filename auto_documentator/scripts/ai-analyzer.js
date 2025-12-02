@@ -27,9 +27,9 @@ if (!batchFile) {
     process.exit(1);
 }
 
-// AI Providers - 2 OpenAI keys + Working OpenRouter models
+// AI Providers - 3 OpenAI keys + Working OpenRouter models
 const AI_PROVIDERS = [
-    // OpenAI Keys (3 RPM each = 6 RPM total with 2 keys)
+    // OpenAI Keys (3 RPM each = 9 RPM total with 3 keys)
     {
         name: 'OpenAI-Key1',
         apiKey: process.env.AI_API_KEY,
@@ -39,6 +39,12 @@ const AI_PROVIDERS = [
     {
         name: 'OpenAI-Key2',
         apiKey: process.env.AI_API_KEY_6,
+        type: 'openai',
+        model: 'gpt-4o-mini'
+    },
+    {
+        name: 'OpenAI-Key3',
+        apiKey: process.env.AI_API_KEY_7,
         type: 'openai',
         model: 'gpt-4o-mini'
     },
