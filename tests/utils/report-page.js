@@ -1335,6 +1335,47 @@ async function openReportSection(page, sectionId) {
     return reportSection;
 }
 
+/**
+ * Fills and asserts fields in the guest information edit modal.
+ * For each supplied key in expectData, verifies the modal field is prefilled.
+ * For each supplied key in guestFormData, fills the modal field.
+ * Logs each major action for clarity.
+ *
+ * @param {import('@playwright/test').Page} page - Playwright Page object.
+ * @param {Object} expectData - Keys and values expected to already be present in the modal.
+ * @param {Object} guestFormData - Keys and values to fill in the modal.
+ */
+async function expectAndFillGuestForm(page, expectData = {}, guestFormData = {}) {
+
+    // Assert guest edit modal visible
+    const guestEditModal = page.getByTestId('identity-update-guest-modal');
+    await expect(guestEditModal).toBeVisible();
+    console.log('🪟 Modal opened: identity-update-guest-modal is visible.');
+
+    // Helper for per-field fill & expect operation
+    async function fillAndExpectField(fieldTestId, fieldKey) {
+        const field = guestEditModal.getByTestId(fieldTestId);
+        await expect(field).toBeVisible();
+        // If value in expectData, assert it's present and log it
+        if (typeof expectData[fieldKey] !== 'undefined') {
+            await expect(field).toHaveValue(expectData[fieldKey]);
+            console.log(`🔎 Field "${fieldKey}" expected value:`, expectData[fieldKey]);
+        }
+        // If value in guestFormData, fill it and log the action
+        if (typeof guestFormData[fieldKey] !== 'undefined') {
+            await field.fill(guestFormData[fieldKey]);
+            console.log(`✏️ Field "${fieldKey}" filled with:`, guestFormData[fieldKey]);
+        }
+    }
+
+    // Step-by-step per field
+    await fillAndExpectField('guest-first-name-field', 'first_name');
+    await fillAndExpectField('guest-last-name-field', 'last_name');
+    await fillAndExpectField('phone-input', 'phone');
+    await fillAndExpectField('guest-email-field', 'email');
+}
+
+
 export {
     checkSessionApproveReject,
     checkFlagsPresentInSection,
@@ -1361,5 +1402,6 @@ export {
     markFlagAsNonIssue,
     validateFlagSections,
     verifyTransactionErrorAndDeclineFlag,
-    openReportSection
+    openReportSection,
+    expectAndFillGuestForm
 };
