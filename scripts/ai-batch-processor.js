@@ -148,7 +148,7 @@ function getNextProvider() {
 }
 
 /**
- * Analyze test file with AI
+ * Analyze test file with AI (multi-provider support)
  */
 async function analyzeTestWithAI(testFilePath, retryCount = 0) {
     try {
@@ -156,7 +156,8 @@ async function analyzeTestWithAI(testFilePath, retryCount = 0) {
         const testContent = fs.readFileSync(testFilePath, 'utf-8');
         const promptTemplate = fs.readFileSync(AI_PROMPT_FILE, 'utf-8');
         
-        const fullPrompt = `${promptTemplate}
+        const systemPrompt = 'You are an expert test documentation analyst. Analyze test files and return structured JSON. Return ONLY valid JSON, no markdown formatting.';
+        const userPrompt = `${promptTemplate}
 
 ## Test File to Analyze
 
@@ -166,44 +167,53 @@ ${testContent}
 
 Analyze this test file and return the JSON structure as specified above.`;
         
-        const { client, keyNumber } = getNextClient();
+        const { provider, providerNumber } = getNextProvider();
         
-        console.log(`   🤖 Analyzing with AI (Key #${keyNumber})...`);
+        console.log(`   🤖 Analyzing with ${provider.name}...`);
         
         try {
-            const response = await client.chat.completions.create({
-                model: 'gpt-4o-mini',
-                messages: [
-                    {
-                        role: 'system',
-                        content: 'You are an expert test documentation analyst. Analyze test files and return structured JSON. Return ONLY valid JSON, no markdown formatting.'
-                    },
-                    {
-                        role: 'user',
-                        content: fullPrompt
-                    }
-                ],
-                temperature: 0.2,
-                response_format: { type: 'json_object' }
-            });
+            let result;
             
-            const content = response.choices[0].message.content;
-            const result = JSON.parse(content);
+            switch (provider.type) {
+                case 'openai':
+                    result = await callOpenAI(provider, systemPrompt, userPrompt);
+                    break;
+                case 'openrouter':
+                    result = await callOpenRouter(provider, systemPrompt, userPrompt);
+                    break;
+                case 'gemini':
+                    result = await callGemini(provider, systemPrompt, userPrompt);
+                    break;
+                default:
+                    throw new Error(`Unknown provider type: ${provider.type}`);
+            }
             
-            console.log(`   ✅ AI analysis completed (${response.usage?.total_tokens || 'N/A'} tokens)`);
+            console.log(`   ✅ Analysis completed with ${provider.name}`);
             
             return result;
             
         } catch (apiError) {
-            // Handle rate limits with retry
-            if (apiError.status === 429 && retryCount < API_KEYS.length * 2) {
-                const waitTime = 2; // Wait 2 seconds
-                console.log(`   ⏳ Rate limit hit (Key #${keyNumber}), waiting ${waitTime}s...`);
-                await new Promise(resolve => setTimeout(resolve, waitTime * 1000));
+            // Handle rate limits and auth errors with retry using different provider
+            if ((apiError.status === 429 || apiError.status === 401 || apiError.response?.status === 429 || apiError.response?.status === 401) && retryCount < AI_PROVIDERS.length * 2) {
+                const waitTime = apiError.status === 429 || apiError.response?.status === 429 ? 2 : 0;
+                
+                if (waitTime > 0) {
+                    console.log(`   ⏳ Rate limit on ${provider.name}, waiting ${waitTime}s...`);
+                    await new Promise(resolve => setTimeout(resolve, waitTime * 1000));
+                } else {
+                    console.log(`   ⚠️  ${provider.name} failed (401), trying next provider...`);
+                }
+                
                 return analyzeTestWithAI(testFilePath, retryCount + 1);
             }
             
-            console.log(`   ⚠️  AI API failed (Key #${keyNumber}):`, apiError.message?.substring(0, 100));
+            console.log(`   ⚠️  ${provider.name} failed:`, apiError.message?.substring(0, 100) || apiError.response?.data?.error?.message?.substring(0, 100));
+            
+            // Try next provider
+            if (retryCount < AI_PROVIDERS.length) {
+                return analyzeTestWithAI(testFilePath, retryCount + 1);
+            }
+            
             return null;
         }
         
