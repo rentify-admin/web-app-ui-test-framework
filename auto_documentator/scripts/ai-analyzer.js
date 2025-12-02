@@ -11,6 +11,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import OpenAI from 'openai';
 import axios from 'axios';
+import { isProviderRateLimited, markProviderRateLimited, markProviderWorking } from './shared-rate-limiter.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -42,37 +43,51 @@ const AI_PROVIDERS = [
         apiKey: process.env.AI_API_KEY_2,
         type: 'openrouter',
         model: 'arcee-ai/trinity-mini:free',
-        endpoint: 'https://openrouter.ai/api/v1/chat/completions'
+        endpoint: 'https://openrouter.ai/api/v1/chat/completions',
+        useReasoning: true
+    },
+    {
+        name: 'Gemini-Flash-1',
+        apiKey: process.env.AI_API_KEY_3,
+        type: 'gemini',
+        model: 'gemini-1.5-flash'
+    },
+    {
+        name: 'Gemini-Flash-2',
+        apiKey: process.env.AI_API_KEY_4,
+        type: 'gemini',
+        model: 'gemini-1.5-flash'
     },
     {
         name: 'OpenRouter-DeepSeek',
         apiKey: process.env.AI_API_KEY_5,
         type: 'openrouter',
         model: 'deepseek/deepseek-v3.2-speciale',
-        endpoint: 'https://openrouter.ai/api/v1/chat/completions'
+        endpoint: 'https://openrouter.ai/api/v1/chat/completions',
+        useReasoning: true
     },
     {
         name: 'OpenRouter-Claude',
-        apiKey: process.env.AI_API_KEY_6,
+        apiKey: process.env.AI_API_KEY_5, // Same key as DeepSeek
         type: 'openrouter',
         model: 'anthropic/claude-opus-4.5',
         endpoint: 'https://openrouter.ai/api/v1/chat/completions'
     },
     {
         name: 'OpenRouter-Grok',
-        apiKey: process.env.AI_API_KEY_7,
+        apiKey: process.env.AI_API_KEY_5, // Same key
         type: 'openrouter',
         model: 'x-ai/grok-4.1-fast:free',
         endpoint: 'https://openrouter.ai/api/v1/chat/completions'
     },
     {
         name: 'OpenRouter-GPT5',
-        apiKey: process.env.AI_API_KEY_8,
+        apiKey: process.env.AI_API_KEY_5, // Same key
         type: 'openrouter',
         model: 'openai/gpt-5.1',
         endpoint: 'https://openrouter.ai/api/v1/chat/completions'
     }
-].filter(p => p.apiKey && p.apiKey.length > 10); // Filter out empty/invalid keys
+].filter(p => p.apiKey && p.apiKey.length > 10);
 
 console.log(`🔑 Available AI providers: ${AI_PROVIDERS.length}`);
 AI_PROVIDERS.forEach((p, i) => console.log(`   ${i + 1}. ${p.name}`));
@@ -188,11 +203,20 @@ Analyze every line thoroughly and extract ALL information. Be specific and detai
         const providerIdx = (currentProviderIndex + attempt) % AI_PROVIDERS.length;
         const provider = AI_PROVIDERS[providerIdx];
         
+        // Skip providers that are rate limited (tracked globally across batches)
+        if (isProviderRateLimited(provider.name)) {
+            console.log(`   ⏭️  Skipping ${provider.name} (rate limited in another batch)`);
+            continue;
+        }
+        
         console.log(`   🤖 Attempt ${attempt + 1}: ${provider.name}...`);
         providerCallCounts[providerIdx]++;
         
         try {
             const result = await callAIProvider(provider, systemPrompt, userPrompt);
+            
+            // Mark provider as working
+            markProviderWorking(provider.name);
             
             // Score the result based on completeness
             let score = 0;
@@ -226,9 +250,14 @@ Analyze every line thoroughly and extract ALL information. Be specific and detai
         } catch (error) {
             console.log(`   ❌ ${provider.name} failed:`, error.message?.substring(0, 80));
             
+            // Mark provider as rate limited globally
             if (error.status === 429 || error.response?.status === 429) {
-                console.log(`   ⏳ Rate limit - waiting 3s...`);
-                await new Promise(r => setTimeout(r, 3000));
+                console.log(`   🚫 Marking ${provider.name} as rate limited (shared across batches)`);
+                markProviderRateLimited(provider.name);
+                await new Promise(r => setTimeout(r, 2000));
+            } else if (error.status === 401 || error.response?.status === 401) {
+                console.log(`   🚫 Marking ${provider.name} as unavailable (401 auth error)`);
+                markProviderRateLimited(provider.name);
             }
         }
     }

@@ -4,6 +4,10 @@ on:
   schedule:
     # Daily at 10:00 PM UTC
     - cron: '0 22 * * *'
+  push:
+    branches:
+      - master
+      - main
   workflow_dispatch:
     inputs:
       force_update:
@@ -157,10 +161,9 @@ jobs:
         env:
           AI_API_KEY: ${{ secrets.AI_API_KEY }}
           AI_API_KEY_2: ${{ secrets.AI_API_KEY_2 }}
+          AI_API_KEY_3: ${{ secrets.AI_API_KEY_3 }}
+          AI_API_KEY_4: ${{ secrets.AI_API_KEY_4 }}
           AI_API_KEY_5: ${{ secrets.AI_API_KEY_5 }}
-          AI_API_KEY_6: ${{ secrets.AI_API_KEY_6 }}
-          AI_API_KEY_7: ${{ secrets.AI_API_KEY_7 }}
-          AI_API_KEY_8: ${{ secrets.AI_API_KEY_8 }}
 
       - name: Upload batch documentation
         uses: actions/upload-artifact@v4
@@ -232,7 +235,7 @@ jobs:
           echo "📤 Updating Coda page..."
           
           set +e  # Don't exit on error
-          node scripts/update-coda-page.js
+          node auto_documentator/scripts/update-coda-page.js
           CODA_EXIT=$?
           set -e
           
@@ -257,7 +260,7 @@ jobs:
           echo "📤 Updating Notion page..."
           
           set +e  # Don't exit on error
-          node scripts/update-notion-page.js
+          node auto_documentator/scripts/update-notion-page.js
           NOTION_EXIT=$?
           set -e
           
