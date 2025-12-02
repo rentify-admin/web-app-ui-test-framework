@@ -43,7 +43,7 @@ function generateMarkdownEntry(entry) {
         ? entry.imports.filter(imp => imp.includes('utils') || imp.includes('helper')).map(imp => `- 📦 \`${imp}\``).join('\n')
         : '- 📦 {data not found}';
 
-    return `### 🧪 \`${entry.fileName}\` → \`${entry.testName}\`
+    return `## 🧪 \`${entry.fileName}\` → \`${entry.testName}\`
 
 | Field | Value |
 |-------|-------|
@@ -54,13 +54,13 @@ function generateMarkdownEntry(entry) {
 
 ---
 
-## 📋 Test Scenario
+### 📋 Test Scenario
 
 > **Purpose:** {data not found for this field}
 
 > **Business Context:** {data not found for this field}
 
-### Test Conditions
+#### Test Conditions
 
 | Condition | Value |
 |-----------|-------|
@@ -70,7 +70,7 @@ function generateMarkdownEntry(entry) {
 | **Prerequisites** | {data not found} |
 | **Test Data Setup** | {data not found} |
 
-### Test Data Used
+#### Test Data Used
 
 | Data Type | Details |
 |-----------|---------|
@@ -80,53 +80,53 @@ function generateMarkdownEntry(entry) {
 | **Mock Data** | {data not found} |
 | **API Payloads** | {data not found} |
 
-### Expected Outcomes
+#### Expected Outcomes
 
 - ✅ {data not found}
 
 ---
 
-## 📝 Test Case
+### 📝 Test Case
 
-### Test Steps
+#### Test Steps
 
 | Step | Action | Input | Expected Result | API Calls | UI Elements |
 |------|--------|-------|-----------------|-----------|-------------|
 | {data not found} | {data not found} | {data not found} | {data not found} | {data not found} | {data not found} |
 
-### Validation Points
+#### Validation Points
 
 - ✅ {data not found}
 
-### Cleanup
+#### Cleanup
 
 {data not found}
 
-### API Endpoints Used
+#### API Endpoints Used
 
 | Method | Endpoint | Purpose |
 |--------|----------|---------|
 ${apiEndpointsRows}
 
-### UI Test IDs Used
+#### UI Test IDs Used
 
 | Test ID | Purpose |
 |---------|---------|
 ${uiTestIdsRows}
 
-### Tags
+#### Tags
 
 ${tags}
 
-### Dependencies
+#### Dependencies
 
 ${dependencies}
 
-### Known Issues/Limitations
+#### Known Issues/Limitations
 
 ⚠️ {data not found}
 
-### Related Tests
+#### Related Tests
 
 - 🔗 {data not found}
 

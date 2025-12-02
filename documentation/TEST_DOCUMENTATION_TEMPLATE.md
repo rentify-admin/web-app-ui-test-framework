@@ -13,7 +13,7 @@ This template defines the exact format for documenting each test. When the templ
 ## Test Entry Format
 
 ```markdown
-### 🧪 `{test_file_name}.spec.js` → `{test_name}`
+## 🧪 `{test_file_name}.spec.js` → `{test_name}`
 
 | Field | Value |
 |-------|-------|
@@ -24,13 +24,13 @@ This template defines the exact format for documenting each test. When the templ
 
 ---
 
-## 📋 Test Scenario
+### 📋 Test Scenario
 
 > **Purpose:** {Brief description of what this test validates and why it exists}
 
 > **Business Context:** {What business requirement or feature this test covers}
 
-### Test Conditions
+#### Test Conditions
 
 | Condition | Value |
 |-----------|-------|
@@ -40,7 +40,7 @@ This template defines the exact format for documenting each test. When the templ
 | **Prerequisites** | {List of prerequisites, e.g., "Admin user exists", "Application must be published"} |
 | **Test Data Setup** | {Description of any test data that needs to be created} |
 
-### Test Data Used
+#### Test Data Used
 
 | Data Type | Details |
 |-----------|---------|
@@ -50,7 +50,7 @@ This template defines the exact format for documenting each test. When the templ
 | **Mock Data** | {Any mock data or fixtures used} |
 | **API Payloads** | {Key API payloads or simulation data used} |
 
-### Expected Outcomes
+#### Expected Outcomes
 
 - ✅ {Expected result/assertion 1}
 - ✅ {Expected result/assertion 2}
@@ -68,7 +68,7 @@ This template defines the exact format for documenting each test. When the templ
 | **2. {Step Name}** | {What action is performed} | {What data/input is provided} | {What should happen} | `{HTTP_METHOD} {endpoint}` | `{test_id}` |
 | **3. {Step Name}** | {What action is performed} | {What data/input is provided} | {What should happen} | `{HTTP_METHOD} {endpoint}` | `{test_id}` |
 
-### Validation Points
+#### Validation Points
 
 - ✅ {Assertion/validation 1}
 - ✅ {Assertion/validation 2}
@@ -76,41 +76,41 @@ This template defines the exact format for documenting each test. When the templ
 - ✅ {UI state validation}
 - ✅ {Data consistency check}
 
-### Cleanup
+#### Cleanup
 
 - 🧹 {What cleanup is performed}
 - 🗑️ {Resources that are deleted/cleaned up}
 
-### API Endpoints Used
+#### API Endpoints Used
 
 | Method | Endpoint | Purpose |
 |--------|----------|---------|
 | `{HTTP_METHOD}` | `{endpoint}` | {Purpose} |
 | `{HTTP_METHOD}` | `{endpoint}` | {Purpose} |
 
-### UI Test IDs Used
+#### UI Test IDs Used
 
 | Test ID | Purpose |
 |---------|---------|
 | `{test_id}` | {Purpose} |
 | `{test_id}` | {Purpose} |
 
-### Tags
+#### Tags
 
 `{@tag1}` `{@tag2}` `{@tag3}`
 
-### Dependencies
+#### Dependencies
 
 - 📦 {Dependency 1 - helper function or utility}
 - 📦 {Dependency 2 - fixture or mock data}
 - 📦 {Other tests or utilities this test depends on}
 
-### Known Issues/Limitations
+#### Known Issues/Limitations
 
 ⚠️ {Any known issues or limitations}  
 💡 {Workarounds if any}
 
-### Related Tests
+#### Related Tests
 
 - 🔗 [{related_test_file}](path/to/test) - {Description}
 - 🔗 [{related_test_file}](path/to/test) - {Description}
@@ -186,7 +186,7 @@ When updating this template:
 
 > **Business Context:** Ensures administrators can create applications with complex configurations and properly clean up test applications.
 
-### Test Conditions
+#### Test Conditions
 
 | Condition | Value |
 |-----------|-------|
@@ -196,7 +196,7 @@ When updating this template:
 | **Prerequisites** | Admin user exists, Verifast organization exists |
 | **Test Data Setup** | Application created with 6 applicant types, Autotest-suite-fin-only workflow, High Risk flags, $500 minimum |
 
-### Test Data Used
+#### Test Data Used
 
 | Data Type | Details |
 |-----------|---------|
@@ -206,7 +206,7 @@ When updating this template:
 | **Mock Data** | None |
 | **API Payloads** | Application creation payload with organization, applicant types, workflow template, flag collection, minimum amount |
 
-### Expected Outcomes
+#### Expected Outcomes
 
 - ✅ Application is created successfully with all specified configurations
 - ✅ Application can be published to LIVE status
@@ -226,7 +226,7 @@ When updating this template:
 | **3. Application Publishing** | Publish application to LIVE status | Application ID from creation step | Application status changes to LIVE | `PATCH /applications/{id}` | Application status indicator |
 | **4. Application Deletion** | Delete the created application | Application ID | Application is deleted, no longer appears in applications list | `DELETE /applications/{id}` | Delete confirmation dialog |
 
-### Validation Points
+#### Validation Points
 
 - ✅ Application name is unique (includes random number)
 - ✅ All 6 applicant types are configured correctly
@@ -236,12 +236,12 @@ When updating this template:
 - ✅ Application can be published successfully
 - ✅ Application is deleted without errors
 
-### Cleanup
+#### Cleanup
 
 - 🧹 Application is deleted in the test
 - ✅ No additional cleanup required (test handles its own cleanup)
 
-### API Endpoints Used
+#### API Endpoints Used
 
 | Method | Endpoint | Purpose |
 |--------|----------|---------|
@@ -250,28 +250,28 @@ When updating this template:
 | `PATCH` | `/applications/{id}` | Update application (publish) |
 | `DELETE` | `/applications/{id}` | Delete application |
 
-### UI Test IDs Used
+#### UI Test IDs Used
 
 | Test ID | Purpose |
 |---------|---------|
 | `applicants-menu` | Main navigation menu |
 | Application form test IDs | From completeApplicationFlow helper |
 
-### Tags
+#### Tags
 
 `@core` `@regression` `@staging-ready` `@rc-ready` `@try-test-rail-names`
 
-### Dependencies
+#### Dependencies
 
 - 📦 `completeApplicationFlow` helper from `utils/application-management`
 - 📦 `loginForm` utility from `utils/login-form`
 - 📦 `admin` config from `test_config`
 
-### Known Issues/Limitations
+#### Known Issues/Limitations
 
 ✅ None documented
 
-### Related Tests
+#### Related Tests
 
 - 🔗 `application_edit_id_template_settings.spec.js` - Related application editing test
 
