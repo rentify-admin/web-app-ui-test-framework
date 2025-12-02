@@ -175,6 +175,9 @@ jobs:
           TOTAL=$(echo "$OUTPUT" | grep -oP 'Consolidated \K\d+' || echo "0")
           echo "total=$TOTAL" >> $GITHUB_OUTPUT
           echo "✅ Consolidated $TOTAL entries"
+        env:
+          GITHUB_ACTOR: ${{ github.actor }}
+          GIT_USER_NAME: ${{ github.event.pusher.name || github.actor }}
       
       - name: Update metadata for processed tests
         run: |
