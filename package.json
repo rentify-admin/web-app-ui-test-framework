@@ -56,10 +56,12 @@
     "dotenv": "^16.4.5"
   },
   "dependencies": {
+    "@qodo/command": "^0.31.1",
     "axios": "^1.13.2",
     "coda-js": "^4.2.1",
     "form-data": "^4.0.0",
     "node-fetch": "^3.3.2",
+    "openai": "^6.9.1",
     "pdf-parse": "^1.1.1",
     "qrcode": "^1.5.3",
     "xml2js": "^0.6.2"

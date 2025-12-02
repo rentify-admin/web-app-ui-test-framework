@@ -11,6 +11,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import axios from 'axios';
+import OpenAI from 'openai';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -20,28 +21,22 @@ const QODO_PROMPT_FILE = path.join(__dirname, 'qodo-prompt-template.md');
 const CODA_DOC_ID = process.env.CODA_DOC_ID || 'dza2s1eOIhA';
 const CODA_PAGE_ID = process.env.CODA_PAGE_ID || 'suLCLolD';
 const CODA_API_TOKEN = process.env.CODA_API_TOKEN;
-const QODO_API_KEY = process.env.QODO_API_KEY;
+const AI_API_KEY = process.env.AI_API_KEY || process.env.OPENAI_API_KEY;
 
 if (!CODA_API_TOKEN) {
     console.error('❌ CODA_API_TOKEN environment variable is required');
     process.exit(1);
 }
 
-if (!QODO_API_KEY) {
-    console.error('❌ QODO_API_KEY environment variable is required');
+if (!AI_API_KEY) {
+    console.error('❌ AI_API_KEY or OPENAI_API_KEY environment variable is required');
     process.exit(1);
 }
 
-// Use OpenAI API directly (QODO doesn't have a public REST API)
-// If you want to use a different LLM, set OPENAI_API_KEY env var
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY || process.env.QODO_API_KEY;
-const OPENAI_API_BASE = process.env.OPENAI_API_BASE || 'https://api.openai.com/v1';
-
-if (!OPENAI_API_KEY) {
-    console.error('❌ OPENAI_API_KEY or QODO_API_KEY environment variable is required');
-    console.error('   Note: QODO does not have a public REST API. Please use OpenAI, Claude, or another LLM.');
-    process.exit(1);
-}
+// Initialize OpenAI client
+const openai = new OpenAI({
+    apiKey: AI_API_KEY,
+});
 
 /**
  * Find all test files
@@ -63,7 +58,7 @@ function findTestFiles(dir) {
 }
 
 /**
- * Use AI (OpenAI/Claude/etc) to analyze a test file
+ * Use AI (OpenAI) to analyze a test file
  */
 async function analyzeTestWithAI(testFilePath) {
     try {
@@ -85,51 +80,34 @@ ${testContent}
 Please analyze this test file and return ONLY the JSON structure as specified in the output format above. Do not include any markdown formatting or explanation, just the raw JSON object.`;
         
         try {
-            // Call OpenAI API (or compatible API)
-            const response = await axios.post(
-                `${OPENAI_API_BASE}/chat/completions`,
-                {
-                    model: 'gpt-4o-mini',
-                    messages: [
-                        {
-                            role: 'system',
-                            content: 'You are a test documentation expert. Analyze test files and return structured JSON documentation. Return ONLY valid JSON, no markdown formatting.'
-                        },
-                        {
-                            role: 'user',
-                            content: fullPrompt
-                        }
-                    ],
-                    temperature: 0.1,
-                    response_format: { type: 'json_object' }
-                },
-                {
-                    headers: {
-                        'Authorization': `Bearer ${OPENAI_API_KEY}`,
-                        'Content-Type': 'application/json'
+            // Call OpenAI API using the SDK
+            const completion = await openai.chat.completions.create({
+                model: "gpt-4o-mini",
+                messages: [
+                    {
+                        role: "system",
+                        content: "You are a test documentation expert. Analyze test files and return structured JSON documentation. Return ONLY valid JSON, no markdown formatting or explanations."
                     },
-                    timeout: 120000
-                }
-            );
+                    {
+                        role: "user",
+                        content: fullPrompt
+                    }
+                ],
+                temperature: 0.1,
+                response_format: { type: "json_object" }
+            });
             
             // Extract JSON from response
-            let result;
-            const content = response.data.choices[0].message.content;
-            
-            try {
-                result = typeof content === 'string' ? JSON.parse(content) : content;
-            } catch (parseError) {
-                console.log(`   ⚠️  Could not parse response as JSON`);
-                console.log(`   Response:`, content.substring(0, 500));
-                return null;
-            }
+            const content = completion.choices[0].message.content;
+            const result = JSON.parse(content);
             
             console.log(`   ✅ AI analysis completed for ${fileName}`);
+            console.log(`   Found ${result.tests?.length || 0} test(s)`);
             
             return result;
             
         } catch (apiError) {
-            console.log(`   ⚠️  AI API failed:`, apiError.response?.data || apiError.message);
+            console.log(`   ⚠️  AI API failed:`, apiError.message);
             return null;
         }
         
