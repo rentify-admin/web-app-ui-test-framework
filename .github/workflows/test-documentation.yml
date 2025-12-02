@@ -41,6 +41,21 @@ jobs:
           path: documentation/
           if_no_artifact_found: ignore
       
+      - name: Download existing documentation (if exists)
+        continue-on-error: true
+        uses: dawidd6/action-download-artifact@v2
+        with:
+          workflow: test-documentation.yml
+          name: existing-docs
+          path: documentation/
+          if_no_artifact_found: ignore
+      
+      - name: Sync metadata from existing docs
+        continue-on-error: true
+        run: |
+          echo "🔄 Syncing metadata from existing documentation..."
+          node auto_documentator/scripts/sync-metadata-from-docs.js || true
+      
       - name: Detect new or changed tests
         id: detect
         run: |
