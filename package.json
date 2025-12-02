@@ -57,6 +57,7 @@
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
+    "@notionhq/client": "^5.4.0",
     "@qodo/command": "^0.31.1",
     "axios": "^1.13.2",
     "coda-js": "^4.2.1",

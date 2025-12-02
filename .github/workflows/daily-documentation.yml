@@ -227,15 +227,15 @@ jobs:
           
           set +e  # Don't exit on error
           node scripts/update-coda-page.js
-          EXIT_CODE=$?
+          CODA_EXIT=$?
           set -e
           
           echo ""
-          echo "📊 Exit code: $EXIT_CODE"
+          echo "📊 Coda exit code: $CODA_EXIT"
           
-          if [ $EXIT_CODE -ne 0 ]; then
-            echo "❌ Coda update failed with exit code $EXIT_CODE"
-            exit $EXIT_CODE
+          if [ $CODA_EXIT -ne 0 ]; then
+            echo "❌ Coda update failed with exit code $CODA_EXIT"
+            exit $CODA_EXIT
           fi
           
           echo "✅ Coda page updated successfully"
@@ -244,24 +244,55 @@ jobs:
           CODA_DOC_ID: ${{ secrets.CODA_DOC_ID || 'dza2s1eOIhA' }}
           CODA_PAGE_ID: ${{ secrets.CODA_PAGE_ID || 'suLCLolD' }}
 
+      - name: Update Notion page
+        id: update-notion
+        if: always() # Run even if Coda update fails
+        run: |
+          echo "📤 Updating Notion page..."
+          
+          set +e  # Don't exit on error
+          node scripts/update-notion-page.js
+          NOTION_EXIT=$?
+          set -e
+          
+          echo ""
+          echo "📊 Notion exit code: $NOTION_EXIT"
+          
+          if [ $NOTION_EXIT -ne 0 ]; then
+            echo "⚠️  Notion update failed with exit code $NOTION_EXIT"
+            # Don't fail the workflow if Notion fails
+          else
+            echo "✅ Notion page updated successfully"
+          fi
+        env:
+          NOTION_SECRET: ${{ secrets.NOTION_SECRET }}
+          NOTION_PAGE_ID: ${{ secrets.NOTION_PAGE_ID }}
+
       - name: Send Slack notification
         if: always()
         run: |
           echo "📤 Sending Slack notification..."
           
           # Determine status
-          if [ "${{ steps.consolidate.outputs.exit_code }}" == "0" ] && [ "${{ steps.update-coda.conclusion }}" == "success" ]; then
+          CODA_STATUS="${{ steps.update-coda.conclusion }}"
+          NOTION_STATUS="${{ steps.update-notion.conclusion }}"
+          
+          if [ "${{ steps.consolidate.outputs.exit_code }}" == "0" ] && [ "$CODA_STATUS" == "success" ]; then
             STATUS="✅ Success"
             EMOJI="✅"
           else
-            STATUS="❌ Failed"
-            EMOJI="❌"
+            STATUS="⚠️ Partial Success"
+            EMOJI="⚠️"
           fi
           
           # Build summary
           SUMMARY="*Total Entries:* ${{ steps.consolidate.outputs.total_entries }}\n"
           SUMMARY="${SUMMARY}*Batches Processed:* ${{ steps.consolidate.outputs.batches_processed }}\n"
           SUMMARY="${SUMMARY}*Total Tests:* ${{ needs.prepare-batches.outputs.total-tests }}\n"
+          SUMMARY="${SUMMARY}\n"
+          SUMMARY="${SUMMARY}*Coda Update:* $([ "$CODA_STATUS" == "success" ] && echo "✅ Success" || echo "❌ Failed")\n"
+          SUMMARY="${SUMMARY}*Notion Update:* $([ "$NOTION_STATUS" == "success" ] && echo "✅ Success" || echo "⚠️ Skipped/Failed")\n"
+          SUMMARY="${SUMMARY}\n"
           SUMMARY="${SUMMARY}*Coda Page:* <https://coda.io/d/${CODA_DOC_ID}/_${CODA_PAGE_ID}|View Documentation>"
           
           # Create Slack payload
