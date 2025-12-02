@@ -3,7 +3,7 @@
  * Update Notion Page
  * 
  * Reads the consolidated documentation and updates a Notion page
- * using the Notion API.
+ * with proper formatting, tables, and rich text.
  */
 
 import fs from 'fs';
@@ -28,106 +28,278 @@ if (!NOTION_PAGE_ID) {
     process.exit(1);
 }
 
-// Initialize Notion client
 const notion = new Client({ auth: NOTION_SECRET });
+
+/**
+ * Parse markdown bold/italic/code into Notion rich text
+ */
+function parseRichText(text) {
+    const richTextArray = [];
+    
+    // Handle code blocks first (backticks)
+    const codePattern = /`([^`]+)`/g;
+    let lastIndex = 0;
+    let match;
+    
+    while ((match = codePattern.exec(text)) !== null) {
+        // Add text before code
+        if (match.index > lastIndex) {
+            const beforeText = text.substring(lastIndex, match.index);
+            richTextArray.push(...parseBoldItalic(beforeText));
+        }
+        
+        // Add code
+        richTextArray.push({
+            type: 'text',
+            text: { content: match[1] },
+            annotations: { code: true }
+        });
+        
+        lastIndex = match.index + match[0].length;
+    }
+    
+    // Add remaining text
+    if (lastIndex < text.length) {
+        richTextArray.push(...parseBoldItalic(text.substring(lastIndex)));
+    }
+    
+    return richTextArray.length > 0 ? richTextArray : [{ type: 'text', text: { content: text } }];
+}
+
+/**
+ * Parse bold and italic
+ */
+function parseBoldItalic(text) {
+    const result = [];
+    
+    // Simple bold parsing (**text**)
+    const boldPattern = /\*\*([^*]+)\*\*/g;
+    let lastIndex = 0;
+    let match;
+    
+    while ((match = boldPattern.exec(text)) !== null) {
+        if (match.index > lastIndex) {
+            result.push({
+                type: 'text',
+                text: { content: text.substring(lastIndex, match.index) }
+            });
+        }
+        
+        result.push({
+            type: 'text',
+            text: { content: match[1] },
+            annotations: { bold: true }
+        });
+        
+        lastIndex = match.index + match[0].length;
+    }
+    
+    if (lastIndex < text.length) {
+        result.push({
+            type: 'text',
+            text: { content: text.substring(lastIndex) }
+        });
+    }
+    
+    return result.length > 0 ? result : [{ type: 'text', text: { content: text } }];
+}
+
+/**
+ * Convert a markdown table to Notion table
+ */
+function createNotionTable(tableRows) {
+    if (tableRows.length < 2) return null; // Need at least header + 1 row
+    
+    // Parse header
+    const headerCells = tableRows[0].split('|').map(c => c.trim()).filter(c => c);
+    const numCols = headerCells.length;
+    
+    if (numCols === 0) return null;
+    
+    // Skip separator line (tableRows[1] with dashes)
+    const dataRows = tableRows.slice(2);
+    
+    // Create table block
+    const tableBlock = {
+        object: 'block',
+        type: 'table',
+        table: {
+            table_width: numCols,
+            has_column_header: true,
+            has_row_header: false,
+            children: []
+        }
+    };
+    
+    // Add header row
+    tableBlock.table.children.push({
+        object: 'block',
+        type: 'table_row',
+        table_row: {
+            cells: headerCells.map(cell => parseRichText(cell))
+        }
+    });
+    
+    // Add data rows
+    for (const row of dataRows) {
+        if (!row.trim()) continue;
+        
+        const cells = row.split('|').map(c => c.trim()).filter(c => c);
+        
+        // Pad with empty cells if needed
+        while (cells.length < numCols) {
+            cells.push('');
+        }
+        
+        tableBlock.table.children.push({
+            object: 'block',
+            type: 'table_row',
+            table_row: {
+                cells: cells.slice(0, numCols).map(cell => parseRichText(cell || ' '))
+            }
+        });
+    }
+    
+    return tableBlock;
+}
 
 /**
  * Convert markdown test entry to Notion blocks
  */
 function convertTestEntryToBlocks(entryMarkdown) {
     const blocks = [];
+    const lines = entryMarkdown.split('\n');
     
-    // Split into lines
-    const lines = entryMarkdown.split('\n').filter(l => l.trim());
+    let i = 0;
+    let inTable = false;
+    let tableLines = [];
     
-    for (const line of lines) {
+    while (i < lines.length) {
+        const line = lines[i];
         const trimmed = line.trim();
         
-        // Skip separators
-        if (trimmed === '---') continue;
+        // Skip empty lines and separators
+        if (!trimmed || trimmed === '---') {
+            i++;
+            continue;
+        }
         
-        // Headers (H2, H3, H4)
-        if (trimmed.startsWith('## ')) {
+        // Detect table start
+        if (trimmed.startsWith('|') && !inTable) {
+            inTable = true;
+            tableLines = [trimmed];
+            i++;
+            continue;
+        }
+        
+        // Continue collecting table lines
+        if (inTable && trimmed.startsWith('|')) {
+            tableLines.push(trimmed);
+            i++;
+            continue;
+        }
+        
+        // End of table
+        if (inTable && !trimmed.startsWith('|')) {
+            const tableBlock = createNotionTable(tableLines);
+            if (tableBlock) {
+                blocks.push(tableBlock);
+            }
+            inTable = false;
+            tableLines = [];
+            // Don't increment i - process this line as normal content
+        }
+        
+        // H2: Test name
+        if (trimmed.startsWith('## 🧪')) {
+            const content = trimmed.substring(2).trim();
             blocks.push({
                 object: 'block',
                 type: 'heading_2',
                 heading_2: {
-                    rich_text: [{
-                        type: 'text',
-                        text: { content: trimmed.substring(3).replace(/`/g, '') }
-                    }]
+                    rich_text: parseRichText(content),
+                    is_toggleable: true
                 }
             });
-        } else if (trimmed.startsWith('### ')) {
+        }
+        // H3: Section headers
+        else if (trimmed.startsWith('### ')) {
+            const content = trimmed.substring(4).trim();
             blocks.push({
                 object: 'block',
                 type: 'heading_3',
                 heading_3: {
-                    rich_text: [{
-                        type: 'text',
-                        text: { content: trimmed.substring(4) }
-                    }]
-                }
-            });
-        } else if (trimmed.startsWith('####')) {
-            // Notion doesn't have H4, use H3 or paragraph
-            blocks.push({
-                object: 'block',
-                type: 'paragraph',
-                paragraph: {
-                    rich_text: [{
-                        type: 'text',
-                        text: { content: trimmed.substring(5) },
-                        annotations: { bold: true }
-                    }]
+                    rich_text: parseRichText(content)
                 }
             });
         }
-        // Table rows (simplified - Notion tables are complex)
-        else if (trimmed.startsWith('|') && !trimmed.includes('---')) {
-            const cells = trimmed.split('|').map(c => c.trim()).filter(c => c);
-            if (cells.length > 0) {
-                blocks.push({
-                    object: 'block',
-                    type: 'paragraph',
-                    paragraph: {
-                        rich_text: [{
-                            type: 'text',
-                            text: { content: cells.join(' | ') }
-                        }]
-                    }
-                });
-            }
-        }
-        // List items
+        // Bulleted list
         else if (trimmed.startsWith('- ')) {
+            const content = trimmed.substring(2).trim();
             blocks.push({
                 object: 'block',
                 type: 'bulleted_list_item',
                 bulleted_list_item: {
-                    rich_text: [{
-                        type: 'text',
-                        text: { content: trimmed.substring(2) }
-                    }]
+                    rich_text: parseRichText(content)
                 }
             });
         }
-        // Regular text
+        // Regular paragraph
         else if (trimmed.length > 0 && !trimmed.startsWith('**Last Updated:**')) {
             blocks.push({
                 object: 'block',
                 type: 'paragraph',
                 paragraph: {
-                    rich_text: [{
-                        type: 'text',
-                        text: { content: trimmed }
-                    }]
+                    rich_text: parseRichText(trimmed)
                 }
             });
+        }
+        
+        i++;
+    }
+    
+    // Handle any remaining table
+    if (inTable && tableLines.length > 0) {
+        const tableBlock = createNotionTable(tableLines);
+        if (tableBlock) {
+            blocks.push(tableBlock);
         }
     }
     
     return blocks;
+}
+
+/**
+ * Clear existing page content
+ */
+async function clearNotionPage() {
+    console.log('   🗑️  Clearing existing content...');
+    
+    let hasMore = true;
+    let cursor = undefined;
+    let deletedCount = 0;
+    
+    while (hasMore) {
+        const response = await notion.blocks.children.list({
+            block_id: NOTION_PAGE_ID,
+            start_cursor: cursor,
+            page_size: 100
+        });
+        
+        for (const block of response.results) {
+            try {
+                await notion.blocks.delete({ block_id: block.id });
+                deletedCount++;
+            } catch (e) {
+                // Ignore errors
+            }
+        }
+        
+        hasMore = response.has_more;
+        cursor = response.next_cursor;
+    }
+    
+    console.log(`   ✅ Cleared ${deletedCount} existing blocks`);
 }
 
 /**
@@ -137,38 +309,23 @@ async function updateNotionPage(content) {
     try {
         console.log('📤 Updating Notion page...');
         
-        // First, archive all existing blocks (clear the page)
-        console.log('   🗑️  Clearing existing content...');
+        await clearNotionPage();
         
-        const existingPage = await notion.blocks.children.list({
-            block_id: NOTION_PAGE_ID,
-            page_size: 100
-        });
-        
-        // Archive existing blocks
-        for (const block of existingPage.results) {
-            try {
-                await notion.blocks.delete({ block_id: block.id });
-            } catch (e) {
-                // Ignore errors when deleting blocks
-            }
-        }
-        
-        console.log(`   ✅ Cleared ${existingPage.results.length} existing blocks`);
-        
-        // Split content into test entries
+        // Split into test entries
         const entries = content.split(/(?=## 🧪)/).filter(e => e.trim());
         
-        console.log(`   📝 Adding ${entries.length} test entries...`);
+        console.log(`   📝 Processing ${entries.length} test entries...`);
         
-        // Add entries in batches (Notion limits: 100 blocks per request)
         let totalBlocksAdded = 0;
+        let processedEntries = 0;
         
         for (let i = 0; i < entries.length; i++) {
             const entry = entries[i];
             
             try {
                 const blocks = convertTestEntryToBlocks(entry);
+                
+                if (blocks.length === 0) continue;
                 
                 // Notion API limit: max 100 blocks per request
                 const MAX_BLOCKS_PER_REQUEST = 100;
@@ -184,32 +341,33 @@ async function updateNotionPage(content) {
                     totalBlocksAdded += batchBlocks.length;
                 }
                 
-                if ((i + 1) % 10 === 0) {
-                    console.log(`   📝 Progress: ${i + 1}/${entries.length} entries added`);
+                processedEntries++;
+                
+                if ((i + 1) % 5 === 0) {
+                    console.log(`   📝 Progress: ${i + 1}/${entries.length} entries`);
                 }
                 
                 // Small delay to avoid rate limits
-                await new Promise(resolve => setTimeout(resolve, 100));
+                await new Promise(resolve => setTimeout(resolve, 150));
                 
             } catch (error) {
-                console.error(`   ⚠️  Failed to add entry ${i + 1}:`, error.message);
+                console.error(`   ⚠️  Entry ${i + 1} failed:`, error.message);
             }
         }
         
-        console.log(`\n✅ Notion page updated successfully`);
-        console.log(`   Total blocks added: ${totalBlocksAdded}`);
-        console.log(`   Total entries: ${entries.length}`);
+        console.log(`\n✅ Notion page updated`);
+        console.log(`   Entries: ${processedEntries}/${entries.length}`);
+        console.log(`   Blocks: ${totalBlocksAdded}`);
         
         return true;
         
     } catch (error) {
-        console.error(`❌ Notion API error:`, error.message);
-        console.error(`   Code:`, error.code);
+        console.error(`❌ Notion error:`, error.message);
         
         if (error.status === 401) {
-            console.error('   Authentication failed - check NOTION_SECRET');
+            console.error('   → Check NOTION_SECRET');
         } else if (error.status === 404) {
-            console.error('   Page not found - check NOTION_PAGE_ID');
+            console.error('   → Check NOTION_PAGE_ID');
         }
         
         throw error;
@@ -217,27 +375,26 @@ async function updateNotionPage(content) {
 }
 
 /**
- * Main function
+ * Main
  */
 async function main() {
-    console.log('📚 Updating Notion documentation...');
+    console.log('📚 Notion Documentation Update\n');
     
-    // Read consolidated documentation
     if (!fs.existsSync(DOC_FILE)) {
-        console.error(`❌ Documentation file not found: ${DOC_FILE}`);
+        console.error(`❌ File not found: ${DOC_FILE}`);
         process.exit(1);
     }
     
     const content = fs.readFileSync(DOC_FILE, 'utf-8');
-    console.log(`✅ Loaded documentation (${(content.length / 1024).toFixed(2)} KB)`);
+    console.log(`✅ Loaded ${(content.length / 1024).toFixed(2)} KB\n`);
     
     await updateNotionPage(content);
     
-    console.log('\n✅ Notion update completed successfully');
+    console.log('\n✅ Complete');
 }
 
 main().catch(error => {
-    console.error('❌ Error:', error);
+    console.error('❌ Fatal error:', error);
     process.exit(1);
 });
 
