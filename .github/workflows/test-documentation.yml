@@ -50,19 +50,29 @@ jobs:
         env:
           CODA_API_TOKEN: ${{ secrets.CODA_API_TOKEN }}
       
-      - name: Split gap tests into batches
+      - name: Adaptive batching (optimal for workload)
         if: steps.detect.outputs.skip-processing != 'true'
         id: split
         run: |
           TEST_FILES=$(cat documentation/tests-to-process.txt)
           TOTAL=$(echo "$TEST_FILES" | wc -l | tr -d ' ')
           
-          echo "✅ $TOTAL missing tests → 7 batches (OpenRouter: 20 RPM, 1000/day)"
+          # Adaptive: Use fewer batches for smaller workloads
+          if [ "$TOTAL" -le 7 ]; then
+            NUM_BATCHES=$TOTAL
+          elif [ "$TOTAL" -le 20 ]; then
+            NUM_BATCHES=4
+          else
+            NUM_BATCHES=7
+          fi
+          
+          echo "✅ $TOTAL missing tests → $NUM_BATCHES batches (adaptive)"
+          echo "num-batches=$NUM_BATCHES" >> $GITHUB_OUTPUT
           
           mkdir -p batches
           
-          # Initialize 7 empty batch files
-          for i in {0..6}; do
+          # Initialize batch files
+          for ((i=0; i<NUM_BATCHES; i++)); do
             > "batches/batch-${i}.txt"
           done
           
@@ -70,7 +80,7 @@ jobs:
           INDEX=0
           echo "$TEST_FILES" | while read -r FILE; do
             if [ -n "$FILE" ]; then
-              BATCH=$((INDEX % 7))
+              BATCH=$((INDEX % NUM_BATCHES))
               echo "$FILE" >> "batches/batch-${BATCH}.txt"
               INDEX=$((INDEX + 1))
             fi
@@ -78,8 +88,8 @@ jobs:
           
           # Show distribution
           echo ""
-          echo "📊 Batch distribution (missing tests only):"
-          for i in {0..6}; do
+          echo "📊 Adaptive batch distribution:"
+          for ((i=0; i<NUM_BATCHES; i++)); do
             COUNT=$(wc -l < "batches/batch-${i}.txt" | tr -d ' ')
             echo "   Batch $i: $COUNT tests"
           done
@@ -120,10 +130,10 @@ jobs:
           name: test-batches
           path: batches/
       
-      - name: Run AI analysis (dedicated provider)
+      - name: Run AI analysis (multi-provider retry for max success)
         run: |
-          echo "🤖 Batch ${{ matrix.batch }} - Dedicated provider mode"
-          node auto_documentator/scripts/ai-analyzer.js "batches/batch-${{ matrix.batch }}.txt" ${{ matrix.batch }} --dedicated
+          echo "🤖 Batch ${{ matrix.batch }} - Multi-provider retry mode"
+          node auto_documentator/scripts/ai-analyzer-multi-retry.js "batches/batch-${{ matrix.batch }}.txt" ${{ matrix.batch }}
         env:
           AI_API_KEY: ${{ secrets.AI_API_KEY }}
           AI_API_KEY_2: ${{ secrets.AI_API_KEY_2 }}
