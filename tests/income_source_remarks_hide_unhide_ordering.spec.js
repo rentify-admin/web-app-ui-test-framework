@@ -19,7 +19,7 @@ test.describe('QA-191:create_multiple_remarks.spec', () => {
     let applicantCtx = null;
     let allTestsPassed = true;
 
-    test('Should allow creating multiple remarks successfully', {
+    test('Verify Income Source Remarks Creation, Ordering, and Hide/Unhide Functionality', {
         tag: ['@core', '@smoke', '@regression', '@staging-ready', '@rc-ready'],
         timeout: 180_000
     }, async ({ page, context }) => {

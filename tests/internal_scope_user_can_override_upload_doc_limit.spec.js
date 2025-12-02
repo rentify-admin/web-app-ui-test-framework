@@ -11,10 +11,12 @@ import { fileURLToPath } from 'url';
 import { waitForJsonResponse } from './utils/wait-response';
 import { navigateToSessionById, searchSessionWithText } from './utils/report-page';
 import { cleanupSession } from './utils/cleanup-helper';
+import { pollForVerificationStatus } from './utils/polling-helper';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const appName = 'AutoTest - Internal Scope No Doc Limit';
 let createdSessionId = null;
+let guestAuthToken = null;  // ✅ Store guest token for API polling
 
 test.describe('QA-212 internal_scope_user_can_override_upload_doc_limit.spec', () => {
 
@@ -30,6 +32,7 @@ test.describe('QA-212 internal_scope_user_can_override_upload_doc_limit.spec', (
         }
         // Reset for next test
         createdSessionId = null;
+        guestAuthToken = null;
     });
 
     test('Verify Internal-scope Uploads Can Override Document Upload Limits',{
@@ -57,8 +60,29 @@ test.describe('QA-212 internal_scope_user_can_override_upload_doc_limit.spec', (
         console.log('🆕 STEP 4: Opening applicant session in new browser context');
         const applicantPage = await startSessionFlow(link, browser);
 
+        console.log('🔑 STEP 4.5: Capturing guest authentication token for API polling');
+        // ✅ Intercept the auth response to capture guest token (same pattern as show-paystub-deposit test)
+        const tokenPromise = applicantPage.waitForResponse(
+            resp => resp.url().includes('/auth/guest') && resp.ok(),
+            { timeout: 30000 }
+        ).then(async resp => {
+            const body = await resp.json();
+            const token = body.data?.token || body.token;
+            console.log('✅ Captured guest auth token');
+            return token;
+        }).catch(error => {
+            console.log('⚠️ Failed to capture auth token:', error.message);
+            return null;
+        });
+
         console.log('📋 STEP 5: Applicant: Accepting terms, choosing type & state');
         await setupInviteLinkSession(applicantPage);
+        
+        // ✅ Wait for token to be captured
+        guestAuthToken = await tokenPromise;
+        if (!guestAuthToken) {
+            throw new Error('Failed to capture guest authentication token - cannot proceed with API polling');
+        }
 
         console.log('💲 STEP 6: Setting rent budget to 500');
         await updateRentBudget(applicantPage, sessionId, '500');
@@ -78,36 +102,14 @@ test.describe('QA-212 internal_scope_user_can_override_upload_doc_limit.spec', (
             'paystub_recent.png'
         ], { continueStep: false, timeout: 90_000 });
 
-        console.log('🔄 STEP 8: Polling for employment verification to complete ⏲️');
-        let employmentStatusCompleted = false;
-        let response;
-        const maxAttempts = 35;
-        const pollingInterval = 15000;
-
-        for (let i = 0; i < maxAttempts; i++) {
-            response = await applicantPage.waitForResponse(resp =>
-                resp.url().includes('/employment-verifications') &&
-                resp.request().method() === "GET" &&
-                resp.ok()
-                , { timeout: pollingInterval });
-
-            const body = await waitForJsonResponse(response);
-            // Small step: show poll status
-            console.log("   🔄 Poll Employment Status:", body?.data);
-            const item = body?.data?.find(item => item.id === employmentVerification.id);
-            if (item && item.status === 'COMPLETED') {
-                employmentStatusCompleted = true;
-                employmentVerification = body.data;
-                console.log('   ✅ Employment verification status is COMPLETED.');
-                break;
-            }
-            await applicantPage.waitForTimeout(1500);
-        }
-
-        if (!employmentStatusCompleted) {
-            console.error(`❌ Employment verification for ID ${employmentVerification.id} did not reach COMPLETED status within timeout`);
-            throw new Error(`Employment verification for ID ${employmentVerification.id} did not reach COMPLETED status within timeout`);
-        }
+        console.log('🔄 STEP 8: Polling for employment verification to complete via API ⏲️');
+        // ✅ Use API polling instead of waiting for UI GET requests (same pattern as show-paystub-deposit test)
+        await pollForVerificationStatus(applicantPage.context(), employmentVerification.id, 'employment-verifications', {
+            maxAttempts: 50,        // 50 attempts × 2s = 100s max (was 8.75 min before)
+            pollInterval: 2000,     // Poll every 2 seconds
+            authToken: guestAuthToken
+        });
+        console.log('✅ Employment verification COMPLETED via API polling');
 
         console.log('🚫 STEP 9: Attempting extra applicant paystub upload (should see upload limit error)');
         await applicantPage.getByTestId('document-pay_stub').click();

@@ -197,13 +197,12 @@ test.describe('QA-221 report_remarks_section.spec', () => {
             remarkHistorySection = page.getByTestId('remark-history-display-section');
 
             const firstComment = 'Internal remark without notifications'
-            const secondComment = 'Remark with organization notification'
-            const thirdComment = 'Remark with applicant notification'
-            const fourthComment = 'Remark with organization and applicant notification'
+            const secondComment = 'Remark with single applicant notification'
+            const thirdComment = 'Remark with All applicants notification'
             const clearComment = 'Clear comment notification'
 
-            // Step 1: adding comment without send to org and applicants
-            console.log('step 1: Adding comment without sending to organization and applicants');
+            // Step 1: adding comment without notifications (internal remark)
+            console.log('step 1: Adding internal comment without notifications');
             await commentDiv.locator('#remark-content').fill(firstComment)
             console.log('Filled comment textarea:', firstComment);
 
@@ -220,40 +219,46 @@ test.describe('QA-221 report_remarks_section.spec', () => {
                 const commentLocator = remarkHistorySection.getByTestId(`remark-comment-${comment1.id}`)
                 await expect(commentLocator).toBeVisible()
                 await expect(commentLocator).toContainText(firstComment)
-                console.log('Step 1 success: Comment visible as expected.');
+                // No bell icon should be visible for internal remarks
+                await expect(commentLocator.getByTestId('notify-comment-btn')).not.toBeVisible();
+                console.log('Step 1 success: Internal comment visible without notification icon.');
             }
 
-            // Step 2: adding comment with send to org
-            console.log('step 2: Adding comment with sending to organization.');
+            // Step 2: adding comment with single applicant notification
+            console.log('step 2: Adding comment with single applicant notification');
             await commentDiv.locator('#remark-content').fill(secondComment)
             console.log('Filled comment textarea:', secondComment);
-            await remarkHistoryFormSection.getByTestId('remark-notify-org-checkbox').check();
-            console.log('Checked org notify checkbox');
+            await fillMultiselect(page, remarkHistoryFormSection.getByTestId('remark-applicant-dropdown'), [userData.full_name]);
+            console.log('Applicant selected via multiselect');
 
             const { comment: comment2 } = await submitRemarkAndWaitForComments({
                 page,
                 sessionId,
                 remarkPayload: {
                     comment: secondComment,
-                    notify_organization: true
+                    notify_applicant: true,
+                    applicants: [session.data.applicant.id]
                 }
             });
 
             if (comment2) {
-                console.log('Submitted org-notified comment, verifying display and bell icon');
+                console.log('Submitted applicant-notified comment, verifying display and bell icon');
                 const commentLocator = remarkHistorySection.getByTestId(`remark-comment-${comment2.id}`)
                 await expect(commentLocator).toBeVisible()
                 await expect(commentLocator).toContainText(secondComment)
                 await expect(commentLocator.getByTestId('notify-comment-btn')).toBeVisible();
-                console.log('Step 2 success: Notify org comment and button found.');
+                console.log('Step 2 success: Notify applicant comment and bell icon found.');
             }
 
-            // Step 3: adding comment with applicants
-            console.log('step 3: Adding comment with applicant notified.');
+            // Step 3: adding comment with "All" applicants notification
+            // Note: Since this session has only 1 applicant (no co-applicants/children),
+            // selecting "All" will expand to the same single applicant ID as Step 2
+            console.log('step 3: Adding comment with All applicants notification');
             await commentDiv.locator('#remark-content').fill(thirdComment)
             console.log('Filled comment textarea:', thirdComment);
-            await fillMultiselect(page, remarkHistoryFormSection.getByTestId('remark-applicant-dropdown'), [userData.full_name]);
-            console.log('Applicant selected via multiselect');
+            // Select "All" option from multiselect
+            await fillMultiselect(page, remarkHistoryFormSection.getByTestId('remark-applicant-dropdown'), ['All']);
+            console.log('All applicants selected via multiselect');
 
             let {
                 comment: comment3,
@@ -264,62 +269,29 @@ test.describe('QA-221 report_remarks_section.spec', () => {
                 remarkPayload: {
                     comment: thirdComment,
                     notify_applicant: true,
+                    // "All" expands to array of all applicant IDs (in this case, just one)
                     applicants: [session.data.applicant.id]
                 }
             })
 
             if (comment3) {
-                console.log('Checking comment with applicant notification and bell icon');
+                console.log('Checking comment with All applicants notification and bell icon');
                 const commentLocator = remarkHistorySection.getByTestId(`remark-comment-${comment3.id}`)
                 await expect(commentLocator).toBeVisible()
                 await expect(commentLocator).toContainText(thirdComment)
                 await expect(commentLocator.getByTestId('notify-comment-btn')).toBeVisible();
-                console.log('Step 3 success: Notify applicant comment and button found.');
+                console.log('Step 3 success: Notify All applicants comment and bell icon found.');
             }
 
-            // Step 4: adding comment send to org and applicants
-            console.log('step 4: Adding comment with notify org and applicant together.');
-            await commentDiv.locator('#remark-content').fill(fourthComment)
-            console.log('Filled comment textarea:', fourthComment);
-            await fillMultiselect(page, remarkHistoryFormSection.getByTestId('remark-applicant-dropdown'), [userData.full_name]);
-            console.log('Applicant added in dropdown');
-            await remarkHistoryFormSection.getByTestId('remark-notify-org-checkbox').check();
-            console.log('Org checkbox checked for org+app notification');
-
-            let {
-                comment: comment4
-            } = await submitRemarkAndWaitForComments({
-                page,
-                sessionId,
-                remarkPayload: {
-                    comment: fourthComment,
-                    notify_organization: true,
-                    notify_applicant: true,
-                    applicants: [session.data.applicant.id]
-                }
-            });
-
-            if (comment4) {
-                console.log('Verifying org+applicant notify comment & button visible');
-                const commentLocator = remarkHistorySection.getByTestId(`remark-comment-${comment4.id}`)
-                await expect(commentLocator).toBeVisible()
-                await expect(commentLocator).toContainText(fourthComment)
-                await expect(commentLocator.getByTestId('notify-comment-btn')).toBeVisible()
-                console.log('Step 4 success: Notify org and applicant comment is visible.');
-            }
-
-            // Step 5: Clear button check comment after
-            console.log('step 5: Clearing comment form after fill with clear button and checking fields state');
+            // Step 4: Clear button check
+            console.log('step 4: Clearing comment form after fill with clear button and checking fields state');
             await commentDiv.locator('#remark-content').fill(clearComment)
             await fillMultiselect(page, remarkHistoryFormSection.getByTestId('remark-applicant-dropdown'), [userData.full_name]);
-            await remarkHistoryFormSection.getByTestId('remark-notify-org-checkbox').check()
             console.log('Clear scenario filled with data, clicking clear-remark-btn');
             await remarkHistoryFormSection.getByTestId('clear-remark-btn').click()
 
             await expect(commentDiv.locator('#remark-content')).toHaveValue('');
             console.log('Comment textarea is empty after clear');
-            await expect(remarkHistoryFormSection.getByTestId('remark-notify-org-checkbox')).not.toBeChecked();
-            console.log('Notify org checkbox is unchecked after clear');
 
             // Check that the "multiselect__tags-wrap" div is not visible
             await expect(
@@ -329,8 +301,8 @@ test.describe('QA-221 report_remarks_section.spec', () => {
             ).not.toBeVisible();
             console.log('Applicants dropdown multiselect tags cleared after clear action.');
 
-            // Step 6: comment hide/unhide check
-            console.log('step 6: Checking hide/unhide functionality for comment');
+            // Step 5: comment hide/unhide check
+            console.log('step 5: Checking hide/unhide functionality for comment');
             for (let index = 0; index < comments.length; index++) {
                 const element = comments[index];
                 const commentLocator = remarkHistorySection.getByTestId(`remark-comment-${element.id}`)

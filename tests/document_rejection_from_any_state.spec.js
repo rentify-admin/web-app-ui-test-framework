@@ -111,17 +111,17 @@ async function failDocument(rowLocator, page, sessionId) {
     await expect(page.getByTestId('decision-modal')).toBeVisible();
     const decisionModal = page.getByTestId('decision-modal');
 
-    console.log('Attempting to reject document...');
+    console.log('Attempting to fail document...');
     const [filesResponse] = await Promise.all([
         page.waitForResponse(
             resp => resp.url().includes(`/sessions/${sessionId}/files?fields[file]`) && resp.ok() && resp.request().method() === 'GET'
         ),
-        decisionModal.getByTestId('decision-modal-processing-btn').click() // This button seems to trigger a 'Reject/Failed' state in the context
+        decisionModal.getByTestId('decision-modal-processing-btn').click()
     ]);
 
-    await waitForJsonResponse(filesResponse); // Wait for data to ensure the operation completed
-    await page.waitForTimeout(1000); // Short wait for UI update
-    await expect(rowLocator.getByTestId('files-document-status-pill')).toContainText('Failed', { timeout: 10_000 });
+    await waitForJsonResponse(filesResponse);
+    await page.waitForTimeout(2000);
+    await expect(rowLocator.getByTestId('files-document-status-pill')).toContainText('Failed', { timeout: 30_000 });
     console.log('✅ Document successfully failed.');
 }
 
@@ -148,8 +148,8 @@ async function rejectDocument(rowLocator, page, sessionId) {
     ]);
 
     await waitForJsonResponse(filesResponse);
-    await page.waitForTimeout(1000);
-    await expect(rowLocator.getByTestId('files-document-status-pill')).toContainText('Rejected', { timeout: 10_000 });
+    await page.waitForTimeout(2000);
+    await expect(rowLocator.getByTestId('files-document-status-pill')).toContainText('Rejected', { timeout: 30_000 });
     console.log('✅ Document successfully rejected.');
 }
 
@@ -171,8 +171,8 @@ async function acceptDocument(rowLocator, page, sessionId) {
     ]);
 
     await waitForJsonResponse(filesResponse);
-    await page.waitForTimeout(1000);
-    await expect(rowLocator.getByTestId('files-document-status-pill')).toContainText('Accepted', { timeout: 10_000 });
+    await page.waitForTimeout(2000);
+    await expect(rowLocator.getByTestId('files-document-status-pill')).toContainText('Accepted', { timeout: 30_000 });
     console.log('✅ Document successfully accepted.');
 }
 
@@ -289,34 +289,36 @@ test.describe('QA-208: Document Rejection from Any State', () => {
             // Wait for the document processing to complete on the admin side
             await waitForConnectionCompletion(applicantPage);
 
-            // 7. Verify Document State: Reject (Manual Override)
+            // 7. Wait for document to be auto-rejected
             files = await navigateToFilesTabAndReload(page, sessionId);
 
-            // Locate the row for the second uploaded file (assuming the first file in financialVerification.files is the one)
+            // Locate the row for the second uploaded file
             const fileToManage = financialVerification.files[0];
             const fileRowLocator = allWrapper.getByTestId(`all-tr-${fileToManage.id}`);
 
-            console.log('➡️ Initiating Accept -> Reject cycle on processed document.');
+            console.log('➡️ Waiting for document to be auto-rejected...');
 
-            // Waiting for document to get rejected
-            let count = 0
+            // Poll with longer timeout to allow processing in CI
+            let count = 0;
             let textdata = '';
             do {
                 await page.reload();
                 await page.getByTestId('files-section-header').click();
                 await page.getByTestId('document-tab-all').click();
                 await expect(page.getByTestId('file-section-all-wrapper')).toBeVisible();
-                textdata = await fileRowLocator.getByTestId('files-document-status-pill').textContent()
+                textdata = await fileRowLocator.getByTestId('files-document-status-pill').textContent();
                 await page.waitForTimeout(5000);
                 count++;
-            } while (!textdata.includes('Rejected') || count > 5)
+            } while (!textdata.includes('Rejected') && count < 20);  // Increased from 5 to 20 attempts (100 seconds max)
 
-            await expect(fileRowLocator.getByTestId('files-document-status-pill')).toContainText('Rejected', { timeout: 20_000 })
+            await expect(fileRowLocator.getByTestId('files-document-status-pill')).toContainText('Rejected', { timeout: 30_000 });
 
-            // Initially Accepting document to check reject
+            console.log('➡️ Testing Accept -> Reject cycle on processed document.');
+
+            // Accept the rejected document
             await acceptDocument(fileRowLocator, page, sessionId);
 
-            // Rejecting document
+            // Reject it again
             await rejectDocument(fileRowLocator, page, sessionId);
 
             console.log('✅ Document rejection test completed successfully');

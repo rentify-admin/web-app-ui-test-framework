@@ -423,6 +423,41 @@ test.describe('user_permissions_verify', () => {
             await page.waitForTimeout(1000);
             console.log('✅ Flags resolved and modal closed');
             
+            // ✅ POLL for backend to finish processing flags before reload
+            console.log('🔄 Polling for backend flag processing to complete...');
+            const maxPollAttempts = 30; // 30 × 1s = 30s max
+            let flagsProcessed = false;
+            
+            for (let i = 0; i < maxPollAttempts; i++) {
+                await page.waitForTimeout(1000);
+                
+                // Fetch flags via API to check if processing is complete
+                const flagsResponse = await page.request.get(`${app.urls.api}/sessions/${sharedSessionId}/flags`, {
+                    params: {
+                        filters: JSON.stringify({
+                            session_flag: { flag: { scope: { $neq: 'APPLICANT' } } }
+                        })
+                    }
+                });
+                
+                if (flagsResponse.ok()) {
+                    const flagsData = await flagsResponse.json();
+                    const flagsInReview = flagsData.data.filter(f => f.in_review === true);
+                    
+                    if (flagsInReview.length === 0) {
+                        flagsProcessed = true;
+                        console.log(`✅ All flags processed by backend (attempt ${i + 1}/${maxPollAttempts})`);
+                        break;
+                    } else {
+                        console.log(`   ⏳ ${flagsInReview.length} flag(s) still processing (attempt ${i + 1}/${maxPollAttempts})...`);
+                    }
+                }
+            }
+            
+            if (!flagsProcessed) {
+                console.warn('⚠️ Flag processing did not complete within 30s - proceeding anyway');
+            }
+            
             // ✅ RELOAD page to ensure fresh state
             console.log('🔄 Reloading page to refresh state...');
             await page.reload();
