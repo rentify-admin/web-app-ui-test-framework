@@ -13,9 +13,92 @@ on:
         default: false
 
 jobs:
-  update-coda-documentation:
-    name: Update Coda Test Documentation
+  # Job 1: Split tests into batches
+  prepare-batches:
+    name: Prepare Test Batches
     runs-on: ubuntu-latest
+    outputs:
+      batch-count: ${{ steps.split.outputs.batch-count }}
+      total-tests: ${{ steps.split.outputs.total-tests }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Split tests into batches
+        id: split
+        run: |
+          echo "📊 Splitting tests into batches of 20%..."
+          
+          # Find all test files
+          TEST_FILES=$(find tests -name "*.spec.js" -o -name "*.test.js" | sort)
+          TOTAL_TESTS=$(echo "$TEST_FILES" | wc -l | tr -d ' ')
+          
+          echo "✅ Found $TOTAL_TESTS test files"
+          
+          # Calculate batch size (20% of total, minimum 1)
+          BATCH_SIZE=$(( ($TOTAL_TESTS * 20 + 99) / 100 ))
+          if [ $BATCH_SIZE -lt 1 ]; then
+            BATCH_SIZE=1
+          fi
+          
+          # Calculate number of batches (5 batches for 100%)
+          BATCH_COUNT=5
+          
+          echo "📦 Batch size: $BATCH_SIZE tests per batch"
+          echo "📦 Number of batches: $BATCH_COUNT"
+          
+          # Create batch files
+          mkdir -p batches
+          BATCH_NUM=0
+          COUNT=0
+          
+          for TEST_FILE in $TEST_FILES; do
+            BATCH_FILE="batches/batch-${BATCH_NUM}.txt"
+            echo "$TEST_FILE" >> "$BATCH_FILE"
+            COUNT=$((COUNT + 1))
+            
+            if [ $COUNT -ge $BATCH_SIZE ]; then
+              BATCH_NUM=$((BATCH_NUM + 1))
+              COUNT=0
+            fi
+          done
+          
+          # Show batch distribution
+          echo ""
+          echo "📋 Batch distribution:"
+          for i in $(seq 0 $((BATCH_COUNT - 1))); do
+            if [ -f "batches/batch-${i}.txt" ]; then
+              BATCH_TESTS=$(wc -l < "batches/batch-${i}.txt" | tr -d ' ')
+              echo "   Batch $i: $BATCH_TESTS tests"
+            fi
+          done
+          
+          # Set outputs
+          echo "batch-count=$BATCH_COUNT" >> $GITHUB_OUTPUT
+          echo "total-tests=$TOTAL_TESTS" >> $GITHUB_OUTPUT
+
+      - name: Upload batch files
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-batches
+          path: batches/
+          retention-days: 1
+
+  # Job 2: Process batches in parallel
+  process-batch:
+    name: Process Batch ${{ matrix.batch }}
+    runs-on: ubuntu-latest
+    needs: prepare-batches
+    strategy:
+      matrix:
+        batch: [0, 1, 2, 3, 4]
+      fail-fast: false # Continue even if one batch fails
     
     steps:
       - name: Checkout code
@@ -30,108 +113,152 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Install QODO CLI
-        run: npm install -g @qodo/command
+      - name: Download batch files
+        uses: actions/download-artifact@v4
+        with:
+          name: test-batches
+          path: batches/
 
-      - name: Authenticate QODO
+      - name: Process batch ${{ matrix.batch }}
+        id: process
         run: |
-          mkdir -p ~/.qodo
-          echo "${{ secrets.QODO_API_KEY }}" > ~/.qodo/api_key
-
-      - name: Install Coda MCP Server
-        run: npm install -g coda-mcp
-
-      - name: Update Coda documentation
-        id: update-coda
-        run: |
-          echo "📚 Starting documentation update with QODO + Coda..."
+          echo "📦 Processing batch ${{ matrix.batch }}..."
           
-          # Run the new script that uses QODO CLI and Coda MCP CLI
-          set +e  # Don't exit on error immediately
-          OUTPUT=$(node scripts/update-coda-with-qodo-mcp.js 2>&1)
+          BATCH_FILE="batches/batch-${{ matrix.batch }}.txt"
+          
+          if [ ! -f "$BATCH_FILE" ]; then
+            echo "⚠️  Batch file not found: $BATCH_FILE"
+            echo "   This batch is empty, skipping"
+            echo "tests_processed=0" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          # Run documentation generation for this batch
+          OUTPUT=$(node scripts/generate-batch-documentation.js "$BATCH_FILE" ${{ matrix.batch }} 2>&1)
           EXIT_CODE=$?
-          set -e  # Re-enable exit on error
           
-          # Save output for debugging
-          echo "$OUTPUT" > coda_update_output.log
           echo "$OUTPUT"
           
-          # If script failed, show more details
+          # Extract statistics
+          TESTS_PROCESSED=$(echo "$OUTPUT" | grep -oP 'Tests processed: \K\d+' || echo "0")
+          ENTRIES_GENERATED=$(echo "$OUTPUT" | grep -oP 'Entries generated: \K\d+' || echo "0")
+          
+          echo "tests_processed=$TESTS_PROCESSED" >> $GITHUB_OUTPUT
+          echo "entries_generated=$ENTRIES_GENERATED" >> $GITHUB_OUTPUT
+          
           if [ $EXIT_CODE -ne 0 ]; then
-            echo ""
-            echo "❌ Script failed with exit code: $EXIT_CODE"
-            echo "📋 Full error output:"
-            echo "$OUTPUT"
-          fi
-          
-          # Extract statistics from structured output
-          if echo "$OUTPUT" | grep -q "##STATS_START##"; then
-            NEW_ENTRIES=$(echo "$OUTPUT" | sed -n '/##STATS_START##/,/##STATS_END##/p' | grep "NEW_ENTRIES:" | cut -d: -f2 | tr -d ' ')
-            UPDATED_ENTRIES=$(echo "$OUTPUT" | sed -n '/##STATS_START##/,/##STATS_END##/p' | grep "UPDATED_ENTRIES:" | cut -d: -f2 | tr -d ' ')
-            TOTAL_ENTRIES=$(echo "$OUTPUT" | sed -n '/##STATS_START##/,/##STATS_END##/p' | grep "TOTAL_ENTRIES:" | cut -d: -f2 | tr -d ' ')
-            ERRORS=$(echo "$OUTPUT" | sed -n '/##STATS_START##/,/##STATS_END##/p' | grep "ERRORS:" | cut -d: -f2 | tr -d ' ')
-          else
-            # Fallback parsing
-            NEW_ENTRIES=$(echo "$OUTPUT" | grep -oP 'New entries: \K\d+' || echo "0")
-            UPDATED_ENTRIES=$(echo "$OUTPUT" | grep -oP 'Updated entries: \K\d+' || echo "0")
-            TOTAL_ENTRIES=$(echo "$OUTPUT" | grep -oP 'Total entries: \K\d+' || echo "0")
-            ERRORS=$(echo "$OUTPUT" | grep -oP 'Errors: \K\d+' || echo "0")
-          fi
-          
-          # Set output variables
-          echo "new_entries=$NEW_ENTRIES" >> $GITHUB_OUTPUT
-          echo "updated_entries=$UPDATED_ENTRIES" >> $GITHUB_OUTPUT
-          echo "total_entries=$TOTAL_ENTRIES" >> $GITHUB_OUTPUT
-          echo "errors=$ERRORS" >> $GITHUB_OUTPUT
-          echo "exit_code=$EXIT_CODE" >> $GITHUB_OUTPUT
-          
-          # Display summary
-          echo ""
-          echo "📊 Documentation Update Summary:"
-          echo "   - New Entries: $NEW_ENTRIES"
-          echo "   - Updated Entries: $UPDATED_ENTRIES"
-          echo "   - Total Entries: $TOTAL_ENTRIES"
-          echo "   - Errors: $ERRORS"
-          echo "   - Exit Code: $EXIT_CODE"
-          echo ""
-          
-          # Exit with the script's exit code
-          if [ $EXIT_CODE -ne 0 ]; then
-            echo "❌ Documentation update failed"
+            echo "❌ Batch processing failed"
             exit $EXIT_CODE
           fi
           
-          echo "✅ Documentation updated successfully"
+          echo "✅ Batch ${{ matrix.batch }} completed: $ENTRIES_GENERATED entries"
+
+      - name: Upload batch documentation
+        uses: actions/upload-artifact@v4
+        with:
+          name: batch-docs-${{ matrix.batch }}
+          path: documentation/batch-${{ matrix.batch }}.json
+          retention-days: 1
+
+  # Job 3: Consolidate all batches and update Coda
+  consolidate-and-update:
+    name: Consolidate & Update Coda
+    runs-on: ubuntu-latest
+    needs: [prepare-batches, process-batch]
+    if: always() # Run even if some batches fail
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Download all batch documentation
+        uses: actions/download-artifact@v4
+        with:
+          pattern: batch-docs-*
+          path: documentation/batches/
+          merge-multiple: true
+
+      - name: Consolidate documentation
+        id: consolidate
+        run: |
+          echo "📚 Consolidating batch documentation..."
+          
+          OUTPUT=$(node scripts/consolidate-batch-documentation.js 2>&1)
+          EXIT_CODE=$?
+          
+          echo "$OUTPUT"
+          
+          # Extract statistics
+          if echo "$OUTPUT" | grep -q "##CONSOLIDATE_STATS_START##"; then
+            TOTAL_ENTRIES=$(echo "$OUTPUT" | sed -n '/##CONSOLIDATE_STATS_START##/,/##CONSOLIDATE_STATS_END##/p' | grep "TOTAL_ENTRIES:" | cut -d: -f2 | tr -d ' ')
+            BATCHES_PROCESSED=$(echo "$OUTPUT" | sed -n '/##CONSOLIDATE_STATS_START##/,/##CONSOLIDATE_STATS_END##/p' | grep "BATCHES_PROCESSED:" | cut -d: -f2 | tr -d ' ')
+          else
+            TOTAL_ENTRIES=$(echo "$OUTPUT" | grep -oP 'Total entries: \K\d+' || echo "0")
+            BATCHES_PROCESSED=$(echo "$OUTPUT" | grep -oP 'Batches processed: \K\d+' || echo "0")
+          fi
+          
+          echo "total_entries=$TOTAL_ENTRIES" >> $GITHUB_OUTPUT
+          echo "batches_processed=$BATCHES_PROCESSED" >> $GITHUB_OUTPUT
+          echo "exit_code=$EXIT_CODE" >> $GITHUB_OUTPUT
+          
+          if [ $EXIT_CODE -ne 0 ]; then
+            echo "❌ Consolidation failed"
+            exit $EXIT_CODE
+          fi
+          
+          echo "✅ Consolidated $TOTAL_ENTRIES entries from $BATCHES_PROCESSED batches"
+
+      - name: Update Coda page
+        id: update-coda
+        run: |
+          echo "📤 Updating Coda page..."
+          
+          OUTPUT=$(node scripts/update-coda-page.js 2>&1)
+          EXIT_CODE=$?
+          
+          echo "$OUTPUT"
+          
+          if [ $EXIT_CODE -ne 0 ]; then
+            echo "❌ Coda update failed"
+            exit $EXIT_CODE
+          fi
+          
+          echo "✅ Coda page updated successfully"
         env:
           CODA_API_TOKEN: ${{ secrets.CODA_API_TOKEN }}
           CODA_DOC_ID: ${{ secrets.CODA_DOC_ID || 'dza2s1eOIhA' }}
           CODA_PAGE_ID: ${{ secrets.CODA_PAGE_ID || 'suLCLolD' }}
-          AI_API_KEY: ${{ secrets.AI_API_KEY }}
 
       - name: Send Slack notification
         if: always()
         run: |
           echo "📤 Sending Slack notification..."
           
-          # Determine status and color
-          if [ "${{ steps.update-coda.outputs.exit_code }}" == "0" ]; then
+          # Determine status
+          if [ "${{ steps.consolidate.outputs.exit_code }}" == "0" ] && [ "${{ steps.update-coda.conclusion }}" == "success" ]; then
             STATUS="✅ Success"
-            COLOR="good"
             EMOJI="✅"
           else
             STATUS="❌ Failed"
-            COLOR="danger"
             EMOJI="❌"
           fi
           
-          # Build summary message
-          SUMMARY="*New Entries:* ${{ steps.update-coda.outputs.new_entries }}\n"
-          SUMMARY="${SUMMARY}*Updated Entries:* ${{ steps.update-coda.outputs.updated_entries }}\n"
-          SUMMARY="${SUMMARY}*Total Entries:* ${{ steps.update-coda.outputs.total_entries }}\n"
-          SUMMARY="${SUMMARY}*Errors:* ${{ steps.update-coda.outputs.errors }}\n"
+          # Build summary
+          SUMMARY="*Total Entries:* ${{ steps.consolidate.outputs.total_entries }}\n"
+          SUMMARY="${SUMMARY}*Batches Processed:* ${{ steps.consolidate.outputs.batches_processed }}\n"
+          SUMMARY="${SUMMARY}*Total Tests:* ${{ needs.prepare-batches.outputs.total-tests }}\n"
           SUMMARY="${SUMMARY}*Coda Page:* <https://coda.io/d/${CODA_DOC_ID}/_${CODA_PAGE_ID}|View Documentation>"
           
-          # Create Slack message payload
+          # Create Slack payload
           PAYLOAD=$(cat <<EOF
           {
             "blocks": [
@@ -151,15 +278,7 @@ jobs:
                   },
                   {
                     "type": "mrkdwn",
-                    "text": "*Workflow Run:*\n<${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}|#${GITHUB_RUN_NUMBER}>"
-                  },
-                  {
-                    "type": "mrkdwn",
-                    "text": "*Repository:*\n${GITHUB_REPOSITORY}"
-                  },
-                  {
-                    "type": "mrkdwn",
-                    "text": "*Triggered By:*\n${GITHUB_ACTOR}"
+                    "text": "*Workflow:*\n<${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}|#${GITHUB_RUN_NUMBER}>"
                   }
                 ]
               },
@@ -169,20 +288,12 @@ jobs:
                   "type": "mrkdwn",
                   "text": "*Summary:*\n${SUMMARY}"
                 }
-              },
-              {
-                "type": "section",
-                "text": {
-                  "type": "mrkdwn",
-                  "text": "*Workflow:*\n<${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/workflows/daily-documentation.yml|View Workflow>"
-                }
               }
             ]
           }
           EOF
           )
           
-          # Send to Slack
           curl -X POST -H 'Content-type: application/json' \
             --data "$PAYLOAD" \
             "$SLACK_WEBHOOK_URL"
@@ -194,15 +305,5 @@ jobs:
           GITHUB_REPOSITORY: ${{ github.repository }}
           GITHUB_RUN_ID: ${{ github.run_id }}
           GITHUB_RUN_NUMBER: ${{ github.run_number }}
-          GITHUB_ACTOR: ${{ github.actor }}
           CODA_DOC_ID: ${{ secrets.CODA_DOC_ID || 'dza2s1eOIhA' }}
           CODA_PAGE_ID: ${{ secrets.CODA_PAGE_ID || 'suLCLolD' }}
-
-      - name: Upload logs
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: coda-update-logs
-          path: |
-            coda_update_output.log
-          retention-days: 30

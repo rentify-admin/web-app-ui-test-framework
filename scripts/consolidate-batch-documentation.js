@@ -1,0 +1,236 @@
+#!/usr/bin/env node
+/**
+ * Consolidate Batch Documentation
+ * 
+ * Reads all batch JSON files and consolidates them into a single
+ * markdown documentation file following the template format.
+ */
+
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const BATCHES_DIR = path.join(__dirname, '../documentation/batches');
+const OUTPUT_FILE = path.join(__dirname, '../documentation/CONSOLIDATED_DOCUMENTATION.md');
+const TEMPLATE_FILE = path.join(__dirname, '../documentation/TEST_DOCUMENTATION_TEMPLATE.md');
+
+/**
+ * Generate markdown entry from JSON data
+ */
+function generateMarkdownEntry(entry) {
+    const testId = entry.testId || entry.fileName.replace('.spec.js', '');
+    
+    // Format API endpoints table
+    const apiEndpointsRows = entry.apiEndpoints && entry.apiEndpoints.length > 0
+        ? entry.apiEndpoints.map(ep => `| \`${ep.method}\` | \`${ep.url}\` | {Purpose} |`).join('\n')
+        : '| {data not found} | {data not found} | {data not found} |';
+    
+    // Format UI test IDs table
+    const uiTestIdsRows = entry.uiTestIds && entry.uiTestIds.length > 0
+        ? entry.uiTestIds.map(id => `| \`${id}\` | {Purpose} |`).join('\n')
+        : '| {data not found} | {data not found} |';
+    
+    // Format tags
+    const tags = entry.tags && entry.tags.length > 0
+        ? entry.tags.map(t => `\`${t}\``).join(' ')
+        : '\`{data not found}\`';
+    
+    // Format dependencies
+    const dependencies = entry.imports && entry.imports.length > 0
+        ? entry.imports.filter(imp => imp.includes('utils') || imp.includes('helper')).map(imp => `- 📦 \`${imp}\``).join('\n')
+        : '- 📦 {data not found}';
+
+    return `### 🧪 \`${entry.fileName}\` → \`${entry.testName}\`
+
+| Field | Value |
+|-------|-------|
+| **Test ID** | \`${testId}\` |
+| **Test File** | \`${entry.filePath}\` |
+| **Last Updated** | \`${entry.timestamp}\` |
+| **Status** | \`active\` |
+
+---
+
+## 📋 Test Scenario
+
+> **Purpose:** {data not found for this field}
+
+> **Business Context:** {data not found for this field}
+
+### Test Conditions
+
+| Condition | Value |
+|-----------|-------|
+| **Application** | \`${entry.applicationName || '{data not found}'}\` |
+| **User Role** | {data not found} |
+| **Environment** | \`staging|production\` |
+| **Prerequisites** | {data not found} |
+| **Test Data Setup** | {data not found} |
+
+### Test Data Used
+
+| Data Type | Details |
+|-----------|---------|
+| **Users** | {data not found} |
+| **Sessions** | {data not found} |
+| **Applications** | ${entry.applicationName || '{data not found}'} |
+| **Mock Data** | {data not found} |
+| **API Payloads** | {data not found} |
+
+### Expected Outcomes
+
+- ✅ {data not found}
+
+---
+
+## 📝 Test Case
+
+### Test Steps
+
+| Step | Action | Input | Expected Result | API Calls | UI Elements |
+|------|--------|-------|-----------------|-----------|-------------|
+| {data not found} | {data not found} | {data not found} | {data not found} | {data not found} | {data not found} |
+
+### Validation Points
+
+- ✅ {data not found}
+
+### Cleanup
+
+{data not found}
+
+### API Endpoints Used
+
+| Method | Endpoint | Purpose |
+|--------|----------|---------|
+${apiEndpointsRows}
+
+### UI Test IDs Used
+
+| Test ID | Purpose |
+|---------|---------|
+${uiTestIdsRows}
+
+### Tags
+
+${tags}
+
+### Dependencies
+
+${dependencies}
+
+### Known Issues/Limitations
+
+⚠️ {data not found}
+
+### Related Tests
+
+- 🔗 {data not found}
+
+---
+
+**Last Updated:** ${entry.humanReadableTime} UTC (\`${entry.timestamp}\`)
+
+---
+`;
+}
+
+/**
+ * Main function
+ */
+async function main() {
+    console.log('📚 Consolidating batch documentation...');
+    
+    if (!fs.existsSync(BATCHES_DIR)) {
+        console.error(`❌ Batches directory not found: ${BATCHES_DIR}`);
+        process.exit(1);
+    }
+    
+    // Find all batch JSON files
+    const batchFiles = fs.readdirSync(BATCHES_DIR)
+        .filter(f => f.startsWith('batch-') && f.endsWith('.json'))
+        .sort();
+    
+    console.log(`✅ Found ${batchFiles.length} batch files`);
+    
+    const allEntries = [];
+    let batchesProcessed = 0;
+    
+    for (const batchFile of batchFiles) {
+        try {
+            const fullPath = path.join(BATCHES_DIR, batchFile);
+            const batchData = JSON.parse(fs.readFileSync(fullPath, 'utf-8'));
+            
+            console.log(`   📦 Processing ${batchFile}: ${batchData.length} entries`);
+            
+            allEntries.push(...batchData);
+            batchesProcessed++;
+            
+        } catch (error) {
+            console.error(`❌ Error processing ${batchFile}:`, error.message);
+        }
+    }
+    
+    console.log(`\n✅ Consolidated ${allEntries.length} entries from ${batchesProcessed} batches`);
+    
+    // Generate markdown documentation
+    const header = `# 📚 Automated Test Documentation
+
+> **Auto-generated:** ${new Date().toISOString()}  
+> **Total Tests:** ${allEntries.length}  
+> **Generated by:** Parallel batch processing
+
+---
+
+## 📊 Documentation Statistics
+
+| Metric | Value |
+|--------|-------|
+| **Total Tests Documented** | ${allEntries.length} |
+| **Batches Processed** | ${batchesProcessed} |
+| **Last Generated** | ${new Date().toISOString()} |
+
+---
+
+## 🧪 Test Entries
+
+*All test documentation entries are listed below.*
+
+---
+
+`;
+    
+    const entries = allEntries.map(entry => generateMarkdownEntry(entry)).join('\n\n');
+    
+    const footer = `\n\n---\n\n**Last Updated:** ${new Date().toLocaleString('en-US', { timeZone: 'UTC', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })} UTC (\`${new Date().toISOString()}\`)\n`;
+    
+    const fullContent = header + entries + footer;
+    
+    // Save consolidated documentation
+    fs.writeFileSync(OUTPUT_FILE, fullContent, 'utf-8');
+    
+    console.log(`\n✅ Consolidation complete:`);
+    console.log(`   Total entries: ${allEntries.length}`);
+    console.log(`   Batches processed: ${batchesProcessed}`);
+    console.log(`   Output: ${OUTPUT_FILE}`);
+    
+    // Output statistics
+    console.log('\n##CONSOLIDATE_STATS_START##');
+    console.log(`TOTAL_ENTRIES:${allEntries.length}`);
+    console.log(`BATCHES_PROCESSED:${batchesProcessed}`);
+    console.log('##CONSOLIDATE_STATS_END##');
+    
+    return {
+        totalEntries: allEntries.length,
+        batchesProcessed
+    };
+}
+
+main().catch(error => {
+    console.error('❌ Error:', error);
+    process.exit(1);
+});
+
