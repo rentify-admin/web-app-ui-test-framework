@@ -36,16 +36,26 @@ async function fetchCodaContent() {
     try {
         console.log('📥 Fetching current Coda page content...');
         
-        const response = await axios.get(
-            `https://coda.io/apis/v1/docs/${CODA_DOC_ID}/pages/${CODA_PAGE_ID}/content`,
+        const response = await axios.post(
+            `https://coda.io/apis/v1/docs/${CODA_DOC_ID}/pages/${CODA_PAGE_ID}/export`,
+            {
+                outputFormat: 'markdown'
+            },
             {
                 headers: {
-                    'Authorization': `Bearer ${CODA_API_TOKEN}`
+                    'Authorization': `Bearer ${CODA_API_TOKEN}`,
+                    'Content-Type': 'application/json'
                 }
             }
         );
         
-        const content = response.data.content || '';
+        // Wait for export to complete and get download URL
+        const downloadUrl = response.data.href;
+        
+        // Download the actual content
+        const contentResponse = await axios.get(downloadUrl);
+        const content = contentResponse.data || '';
+        
         console.log(`✅ Downloaded ${(content.length / 1024).toFixed(2)} KB from Coda\n`);
         
         // Save backup

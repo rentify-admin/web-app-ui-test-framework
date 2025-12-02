@@ -71,8 +71,8 @@ jobs:
           
           mkdir -p batches
           
-          # Initialize batch files
-          for ((i=0; i<NUM_BATCHES; i++)); do
+          # Initialize batch files using seq
+          seq 0 $((NUM_BATCHES - 1)) | while read i; do
             > "batches/batch-${i}.txt"
           done
           
@@ -89,7 +89,7 @@ jobs:
           # Show distribution
           echo ""
           echo "📊 Adaptive batch distribution:"
-          for ((i=0; i<NUM_BATCHES; i++)); do
+          seq 0 $((NUM_BATCHES - 1)) | while read i; do
             COUNT=$(wc -l < "batches/batch-${i}.txt" | tr -d ' ')
             echo "   Batch $i: $COUNT tests"
           done
