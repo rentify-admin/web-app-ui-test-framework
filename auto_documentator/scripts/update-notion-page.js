@@ -382,10 +382,17 @@ async function main() {
     
     if (!fs.existsSync(DOC_FILE)) {
         console.error(`❌ File not found: ${DOC_FILE}`);
-        process.exit(1);
+        console.log('⚠️  No documentation generated yet - skipping Notion update');
+        process.exit(0); // Exit gracefully
     }
     
     const content = fs.readFileSync(DOC_FILE, 'utf-8');
+    
+    if (!content || content.trim().length === 0) {
+        console.log('⚠️  Documentation file is empty - skipping Notion update');
+        process.exit(0); // Exit gracefully
+    }
+    
     console.log(`✅ Loaded ${(content.length / 1024).toFixed(2)} KB\n`);
     
     await updateNotionPage(content);

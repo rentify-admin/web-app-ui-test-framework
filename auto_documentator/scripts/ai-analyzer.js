@@ -29,11 +29,33 @@ if (!batchFile) {
     process.exit(1);
 }
 
-// AI Providers configuration (only working/free providers)
+// AI Providers configuration
+// Using multiple OpenAI keys to distribute load (3 RPM per key)
 const AI_PROVIDERS = [
     {
-        name: 'OpenAI-GPT4o-mini',
+        name: 'OpenAI-Key1',
         apiKey: process.env.AI_API_KEY,
+        type: 'openai',
+        model: 'gpt-4o-mini',
+        rateLimit: { rpm: 3, lastReset: Date.now(), count: 0 }
+    },
+    {
+        name: 'OpenAI-Key2',
+        apiKey: process.env.AI_API_KEY_6,
+        type: 'openai',
+        model: 'gpt-4o-mini',
+        rateLimit: { rpm: 3, lastReset: Date.now(), count: 0 }
+    },
+    {
+        name: 'OpenAI-Key3',
+        apiKey: process.env.AI_API_KEY_7,
+        type: 'openai',
+        model: 'gpt-4o-mini',
+        rateLimit: { rpm: 3, lastReset: Date.now(), count: 0 }
+    },
+    {
+        name: 'OpenAI-Key4',
+        apiKey: process.env.AI_API_KEY_8,
         type: 'openai',
         model: 'gpt-4o-mini',
         rateLimit: { rpm: 3, lastReset: Date.now(), count: 0 }
@@ -45,13 +67,6 @@ const AI_PROVIDERS = [
         model: 'arcee-ai/trinity-mini:free',
         endpoint: 'https://openrouter.ai/api/v1/chat/completions',
         useReasoning: true
-    },
-    {
-        name: 'OpenRouter-Grok',
-        apiKey: process.env.AI_API_KEY_5,
-        type: 'openrouter',
-        model: 'x-ai/grok-2-1212:free',
-        endpoint: 'https://openrouter.ai/api/v1/chat/completions'
     }
 ].filter(p => p.apiKey && p.apiKey.length > 10);
 
