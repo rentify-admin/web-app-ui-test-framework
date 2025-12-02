@@ -30,6 +30,14 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Install QODO CLI
+        run: npm install -g @qodo/command
+
+      - name: Authenticate QODO
+        run: |
+          mkdir -p ~/.qodo
+          echo "${{ secrets.QODO_API_KEY }}" > ~/.qodo/api_key
+
       - name: Update Coda documentation
         id: update-coda
         run: |
