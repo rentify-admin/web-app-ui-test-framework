@@ -34,18 +34,61 @@ async function main() {
     }
     
     const content = fs.readFileSync(DOC_FILE, 'utf-8');
-    console.log(`✅ Loaded documentation (${(content.length / 1024).toFixed(2)} KB)`);
+    const contentSizeKB = (content.length / 1024).toFixed(2);
+    const contentSizeChars = content.length;
     
-    console.log('📡 Calling Coda API with contentUpdate...');
+    console.log(`✅ Loaded documentation (${contentSizeKB} KB, ${contentSizeChars} characters)`);
     
+    // Coda API limit: 100,000 characters
+    const CODA_CHAR_LIMIT = 100000;
+    
+    if (contentSizeChars > CODA_CHAR_LIMIT) {
+        console.log(`⚠️  Content exceeds Coda's ${CODA_CHAR_LIMIT} character limit`);
+        console.log(`   Splitting update into multiple parts...`);
+        
+        // Split content by test entries (## headers)
+        const entries = content.split(/(?=## 🧪)/);
+        const header = entries[0]; // Everything before first test entry
+        const testEntries = entries.slice(1);
+        
+        console.log(`   Found ${testEntries.length} test entries to process`);
+        
+        // First, replace page with header
+        console.log(`\n📡 Step 1: Replace page with header...`);
+        await updateCodaContent(header, 'replace');
+        
+        // Then append test entries in batches
+        const BATCH_SIZE = 5; // Append 5 entries at a time
+        for (let i = 0; i < testEntries.length; i += BATCH_SIZE) {
+            const batch = testEntries.slice(i, i + BATCH_SIZE);
+            const batchContent = batch.join('\n\n');
+            
+            console.log(`\n📡 Step ${Math.floor(i / BATCH_SIZE) + 2}: Appending entries ${i + 1}-${Math.min(i + BATCH_SIZE, testEntries.length)}...`);
+            await updateCodaContent(batchContent, 'append');
+            
+            // Small delay to avoid rate limits
+            await new Promise(resolve => setTimeout(resolve, 500));
+        }
+        
+        console.log(`\n✅ All content updated successfully in multiple parts`);
+        return true;
+        
+    } else {
+        console.log('📡 Calling Coda API with contentUpdate (single update)...');
+        return await updateCodaContent(content, 'replace');
+    }
+}
+
+/**
+ * Update Coda page content
+ */
+async function updateCodaContent(content, mode = 'replace') {
     try {
-        // Use the Coda API contentUpdate endpoint
-        // This endpoint DOES exist and works (as confirmed by user)
         const response = await axios.put(
             `https://coda.io/apis/v1/docs/${CODA_DOC_ID}/pages/${CODA_PAGE_ID}`,
             {
                 contentUpdate: {
-                    insertionMode: 'replace',
+                    insertionMode: mode, // 'replace' or 'append'
                     canvasContent: {
                         format: 'markdown',
                         content: content
@@ -58,28 +101,25 @@ async function main() {
                     'Content-Type': 'application/json'
                 },
                 timeout: 60000,
-                validateStatus: (status) => status < 500 // Don't throw on 4xx to see the error
+                validateStatus: (status) => status < 500
             }
         );
         
         if (response.status === 200 || response.status === 202) {
-            console.log(`✅ Coda page updated successfully`);
-            console.log(`   Status: ${response.status}`);
-            console.log(`   Doc ID: ${CODA_DOC_ID}`);
-            console.log(`   Page ID: ${CODA_PAGE_ID}`);
+            console.log(`   ✅ Content updated (${mode} mode)`);
             return true;
         } else {
-            console.error(`❌ Unexpected status: ${response.status}`);
+            console.error(`   ❌ Unexpected status: ${response.status}`);
             console.error(`   Response:`, JSON.stringify(response.data, null, 2));
             throw new Error(`Coda API returned status ${response.status}`);
         }
         
     } catch (error) {
-        console.error(`❌ Coda API error:`, error.response?.data || error.message);
+        console.error(`   ❌ Coda API error:`, error.response?.data?.message || error.message);
         
-        if (error.response) {
+        if (error.response?.data) {
             console.error(`   Status: ${error.response.status}`);
-            console.error(`   Data:`, JSON.stringify(error.response.data, null, 2));
+            console.error(`   Message: ${error.response.data.message}`);
         }
         
         throw error;
