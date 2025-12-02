@@ -1,0 +1,237 @@
+name: Test Documentation
+
+on:
+  schedule:
+    - cron: '0 22 * * *'  # Daily at 10 PM UTC
+  push:
+    branches:
+      - master
+      - main
+  workflow_dispatch:
+
+jobs:
+  # Job 1: Prepare test batches
+  prepare:
+    name: 1️⃣ Prepare Batches
+    runs-on: ubuntu-latest
+    outputs:
+      total-tests: ${{ steps.split.outputs.total-tests }}
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Split tests into 5 batches (20% each)
+        id: split
+        run: |
+          TEST_FILES=$(find tests -name "*.spec.js" -o -name "*.test.js" | sort)
+          TOTAL=$(echo "$TEST_FILES" | wc -l | tr -d ' ')
+          BATCH_SIZE=$(( ($TOTAL * 20 + 99) / 100 ))
+          
+          echo "✅ $TOTAL tests → 5 batches of ~$BATCH_SIZE tests each"
+          
+          mkdir -p batches
+          BATCH=0
+          COUNT=0
+          
+          for FILE in $TEST_FILES; do
+            echo "$FILE" >> "batches/batch-${BATCH}.txt"
+            COUNT=$((COUNT + 1))
+            [ $COUNT -ge $BATCH_SIZE ] && BATCH=$((BATCH + 1)) && COUNT=0
+          done
+          
+          echo "total-tests=$TOTAL" >> $GITHUB_OUTPUT
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: test-batches
+          path: batches/
+          retention-days: 1
+
+  # Job 2: Process batches with AI (parallel)
+  analyze:
+    name: 2️⃣ AI Analysis - Batch ${{ matrix.batch }}
+    runs-on: ubuntu-latest
+    needs: prepare
+    strategy:
+      matrix:
+        batch: [0, 1, 2, 3, 4]
+      fail-fast: false
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      
+      - run: npm ci
+      
+      - uses: actions/download-artifact@v4
+        with:
+          name: test-batches
+          path: batches/
+      
+      - name: Run AI analysis
+        run: |
+          node auto_documentator/scripts/ai-analyzer.js "batches/batch-${{ matrix.batch }}.txt" ${{ matrix.batch }}
+        env:
+          AI_API_KEY: ${{ secrets.AI_API_KEY }}
+          AI_API_KEY_2: ${{ secrets.AI_API_KEY_2 }}
+          AI_API_KEY_3: ${{ secrets.AI_API_KEY_3 }}
+          AI_API_KEY_4: ${{ secrets.AI_API_KEY_4 }}
+          AI_API_KEY_5: ${{ secrets.AI_API_KEY_5 }}
+      
+      - uses: actions/upload-artifact@v4
+        with:
+          name: batch-docs-${{ matrix.batch }}
+          path: documentation/batch-${{ matrix.batch }}.json
+          retention-days: 1
+
+  # Job 3: Consolidate results
+  consolidate:
+    name: 3️⃣ Consolidate Results
+    runs-on: ubuntu-latest
+    needs: [prepare, analyze]
+    if: always()
+    outputs:
+      total-entries: ${{ steps.consolidate.outputs.total }}
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      
+      - run: npm ci
+      
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: batch-docs-*
+          path: documentation/batches/
+          merge-multiple: true
+      
+      - name: Consolidate documentation
+        id: consolidate
+        run: |
+          OUTPUT=$(node auto_documentator/scripts/consolidate-ai-docs.js 2>&1)
+          echo "$OUTPUT"
+          
+          TOTAL=$(echo "$OUTPUT" | grep -oP 'Consolidated \K\d+' || echo "0")
+          echo "total=$TOTAL" >> $GITHUB_OUTPUT
+          echo "✅ Consolidated $TOTAL entries"
+      
+      - uses: actions/upload-artifact@v4
+        with:
+          name: consolidated-docs
+          path: documentation/CONSOLIDATED_DOCUMENTATION.md
+          retention-days: 7
+
+  # Job 4A: Update Coda (parallel with Notion)
+  update-coda:
+    name: 4️⃣ A Update Coda
+    runs-on: ubuntu-latest
+    needs: consolidate
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      
+      - run: npm ci
+      
+      - uses: actions/download-artifact@v4
+        with:
+          name: consolidated-docs
+          path: documentation/
+      
+      - name: Update Coda page
+        run: node auto_documentator/scripts/update-coda-page.js
+        env:
+          CODA_API_TOKEN: ${{ secrets.CODA_API_TOKEN }}
+          CODA_DOC_ID: ${{ secrets.CODA_DOC_ID || 'dza2s1eOIhA' }}
+          CODA_PAGE_ID: ${{ secrets.CODA_PAGE_ID || 'suLCLolD' }}
+
+  # Job 4B: Update Notion (parallel with Coda)
+  update-notion:
+    name: 4️⃣ B Update Notion
+    runs-on: ubuntu-latest
+    needs: consolidate
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      
+      - run: npm ci
+      
+      - uses: actions/download-artifact@v4
+        with:
+          name: consolidated-docs
+          path: documentation/
+      
+      - name: Update Notion page
+        run: node auto_documentator/scripts/update-notion-page.js
+        env:
+          NOTION_SECRET: ${{ secrets.NOTION_SECRET }}
+          NOTION_PAGE_ID: '2bdd92a99cff809e98ddcec14e6b7bdc'
+
+  # Job 5: Send notification
+  notify:
+    name: 5️⃣ Notify
+    runs-on: ubuntu-latest
+    needs: [prepare, consolidate, update-coda, update-notion]
+    if: always()
+    
+    steps:
+      - name: Send Slack notification
+        run: |
+          CODA_STATUS="${{ needs.update-coda.result }}"
+          NOTION_STATUS="${{ needs.update-notion.result }}"
+          
+          if [ "$CODA_STATUS" == "success" ] && [ "$NOTION_STATUS" == "success" ]; then
+            EMOJI="✅"
+            STATUS="Success"
+          elif [ "$CODA_STATUS" == "success" ] || [ "$NOTION_STATUS" == "success" ]; then
+            EMOJI="⚠️"
+            STATUS="Partial Success"
+          else
+            EMOJI="❌"
+            STATUS="Failed"
+          fi
+          
+          SUMMARY="*Tests:* ${{ needs.prepare.outputs.total-tests }}\n"
+          SUMMARY="${SUMMARY}*Entries:* ${{ needs.consolidate.outputs.total-entries }}\n"
+          SUMMARY="${SUMMARY}*Coda:* $([ "$CODA_STATUS" == "success" ] && echo "✅" || echo "❌")\n"
+          SUMMARY="${SUMMARY}*Notion:* $([ "$NOTION_STATUS" == "success" ] && echo "✅" || echo "❌")\n"
+          SUMMARY="${SUMMARY}\n*Links:*\n"
+          SUMMARY="${SUMMARY}• <https://coda.io/d/dza2s1eOIhA/_suLCLolD|Coda Docs>\n"
+          SUMMARY="${SUMMARY}• <https://www.notion.so/2bdd92a99cff809e98ddcec14e6b7bdc|Notion Docs>"
+          
+          curl -X POST -H 'Content-type: application/json' --data '{
+            "blocks": [
+              {
+                "type": "header",
+                "text": {"type": "plain_text", "text": "'"${EMOJI} Test Documentation - ${STATUS}"'"}
+              },
+              {
+                "type": "section",
+                "text": {"type": "mrkdwn", "text": "'"${SUMMARY}"'"}
+              },
+              {
+                "type": "context",
+                "elements": [{"type": "mrkdwn", "text": "<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Workflow>"}]
+              }
+            ]
+          }' "${{ secrets.SLACK_WEBHOOK_URL }}"
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
