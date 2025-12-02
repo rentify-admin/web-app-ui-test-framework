@@ -246,6 +246,7 @@ Please analyze this test file and return the JSON structure as specified in the 
         }
         
         console.log(`   ✅ QODO analysis completed for ${fileName}`);
+        console.log(`   📊 QODO response structure:`, JSON.stringify(parsedData, null, 2).substring(0, 500));
         return parsedData;
         
     } catch (error) {
