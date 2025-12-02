@@ -31,8 +31,10 @@ async function main() {
     
     for (const file of batchFiles) {
         const data = JSON.parse(fs.readFileSync(path.join(BATCHES_DIR, file), 'utf-8'));
-        allEntries.push(...data.map(e => e.markdown));
-        console.log(`   📦 ${file}: ${data.length} entries`);
+        const entries = data.entries || data; // Support both formats
+        const markdowns = Array.isArray(entries) ? entries.map(e => e.markdown || e).filter(Boolean) : [];
+        allEntries.push(...markdowns);
+        console.log(`   📦 ${file}: ${markdowns.length} entries`);
     }
     
     const header = `# 📚 Test Documentation (AI-Generated)
