@@ -29,7 +29,7 @@ if (!batchFile) {
     process.exit(1);
 }
 
-// AI Providers configuration
+// AI Providers configuration (only working/free providers)
 const AI_PROVIDERS = [
     {
         name: 'OpenAI-GPT4o-mini',
@@ -47,44 +47,10 @@ const AI_PROVIDERS = [
         useReasoning: true
     },
     {
-        name: 'Gemini-Flash-1',
-        apiKey: process.env.AI_API_KEY_3,
-        type: 'gemini',
-        model: 'gemini-1.5-flash'
-    },
-    {
-        name: 'Gemini-Flash-2',
-        apiKey: process.env.AI_API_KEY_4,
-        type: 'gemini',
-        model: 'gemini-1.5-flash'
-    },
-    {
-        name: 'OpenRouter-DeepSeek',
+        name: 'OpenRouter-Grok',
         apiKey: process.env.AI_API_KEY_5,
         type: 'openrouter',
-        model: 'deepseek/deepseek-v3.2-speciale',
-        endpoint: 'https://openrouter.ai/api/v1/chat/completions',
-        useReasoning: true
-    },
-    {
-        name: 'OpenRouter-Claude',
-        apiKey: process.env.AI_API_KEY_5, // Same key as DeepSeek
-        type: 'openrouter',
-        model: 'anthropic/claude-opus-4.5',
-        endpoint: 'https://openrouter.ai/api/v1/chat/completions'
-    },
-    {
-        name: 'OpenRouter-Grok',
-        apiKey: process.env.AI_API_KEY_5, // Same key
-        type: 'openrouter',
-        model: 'x-ai/grok-4.1-fast:free',
-        endpoint: 'https://openrouter.ai/api/v1/chat/completions'
-    },
-    {
-        name: 'OpenRouter-GPT5',
-        apiKey: process.env.AI_API_KEY_5, // Same key
-        type: 'openrouter',
-        model: 'openai/gpt-5.1',
+        model: 'x-ai/grok-2-1212:free',
         endpoint: 'https://openrouter.ai/api/v1/chat/completions'
     }
 ].filter(p => p.apiKey && p.apiKey.length > 10);
@@ -121,44 +87,57 @@ async function checkOpenAIRateLimit(provider) {
 }
 
 /**
- * Call AI provider
+ * Call AI provider with timeout
  */
 async function callAIProvider(provider, systemPrompt, userPrompt) {
-    if (provider.type === 'openai') {
-        await checkOpenAIRateLimit(provider);
-        const client = new OpenAI({ apiKey: provider.apiKey });
-        const response = await client.chat.completions.create({
-            model: provider.model,
-            messages: [
-                { role: 'system', content: systemPrompt },
-                { role: 'user', content: userPrompt }
-            ],
-            temperature: 0.1,
-            response_format: { type: 'json_object' }
-        });
-        return JSON.parse(response.choices[0].message.content);
-    } else if (provider.type === 'openrouter') {
-        const response = await axios.post(provider.endpoint, {
-            model: provider.model,
-            messages: [
-                { role: 'system', content: systemPrompt },
-                { role: 'user', content: userPrompt }
-            ],
-            temperature: 0.1
-        }, {
-            headers: {
-                'Authorization': `Bearer ${provider.apiKey}`,
-                'Content-Type': 'application/json'
-            },
-            timeout: 120000
-        });
-        
-        const content = response.data.choices[0].message.content;
-        const jsonMatch = content.match(/\{[\s\S]*\}/);
-        return JSON.parse(jsonMatch ? jsonMatch[0] : content);
-    }
+    const TIMEOUT_MS = 45000; // 45 second timeout
     
-    throw new Error(`Unsupported provider type: ${provider.type}`);
+    const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Request timeout')), TIMEOUT_MS)
+    );
+    
+    const apiCall = async () => {
+        if (provider.type === 'openai') {
+            await checkOpenAIRateLimit(provider);
+            const client = new OpenAI({ apiKey: provider.apiKey });
+            const response = await client.chat.completions.create({
+                model: provider.model,
+                messages: [
+                    { role: 'system', content: systemPrompt },
+                    { role: 'user', content: userPrompt }
+                ],
+                temperature: 0.1,
+                response_format: { type: 'json_object' }
+            });
+            return JSON.parse(response.choices[0].message.content);
+        } else if (provider.type === 'openrouter') {
+            const response = await axios.post(provider.endpoint, {
+                model: provider.model,
+                messages: [
+                    { role: 'system', content: systemPrompt },
+                    { role: 'user', content: userPrompt }
+                ],
+                temperature: 0.1
+            }, {
+                timeout: TIMEOUT_MS,
+                headers: {
+                    'Authorization': `Bearer ${provider.apiKey}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+            
+            const content = response.data.choices[0].message.content;
+            const jsonMatch = content.match(/\{[\s\S]*\}/);
+            return JSON.parse(jsonMatch ? jsonMatch[0] : content);
+        } else if (provider.type === 'gemini') {
+            // Gemini not implemented - skip
+            throw new Error('Gemini provider not implemented');
+        }
+        
+        throw new Error(`Unsupported provider type: ${provider.type}`);
+    };
+    
+    return Promise.race([apiCall(), timeoutPromise]);
 }
 
 /**
@@ -250,14 +229,19 @@ Analyze every line thoroughly and extract ALL information. Be specific and detai
         } catch (error) {
             console.log(`   ❌ ${provider.name} failed:`, error.message?.substring(0, 80));
             
-            // Mark provider as rate limited globally
+            // Mark provider as rate limited or unavailable globally
             if (error.status === 429 || error.response?.status === 429) {
-                console.log(`   🚫 Marking ${provider.name} as rate limited (shared across batches)`);
+                console.log(`   🚫 Rate limit - marking ${provider.name} as unavailable`);
                 markProviderRateLimited(provider.name);
                 await new Promise(r => setTimeout(r, 2000));
             } else if (error.status === 401 || error.response?.status === 401) {
-                console.log(`   🚫 Marking ${provider.name} as unavailable (401 auth error)`);
+                console.log(`   🚫 Auth error - marking ${provider.name} as unavailable`);
                 markProviderRateLimited(provider.name);
+            } else if (error.status === 402 || error.response?.status === 402) {
+                console.log(`   🚫 Payment required - marking ${provider.name} as unavailable`);
+                markProviderRateLimited(provider.name);
+            } else if (error.message?.includes('timeout')) {
+                console.log(`   ⏱️  Timeout - will retry with different provider`);
             }
         }
     }
