@@ -24,13 +24,7 @@ This template defines the exact format for documenting each test. When the templ
 
 ---
 
-### 📋 Test Scenario
-
-> **Purpose:** {Brief description of what this test validates and why it exists}
-
-> **Business Context:** {What business requirement or feature this test covers}
-
-#### Test Conditions
+### Test Conditions
 
 | Condition | Value |
 |-----------|-------|
@@ -76,11 +70,6 @@ This template defines the exact format for documenting each test. When the templ
 - ✅ {UI state validation}
 - ✅ {Data consistency check}
 
-#### Cleanup
-
-- 🧹 {What cleanup is performed}
-- 🗑️ {Resources that are deleted/cleaned up}
-
 #### API Endpoints Used
 
 | Method | Endpoint | Purpose |
@@ -88,32 +77,9 @@ This template defines the exact format for documenting each test. When the templ
 | `{HTTP_METHOD}` | `{endpoint}` | {Purpose} |
 | `{HTTP_METHOD}` | `{endpoint}` | {Purpose} |
 
-#### UI Test IDs Used
-
-| Test ID | Purpose |
-|---------|---------|
-| `{test_id}` | {Purpose} |
-| `{test_id}` | {Purpose} |
-
 #### Tags
 
 `{@tag1}` `{@tag2}` `{@tag3}`
-
-#### Dependencies
-
-- 📦 {Dependency 1 - helper function or utility}
-- 📦 {Dependency 2 - fixture or mock data}
-- 📦 {Other tests or utilities this test depends on}
-
-#### Known Issues/Limitations
-
-⚠️ {Any known issues or limitations}  
-💡 {Workarounds if any}
-
-#### Related Tests
-
-- 🔗 [{related_test_file}](path/to/test) - {Description}
-- 🔗 [{related_test_file}](path/to/test) - {Description}
 
 ---
 

@@ -54,13 +54,7 @@ function generateMarkdownEntry(entry) {
 
 ---
 
-### 📋 Test Scenario
-
-> **Purpose:** {data not found for this field}
-
-> **Business Context:** {data not found for this field}
-
-#### Test Conditions
+### Test Conditions
 
 | Condition | Value |
 |-----------|-------|
@@ -98,37 +92,15 @@ function generateMarkdownEntry(entry) {
 
 - ✅ {data not found}
 
-#### Cleanup
-
-{data not found}
-
 #### API Endpoints Used
 
 | Method | Endpoint | Purpose |
 |--------|----------|---------|
 ${apiEndpointsRows}
 
-#### UI Test IDs Used
-
-| Test ID | Purpose |
-|---------|---------|
-${uiTestIdsRows}
-
 #### Tags
 
 ${tags}
-
-#### Dependencies
-
-${dependencies}
-
-#### Known Issues/Limitations
-
-⚠️ {data not found}
-
-#### Related Tests
-
-- 🔗 {data not found}
 
 ---
 
