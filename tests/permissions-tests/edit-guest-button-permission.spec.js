@@ -335,32 +335,34 @@ test.describe('QA-245 edit-guest-button-permission.spec', () => {
         console.log("✅ Test flow completed successfully");
     });
 
-    test.afterAll(async ({ request }) => {
-        try {
-            if (createdSessionId) {
-                await cleanupSession(request, createdSessionId);
-                console.log('[CLEANUP] Session cleaned up:', createdSessionId);
-            }
-            if (createdMember) {
-                try {
-                    await adminClient.delete(`/organizations/${organizationId}/members/${createdMember}`)
-                    console.log('[CLEANUP] Test member cleaned up:', createdMember);
-                } catch (e) {
-                    console.log(`[CLEANUP ERROR] Could not cleanup member with id ${createdMember}`);
-                    console.error('[CLEANUP ERROR] Could not cleanup member:', e.message);
+    test.afterAll(async ({ request }, testInfo) => {
+        if(testInfo.status === 'passed'){
+            try {
+                if (createdSessionId) {
+                    await cleanupSession(request, createdSessionId);
+                    console.log('[CLEANUP] Session cleaned up:', createdSessionId);
                 }
-            }
-            if (createdUser) {
-                try {
-                    await adminClient.delete(`/users/${createdUser}`)
-                    console.log('[CLEANUP] Test user cleaned up:', createdUser);
-                } catch (e) {
-                    console.log(`[CLEANUP ERROR] Could not cleanup user with id ${createdUser}`);
-                    console.error('[CLEANUP ERROR] Could not cleanup user:', e.message);
+                if (createdMember) {
+                    try {
+                        await adminClient.delete(`/organizations/${organizationId}/members/${createdMember}`)
+                        console.log('[CLEANUP] Test member cleaned up:', createdMember);
+                    } catch (e) {
+                        console.log(`[CLEANUP ERROR] Could not cleanup member with id ${createdMember}`);
+                        console.error('[CLEANUP ERROR] Could not cleanup member:', e.message);
+                    }
                 }
+                if (createdUser) {
+                    try {
+                        await adminClient.delete(`/users/${createdUser}`)
+                        console.log('[CLEANUP] Test user cleaned up:', createdUser);
+                    } catch (e) {
+                        console.log(`[CLEANUP ERROR] Could not cleanup user with id ${createdUser}`);
+                        console.error('[CLEANUP ERROR] Could not cleanup user:', e.message);
+                    }
+                }
+            } catch (cleanupError) {
+                console.error('[CLEANUP ERROR] Test cleanup failed:', cleanupError.message);
             }
-        } catch (cleanupError) {
-            console.error('[CLEANUP ERROR] Test cleanup failed:', cleanupError.message);
         }
     });
 });
