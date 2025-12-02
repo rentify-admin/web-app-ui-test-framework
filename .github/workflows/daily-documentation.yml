@@ -222,13 +222,16 @@ jobs:
         run: |
           echo "📤 Updating Coda page..."
           
-          OUTPUT=$(node scripts/update-coda-page.js 2>&1)
+          set +e  # Don't exit on error
+          node scripts/update-coda-page.js
           EXIT_CODE=$?
+          set -e
           
-          echo "$OUTPUT"
+          echo ""
+          echo "📊 Exit code: $EXIT_CODE"
           
           if [ $EXIT_CODE -ne 0 ]; then
-            echo "❌ Coda update failed"
+            echo "❌ Coda update failed with exit code $EXIT_CODE"
             exit $EXIT_CODE
           fi
           
