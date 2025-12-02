@@ -32,8 +32,16 @@ if (!QODO_API_KEY) {
     process.exit(1);
 }
 
-// QODO uses OpenAI-compatible API
-const QODO_API_BASE = 'https://api.qodo.ai/v1';
+// Use OpenAI API directly (QODO doesn't have a public REST API)
+// If you want to use a different LLM, set OPENAI_API_KEY env var
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY || process.env.QODO_API_KEY;
+const OPENAI_API_BASE = process.env.OPENAI_API_BASE || 'https://api.openai.com/v1';
+
+if (!OPENAI_API_KEY) {
+    console.error('❌ OPENAI_API_KEY or QODO_API_KEY environment variable is required');
+    console.error('   Note: QODO does not have a public REST API. Please use OpenAI, Claude, or another LLM.');
+    process.exit(1);
+}
 
 /**
  * Find all test files
@@ -55,15 +63,15 @@ function findTestFiles(dir) {
 }
 
 /**
- * Use QODO API (OpenAI-compatible) to analyze a test file
+ * Use AI (OpenAI/Claude/etc) to analyze a test file
  */
-async function analyzeTestWithQodo(testFilePath) {
+async function analyzeTestWithAI(testFilePath) {
     try {
         const fileName = path.basename(testFilePath);
         const promptTemplate = fs.readFileSync(QODO_PROMPT_FILE, 'utf-8');
         const testContent = fs.readFileSync(testFilePath, 'utf-8');
         
-        console.log(`   🤖 Analyzing ${fileName} with QODO API...`);
+        console.log(`   🤖 Analyzing ${fileName} with AI...`);
         
         // Create a combined prompt with the test content
         const fullPrompt = `${promptTemplate}
@@ -77,11 +85,11 @@ ${testContent}
 Please analyze this test file and return ONLY the JSON structure as specified in the output format above. Do not include any markdown formatting or explanation, just the raw JSON object.`;
         
         try {
-            // Call QODO API (OpenAI-compatible endpoint)
+            // Call OpenAI API (or compatible API)
             const response = await axios.post(
-                `${QODO_API_BASE}/chat/completions`,
+                `${OPENAI_API_BASE}/chat/completions`,
                 {
-                    model: 'gpt-4o-mini', // QODO's default model
+                    model: 'gpt-4o-mini',
                     messages: [
                         {
                             role: 'system',
@@ -92,15 +100,15 @@ Please analyze this test file and return ONLY the JSON structure as specified in
                             content: fullPrompt
                         }
                     ],
-                    temperature: 0.1, // Low temperature for consistent JSON output
+                    temperature: 0.1,
                     response_format: { type: 'json_object' }
                 },
                 {
                     headers: {
-                        'Authorization': `Bearer ${QODO_API_KEY}`,
+                        'Authorization': `Bearer ${OPENAI_API_KEY}`,
                         'Content-Type': 'application/json'
                     },
-                    timeout: 120000 // 2 minute timeout
+                    timeout: 120000
                 }
             );
             
@@ -116,17 +124,17 @@ Please analyze this test file and return ONLY the JSON structure as specified in
                 return null;
             }
             
-            console.log(`   ✅ QODO analysis completed for ${fileName}`);
+            console.log(`   ✅ AI analysis completed for ${fileName}`);
             
             return result;
             
         } catch (apiError) {
-            console.log(`   ⚠️  QODO API failed:`, apiError.response?.data || apiError.message);
+            console.log(`   ⚠️  AI API failed:`, apiError.response?.data || apiError.message);
             return null;
         }
         
     } catch (error) {
-        console.error(`   ❌ Error with QODO for ${path.basename(testFilePath)}:`, error.message);
+        console.error(`   ❌ Error with AI for ${path.basename(testFilePath)}:`, error.message);
         return null;
     }
 }
@@ -263,69 +271,48 @@ ${test.relatedTests && test.relatedTests.length > 0 ? test.relatedTests.map(t =>
 }
 
 /**
- * Update Coda page using Coda MCP server tools
+ * Update Coda page using Coda API with contentUpdate
  */
-async function updateCodaWithMCP(content) {
+async function updateCodaPage(content) {
     try {
-        console.log('\n📤 Updating Coda page using Coda MCP...');
+        console.log('\n📤 Updating Coda page using Coda API...');
         
-        // The Coda MCP server is an MCP server, not a direct CLI
-        // We need to interact with it programmatically via the MCP protocol
-        // Or use the Node.js script to call the MCP tools directly
-        
-        // For now, let's try using the mcp_coda-documentation tools directly
-        // Since we're in Node.js, we can call the MCP server's methods
-        
-        // Alternative: Save the content and use npx with proper MCP client
-        // The MCP server runs on stdio and expects JSON-RPC messages
-        
-        // Simplest approach for CI: Use the coda-mcp package's client
-        const command = `echo '${JSON.stringify({
-            method: 'tools/call',
-            params: {
-                name: 'coda_replace_page_content',
-                arguments: {
-                    docId: CODA_DOC_ID,
-                    pageIdOrName: CODA_PAGE_ID,
-                    content: content
+        // Use the Coda API contentUpdate feature (from the web search results)
+        const response = await axios.put(
+            `https://coda.io/apis/v1/docs/${CODA_DOC_ID}/pages/${CODA_PAGE_ID}`,
+            {
+                contentUpdate: {
+                    insertionMode: 'replace',
+                    canvasContent: {
+                        format: 'markdown',
+                        content: content
+                    }
                 }
+            },
+            {
+                headers: {
+                    'Authorization': `Bearer ${CODA_API_TOKEN}`,
+                    'Content-Type': 'application/json'
+                },
+                timeout: 60000
             }
-        })}' | npx coda-mcp`;
+        );
         
-        console.log(`   Running MCP command...`);
-        
-        const { stdout, stderr } = await execPromise(command, {
-            timeout: 60000,
-            maxBuffer: 1024 * 1024 * 10,
-            env: {
-                ...process.env,
-                CODA_API_KEY: CODA_API_TOKEN
-            }
-        });
-        
-        if (stdout) {
-            console.log(`   📝 MCP output:`, stdout.substring(0, 300));
-        }
-        
-        if (stderr && !stderr.includes('running on stdio')) {
-            console.log(`   📝 MCP stderr:`, stderr.substring(0, 200));
-        }
-        
-        console.log(`   ✅ Coda page update command sent`);
+        console.log(`   ✅ Coda page updated successfully`);
+        console.log(`   Response status: ${response.status}`);
         
         return true;
         
     } catch (error) {
-        console.error(`   ❌ Coda MCP error:`, error.message.substring(0, 300));
+        console.error(`   ❌ Coda API error:`, error.response?.data || error.message);
         
-        // MCP server interaction failed - we'll need to use a different approach
-        // Save the generated documentation to a file for manual upload
-        const outputFile = path.join(__dirname, '../documentation/QODO_GENERATED_FOR_CODA.md');
+        // If API update fails, save documentation locally
+        const outputFile = path.join(__dirname, '../documentation/AI_GENERATED_FOR_CODA.md');
         fs.writeFileSync(outputFile, content, 'utf-8');
         console.log(`   📄 Documentation saved to: ${outputFile}`);
-        console.log(`   💡 Please update Coda manually or use the local MCP server`);
+        console.log(`   💡 Please update Coda manually`);
         
-        // Don't throw - we still generated the documentation
+        // Return false but don't throw - we still generated the documentation
         return false;
     }
 }
@@ -356,8 +343,8 @@ async function main() {
             
             console.log(`\n📄 Processing: ${fileName}`);
             
-            // Analyze with QODO API
-            const qodoResult = await analyzeTestWithQodo(testFile);
+            // Analyze with AI (OpenAI/compatible)
+            const qodoResult = await analyzeTestWithAI(testFile);
             
             if (qodoResult && qodoResult.tests && qodoResult.tests.length > 0) {
                 const entries = generateEntryFromQodo(qodoResult, fileName, filePath);
@@ -407,8 +394,8 @@ async function main() {
     
     const fullContent = header + allEntries.join('\n\n') + footer;
     
-    // Update Coda page using MCP CLI
-    await updateCodaWithMCP(fullContent);
+    // Update Coda page using Coda API
+    await updateCodaPage(fullContent);
     
     // Output statistics for workflow
     console.log('\n📊 Update Statistics:');

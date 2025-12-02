@@ -106,6 +106,7 @@ jobs:
           CODA_API_TOKEN: ${{ secrets.CODA_API_TOKEN }}
           CODA_DOC_ID: ${{ secrets.CODA_DOC_ID || 'dza2s1eOIhA' }}
           CODA_PAGE_ID: ${{ secrets.CODA_PAGE_ID || 'suLCLolD' }}
+          OPENAI_API_KEY: ${{ secrets.QODO_API_KEY }}
           QODO_API_KEY: ${{ secrets.QODO_API_KEY }}
 
       - name: Send Slack notification
