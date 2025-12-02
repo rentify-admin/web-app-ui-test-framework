@@ -1,19 +1,16 @@
 #!/usr/bin/env node
 /**
- * Update Coda Documentation using QODO CLI and Coda MCP CLI
+ * Update Coda Documentation using QODO API and Coda MCP tools
  * 
- * 1. Uses QODO CLI to analyze each test file
+ * 1. Uses QODO API (OpenAI-compatible) to analyze each test file
  * 2. Generates documentation using the template
- * 3. Updates Coda page using Coda MCP CLI (npx coda-mcp)
+ * 3. Updates Coda page using the local MCP server tools
  */
 
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { exec } from 'child_process';
-import { promisify } from 'util';
-
-const execPromise = promisify(exec);
+import axios from 'axios';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -35,6 +32,9 @@ if (!QODO_API_KEY) {
     process.exit(1);
 }
 
+// QODO uses OpenAI-compatible API
+const QODO_API_BASE = 'https://api.qodo.ai/v1';
+
 /**
  * Find all test files
  */
@@ -55,15 +55,15 @@ function findTestFiles(dir) {
 }
 
 /**
- * Use QODO CLI to analyze a test file
+ * Use QODO API (OpenAI-compatible) to analyze a test file
  */
-async function analyzeTestWithQodoCLI(testFilePath) {
+async function analyzeTestWithQodo(testFilePath) {
     try {
         const fileName = path.basename(testFilePath);
         const promptTemplate = fs.readFileSync(QODO_PROMPT_FILE, 'utf-8');
         const testContent = fs.readFileSync(testFilePath, 'utf-8');
         
-        console.log(`   🤖 Analyzing ${fileName} with QODO CLI...`);
+        console.log(`   🤖 Analyzing ${fileName} with QODO API...`);
         
         // Create a combined prompt with the test content
         const fullPrompt = `${promptTemplate}
@@ -74,84 +74,54 @@ async function analyzeTestWithQodoCLI(testFilePath) {
 ${testContent}
 \`\`\`
 
-Please analyze this test file and return the JSON structure as specified in the output format above.`;
-        
-        // Save prompt to temp file
-        const tempPromptFile = path.join(__dirname, `.temp-qodo-prompt-${Date.now()}.txt`);
-        fs.writeFileSync(tempPromptFile, fullPrompt);
+Please analyze this test file and return ONLY the JSON structure as specified in the output format above. Do not include any markdown formatting or explanation, just the raw JSON object.`;
         
         try {
-            // Save the full prompt to a file
-            const tempFullPromptFile = path.join(__dirname, `.temp-qodo-full-prompt-${Date.now()}.txt`);
-            fs.writeFileSync(tempFullPromptFile, fullPrompt);
-            
-            // Use QODO CLI with stdin for large prompts
-            // The --ci flag is for non-interactive mode
-            const command = `cat "${tempFullPromptFile}" | qodo --ci`;
-            
-            const { stdout, stderr } = await execPromise(command, {
-                timeout: 120000, // 2 minute timeout
-                maxBuffer: 1024 * 1024 * 10, // 10MB buffer
-                env: {
-                    ...process.env,
-                    QODO_API_KEY: QODO_API_KEY
+            // Call QODO API (OpenAI-compatible endpoint)
+            const response = await axios.post(
+                `${QODO_API_BASE}/chat/completions`,
+                {
+                    model: 'gpt-4o-mini', // QODO's default model
+                    messages: [
+                        {
+                            role: 'system',
+                            content: 'You are a test documentation expert. Analyze test files and return structured JSON documentation. Return ONLY valid JSON, no markdown formatting.'
+                        },
+                        {
+                            role: 'user',
+                            content: fullPrompt
+                        }
+                    ],
+                    temperature: 0.1, // Low temperature for consistent JSON output
+                    response_format: { type: 'json_object' }
                 },
-                shell: '/bin/bash'
-            });
-            
-            if (stderr && !stderr.includes('Debugger')) {
-                console.log(`   📝 QODO stderr:`, stderr.substring(0, 200));
-            }
-            
-            // Parse JSON response from QODO output
-            let result;
-            try {
-                // QODO might wrap the JSON in other text, try to extract it
-                const jsonMatch = stdout.match(/\{[\s\S]*"tests"[\s\S]*\}/) ||
-                                stdout.match(/```json\n([\s\S]*?)\n```/) ||
-                                stdout.match(/```\n([\s\S]*?)\n```/);
-                
-                if (jsonMatch) {
-                    const jsonStr = jsonMatch[1] || jsonMatch[0];
-                    result = JSON.parse(jsonStr);
-                } else {
-                    result = JSON.parse(stdout);
+                {
+                    headers: {
+                        'Authorization': `Bearer ${QODO_API_KEY}`,
+                        'Content-Type': 'application/json'
+                    },
+                    timeout: 120000 // 2 minute timeout
                 }
+            );
+            
+            // Extract JSON from response
+            let result;
+            const content = response.data.choices[0].message.content;
+            
+            try {
+                result = typeof content === 'string' ? JSON.parse(content) : content;
             } catch (parseError) {
-                console.log(`   ⚠️  Could not parse QODO output as JSON`);
-                console.log(`   Raw output:`, stdout.substring(0, 500));
-                result = null;
+                console.log(`   ⚠️  Could not parse response as JSON`);
+                console.log(`   Response:`, content.substring(0, 500));
+                return null;
             }
             
             console.log(`   ✅ QODO analysis completed for ${fileName}`);
             
-            // Clean up temp files
-            if (fs.existsSync(tempPromptFile)) {
-                fs.unlinkSync(tempPromptFile);
-            }
-            const tempFullPromptFile = path.join(__dirname, `.temp-qodo-full-prompt-${Date.now()}.txt`);
-            if (fs.existsSync(tempFullPromptFile)) {
-                fs.unlinkSync(tempFullPromptFile);
-            }
-            
             return result;
             
-        } catch (execError) {
-            console.log(`   ⚠️  QODO CLI failed:`, execError.message.substring(0, 200));
-            
-            // Clean up temp files
-            if (fs.existsSync(tempPromptFile)) {
-                fs.unlinkSync(tempPromptFile);
-            }
-            // Find and clean up temp full prompt files
-            const tempFiles = fs.readdirSync(__dirname).filter(f => f.startsWith('.temp-qodo-full-prompt'));
-            for (const tempFile of tempFiles) {
-                const fullPath = path.join(__dirname, tempFile);
-                if (fs.existsSync(fullPath)) {
-                    fs.unlinkSync(fullPath);
-                }
-            }
-            
+        } catch (apiError) {
+            console.log(`   ⚠️  QODO API failed:`, apiError.response?.data || apiError.message);
             return null;
         }
         
@@ -386,8 +356,8 @@ async function main() {
             
             console.log(`\n📄 Processing: ${fileName}`);
             
-            // Analyze with QODO CLI
-            const qodoResult = await analyzeTestWithQodoCLI(testFile);
+            // Analyze with QODO API
+            const qodoResult = await analyzeTestWithQodo(testFile);
             
             if (qodoResult && qodoResult.tests && qodoResult.tests.length > 0) {
                 const entries = generateEntryFromQodo(qodoResult, fileName, filePath);
