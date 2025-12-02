@@ -15,10 +15,11 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const EXISTING_DOC_FILE = path.join(__dirname, '../../documentation/EXISTING_DOCUMENTATION.md');
+const CODA_BACKUP_FILE = path.join(__dirname, '../../documentation/CODA_CURRENT.md');
 const NEW_BATCHES_DIR = path.join(__dirname, '../../documentation/batches');
 const TESTS_TO_PROCESS_FILE = path.join(__dirname, '../../documentation/tests-to-process.txt');
 const OUTPUT_FILE = path.join(__dirname, '../../documentation/CONSOLIDATED_DOCUMENTATION.md');
+const EXISTING_DOC_FILE = path.join(__dirname, '../../documentation/EXISTING_DOCUMENTATION.md');
 
 /**
  * Extract test entries from markdown
@@ -94,12 +95,16 @@ function loadNewEntries() {
 async function main() {
     console.log('🔄 Merging documentation (smart update)...\n');
     
-    // Load existing documentation
+    // Load existing documentation from Coda backup (source of truth)
     let existingEntries = new Map();
-    if (fs.existsSync(EXISTING_DOC_FILE)) {
+    if (fs.existsSync(CODA_BACKUP_FILE)) {
+        const codaContent = fs.readFileSync(CODA_BACKUP_FILE, 'utf-8');
+        existingEntries = extractTestEntries(codaContent);
+        console.log(`✅ Loaded ${existingEntries.size} entries from Coda (source of truth)`);
+    } else if (fs.existsSync(EXISTING_DOC_FILE)) {
         const existingContent = fs.readFileSync(EXISTING_DOC_FILE, 'utf-8');
         existingEntries = extractTestEntries(existingContent);
-        console.log(`✅ Loaded ${existingEntries.size} existing entries`);
+        console.log(`✅ Loaded ${existingEntries.size} entries from previous run`);
     } else {
         console.log('📝 No existing documentation found (first run)');
     }

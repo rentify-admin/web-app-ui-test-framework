@@ -32,36 +32,12 @@ jobs:
       - name: Install dependencies
         run: npm install
       
-      - name: Download existing metadata (if exists)
-        continue-on-error: true
-        uses: dawidd6/action-download-artifact@v2
-        with:
-          workflow: test-documentation.yml
-          name: test-metadata
-          path: documentation/
-          if_no_artifact_found: ignore
-      
-      - name: Download existing documentation (if exists)
-        continue-on-error: true
-        uses: dawidd6/action-download-artifact@v2
-        with:
-          workflow: test-documentation.yml
-          name: existing-docs
-          path: documentation/
-          if_no_artifact_found: ignore
-      
-      - name: Sync metadata from existing docs
-        continue-on-error: true
-        run: |
-          echo "🔄 Syncing metadata from existing documentation..."
-          node auto_documentator/scripts/sync-metadata-from-docs.js || true
-      
-      - name: Detect new or changed tests
+      - name: Fetch Coda and find documentation gaps
         id: detect
         run: |
-          node auto_documentator/scripts/detect-changes.js | tee detect-output.txt
+          node auto_documentator/scripts/fetch-coda-and-find-gaps.js | tee gap-analysis.txt
           
-          TESTS_TO_PROCESS=$(grep "tests-to-process=" detect-output.txt | cut -d= -f2)
+          TESTS_TO_PROCESS=$(grep "tests-to-process=" gap-analysis.txt | cut -d= -f2)
           echo "tests-to-process=$TESTS_TO_PROCESS" >> $GITHUB_OUTPUT
           
           if [ "$TESTS_TO_PROCESS" -eq 0 ]; then
@@ -71,15 +47,17 @@ jobs:
             echo "skip-processing=false" >> $GITHUB_OUTPUT
             echo "total-tests=$TESTS_TO_PROCESS" >> $GITHUB_OUTPUT
           fi
+        env:
+          CODA_API_TOKEN: ${{ secrets.CODA_API_TOKEN }}
       
-      - name: Split changed tests into batches
+      - name: Split gap tests into batches
         if: steps.detect.outputs.skip-processing != 'true'
         id: split
         run: |
           TEST_FILES=$(cat documentation/tests-to-process.txt)
           TOTAL=$(echo "$TEST_FILES" | wc -l | tr -d ' ')
           
-          echo "✅ $TOTAL tests to process → 7 batches (OpenRouter: 20 RPM, 1000/day)"
+          echo "✅ $TOTAL missing tests → 7 batches (OpenRouter: 20 RPM, 1000/day)"
           
           mkdir -p batches
           
@@ -100,7 +78,7 @@ jobs:
           
           # Show distribution
           echo ""
-          echo "📊 Batch distribution:"
+          echo "📊 Batch distribution (missing tests only):"
           for i in {0..6}; do
             COUNT=$(wc -l < "batches/batch-${i}.txt" | tr -d ' ')
             echo "   Batch $i: $COUNT tests"
@@ -109,7 +87,10 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: test-batches
-          path: batches/
+          path: |
+            batches/
+            documentation/CODA_CURRENT.md
+            documentation/tests-to-process.txt
           retention-days: 1
 
   # Job 2: Process batches with AI (parallel, 1 provider per batch)
@@ -175,15 +156,6 @@ jobs:
       
       - run: npm ci
       
-      - name: Download existing documentation (if exists)
-        continue-on-error: true
-        uses: dawidd6/action-download-artifact@v2
-        with:
-          workflow: test-documentation.yml
-          name: existing-docs
-          path: documentation/
-          if_no_artifact_found: ignore
-      
       - uses: actions/download-artifact@v4
         with:
           pattern: batch-docs-*
@@ -203,10 +175,11 @@ jobs:
           GITHUB_ACTOR: ${{ github.actor }}
           GIT_USER_NAME: ${{ github.event.pusher.name || github.actor }}
       
-      - name: Update metadata for processed tests
-        run: |
-          echo "💾 Updating metadata..."
-          node auto_documentator/scripts/update-metadata.js
+      - name: Download Coda backup (from prepare job)
+        uses: actions/download-artifact@v4
+        with:
+          name: test-batches
+          path: documentation/
       
       - uses: actions/upload-artifact@v4
         with:
