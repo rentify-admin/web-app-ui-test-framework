@@ -24,7 +24,8 @@ const CODA_DOC_ID = process.env.CODA_DOC_ID || 'dza2s1eOIhA';
 const CODA_PAGE_ID = process.env.CODA_PAGE_ID || 'suLCLolD';
 const CODA_API_TOKEN = process.env.CODA_API_TOKEN;
 const QODO_API_KEY = process.env.QODO_API_KEY;
-const QODO_API_URL = process.env.QODO_API_URL || 'https://api.qodo.ai/v1/chat/completions';
+// QODO API endpoint - try common variations
+const QODO_API_URL = process.env.QODO_API_URL || 'https://api.qodo.ai/v1/completions';
 
 if (!CODA_API_TOKEN) {
     console.error('❌ CODA_API_TOKEN environment variable is required');
@@ -74,67 +75,123 @@ ${testContent}
 Please analyze this test file and return the JSON structure as specified in the output format above.`;
 
         console.log(`   🤖 Calling QODO API for ${fileName}...`);
+        console.log(`   📡 Endpoint: ${QODO_API_URL}`);
         
         // Call QODO API
-        // QODO might use a different API format - try multiple approaches
+        // Try multiple endpoint variations and formats
         let response;
-        try {
-            // Try OpenAI-compatible format first
-            response = await axios.post(
-                QODO_API_URL,
-                {
-                    model: 'gpt-4', // or whatever model QODO uses
-                    messages: [
-                        {
-                            role: 'system',
-                            content: 'You are a test documentation expert. Analyze test files and return structured JSON documentation.'
-                        },
-                        {
-                            role: 'user',
-                            content: fullPrompt
-                        }
-                    ],
-                    temperature: 0.3, // Lower temperature for more consistent output
-                    response_format: { type: 'json_object' } // Request JSON response
-                },
-                {
-                    headers: {
-                        'Authorization': `Bearer ${QODO_API_KEY}`,
-                        'Content-Type': 'application/json'
-                    },
-                    timeout: 60000 // 60 second timeout
-                }
-            );
-        } catch (apiError) {
-            // If OpenAI format fails, try QODO-specific format
-            if (apiError.response?.status === 404 || apiError.response?.status === 400) {
-                console.log(`   ⚠️  OpenAI format failed, trying QODO-specific format...`);
-                try {
-                    // Try QODO-specific API format
-                    response = await axios.post(
-                        QODO_API_URL,
-                        {
-                            prompt: fullPrompt,
-                            system_prompt: 'You are a test documentation expert. Analyze test files and return structured JSON documentation.',
-                            format: 'json',
-                            temperature: 0.3
-                        },
-                        {
-                            headers: {
-                                'Authorization': `Bearer ${QODO_API_KEY}`,
-                                'X-API-Key': QODO_API_KEY, // Some APIs use X-API-Key
-                                'Content-Type': 'application/json'
+        const endpointsToTry = [
+            QODO_API_URL,
+            'https://api.qodo.ai/v1/chat/completions',
+            'https://api.qodo.ai/v1/completions',
+            'https://api.qodo.ai/chat',
+            'https://api.qodo.ai/completions'
+        ];
+        
+        let lastError;
+        for (const endpoint of endpointsToTry) {
+            try {
+                console.log(`   🔄 Trying endpoint: ${endpoint}`);
+                
+                // Try OpenAI-compatible format
+                response = await axios.post(
+                    endpoint,
+                    {
+                        model: 'gpt-4',
+                        messages: [
+                            {
+                                role: 'system',
+                                content: 'You are a test documentation expert. Analyze test files and return structured JSON documentation.'
                             },
-                            timeout: 60000
-                        }
-                    );
-                } catch (qodoError) {
-                    console.error(`   ❌ QODO API error (both formats failed):`, qodoError.response?.data || qodoError.message);
-                    throw new Error(`QODO API error: ${qodoError.response?.data?.detail || qodoError.response?.data?.message || qodoError.message}. Please check QODO_API_URL and QODO_API_KEY.`);
+                            {
+                                role: 'user',
+                                content: fullPrompt
+                            }
+                        ],
+                        temperature: 0.3,
+                        response_format: { type: 'json_object' }
+                    },
+                    {
+                        headers: {
+                            'Authorization': `Bearer ${QODO_API_KEY}`,
+                            'Content-Type': 'application/json'
+                        },
+                        timeout: 60000,
+                        validateStatus: (status) => status < 500 // Don't throw on 4xx, we'll handle it
+                    }
+                );
+                
+                // If we get a successful response, break
+                if (response.status === 200 || response.status === 201) {
+                    console.log(`   ✅ Success with endpoint: ${endpoint}`);
+                    break;
                 }
-            } else {
-                throw apiError;
+                
+                // If 404, try next endpoint
+                if (response.status === 404) {
+                    console.log(`   ⚠️  404 with ${endpoint}, trying next...`);
+                    continue;
+                }
+                
+                // Other errors, throw
+                throw new Error(`API returned status ${response.status}: ${JSON.stringify(response.data)}`);
+                
+            } catch (apiError) {
+                lastError = apiError;
+                
+                // If it's a 404, try next endpoint
+                if (apiError.response?.status === 404) {
+                    console.log(`   ⚠️  404 with ${endpoint}, trying next endpoint...`);
+                    continue;
+                }
+                
+                // If it's a network error or other issue, try next endpoint
+                if (!apiError.response || apiError.response.status >= 500) {
+                    console.log(`   ⚠️  Network/Server error with ${endpoint}, trying next...`);
+                    continue;
+                }
+                
+                // For other 4xx errors, try QODO-specific format
+                if (apiError.response?.status >= 400 && apiError.response?.status < 500) {
+                    console.log(`   ⚠️  ${apiError.response.status} with OpenAI format, trying QODO-specific format...`);
+                    try {
+                        response = await axios.post(
+                            endpoint,
+                            {
+                                prompt: fullPrompt,
+                                system_prompt: 'You are a test documentation expert. Analyze test files and return structured JSON documentation.',
+                                format: 'json',
+                                temperature: 0.3
+                            },
+                            {
+                                headers: {
+                                    'Authorization': `Bearer ${QODO_API_KEY}`,
+                                    'X-API-Key': QODO_API_KEY,
+                                    'Content-Type': 'application/json'
+                                },
+                                timeout: 60000,
+                                validateStatus: (status) => status < 500
+                            }
+                        );
+                        
+                        if (response.status === 200 || response.status === 201) {
+                            console.log(`   ✅ Success with QODO format on ${endpoint}`);
+                            break;
+                        }
+                    } catch (qodoError) {
+                        console.log(`   ⚠️  QODO format also failed on ${endpoint}`);
+                        lastError = qodoError;
+                        continue;
+                    }
+                }
             }
+        }
+        
+        // If we didn't get a successful response, throw error
+        if (!response || (response.status !== 200 && response.status !== 201)) {
+            const errorMsg = lastError?.response?.data || lastError?.message || 'Unknown error';
+            console.error(`   ❌ All endpoints failed. Last error:`, errorMsg);
+            throw new Error(`QODO API error: Could not connect to any endpoint. Last error: ${JSON.stringify(errorMsg)}. Please verify QODO_API_URL and QODO_API_KEY are correct.`);
         }
         
         // Extract JSON from response
