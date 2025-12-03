@@ -67,21 +67,32 @@ function getProcessedTests() {
 function loadNewEntries() {
     const entries = new Map();
     
-    if (!fs.existsSync(NEW_BATCHES_DIR)) {
-        return entries;
-    }
+    // Look in both documentation/ and documentation/batches/
+    const searchDirs = [
+        NEW_BATCHES_DIR,
+        path.join(__dirname, '../../documentation')
+    ];
     
-    const batchFiles = fs.readdirSync(NEW_BATCHES_DIR)
-        .filter(f => f.startsWith('batch-') && f.endsWith('.json'))
-        .sort();
-    
-    for (const file of batchFiles) {
-        const data = JSON.parse(fs.readFileSync(path.join(NEW_BATCHES_DIR, file), 'utf-8'));
-        const batchEntries = data.entries || data;
+    for (const dir of searchDirs) {
+        if (!fs.existsSync(dir)) continue;
         
-        for (const entry of batchEntries) {
-            if (entry.fileName && entry.markdown) {
-                entries.set(entry.fileName, entry.markdown.trim());
+        const batchFiles = fs.readdirSync(dir)
+            .filter(f => (f.startsWith('batch-') || f.startsWith('batch-retry-')) && f.endsWith('.json'))
+            .sort();
+        
+        for (const file of batchFiles) {
+            const filePath = path.join(dir, file);
+            try {
+                const data = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+                const batchEntries = data.entries || data;
+                
+                for (const entry of batchEntries) {
+                    if (entry.fileName && entry.markdown) {
+                        entries.set(entry.fileName, entry.markdown.trim());
+                    }
+                }
+            } catch (error) {
+                console.log(`⚠️  Error reading ${file}: ${error.message}`);
             }
         }
     }
