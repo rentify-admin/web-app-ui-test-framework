@@ -47,16 +47,23 @@
     "flaky:analyze:strict": "node scripts/flaky_analysis/flaky-test-analyzer.js playwright-report/results.xml flaky-analysis.json 10 3",
     "flaky:analyze:lenient": "node scripts/flaky_analysis/flaky-test-analyzer.js playwright-report/results.xml flaky-analysis.json 30 2",
     "flaky:tag": "node scripts/flaky_analysis/flaky-test-tagger.js tag",
-    "flaky:clean": "node scripts/flaky_analysis/flaky-test-tagger.js clean"
+    "flaky:clean": "node scripts/flaky_analysis/flaky-test-tagger.js clean",
+    "docs:generate": "node scripts/generate-test-documentation.js",
+    "docs:update-all": "node scripts/generate-test-documentation.js --update-all"
   },
   "devDependencies": {
     "@playwright/test": "^1.52.0",
     "dotenv": "^16.4.5"
   },
   "dependencies": {
+    "@google/generative-ai": "^0.24.1",
+    "@notionhq/client": "^5.4.0",
+    "@qodo/command": "^0.31.1",
     "axios": "^1.13.2",
+    "coda-js": "^4.2.1",
     "form-data": "^4.0.0",
     "node-fetch": "^3.3.2",
+    "openai": "^6.9.1",
     "pdf-parse": "^1.1.1",
     "qrcode": "^1.5.3",
     "xml2js": "^0.6.2"
