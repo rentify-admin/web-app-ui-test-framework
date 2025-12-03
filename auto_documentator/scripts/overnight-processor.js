@@ -22,15 +22,10 @@ const OUTPUT_DIR = path.join(__dirname, '../../documentation');
 
 const batchNumber = parseInt(process.argv[2]) || 0;
 
-// One provider per batch
+// TOP PERFORMING PROVIDERS ONLY (100% success rate)
 const PROVIDERS = [
-    { name: 'OpenAI-1', apiKey: process.env.AI_API_KEY, type: 'openai', model: 'gpt-4o-mini' },
-    { name: 'OpenAI-2', apiKey: process.env.AI_API_KEY_6, type: 'openai', model: 'gpt-4o-mini' },
-    { name: 'OpenAI-3', apiKey: process.env.AI_API_KEY_7, type: 'openai', model: 'gpt-4o-mini' },
     { name: 'OR-Llama-70B', apiKey: process.env.AI_API_KEY_5, type: 'openrouter', model: 'meta-llama/llama-3.3-70b-instruct:free' },
-    { name: 'OR-Mistral', apiKey: process.env.AI_API_KEY_5, type: 'openrouter', model: 'mistralai/mistral-small-3.1-24b-instruct:free' },
-    { name: 'OR-Gemma-27B', apiKey: process.env.AI_API_KEY_5, type: 'openrouter', model: 'google/gemma-3-27b-it:free' },
-    { name: 'OR-Qwen', apiKey: process.env.AI_API_KEY_5, type: 'openrouter', model: 'qwen/qwen3-coder:free' }
+    { name: 'OR-Gemma-27B', apiKey: process.env.AI_API_KEY_5, type: 'openrouter', model: 'google/gemma-3-27b-it:free' }
 ].filter(p => p.apiKey && p.apiKey.length > 10);
 
 const PROVIDER = PROVIDERS[batchNumber % PROVIDERS.length];

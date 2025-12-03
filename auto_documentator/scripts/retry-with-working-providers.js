@@ -23,15 +23,10 @@ const FAILED_TESTS_FILE = path.join(__dirname, '../../documentation/failed-tests
 
 const workingBatch = parseInt(process.argv[2]); // Which working batch/provider to use
 
-// All providers
+// TOP PERFORMING PROVIDERS ONLY (100% success rate)
 const ALL_PROVIDERS = [
-    { batch: 0, name: 'OpenAI-1', apiKey: process.env.AI_API_KEY, type: 'openai', model: 'gpt-4o-mini' },
-    { batch: 1, name: 'OpenAI-2', apiKey: process.env.AI_API_KEY_6, type: 'openai', model: 'gpt-4o-mini' },
-    { batch: 2, name: 'OpenAI-3', apiKey: process.env.AI_API_KEY_7, type: 'openai', model: 'gpt-4o-mini' },
-    { batch: 3, name: 'OR-Llama-70B', apiKey: process.env.AI_API_KEY_5, type: 'openrouter', model: 'meta-llama/llama-3.3-70b-instruct:free' },
-    { batch: 4, name: 'OR-Mistral', apiKey: process.env.AI_API_KEY_5, type: 'openrouter', model: 'mistralai/mistral-small-3.1-24b-instruct:free' },
-    { batch: 5, name: 'OR-Gemma-27B', apiKey: process.env.AI_API_KEY_5, type: 'openrouter', model: 'google/gemma-3-27b-it:free' },
-    { batch: 6, name: 'OR-Qwen', apiKey: process.env.AI_API_KEY_5, type: 'openrouter', model: 'qwen/qwen3-coder:free' }
+    { batch: 0, name: 'OR-Llama-70B', apiKey: process.env.AI_API_KEY_5, type: 'openrouter', model: 'meta-llama/llama-3.3-70b-instruct:free' },
+    { batch: 1, name: 'OR-Gemma-27B', apiKey: process.env.AI_API_KEY_5, type: 'openrouter', model: 'google/gemma-3-27b-it:free' }
 ].filter(p => p.apiKey && p.apiKey.length > 10);
 
 const PROVIDER = ALL_PROVIDERS.find(p => p.batch === workingBatch);

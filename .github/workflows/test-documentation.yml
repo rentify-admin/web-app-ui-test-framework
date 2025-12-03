@@ -40,14 +40,14 @@ jobs:
           path: package.json
           retention-days: 1
 
-  # Job 2: Overnight processing (7 batches, 1 provider each, 20s delays)
+  # Job 2: Process with TOP providers only (100% success rate)
   analyze:
-    name: 2️⃣ Overnight Batch ${{ matrix.batch }}
+    name: 2️⃣ Phase 1 - Batch ${{ matrix.batch }}
     runs-on: ubuntu-latest
     needs: prepare
     strategy:
       matrix:
-        batch: [0, 1, 2, 3, 4, 5, 6]
+        batch: [0, 1]  # Only 2 batches - OR-Llama-70B and OR-Gemma-27B
       fail-fast: false
     
     steps:
@@ -60,12 +60,13 @@ jobs:
       
       - run: npm ci
       
-      - name: Overnight processing (20s between tests)
+      - name: Process with proven provider (20s between tests)
         run: |
-          echo "🌙 Batch ${{ matrix.batch }} - Overnight mode"
+          PROVIDER_NAME=$([ "${{ matrix.batch }}" -eq 0 ] && echo "OR-Llama-70B (100%)" || echo "OR-Gemma-27B (100%)")
+          echo "🎯 Batch ${{ matrix.batch }} - $PROVIDER_NAME"
           echo "⏱️  20 second delays between tests"
           node auto_documentator/scripts/overnight-processor.js ${{ matrix.batch }}
-        timeout-minutes: 360  # 6 hours max per batch
+        timeout-minutes: 120  # 2 hours max per batch (51 tests / 2 batches)
         env:
           AI_API_KEY: ${{ secrets.AI_API_KEY }}
           AI_API_KEY_2: ${{ secrets.AI_API_KEY_2 }}
