@@ -71,14 +71,16 @@ jobs:
           
           mkdir -p batches
           
-          # Initialize batch files using seq
-          seq 0 $((NUM_BATCHES - 1)) | while read i; do
+          # Initialize batch files
+          i=0
+          while [ $i -lt $NUM_BATCHES ]; do
             > "batches/batch-${i}.txt"
+            i=$((i + 1))
           done
           
-          # Distribute tests using modulo
+          # Distribute tests - write directly, avoid while subshell
           INDEX=0
-          echo "$TEST_FILES" | while read -r FILE; do
+          for FILE in $TEST_FILES; do
             if [ -n "$FILE" ]; then
               BATCH=$((INDEX % NUM_BATCHES))
               echo "$FILE" >> "batches/batch-${BATCH}.txt"
@@ -89,9 +91,11 @@ jobs:
           # Show distribution
           echo ""
           echo "📊 Adaptive batch distribution:"
-          seq 0 $((NUM_BATCHES - 1)) | while read i; do
-            COUNT=$(wc -l < "batches/batch-${i}.txt" | tr -d ' ')
+          i=0
+          while [ $i -lt $NUM_BATCHES ]; do
+            COUNT=$(wc -l < "batches/batch-${i}.txt" 2>/dev/null | tr -d ' ' || echo "0")
             echo "   Batch $i: $COUNT tests"
+            i=$((i + 1))
           done
 
       - uses: actions/upload-artifact@v4
