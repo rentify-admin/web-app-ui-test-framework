@@ -79,11 +79,110 @@ jobs:
           path: documentation/batch-${{ matrix.batch }}.json
           retention-days: 7
 
-  # Job 3: Consolidate overnight results
-  consolidate:
-    name: 3️⃣ Consolidate Results
+  # Job 3: Analyze first phase results
+  analyze-results:
+    name: 3️⃣ Analyze Phase 1 Results
     runs-on: ubuntu-latest
     needs: analyze
+    if: always()
+    outputs:
+      failed-count: ${{ steps.analyze.outputs.failed-count }}
+      working-batches: ${{ steps.analyze.outputs.working-batches }}
+      needs-retry: ${{ steps.analyze.outputs.needs-retry }}
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      
+      - run: npm ci
+      
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: batch-docs-*
+          path: documentation/
+          merge-multiple: true
+      
+      - name: Identify failures and working providers
+        id: analyze
+        run: |
+          OUTPUT=$(node auto_documentator/scripts/identify-failures.js | tee analysis.txt)
+          echo "$OUTPUT"
+          
+          FAILED=$(grep "failed-count=" analysis.txt | cut -d= -f2 || echo "0")
+          WORKING=$(grep "working-batches=" analysis.txt | cut -d= -f2 || echo "")
+          
+          echo "failed-count=$FAILED" >> $GITHUB_OUTPUT
+          echo "working-batches=$WORKING" >> $GITHUB_OUTPUT
+          
+          if [ "$FAILED" -gt 0 ] && [ -n "$WORKING" ]; then
+            echo "needs-retry=true" >> $GITHUB_OUTPUT
+            echo "🔄 Will retry $FAILED tests with working providers: $WORKING"
+          else
+            echo "needs-retry=false" >> $GITHUB_OUTPUT
+            echo "✅ No retry needed"
+          fi
+      
+      - uses: actions/upload-artifact@v4
+        if: steps.analyze.outputs.needs-retry == 'true'
+        with:
+          name: retry-data
+          path: |
+            documentation/failed-tests.txt
+            documentation/batch-stats.json
+          retention-days: 1
+
+  # Job 4: Retry failed tests with working providers (1 minute delays)
+  retry:
+    name: 4️⃣ Retry with Batch ${{ matrix.working-batch }}
+    runs-on: ubuntu-latest
+    needs: analyze-results
+    if: needs.analyze-results.outputs.needs-retry == 'true'
+    strategy:
+      matrix:
+        working-batch: ${{ fromJson(format('[{0}]', needs.analyze-results.outputs.working-batches)) }}
+      fail-fast: false
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      
+      - run: npm ci
+      
+      - uses: actions/download-artifact@v4
+        with:
+          name: retry-data
+          path: documentation/
+      
+      - name: Retry failed tests (1 minute delays - STRICT)
+        run: |
+          echo "🔄 Retrying with working provider from Batch ${{ matrix.working-batch }}"
+          echo "⏱️  STRICT 1 MINUTE between tests"
+          node auto_documentator/scripts/retry-with-working-providers.js ${{ matrix.working-batch }}
+        timeout-minutes: 360
+        env:
+          AI_API_KEY: ${{ secrets.AI_API_KEY }}
+          AI_API_KEY_2: ${{ secrets.AI_API_KEY_2 }}
+          AI_API_KEY_5: ${{ secrets.AI_API_KEY_5 }}
+          AI_API_KEY_6: ${{ secrets.AI_API_KEY_6 }}
+          AI_API_KEY_7: ${{ secrets.AI_API_KEY_7 }}
+      
+      - uses: actions/upload-artifact@v4
+        with:
+          name: retry-docs-${{ matrix.working-batch }}
+          path: documentation/batch-retry-${{ matrix.working-batch }}.json
+          retention-days: 7
+
+  # Job 5: Final consolidation
+  consolidate:
+    name: 5️⃣ Final Consolidation
+    runs-on: ubuntu-latest
+    needs: [analyze, analyze-results, retry]
     if: always()
     outputs:
       total-entries: ${{ steps.consolidate.outputs.total }}
@@ -94,17 +193,23 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'
       
       - run: npm ci
       
       - uses: actions/download-artifact@v4
         with:
           pattern: batch-docs-*
-          path: documentation/batches/
+          path: documentation/
           merge-multiple: true
       
-      - name: Merge documentation (smart update)
+      - uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          pattern: retry-docs-*
+          path: documentation/
+          merge-multiple: true
+      
+      - name: Merge all documentation
         id: consolidate
         run: |
           OUTPUT=$(node auto_documentator/scripts/merge-documentation.js 2>&1)
@@ -139,9 +244,9 @@ jobs:
           path: documentation/test-metadata.json
           retention-days: 365  # Keep metadata for a year
 
-  # Job 4A: Update Coda (parallel with Notion)
+  # Job 6: Update Coda (parallel with Notion)
   update-coda:
-    name: 4️⃣ A Update Coda
+    name: 6️⃣ A Update Coda
     runs-on: ubuntu-latest
     needs: consolidate
     
@@ -167,9 +272,9 @@ jobs:
           CODA_DOC_ID: ${{ secrets.CODA_DOC_ID || 'dza2s1eOIhA' }}
           CODA_PAGE_ID: ${{ secrets.CODA_PAGE_ID || 'suLCLolD' }}
 
-  # Job 4B: Update Notion (parallel with Coda)
+  # Job 6B: Update Notion (parallel with Coda)
   update-notion:
-    name: 4️⃣ B Update Notion
+    name: 6️⃣ B Update Notion
     runs-on: ubuntu-latest
     needs: consolidate
     
@@ -194,32 +299,12 @@ jobs:
           NOTION_SECRET: ${{ secrets.NOTION_SECRET }}
           NOTION_PAGE_ID: '2bdd92a99cff809e98ddcec14e6b7bdc'
 
-  # Job 5: Skip notification (when no processing needed)
-  skip-notify:
-    name: ⏭️  No Changes Detected
-    runs-on: ubuntu-latest
-    needs: prepare
-    if: needs.prepare.outputs.skip-processing == 'true'
-    
-    steps:
-      - name: All tests up to date
-        run: |
-          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          echo "✅ All tests are already documented!"
-          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          echo ""
-          echo "No new or changed tests detected."
-          echo "Documentation is up to date."
-          echo ""
-          echo "Skipping AI processing, Coda & Notion updates."
-          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-
-  # Job 6: Send notification
+  # Job 7: Send notification
   notify:
-    name: 6️⃣ Notify
+    name: 7️⃣ Notify
     runs-on: ubuntu-latest
-    needs: [prepare, consolidate, update-coda, update-notion]
-    if: always() && needs.prepare.outputs.skip-processing != 'true'
+    needs: [consolidate, update-coda, update-notion]
+    if: always()
     
     steps:
       - name: Send Slack notification
