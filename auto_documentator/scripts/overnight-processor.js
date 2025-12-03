@@ -152,12 +152,32 @@ ${stepsTable}
  * Find tests for this batch
  */
 function getTestsForBatch() {
+    const testsFile = path.join(__dirname, '../../documentation/tests-to-process.txt');
+    
+    // If tests-to-process.txt exists, use it (change detection mode)
+    if (fs.existsSync(testsFile)) {
+        const allTests = fs.readFileSync(testsFile, 'utf-8').split('\n').filter(f => f.trim());
+        
+        console.log(`📋 Processing from change detection: ${allTests.length} total tests`);
+        
+        // Distribute: each batch gets every Nth test where N = number of providers
+        const myTests = [];
+        for (let i = batchNumber; i < allTests.length; i += PROVIDERS.length) {
+            myTests.push(allTests[i]);
+        }
+        
+        return myTests;
+    }
+    
+    // Fallback: find all tests (first run or manual trigger)
     const output = execSync('find tests -name "*.spec.js" -o -name "*.test.js"', {
         cwd: path.join(__dirname, '../..'),
         encoding: 'utf-8'
     });
     
     const allTests = output.split('\n').filter(f => f.trim()).sort();
+    
+    console.log(`📂 Processing all tests: ${allTests.length} total`);
     
     // Distribute: each batch gets every Nth test where N = number of providers
     const myTests = [];
