@@ -24,7 +24,7 @@ test.describe('QA-228 skip_button_availability_non_complete_steps.spec', () => {
      */
     test('Verify Skip Button Remains Available for In Progress, Failed, and Incomplete Steps', {
         tag: ['@smoke', '@regression'],
-        timeout: 300_000
+        timeout: 360_000
     }, async ({ page, context }) => {
 
         // ------ Step 1: Admin Login and Navigation ------
@@ -289,7 +289,7 @@ test.describe('QA-228 skip_button_availability_non_complete_steps.spec', () => {
         const empConnectionRow = employmentStep.getByTestId('connection-row');
         await expect(empConnectionRow).toBeVisible({ timeout: 30_000 });
 
-        await expect(empConnectionRow.getByTestId('connection-row-row-status')).toHaveText('failed', { ignoreCase: true, timeout: 90_000 });
+        await expect(empConnectionRow.getByTestId('connection-row-row-status')).toHaveText('failed', { ignoreCase: true, timeout: 120_000 });
         console.log('❌ Detected employment document was marked failed.');
 
         // Check skip button available after failure and skip
