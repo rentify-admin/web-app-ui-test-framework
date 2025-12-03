@@ -11,19 +11,13 @@ on:
   workflow_dispatch:
 
 jobs:
-  # Job 1: Detect changes and prepare batches
+  # Job 1: Prepare for overnight processing
   prepare:
-    name: 1️⃣ Detect Changes & Prepare
+    name: 1️⃣ Prepare Overnight Run
     runs-on: ubuntu-latest
-    outputs:
-      total-tests: ${{ steps.detect.outputs.total-tests }}
-      tests-to-process: ${{ steps.detect.outputs.tests-to-process }}
-      skip-processing: ${{ steps.detect.outputs.skip-processing }}
     
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0  # Need full history for metadata
       
       - uses: actions/setup-node@v4
         with:
@@ -32,88 +26,25 @@ jobs:
       - name: Install dependencies
         run: npm install
       
-      - name: Fetch Coda and find documentation gaps
-        id: detect
+      - name: Prepare for overnight processing
         run: |
-          node auto_documentator/scripts/fetch-coda-and-find-gaps.js | tee gap-analysis.txt
-          
-          TESTS_TO_PROCESS=$(grep "tests-to-process=" gap-analysis.txt | cut -d= -f2)
-          echo "tests-to-process=$TESTS_TO_PROCESS" >> $GITHUB_OUTPUT
-          
-          if [ "$TESTS_TO_PROCESS" -eq 0 ]; then
-            echo "skip-processing=true" >> $GITHUB_OUTPUT
-            echo "total-tests=0" >> $GITHUB_OUTPUT
-          else
-            echo "skip-processing=false" >> $GITHUB_OUTPUT
-            echo "total-tests=$TESTS_TO_PROCESS" >> $GITHUB_OUTPUT
-          fi
-        env:
-          CODA_API_TOKEN: ${{ secrets.CODA_API_TOKEN }}
+          echo "🌙 Preparing overnight test processing..."
+          echo "📦 All 51 tests will be processed"
+          echo "🤖 7 providers (1 per batch)"
+          echo "⏱️  20 seconds between tests"
+          echo "⏱️  Total estimated time: ~3 hours"
       
-      - name: Adaptive batching (optimal for workload)
-        if: steps.detect.outputs.skip-processing != 'true'
-        id: split
-        run: |
-          TEST_FILES=$(cat documentation/tests-to-process.txt)
-          TOTAL=$(echo "$TEST_FILES" | wc -l | tr -d ' ')
-          
-          # Adaptive: Use fewer batches for smaller workloads
-          if [ "$TOTAL" -le 7 ]; then
-            NUM_BATCHES=$TOTAL
-          elif [ "$TOTAL" -le 20 ]; then
-            NUM_BATCHES=4
-          else
-            NUM_BATCHES=7
-          fi
-          
-          echo "✅ $TOTAL missing tests → $NUM_BATCHES batches (adaptive)"
-          echo "num-batches=$NUM_BATCHES" >> $GITHUB_OUTPUT
-          
-          mkdir -p batches
-          
-          # Initialize batch files
-          i=0
-          while [ $i -lt $NUM_BATCHES ]; do
-            > "batches/batch-${i}.txt"
-            i=$((i + 1))
-          done
-          
-          # Distribute tests - write directly, avoid while subshell
-          INDEX=0
-          for FILE in $TEST_FILES; do
-            if [ -n "$FILE" ]; then
-              BATCH=$((INDEX % NUM_BATCHES))
-              echo "$FILE" >> "batches/batch-${BATCH}.txt"
-              INDEX=$((INDEX + 1))
-            fi
-          done
-          
-          # Show distribution
-          echo ""
-          echo "📊 Adaptive batch distribution:"
-          i=0
-          while [ $i -lt $NUM_BATCHES ]; do
-            COUNT=$(wc -l < "batches/batch-${i}.txt" 2>/dev/null | tr -d ' ' || echo "0")
-            echo "   Batch $i: $COUNT tests"
-            i=$((i + 1))
-          done
-
       - uses: actions/upload-artifact@v4
         with:
-          name: test-batches
-          path: |
-            batches/
-            documentation/CODA_CURRENT.md
-            documentation/tests-to-process.txt
+          name: ready
+          path: package.json
           retention-days: 1
 
-  # Job 2: Process batches with AI (parallel, 1 provider per batch)
-  # OpenRouter with credits: 1000 req/day, 20 RPM
+  # Job 2: Overnight processing (7 batches, 1 provider each, 20s delays)
   analyze:
-    name: 2️⃣ AI Batch ${{ matrix.batch }}
+    name: 2️⃣ Overnight Batch ${{ matrix.batch }}
     runs-on: ubuntu-latest
     needs: prepare
-    if: needs.prepare.outputs.skip-processing != 'true'
     strategy:
       matrix:
         batch: [0, 1, 2, 3, 4, 5, 6]
@@ -129,15 +60,12 @@ jobs:
       
       - run: npm ci
       
-      - uses: actions/download-artifact@v4
-        with:
-          name: test-batches
-          path: batches/
-      
-      - name: Run AI analysis (multi-provider retry for max success)
+      - name: Overnight processing (20s between tests)
         run: |
-          echo "🤖 Batch ${{ matrix.batch }} - Multi-provider retry mode"
-          node auto_documentator/scripts/ai-analyzer-multi-retry.js "batches/batch-${{ matrix.batch }}.txt" ${{ matrix.batch }}
+          echo "🌙 Batch ${{ matrix.batch }} - Overnight mode"
+          echo "⏱️  20 second delays between tests"
+          node auto_documentator/scripts/overnight-processor.js ${{ matrix.batch }}
+        timeout-minutes: 360  # 6 hours max per batch
         env:
           AI_API_KEY: ${{ secrets.AI_API_KEY }}
           AI_API_KEY_2: ${{ secrets.AI_API_KEY_2 }}
@@ -149,14 +77,14 @@ jobs:
         with:
           name: batch-docs-${{ matrix.batch }}
           path: documentation/batch-${{ matrix.batch }}.json
-          retention-days: 1
+          retention-days: 7
 
-  # Job 3: Consolidate results & update metadata
+  # Job 3: Consolidate overnight results
   consolidate:
-    name: 3️⃣ Consolidate & Update Metadata
+    name: 3️⃣ Consolidate Results
     runs-on: ubuntu-latest
-    needs: [prepare, analyze]
-    if: always() && needs.prepare.outputs.skip-processing != 'true'
+    needs: analyze
+    if: always()
     outputs:
       total-entries: ${{ steps.consolidate.outputs.total }}
     
@@ -189,11 +117,9 @@ jobs:
           GITHUB_ACTOR: ${{ github.actor }}
           GIT_USER_NAME: ${{ github.event.pusher.name || github.actor }}
       
-      - name: Download Coda backup (from prepare job)
-        uses: actions/download-artifact@v4
-        with:
-          name: test-batches
-          path: documentation/
+      - name: Create simple header
+        run: |
+          echo "All batches processed - merging results"
       
       - uses: actions/upload-artifact@v4
         with:
