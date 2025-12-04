@@ -1,0 +1,922 @@
+[
+  {
+    "id": "applicant_type_workflow_affordable_occupant.spec.js-0",
+    "name": "Should complete applicant flow with affordable occupant applicant type",
+    "file": "tests/applicant_type_workflow_affordable_occupant.spec.js",
+    "type": "test",
+    "tags": [
+      "@core",
+      "@regression",
+      "@staging-ready",
+      "@rc-ready",
+      "@affordable_occupant"
+    ],
+    "suite": "applicant_type_workflow_affordable_occupant",
+    "lineNumber": 14,
+    "hash": "6d1c71eff2d3df3daf56880ec60647377090d9ad469bb7de6a43e0ab7f4c03f3"
+  },
+  {
+    "id": "application_create_delete_test.spec.js-0",
+    "name": "Should create and delete an application with multiple applicant types",
+    "file": "tests/application_create_delete_test.spec.js",
+    "type": "test",
+    "tags": [
+      "@core",
+      "@regression",
+      "@staging-ready",
+      "@rc-ready",
+      "@try-test-rail-names"
+    ],
+    "suite": "application_create_delete_test",
+    "lineNumber": 12,
+    "hash": "e5b179b66516204f138d5f1a25fbed90742115afb8e21bd174fa4b08b24b77cf"
+  },
+  {
+    "id": "application_edit_id_template_settings.spec.js-0",
+    "name": "Should edit an application ID template settings",
+    "file": "tests/application_edit_id_template_settings.spec.js",
+    "type": "test",
+    "tags": [
+      "@regression",
+      "@staging-ready",
+      "@rc-ready"
+    ],
+    "suite": "application_edit_id_template_settings",
+    "lineNumber": 8,
+    "hash": "297bd5925ad1f9d85dfa71b17a9718dda5bce1eb3e8050d580d97e735d7100ab"
+  },
+  {
+    "id": "application_step_should_skip_properly.spec.js-0",
+    "name": "Check Application step skip works propertly",
+    "file": "tests/application_step_should_skip_properly.spec.js",
+    "type": "test",
+    "tags": [
+      "@regression",
+      "@staging-ready",
+      "@rc-ready"
+    ],
+    "suite": "application_step_should_skip_properly",
+    "lineNumber": 14,
+    "hash": "db9c7f939add1afe93aaef3fd9a7992d8d222fa3d4e2b91463982ba676923918"
+  },
+  {
+    "id": "approval_condition_search_verify.spec.js-0",
+    "name": "Approval Conditions — Search by Name, Description, and BE Name",
+    "file": "tests/approval_condition_search_verify.spec.js",
+    "type": "test",
+    "tags": [
+      "@regression",
+      "@staging-ready",
+      "@rc-ready"
+    ],
+    "suite": "QA-211: Approval Conditions — Search by Name, Description, and BE Name",
+    "lineNumber": 9,
+    "hash": "6f0210fabe67116fc07bd8e8930a4ddad8cef6b5dabddb4ab98bdfd4aec3f937"
+  },
+  {
+    "id": "check_coapp_income_ratio_exceede_flag.spec.js-0",
+    "name": "Should confirm co-applicant income is considered when generating/removing Gross Income Ratio Exceeded flag",
+    "file": "tests/check_coapp_income_ratio_exceede_flag.spec.js",
+    "type": "test",
+    "tags": [
+      "@smoke",
+      "@external-integration",
+      "@regression",
+      "@staging-ready",
+      "@rc-ready",
+      "@try-test-rail-names"
+    ],
+    "suite": "check_coapp_income_ratio_exceede_flag",
+    "lineNumber": 111,
+    "hash": "aaa3a9ebe167ab33b7915c9e171d25c99b1231a6b42cfe639f10fef6b3904598"
+  },
+  {
+    "id": "check_income_source_regenerate_on_split_merge.spec.js-0",
+    "name": "Verify Regenerate Income After Merge/Split",
+    "file": "tests/check_income_source_regenerate_on_split_merge.spec.js",
+    "type": "test",
+    "tags": [
+      "@needs-review"
+    ],
+    "suite": "QA-210: Check Income Source Regenerate on Split/Merge",
+    "lineNumber": 176,
+    "hash": "d47c23ed6ee3e6e555e4c6d866eb11951cbc20a17f4ccb15226260b84c8950d0"
+  },
+  {
+    "id": "check_ui_shows_na_for-high_balance.spec.js-0",
+    "name": "Should check UI not shows N/A for high balance accounts",
+    "file": "tests/check_ui_shows_na_for-high_balance.spec.js",
+    "type": "test",
+    "tags": [
+      "@core",
+      "@regression",
+      "@staging-ready",
+      "@rc-ready"
+    ],
+    "suite": "check_ui_not_show_na_for-high_balance.spec",
+    "lineNumber": 30,
+    "hash": "384296b1d0c01cdefb349d20887c50463f077524d494163c835d4901fa3dbff0"
+  },
+  {
+    "id": "co_app_household_with_flag_errors.spec.js-0",
+    "name": "Should verify co-applicant flag attribution and household status transitions",
+    "file": "tests/co_app_household_with_flag_errors.spec.js",
+    "type": "test",
+    "tags": [
+      "@regression",
+      "@household",
+      "@flag-attribution"
+    ],
+    "suite": "co_app_household_with_flag_errors",
+    "lineNumber": 75,
+    "hash": "79231a9f488b1092e38cae8cd9cf850575758e206feea561555bff35f4ec2d57"
+  },
+  {
+    "id": "co_applicant_effect_on_session_test.spec.js-0",
+    "name": "Should complete applicant flow with co-applicant effect on session",
+    "file": "tests/co_applicant_effect_on_session_test.spec.js",
+    "type": "test",
+    "tags": [
+      "@regify",
+      "@external-integration",
+      "@regression",
+      "@staging-ready",
+      "@rc-ready"
+    ],
+    "suite": "co_applicant_effect_on_session_test",
+    "lineNumber": 46,
+    "hash": "d6bfe5445a0dda84163888fd54fc4c977a24660e2772488c3d02bcaad23daa21"
+  },
+  {
+    "id": "create_session_from_dashboard.spec.js-0",
+    "name": "Create New Session from Dashboard",
+    "file": "tests/create_session_from_dashboard.spec.js",
+    "type": "test",
+    "tags": [
+      "@core",
+      "@regression"
+    ],
+    "suite": "QA-223 create_session_from_dashboard.spec",
+    "lineNumber": 26,
+    "hash": "1ce8cc7fd21d8f6988cc8a7df0edb07d37b7e9d35b0131c8395a286cb25a4dc6"
+  },
+  {
+    "id": "default_applicant_type_override_in_application_workflow_steps.spec.js-0",
+    "name": "Test Default Applicant Type Override Options (Financial Step Only)",
+    "file": "tests/default_applicant_type_override_in_application_workflow_steps.spec.js",
+    "type": "test",
+    "tags": [
+      "@regression",
+      "@application",
+      "@staging-ready",
+      "@rc-ready"
+    ],
+    "suite": "QA-215 default_applicant_type_override_in_application_workflow_steps.spec",
+    "lineNumber": 61,
+    "hash": "8c6655f6605fed689b74f66a60b776d98a86cb03c6403eea2010acf11c491011"
+  },
+  {
+    "id": "document_policy_auto_selection_validation.spec.js-0",
+    "name": "Test Document policy auto selection validation",
+    "file": "tests/document_policy_auto_selection_validation.spec.js",
+    "type": "test",
+    "tags": [
+      "@application",
+      "@regression",
+      "@staging-ready",
+      "@rc-ready"
+    ],
+    "suite": "QA-226 document_policy_auto_selection_validation.spec",
+    "lineNumber": 55,
+    "hash": "a7d966e177bfc91c9e2e6023975469eeaf7b85d2c2ec7cf3481bc912bde62ad7"
+  },
+  {
+    "id": "document_rejection_from_any_state.spec.js-0",
+    "name": "Reject a Document Regardless of Processing State",
+    "file": "tests/document_rejection_from_any_state.spec.js",
+    "type": "test",
+    "tags": [
+      "@regression",
+      "@rc-ready",
+      "@staging-ready"
+    ],
+    "suite": "QA-208: Document Rejection from Any State",
+    "lineNumber": 191,
+    "hash": "cfa26a22cd4d60db376f98b4ffa25bde44688c4ce0130dabd32d777b5152b388"
+  },
+  {
+    "id": "financial_mx_2_attempts_success_and_failed_password.spec.js-0",
+    "name": "Financial - mx - 2 attempts + Eligibility status transitions",
+    "file": "tests/financial_mx_2_attempts_success_and_failed_password.spec.js",
+    "type": "test",
+    "tags": [
+      "@regression",
+      "@external-integration",
+      "@eligibility",
+      "@core",
+      "@staging-ready",
+      "@rc-ready"
+    ],
+    "suite": "financial_mx_2_attempts_success_and_failed_password",
+    "lineNumber": 38,
+    "hash": "57fc3386a82ec203c6845e174a032f32811d13b86f4b0fb06215bb4ef544703f"
+  },
+  {
+    "id": "financial_plaid_one_transaction_error_decline.spec.js-0",
+    "name": "Should handle Plaid Fin verification with insufficient transactions and decline flag",
+    "file": "tests/financial_plaid_one_transaction_error_decline.spec.js",
+    "type": "test",
+    "tags": [
+      "@smoke",
+      "@needs-review",
+      "@external-integration",
+      "@regression",
+      "@staging-ready"
+    ],
+    "suite": "financial_plaid_one_transaction_error_decline",
+    "lineNumber": 11,
+    "hash": "084c7a4d5e300c1abbcd200d31813750c9022dee9641581688bd2aa4dd10b5df"
+  },
+  {
+    "id": "flag_review_buttons_flow.spec.js-0",
+    "name": "Verify Report Flag Review Buttons Workflow",
+    "file": "tests/flag_review_buttons_flow.spec.js",
+    "type": "test",
+    "tags": [
+      "@regression",
+      "@staging-ready",
+      "@rc-ready"
+    ],
+    "suite": "QA-202 flag_review_buttons_flow",
+    "lineNumber": 34,
+    "hash": "ddbf949b26e5a0796d034094373396f363b9191208ddc63c8bcbe300af588e81"
+  },
+  {
+    "id": "frontend-session-heartbeat.spec.js-0",
+    "name": "Verify Frontend session heartbeat",
+    "file": "tests/frontend-session-heartbeat.spec.js",
+    "type": "test",
+    "tags": [
+      "@regression",
+      "@staging-ready",
+      "@rc-ready"
+    ],
+    "suite": "frontend-session-heartbeat",
+    "lineNumber": 19,
+    "hash": "bcac0590e1f65e017100ea90bda2502641f23279c254532beb6786e6e615fb5f"
+  },
+  {
+    "id": "frontend_heartbeat.spec.js-0",
+    "name": "Should check frontend heartbeat",
+    "file": "tests/frontend_heartbeat.spec.js",
+    "type": "test",
+    "tags": [
+      "@core",
+      "@smoke",
+      "@regression",
+      "@staging-ready",
+      "@rc-ready"
+    ],
+    "suite": "frontend_heartbeat",
+    "lineNumber": 51,
+    "hash": "32237e728e620147633e1b156d3a8e455a1ca771d7a7135550bc9e221e152926"
+  },
+  {
+    "id": "frontend_heartbeat.spec.js-1",
+    "name": "Should test session actions and section dropdowns",
+    "file": "tests/frontend_heartbeat.spec.js",
+    "type": "test",
+    "tags": [
+      "@core",
+      "@smoke",
+      "@regression",
+      "@critical",
+      "@staging-ready",
+      "@rc-ready"
+    ],
+    "suite": "frontend_heartbeat",
+    "lineNumber": 93,
+    "hash": "0b69c2ff1a97be2b3bca2b2c00ce836113def59464a0f3cae40722009b9a4f19"
+  },
+  {
+    "id": "guest-email-edit-validation.spec.js-0",
+    "name": "Verify Guest Email Edit: Form Save Validation (VC-1094)",
+    "file": "tests/guest-email-edit-validation.spec.js",
+    "type": "test",
+    "tags": [
+      "@regression",
+      "@smoke",
+      "@staging-ready",
+      "@rc-ready"
+    ],
+    "suite": "QA-234 guest-email-edit-validation.spec",
+    "lineNumber": 16,
+    "hash": "77e8df2482d3d28d0fe0a0228d5a381e3e7d7a2a04224e6ca02e5a902b2147c7"
+  },
+  {
+    "id": "heartbeat_addresses_menus.spec.js-0",
+    "name": "Should check Address heartbeat",
+    "file": "tests/heartbeat_addresses_menus.spec.js",
+    "type": "test",
+    "tags": [
+      "@core",
+      "@smoke",
+      "@regression",
+      "@critical",
+      "@staging-ready",
+      "@rc-ready"
+    ],
+    "suite": "heartbeat-address-menus.spec",
+    "lineNumber": 8,
+    "hash": "05d43867d036c53ecd4f6271c8bfe9acee7dd539870ec38e11b5227b8e2f3b97"
+  },
+  {
+    "id": "heartbeat_applicant_inbox_menus.spec.js-0",
+    "name": "Should check Applicant Inbox heartbeat",
+    "file": "tests/heartbeat_applicant_inbox_menus.spec.js",
+    "type": "test",
+    "tags": [
+      "@core",
+      "@smoke",
+      "@regression",
+      "@critical",
+      "@staging-ready"
+    ],
+    "suite": "heartbeat-applicant-inbox-menus.spec",
+    "lineNumber": 10,
+    "hash": "1fed6c164d6d16d5b534d200442c1654184908ccc5c7c6df7f8693df02939ffa"
+  },
+  {
+    "id": "heartbeat_applications_menus.spec.js-0",
+    "name": "Should check Applications menu heartbeat",
+    "file": "tests/heartbeat_applications_menus.spec.js",
+    "type": "test",
+    "tags": [
+      "@core",
+      "@smoke",
+      "@regression",
+      "@critical",
+      "@staging-ready",
+      "@rc-ready"
+    ],
+    "suite": "heartbeat_applications_menus.spec",
+    "lineNumber": 10,
+    "hash": "75cf0d36fb54261cf5fab800a927a618a70d369eb440a0269d02c78f4c6741e6"
+  },
+  {
+    "id": "heartbeat_completed_application_click_check.spec.js-0",
+    "name": "Heartbeat Test: Completed Application Clicks (frontend)",
+    "file": "tests/heartbeat_completed_application_click_check.spec.js",
+    "type": "test",
+    "tags": [
+      "@regression",
+      "@staging-ready",
+      "@rc-ready"
+    ],
+    "suite": "heartbeat_completed_application_click_check",
+    "lineNumber": 42,
+    "hash": "161ece62b3794115fae01f73a8419b671d78ffb724a87be2d03e31bd6afdf014"
+  },
+  {
+    "id": "heartbeat_documents_menus.test.js-0",
+    "name": "Should check Documents menu heartbeat",
+    "file": "tests/heartbeat_documents_menus.test.js",
+    "type": "test",
+    "tags": [
+      "@core",
+      "@smoke",
+      "@regression",
+      "@critical",
+      "@staging-ready",
+      "@rc-ready"
+    ],
+    "suite": "heartbeat_documents_menus.spec",
+    "lineNumber": 10,
+    "hash": "01ecda3eb5dee5450962ba87df3f8f223770cf14afe371744f67bcf458640fa4"
+  },
+  {
+    "id": "heartbeat_income_source_menus.spec.js-0",
+    "name": "Should check Income Sources menu heartbeat",
+    "file": "tests/heartbeat_income_source_menus.spec.js",
+    "type": "test",
+    "tags": [
+      "@core",
+      "@smoke",
+      "@regression",
+      "@critical",
+      "@staging-ready",
+      "@rc-ready"
+    ],
+    "suite": "heartbeat_income_source_menus.spec",
+    "lineNumber": 9,
+    "hash": "6f3d9c2d08f4c6c4e422f387c087eb1f7742926398d3071542364de493bbc8ea"
+  },
+  {
+    "id": "heartbeat_logout_menu.spec.js-0",
+    "name": "Should check Logout flow heartbeat",
+    "file": "tests/heartbeat_logout_menu.spec.js",
+    "type": "test",
+    "tags": [
+      "@core",
+      "@smoke",
+      "@regression",
+      "@critical",
+      "@staging-ready",
+      "@rc-ready"
+    ],
+    "suite": "heartbeat_logout_menu.spec.spec",
+    "lineNumber": 9,
+    "hash": "565f760f0a7ab136719d3f2f4c72971ca3132975c55043dc2707d00c9befc156"
+  },
+  {
+    "id": "heartbeat_org_list_menus.spec.js-0",
+    "name": "Should check Organization List menu heartbeat",
+    "file": "tests/heartbeat_org_list_menus.spec.js",
+    "type": "test",
+    "tags": [
+      "@core",
+      "@smoke",
+      "@regression",
+      "@critical",
+      "@staging-ready",
+      "@rc-ready"
+    ],
+    "suite": "heartbeat_org_list_menus.spec",
+    "lineNumber": 9,
+    "hash": "03c43ab4f5000a5166bd6a8828dea6e7d1cb771b36f6c3323cfd2b4e34e31ce3"
+  },
+  {
+    "id": "heartbeat_organizations_menus.spec.js-0",
+    "name": "Should check Organizations menu heartbeat",
+    "file": "tests/heartbeat_organizations_menus.spec.js",
+    "type": "test",
+    "tags": [
+      "@core",
+      "@smoke",
+      "@regression",
+      "@critical",
+      "@staging-ready",
+      "@rc-ready"
+    ],
+    "suite": "heartbeat_organizations_menus.spec",
+    "lineNumber": 10,
+    "hash": "1649447ec9e73b469fb4158846353d8c29e1c9d96e79a25dd953d5a5f4b0f89e"
+  },
+  {
+    "id": "heartbeat_reports_menus.spec.js-0",
+    "name": "Should check Report menu heartbeat",
+    "file": "tests/heartbeat_reports_menus.spec.js",
+    "type": "test",
+    "tags": [
+      "@core",
+      "@smoke",
+      "@regression",
+      "@critical",
+      "@staging-ready"
+    ],
+    "suite": "heartbeat_reports_menus.spec",
+    "lineNumber": 9,
+    "hash": "9524afd432d30fd1b41815f9f17566d7dca288c3626e3941cbf8fcbb8df67c49"
+  },
+  {
+    "id": "heartbeat_settings_menus.spec.js-0",
+    "name": "Should check Settings menu heartbeat",
+    "file": "tests/heartbeat_settings_menus.spec.js",
+    "type": "test",
+    "tags": [
+      "@core",
+      "@smoke",
+      "@regression",
+      "@critical",
+      "@staging-ready",
+      "@rc-ready"
+    ],
+    "suite": "heartbeat_settings_menus.spec",
+    "lineNumber": 9,
+    "hash": "20efcd61a379a2302258973f28aa3f78d62bbf9048ffe6ad0b252a648e3a9140"
+  },
+  {
+    "id": "heartbeat_tools_menus.spec.js-0",
+    "name": "Should check Tools menu heartbeat",
+    "file": "tests/heartbeat_tools_menus.spec.js",
+    "type": "test",
+    "tags": [
+      "@core",
+      "@smoke",
+      "@regression",
+      "@critical",
+      "@staging-ready",
+      "@rc-ready"
+    ],
+    "suite": "heartbeat_tools_menus.spec",
+    "lineNumber": 8,
+    "hash": "3b4ab2cb7607df9e0e01fd41c8924faf0057719a5b6eea710907d91d4f7d54ce"
+  },
+  {
+    "id": "heartbeat_transactions_menus.spec.js-0",
+    "name": "Should check Transactions menu heartbeat",
+    "file": "tests/heartbeat_transactions_menus.spec.js",
+    "type": "test",
+    "tags": [
+      "@core",
+      "@smoke",
+      "@regression",
+      "@critical",
+      "@staging-ready",
+      "@rc-ready"
+    ],
+    "suite": "heartbeat_transactions_menus.spec",
+    "lineNumber": 9,
+    "hash": "cf3c1bc7b0ba5ec22737d526e773bea012982b44f32d1aa6824a46337dcd1fe4"
+  },
+  {
+    "id": "heartbeat_users_menu.spec.js-0",
+    "name": "Should check User menu heartbeat",
+    "file": "tests/heartbeat_users_menu.spec.js",
+    "type": "test",
+    "tags": [
+      "@core",
+      "@smoke",
+      "@regression",
+      "@critical",
+      "@staging-ready",
+      "@rc-ready"
+    ],
+    "suite": "heartbeat_users_menu.spec",
+    "lineNumber": 8,
+    "hash": "9d3e5ce83c01fe641df30824f8e47774641a708a597f48d2e04028750fe76b7d"
+  },
+  {
+    "id": "hosted_app_copy_verify_flow_plaid_id_emp_skip.spec.js-0",
+    "name": "Should complete hosted application flow with id emp skips and Plaid integration",
+    "file": "tests/hosted_app_copy_verify_flow_plaid_id_emp_skip.spec.js",
+    "type": "test",
+    "tags": [
+      "@smoke",
+      "@regression",
+      "@needs-review",
+      "@external-integration"
+    ],
+    "suite": "hosted_app_copy_verify_flow_plaid_id_emp_skip",
+    "lineNumber": 32,
+    "hash": "ad6a4b19e3ace1b79415f6f510a49b6495eb3ef0e02557790a06114c0482a501"
+  },
+  {
+    "id": "identity_flag_reevaluation_on_guest_update.spec.js-0",
+    "name": "Test Re-evaluate Identity Mismatch Flags When Guest Record is Updated",
+    "file": "tests/identity_flag_reevaluation_on_guest_update.spec.js",
+    "type": "test",
+    "tags": [
+      "@regression",
+      "@application",
+      "@staging-ready",
+      "@rc-ready"
+    ],
+    "suite": "QA-227 identity_flag_reevaluation_on_guest_update.spec",
+    "lineNumber": 101,
+    "hash": "d48ff2bf15e896d5693e9619a7fcb147f5f8e4ee9261e434d14a7b5a22bdf030"
+  },
+  {
+    "id": "income_source_remarks_hide_unhide_ordering.spec.js-0",
+    "name": "Verify Income Source Remarks Creation, Ordering, and Hide/Unhide Functionality",
+    "file": "tests/income_source_remarks_hide_unhide_ordering.spec.js",
+    "type": "test",
+    "tags": [
+      "@core",
+      "@smoke",
+      "@regression",
+      "@staging-ready",
+      "@rc-ready"
+    ],
+    "suite": "QA-191:create_multiple_remarks.spec",
+    "lineNumber": 22,
+    "hash": "7384ace3ba0600928bf9c42e3446187dce3a3e15487b275b10bb55b07e71153b"
+  },
+  {
+    "id": "internal_scope_user_can_override_upload_doc_limit.spec.js-0",
+    "name": "Verify Internal-scope Uploads Can Override Document Upload Limits",
+    "file": "tests/internal_scope_user_can_override_upload_doc_limit.spec.js",
+    "type": "test",
+    "tags": [
+      "@core",
+      "@regression"
+    ],
+    "suite": "QA-212 internal_scope_user_can_override_upload_doc_limit.spec",
+    "lineNumber": 38,
+    "hash": "3c1f062d0288172e992f8a2aacb59d72b88819653e506d13834fb301eb0f6e8c"
+  },
+  {
+    "id": "merged_transactions_ui_display.spec.js-0",
+    "name": "UI Validation for Combined Transactions Display",
+    "file": "tests/merged_transactions_ui_display.spec.js",
+    "type": "test",
+    "tags": [
+      "@regression",
+      "@staging-ready",
+      "@rc-ready"
+    ],
+    "suite": "QA-219: merged_transactions_ui_display.spec",
+    "lineNumber": 25,
+    "hash": "fb56b0132ba2fc1589e59b6f1741f1f4eeaac6e4b84b1b23344c795857e66c62"
+  },
+  {
+    "id": "org_member_application_binding_scoping_check.spec.js-0",
+    "name": "Check Application Binding Scoping (Inbox Visibility)",
+    "file": "tests/org_member_application_binding_scoping_check.spec.js",
+    "type": "test",
+    "tags": [
+      "@regression",
+      "@staging-ready",
+      "@rc-ready"
+    ],
+    "suite": "QA-102: org_member_application_binding_scoping_check",
+    "lineNumber": 19,
+    "hash": "c70414d3f2325cb216fca17dfecab6c747839568fca03c1db6ef7f63a3d62180"
+  },
+  {
+    "id": "pdf_download_test.spec.js-0",
+    "name": "Should successfully export PDF for an application",
+    "file": "tests/pdf_download_test.spec.js",
+    "type": "test",
+    "tags": [
+      "@core",
+      "@regression",
+      "@staging-ready",
+      "@rc-ready"
+    ],
+    "suite": "pdf_download_test",
+    "lineNumber": 49,
+    "hash": "52d06a207f71841bae79a395a0dd9204f53eb2f188468d3b6306c4d70a060047"
+  },
+  {
+    "id": "property_admin_permission_test.spec.js-0",
+    "name": "Should create property admin role user via API",
+    "file": "tests/property_admin_permission_test.spec.js",
+    "type": "test",
+    "tags": [
+      "@regression",
+      "@staging-ready",
+      "@rc-ready"
+    ],
+    "suite": "property_admin_permission_test",
+    "lineNumber": 66,
+    "hash": "4193859159c83e65853f75b488594034ed400cfdcbe4325299b6780f8921b591"
+  },
+  {
+    "id": "property_admin_permission_test.spec.js-1",
+    "name": "Verify property admin user permissions",
+    "file": "tests/property_admin_permission_test.spec.js",
+    "type": "test",
+    "tags": [
+      "@regression",
+      "@staging-ready",
+      "@rc-ready"
+    ],
+    "suite": "property_admin_permission_test",
+    "lineNumber": 137,
+    "hash": "36f54128926103076a3d5af222456e17f4c47a8dea46fbf34e266f276d76daf3"
+  },
+  {
+    "id": "property_admin_permission_test.spec.js-2",
+    "name": "Check applicant inbox permissions",
+    "file": "tests/property_admin_permission_test.spec.js",
+    "type": "test",
+    "tags": [
+      "@regression",
+      "@staging-ready",
+      "@rc-ready"
+    ],
+    "suite": "property_admin_permission_test",
+    "lineNumber": 300,
+    "hash": "e787221bce6af0327422c399a93e29610642d4256c225e4fa943b36c867b8304"
+  },
+  {
+    "id": "report_remarks_section.spec.js-0",
+    "name": "Check Remarks (Comments) Section on Applicant Report",
+    "file": "tests/report_remarks_section.spec.js",
+    "type": "test",
+    "tags": [
+      "@core",
+      "@smoke",
+      "@regression"
+    ],
+    "suite": "QA-221 report_remarks_section.spec",
+    "lineNumber": 128,
+    "hash": "4b3691f2de156706dc0c5039dd55afeae79c7fb6b8e7b60821649820f5b2ce89"
+  },
+  {
+    "id": "request_additional_information.spec.js-0",
+    "name": "Document Request: Complete validation (happy path + negative tests) @request-docs @integration @permissions @state-safetys @negative @validation @network-error @regression @staging-ready @rc-ready",
+    "file": "tests/request_additional_information.spec.js",
+    "type": "test",
+    "tags": [],
+    "suite": "request_additional_information",
+    "lineNumber": 77,
+    "hash": "0eaae2ed07ed3b0c2586fa303825d93ab79a46a594d3f16b9df2f8942fd16e58"
+  },
+  {
+    "id": "show-paystub-deposit-in-document-extracted-section.spec.js-0",
+    "name": "Verify Display Paystub Deposits in Document → Extracted Section",
+    "file": "tests/show-paystub-deposit-in-document-extracted-section.spec.js",
+    "type": "test",
+    "tags": [
+      "@regression",
+      "@try-test-rail-names",
+      "@staging-ready",
+      "@rc-ready"
+    ],
+    "suite": "QA-213 show-paystub-deposit-in-document-extracted-section.spec",
+    "lineNumber": 22,
+    "hash": "64dc283022f764ffca62660a9523bc09ef6dde4dc8dbbe92a037034905ab19f9"
+  },
+  {
+    "id": "skip_button_visibility_logic.spec.js-0",
+    "name": "Should ensure skip button visibility logic across verification steps using existing application",
+    "file": "tests/skip_button_visibility_logic.spec.js",
+    "type": "test",
+    "tags": [
+      "@regression",
+      "@external-integration",
+      "@staging-ready",
+      "@rc-ready"
+    ],
+    "suite": "skip_button_visibility_logic",
+    "lineNumber": 43,
+    "hash": "09d05d79d7f1c6d78129dc67f007ac8fbf4d70dedc8f3de02580d08e61b56466"
+  },
+  {
+    "id": "staff_user_permissions_test.spec.js-0",
+    "name": "Should create member record and assign it to the Staff role",
+    "file": "tests/staff_user_permissions_test.spec.js",
+    "type": "test",
+    "tags": [
+      "@regression",
+      "@staging-ready",
+      "@rc-ready"
+    ],
+    "suite": "staff_user_permissions_test",
+    "lineNumber": 68,
+    "hash": "70d658fe9a2bae5848d95c6b69e3154445d21290eb654d8a036c89ace22e4d30"
+  },
+  {
+    "id": "staff_user_permissions_test.spec.js-1",
+    "name": "Verify permission of Staff role",
+    "file": "tests/staff_user_permissions_test.spec.js",
+    "type": "test",
+    "tags": [
+      "@regression",
+      "@staging-ready",
+      "@rc-ready"
+    ],
+    "suite": "staff_user_permissions_test",
+    "lineNumber": 136,
+    "hash": "2dbd5433e1c796076134901f2f12a7d75d3fd8bf91720981916075f4a9754015"
+  },
+  {
+    "id": "user_flags_approve_reject_test.spec.js-0",
+    "name": "Should create applicant session for flag issue",
+    "file": "tests/user_flags_approve_reject_test.spec.js",
+    "type": "test",
+    "tags": [
+      "@core",
+      "@smoke",
+      "@regression",
+      "@staging-ready",
+      "@rc-ready"
+    ],
+    "suite": "user_flags_approve_reject_test",
+    "lineNumber": 45,
+    "hash": "ff5282529dfb0c860e8a636263694734b358ab2c09624ac884dbc48303dade83"
+  },
+  {
+    "id": "user_flags_approve_reject_test.spec.js-1",
+    "name": "Check Session Flag",
+    "file": "tests/user_flags_approve_reject_test.spec.js",
+    "type": "test",
+    "tags": [
+      "@core",
+      "@smoke",
+      "@regression",
+      "@staging-ready",
+      "@rc-ready"
+    ],
+    "suite": "user_flags_approve_reject_test",
+    "lineNumber": 71,
+    "hash": "105a5f0a6fd3620250c7d5663598b3969e28b4e77bf39f88e90fbd2542d8e619"
+  },
+  {
+    "id": "user_flags_approve_reject_test.spec.js-2",
+    "name": "Should create applicant session for approve reject",
+    "file": "tests/user_flags_approve_reject_test.spec.js",
+    "type": "test",
+    "tags": [
+      "@core",
+      "@smoke",
+      "@regression",
+      "@staging-ready",
+      "@rc-ready"
+    ],
+    "suite": "user_flags_approve_reject_test",
+    "lineNumber": 173,
+    "hash": "ff39249b22f2b05cbe8baa404d78a1a1b9566a7812d4bcbb35ac50c2cf7d79d7"
+  },
+  {
+    "id": "user_flags_approve_reject_test.spec.js-3",
+    "name": "Check session by Approving and Rejecting",
+    "file": "tests/user_flags_approve_reject_test.spec.js",
+    "type": "test",
+    "tags": [
+      "@core",
+      "@smoke",
+      "@regression",
+      "@staging-ready",
+      "@rc-ready"
+    ],
+    "suite": "user_flags_approve_reject_test",
+    "lineNumber": 199,
+    "hash": "8978f08abe4941485ec2775ec120027787588501eafa1ce5b6cb5fb2e91d34ee"
+  },
+  {
+    "id": "user_permissions_verify.spec.js-0",
+    "name": "Should allow admin to create user via API",
+    "file": "tests/user_permissions_verify.spec.js",
+    "type": "test",
+    "tags": [
+      "@regression",
+      "@staging-ready",
+      "@rc-ready"
+    ],
+    "suite": "user_permissions_verify",
+    "lineNumber": 93,
+    "hash": "3676c2963958ee7e908b39861fb5b48d2fafc09128766f5d94d572d066f6f5ee"
+  },
+  {
+    "id": "user_permissions_verify.spec.js-1",
+    "name": "Should allow user to edit the application",
+    "file": "tests/user_permissions_verify.spec.js",
+    "type": "test",
+    "tags": [
+      "@regression",
+      "@staging-ready",
+      "@rc-ready"
+    ],
+    "suite": "user_permissions_verify",
+    "lineNumber": 163,
+    "hash": "7ef29861be9aefb4e49dc6c4ca70c417aa9194a8c665c5bfe6f70151a1403ce2"
+  },
+  {
+    "id": "user_permissions_verify.spec.js-2",
+    "name": "Should allow user to perform permited actions",
+    "file": "tests/user_permissions_verify.spec.js",
+    "type": "test",
+    "tags": [
+      "@regression",
+      "@staging-ready",
+      "@rc-ready"
+    ],
+    "suite": "user_permissions_verify",
+    "lineNumber": 264,
+    "hash": "368b8dda52aa244cbb49fcf8a61bc306d7deb4f6d9afdf8a1c69c7be0e2ab20c"
+  },
+  {
+    "id": "verify_application_edit_id_step_edit.spec.js-0",
+    "name": "Should login user and edit ID only application",
+    "file": "tests/verify_application_edit_id_step_edit.spec.js",
+    "type": "test",
+    "tags": [
+      "@regression",
+      "@staging-ready"
+    ],
+    "suite": "verify_application_edit_id_step_edit",
+    "lineNumber": 17,
+    "hash": "86fe814baecbac350db1a530c3ea4e2c26ead2b32b08a352591560263366e289"
+  },
+  {
+    "id": "verify_application_edit_id_step_edit.spec.js-1",
+    "name": "Verify updates are there in application",
+    "file": "tests/verify_application_edit_id_step_edit.spec.js",
+    "type": "test",
+    "tags": [
+      "@regression",
+      "@staging-ready"
+    ],
+    "suite": "verify_application_edit_id_step_edit",
+    "lineNumber": 39,
+    "hash": "dfbf4cb19a67dbd5910ee329b7c13f2f852d7698d9ca913f4b560bf669258cc0"
+  },
+  {
+    "id": "workflow_configuration_isolation_between_applications.spec.js-0",
+    "name": "Should isolate workflow configuration changes between applications using same template",
+    "file": "tests/workflow_configuration_isolation_between_applications.spec.js",
+    "type": "test",
+    "tags": [
+      "@core",
+      "@regression",
+      "@staging-ready",
+      "@rc-ready"
+    ],
+    "suite": "Workflow Configuration Isolation Between Applications",
+    "lineNumber": 39,
+    "hash": "5b8fa8ea4e6aabf5d0b3434f09dec28ad0c6bf9db5561ae78c1c3d58abef681c"
+  }
+]

@@ -88,17 +88,61 @@ async function callAI(systemPrompt, userPrompt) {
 }
 
 /**
- * Analyze test
+ * Extract test cases from file
+ */
+function extractTestCasesFromFile(fileContent) {
+    const testCases = [];
+    
+    // Pattern for taggedTest (API tests)
+    const taggedTestPattern = /taggedTest\(\s*['"`]([^'"`]+)['"`]/g;
+    // Pattern for test() (UI tests)
+    const testPattern = /test\(\s*['"`]([^'"`]+)['"`]/g;
+    
+    let match;
+    
+    // Extract taggedTest calls
+    while ((match = taggedTestPattern.exec(fileContent)) !== null) {
+        testCases.push({ name: match[1], type: 'taggedTest' });
+    }
+    
+    // Extract test() calls
+    while ((match = testPattern.exec(fileContent)) !== null) {
+        testCases.push({ name: match[1], type: 'test' });
+    }
+    
+    return testCases;
+}
+
+/**
+ * Analyze test with test-case awareness
  */
 async function analyzeTest(testFilePath) {
     const fileName = path.basename(testFilePath);
     const testContent = fs.readFileSync(testFilePath, 'utf-8');
     const promptTemplate = fs.readFileSync(AI_PROMPT_FILE, 'utf-8');
     
-    const systemPrompt = "You are an expert test documentation analyst. Return ONLY valid JSON.";
-    const userPrompt = `${promptTemplate}\n\n## Test File to Analyze\n\n\`\`\`javascript\n${testContent}\n\`\`\``;
+    // Extract individual test cases
+    const testCases = extractTestCasesFromFile(testContent);
+    const testCaseList = testCases.map((tc, i) => `${i + 1}. ${tc.name}`).join('\n');
     
-    console.log(`\n📄 ${fileName}`);
+    const systemPrompt = "You are an expert test documentation analyst. Return ONLY valid JSON.";
+    const userPrompt = `${promptTemplate}
+
+## Test File Information
+
+File: ${fileName}
+Individual Test Cases in this file (${testCases.length}):
+${testCaseList}
+
+## Full Test File Code
+
+\`\`\`javascript
+${testContent}
+\`\`\`
+
+Please document ALL ${testCases.length} test cases listed above.`;
+    
+    console.log(`\n📄 ${fileName} (${testCases.length} test cases)`);
     
     try {
         const result = await callAI(systemPrompt, userPrompt);

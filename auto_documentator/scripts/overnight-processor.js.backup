@@ -83,61 +83,17 @@ async function callAI(systemPrompt, userPrompt) {
 }
 
 /**
- * Extract test cases from file
- */
-function extractTestCasesFromFile(fileContent) {
-    const testCases = [];
-    
-    // Pattern for taggedTest (API tests)
-    const taggedTestPattern = /taggedTest\(\s*['"`]([^'"`]+)['"`]/g;
-    // Pattern for test() (UI tests)
-    const testPattern = /test\(\s*['"`]([^'"`]+)['"`]/g;
-    
-    let match;
-    
-    // Extract taggedTest calls
-    while ((match = taggedTestPattern.exec(fileContent)) !== null) {
-        testCases.push({ name: match[1], type: 'taggedTest' });
-    }
-    
-    // Extract test() calls
-    while ((match = testPattern.exec(fileContent)) !== null) {
-        testCases.push({ name: match[1], type: 'test' });
-    }
-    
-    return testCases;
-}
-
-/**
- * Analyze test with test-case awareness
+ * Analyze test
  */
 async function analyzeTest(testFilePath) {
     const fileName = path.basename(testFilePath);
     const testContent = fs.readFileSync(testFilePath, 'utf-8');
     const promptTemplate = fs.readFileSync(AI_PROMPT_FILE, 'utf-8');
     
-    // Extract individual test cases
-    const testCases = extractTestCasesFromFile(testContent);
-    const testCaseList = testCases.map((tc, i) => `${i + 1}. ${tc.name}`).join('\n');
-    
     const systemPrompt = "You are an expert test documentation analyst. Return ONLY valid JSON.";
-    const userPrompt = `${promptTemplate}
-
-## Test File Information
-
-File: ${fileName}
-Individual Test Cases in this file (${testCases.length}):
-${testCaseList}
-
-## Full Test File Code
-
-\`\`\`javascript
-${testContent}
-\`\`\`
-
-Please document ALL ${testCases.length} test cases listed above.`;
+    const userPrompt = `${promptTemplate}\n\n## Test File to Analyze\n\n\`\`\`javascript\n${testContent}\n\`\`\``;
     
-    console.log(`\n📄 ${fileName} (${testCases.length} test cases)`);
+    console.log(`\n📄 ${fileName}`);
     
     try {
         const result = await callAI(systemPrompt, userPrompt);
@@ -150,21 +106,13 @@ Please document ALL ${testCases.length} test cases listed above.`;
 }
 
 /**
- * Generate markdown with test cases
+ * Generate markdown
  */
 function generateMarkdown(aiResult, fileName) {
     if (!aiResult) return null;
     
     const formatArray = (arr) => arr && arr.length > 0 ? arr.map(item => `- ${item}`).join('\n') : '- {data not found}';
     const formatInline = (arr) => arr && arr.length > 0 ? arr.map(t => `\`${t}\``).join(' ') : '{data not found}';
-    
-    // Format test cases list
-    const testCasesList = aiResult.testCases && aiResult.testCases.length > 0 
-        ? aiResult.testCases.map((tc, i) => {
-            const tags = tc.tags && tc.tags.length > 0 ? ` | Tags: ${tc.tags.map(t => `\`${t}\``).join(' ')}` : '';
-            return `${i + 1}. **${tc.name}**${tags}\n   - ${tc.description || 'Test case description'}`;
-          }).join('\n')
-        : '- {test cases not found}';
     
     const stepsTable = aiResult.stepsAndVerifications?.map(s => 
         `| **${s.step}** | ${s.action || '{data not found}'} | ${s.verification || '{data not found}'} |`
@@ -175,11 +123,7 @@ function generateMarkdown(aiResult, fileName) {
 
 **Summary:** ${aiResult.summary || '{data not found}'}
 
-**File Tags:** ${formatInline(aiResult.tags)}
-
-### 📋 Test Cases in this File
-
-${testCasesList}
+**Tags:** ${formatInline(aiResult.tags)}
 
 **Functionalities Covered:**
 ${formatArray(aiResult.functionalitiesCovered)}
