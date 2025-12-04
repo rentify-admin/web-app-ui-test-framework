@@ -305,11 +305,21 @@ async function clearNotionPage() {
 /**
  * Update Notion page
  */
-async function updateNotionPage(content) {
+async function updateNotionPage(content, headerBlocks = []) {
     try {
         console.log('📤 Updating Notion page...');
         
         await clearNotionPage();
+        
+        // Add header first (after clearing)
+        if (headerBlocks.length > 0) {
+            console.log('   📝 Adding header...');
+            await notion.blocks.children.append({
+                block_id: NOTION_PAGE_ID,
+                children: headerBlocks
+            });
+            console.log('   ✅ Header added\n');
+        }
         
         // Split into test entries
         const entries = content.split(/(?=## 🧪)/).filter(e => e.trim());
@@ -469,22 +479,8 @@ async function main() {
     
     console.log(`✅ Loaded ${(content.length / 1024).toFixed(2)} KB\n`);
     
-    // First, add header blocks
-    console.log('📝 Adding header...');
-    const headerBlocks = createHeaderBlocks(content);
-    
-    try {
-        await notion.blocks.children.append({
-            block_id: NOTION_PAGE_ID,
-            children: headerBlocks
-        });
-        console.log('✅ Header added\n');
-    } catch (error) {
-        console.error('❌ Failed to add header:', error.message);
-    }
-    
-    // Then add test entries
-    await updateNotionPage(content);
+    // Update Notion page (clears first, then adds header + content)
+    await updateNotionPage(content, createHeaderBlocks(content));
     
     console.log('\n✅ Complete');
 }
