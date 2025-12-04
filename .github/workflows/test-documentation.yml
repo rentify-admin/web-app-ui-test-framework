@@ -385,7 +385,7 @@ jobs:
             "blocks": [
               {
                 "type": "header",
-                "text": {"type": "plain_text", "text": "'"${EMOJI} Test Documentation - ${STATUS}"'"}
+                "text": {"type": "plain_text", "text": "'"${EMOJI} UI Test Documentation - ${STATUS}"'"}
               },
               {
                 "type": "section",
