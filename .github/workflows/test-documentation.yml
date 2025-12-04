@@ -1,5 +1,11 @@
-name: Test Documentation
+# ==============================================================================
+# UI TEST DOCUMENTATION WORKFLOW
+# ==============================================================================
+name: UI Test Documentation
 
+# ==============================================================================
+# TRIGGERS
+# ==============================================================================
 on:
   push:
     branches:
@@ -7,8 +13,13 @@ on:
       - main
   workflow_dispatch:  # Manual trigger option
 
+# ==============================================================================
+# JOBS
+# ==============================================================================
 jobs:
-  # Job 1: Detect changes (new or modified tests)
+  # ==========================================================================
+  # JOB: DETECT CHANGES (New or Modified Tests)
+  # ==========================================================================
   prepare:
     name: 1️⃣ Detect New & Changed Tests
     runs-on: ubuntu-latest
@@ -57,7 +68,9 @@ jobs:
           path: documentation/tests-to-process.txt
           retention-days: 1
 
-  # Job 2: Process only new/changed tests with 100% providers
+  # ==========================================================================
+  # JOB: AI ANALYSIS (Process new/changed tests with 100% success providers)
+  # ==========================================================================
   analyze:
     name: 2️⃣ Phase 1 - Batch ${{ matrix.batch }}
     runs-on: ubuntu-latest
@@ -122,7 +135,9 @@ jobs:
           path: documentation/batch-${{ matrix.batch }}.json
           retention-days: 7
 
-  # Job 3: Analyze first phase results
+  # ==========================================================================
+  # JOB: ANALYZE RESULTS (Identify failures and working providers)
+  # ==========================================================================
   analyze-results:
     name: 3️⃣ Analyze Phase 1 Results
     runs-on: ubuntu-latest
@@ -177,7 +192,9 @@ jobs:
             documentation/batch-stats.json
           retention-days: 1
 
-  # Job 4: Retry failed tests with working providers (1 minute delays)
+  # ==========================================================================
+  # JOB: RECOVERY (Retry failed tests with proven working providers)
+  # ==========================================================================
   retry:
     name: 4️⃣ Retry with Batch ${{ matrix.working-batch }}
     runs-on: ubuntu-latest
@@ -221,7 +238,9 @@ jobs:
           path: documentation/batch-retry-${{ matrix.working-batch }}.json
           retention-days: 7
 
-  # Job 5: Final consolidation
+  # ==========================================================================
+  # JOB: CONSOLIDATION (Merge all results and update metadata)
+  # ==========================================================================
   consolidate:
     name: 5️⃣ Final Consolidation
     runs-on: ubuntu-latest
@@ -292,7 +311,9 @@ jobs:
           path: documentation/test-metadata.json
           retention-days: 365  # Keep metadata for a year
 
-  # Job 6: Update Coda (parallel with Notion)
+  # ==========================================================================
+  # JOB: UPDATE CODA (Parallel with Notion)
+  # ==========================================================================
   update-coda:
     name: 6️⃣ A Update Coda
     runs-on: ubuntu-latest
@@ -321,7 +342,9 @@ jobs:
           CODA_DOC_ID: ${{ secrets.CODA_DOC_ID || 'dza2s1eOIhA' }}
           CODA_PAGE_ID: ${{ secrets.CODA_PAGE_ID || 'suLCLolD' }}
 
-  # Job 6B: Update Notion (parallel with Coda)
+  # ==========================================================================
+  # JOB: UPDATE NOTION (Parallel with Coda)
+  # ==========================================================================
   update-notion:
     name: 6️⃣ B Update Notion
     runs-on: ubuntu-latest
@@ -349,7 +372,9 @@ jobs:
           NOTION_SECRET: ${{ secrets.NOTION_SECRET }}
           NOTION_PAGE_ID: '2bdd92a99cff809e98ddcec14e6b7bdc'
 
-  # Job 7: Send notification
+  # ==========================================================================
+  # JOB: NOTIFICATION (Slack notification with results)
+  # ==========================================================================
   notify:
     name: 7️⃣ Notify
     runs-on: ubuntu-latest
