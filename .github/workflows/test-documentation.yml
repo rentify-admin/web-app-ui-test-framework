@@ -37,7 +37,7 @@ jobs:
       - name: Detect new or changed tests
         id: detect
         run: |
-          node auto_documentator/scripts/detect-changes.js | tee detect-output.txt
+          node auto_documentator/scripts/detect-changes.mjs | tee detect-output.txt
           
           TESTS=$(grep "tests-to-process=" detect-output.txt | cut -d= -f2 || echo "0")
           echo "tests-to-process=$TESTS" >> $GITHUB_OUTPUT
@@ -111,7 +111,7 @@ jobs:
           echo "⏱️  20 second delays between tests"
           
           # Create a simple script to process tests from my-tests.txt
-          node auto_documentator/scripts/overnight-processor.js ${{ matrix.batch }}
+          node auto_documentator/scripts/overnight-processor.mjs ${{ matrix.batch }}
         timeout-minutes: 120
         env:
           AI_API_KEY_5: ${{ secrets.AI_API_KEY_5 }}
@@ -151,7 +151,7 @@ jobs:
       - name: Identify failures and working providers
         id: analyze
         run: |
-          OUTPUT=$(node auto_documentator/scripts/identify-failures.js | tee analysis.txt)
+          OUTPUT=$(node auto_documentator/scripts/identify-failures.mjs | tee analysis.txt)
           echo "$OUTPUT"
           
           FAILED=$(grep "failed-count=" analysis.txt | cut -d= -f2 || echo "0")
@@ -206,7 +206,7 @@ jobs:
         run: |
           echo "🔄 Retrying with working provider from Batch ${{ matrix.working-batch }}"
           echo "⏱️  STRICT 1 MINUTE between tests"
-          node auto_documentator/scripts/retry-with-working-providers.js ${{ matrix.working-batch }}
+          node auto_documentator/scripts/retry-with-working-providers.mjs ${{ matrix.working-batch }}
         timeout-minutes: 360
         env:
           AI_API_KEY: ${{ secrets.AI_API_KEY }}
@@ -255,7 +255,7 @@ jobs:
       - name: Merge all documentation
         id: consolidate
         run: |
-          OUTPUT=$(node auto_documentator/scripts/merge-documentation.js 2>&1)
+          OUTPUT=$(node auto_documentator/scripts/merge-documentation.mjs 2>&1)
           echo "$OUTPUT"
           
           TOTAL=$(echo "$OUTPUT" | grep -oP 'TOTAL_ENTRIES:\K\d+' || echo "0")
@@ -284,7 +284,7 @@ jobs:
       - name: Update metadata for processed tests
         run: |
           echo "💾 Updating metadata..."
-          node auto_documentator/scripts/update-metadata.js
+          node auto_documentator/scripts/update-metadata.mjs
       
       - uses: actions/upload-artifact@v4
         with:
@@ -315,7 +315,7 @@ jobs:
           path: documentation/
       
       - name: Update Coda page
-        run: node auto_documentator/scripts/update-coda-page.js
+        run: node auto_documentator/scripts/update-coda-page.mjs
         env:
           CODA_API_TOKEN: ${{ secrets.CODA_API_TOKEN }}
           CODA_DOC_ID: ${{ secrets.CODA_DOC_ID || 'dza2s1eOIhA' }}
@@ -344,7 +344,7 @@ jobs:
           path: documentation/
       
       - name: Update Notion page
-        run: node auto_documentator/scripts/update-notion-page.js
+        run: node auto_documentator/scripts/update-notion-page.mjs
         env:
           NOTION_SECRET: ${{ secrets.NOTION_SECRET }}
           NOTION_PAGE_ID: '2bdd92a99cff809e98ddcec14e6b7bdc'
