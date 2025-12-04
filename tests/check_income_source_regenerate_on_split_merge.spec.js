@@ -173,7 +173,7 @@ let allTestsPassed = true;
 
 test.describe('QA-210: Check Income Source Regenerate on Split/Merge', () => {
 
-    test('Verify Regenerate Income After Merge/Split', { tag: ['@needs-review'] }, async ({ page, browser }) => {
+    test('Verify Regenerate Income After Merge/Split', { tag: ['@regression', '@staging-ready', '@rc-ready'] }, async ({ page, browser }) => {
         // --- Setup ---
         test.setTimeout(300_000);
         const appName = 'Autotest - Heartbeat Test - Financial';

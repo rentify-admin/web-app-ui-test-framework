@@ -126,7 +126,7 @@ test.describe('QA-221 report_remarks_section.spec', () => {
     const appName = 'Autotest - Heartbeat Test - Financial';
 
     test('Check Remarks (Comments) Section on Applicant Report', {
-        tag: ['@core', '@smoke', '@regression'],
+        tag: ['@core', '@smoke', '@regression', '@staging-ready', '@rc-ready'],
         timeout: 150_000
     }, async ({ page }) => {
         try {

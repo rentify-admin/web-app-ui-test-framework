@@ -25,7 +25,7 @@ test.describe('QA-223 create_session_from_dashboard.spec', () => {
 
     test('Create New Session from Dashboard',
         {
-            tag: ['@core', '@regression'],
+            tag: ['@core', '@regression', '@staging-ready', '@rc-ready'],
             timeout: 180_000
         },
         async ({ page }) => {

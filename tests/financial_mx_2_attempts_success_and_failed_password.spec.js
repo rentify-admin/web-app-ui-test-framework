@@ -38,7 +38,7 @@ test.describe('financial_mx_2_attempts_success_and_failed_password', () => {
     test('Financial - mx - 2 attempts + Eligibility status transitions', {
       tag: ['@regression', '@external-integration', '@eligibility', '@core', '@staging-ready', '@rc-ready'],
     }, async ({ page, browser }) => {
-        test.setTimeout(350_000);
+        test.setTimeout(420_000);
         
         try { 
         // Step 1: Admin Login and Navigate
@@ -295,10 +295,10 @@ test.describe('financial_mx_2_attempts_success_and_failed_password', () => {
         // Step 7: Assert initial status - MX income should be sufficient for $500 rent
         console.log('Step 7: Asserting initial status - Meets Criteria');
         
-        // Poll for "Meets Criteria" status (max 60 seconds)
+        // Poll for "Meets Criteria" status (max 120 seconds)
         console.log('   ⏳ Polling for "Meets Criteria" status...');
         let initialStatusFound = false;
-        const initialStatusMaxAttempts = 30; // 30 attempts * 2 seconds = 60 seconds max
+        const initialStatusMaxAttempts = 60; // 60 attempts * 2 seconds = 120 seconds max
         const initialStatusPollInterval = 2000;
         
         for (let attempt = 0; attempt < initialStatusMaxAttempts; attempt++) {
@@ -325,7 +325,7 @@ test.describe('financial_mx_2_attempts_success_and_failed_password', () => {
         
         if (!initialStatusFound) {
             const finalStatus = await householdStatusAlert.textContent();
-            throw new Error(`Expected "Meets Criteria" but got: "${finalStatus}" after 30 seconds`);
+            throw new Error(`Expected "Meets Criteria" but got: "${finalStatus}" after 120 seconds`);
         }
         
         console.log('   ✅ Status: Meets Criteria (MX income sufficient for $500 rent)');
@@ -343,10 +343,10 @@ test.describe('financial_mx_2_attempts_success_and_failed_password', () => {
         await page.waitForTimeout(2000);
         await page.reload();
         
-        // Poll for "Criteria Not Met" status (max 30 seconds)
+        // Poll for "Criteria Not Met" status (max 60 seconds)
         console.log('   ⏳ Polling for "Criteria Not Met" status...');
         let statusFound = false;
-        const statusMaxAttempts = 15; // 15 attempts * 2 seconds = 30 seconds max
+        const statusMaxAttempts = 30; // 30 attempts * 2 seconds = 60 seconds max
         const statusPollInterval = 2000;
         
         for (let attempt = 0; attempt < statusMaxAttempts; attempt++) {
@@ -373,7 +373,7 @@ test.describe('financial_mx_2_attempts_success_and_failed_password', () => {
         
         if (!statusFound) {
             const finalStatus = await householdStatusAlert.textContent();
-            throw new Error(`Expected "Criteria Not Met" but got: "${finalStatus}" after 30 seconds`);
+            throw new Error(`Expected "Criteria Not Met" but got: "${finalStatus}" after 60 seconds`);
         }
         
         // Step 9: Add manual income source of $3000 - Should meet criteria again

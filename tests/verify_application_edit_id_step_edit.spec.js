@@ -37,7 +37,7 @@ test.describe('verify_application_edit_id_step_edit', () => {
     });
 
     test('Verify updates are there in application', {
-      tag: ['@regression', '@staging-ready'],
+      tag: ['@regression', '@staging-ready', '@rc-ready'],
     }, async ({ page }) => {
         await page.goto('/');
         await loginWith(page, admin);
