@@ -317,8 +317,8 @@ jobs:
   update-coda:
     name: 6️⃣ A Update Coda
     runs-on: ubuntu-latest
-    needs: [prepare, consolidate]
-    if: needs.consolidate.outputs.total-entries > 0 && needs.prepare.outputs.skip-processing != 'true'
+    needs: consolidate
+    if: needs.consolidate.outputs.total-entries > 0
     
     steps:
       - uses: actions/checkout@v4
@@ -348,8 +348,8 @@ jobs:
   update-notion:
     name: 6️⃣ B Update Notion
     runs-on: ubuntu-latest
-    needs: [prepare, consolidate]
-    if: needs.consolidate.outputs.total-entries > 0 && needs.prepare.outputs.skip-processing != 'true'
+    needs: consolidate
+    if: needs.consolidate.outputs.total-entries > 0
     
     steps:
       - uses: actions/checkout@v4

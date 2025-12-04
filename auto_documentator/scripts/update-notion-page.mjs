@@ -303,23 +303,16 @@ async function clearNotionPage() {
 }
 
 /**
- * Update Notion page
+ * Update Notion page (INCREMENTAL - does NOT clear existing content)
  */
 async function updateNotionPage(content, headerBlocks = []) {
     try {
-        console.log('📤 Updating Notion page...');
+        console.log('📤 Updating Notion page (incremental)...');
         
-        await clearNotionPage();
+        // DO NOT clear page - this preserves existing content
+        // Only append new or changed entries
         
-        // Add header first (after clearing)
-        if (headerBlocks.length > 0) {
-            console.log('   📝 Adding header...');
-            await notion.blocks.children.append({
-                block_id: NOTION_PAGE_ID,
-                children: headerBlocks
-            });
-            console.log('   ✅ Header added\n');
-        }
+        console.log('   ℹ️  Skipping page clear (incremental update)');
         
         // Split into test entries
         const entries = content.split(/(?=## 🧪)/).filter(e => e.trim());

@@ -317,8 +317,8 @@ jobs:
   update-coda:
     name: 6️⃣ A Update Coda
     runs-on: ubuntu-latest
-    needs: [prepare, consolidate]
-    if: needs.consolidate.outputs.total-entries > 0 && needs.prepare.outputs.skip-processing != 'true'
+    needs: consolidate
+    if: needs.consolidate.outputs.total-entries > 0
     
     steps:
       - uses: actions/checkout@v4
@@ -348,8 +348,8 @@ jobs:
   update-notion:
     name: 6️⃣ B Update Notion
     runs-on: ubuntu-latest
-    needs: [prepare, consolidate]
-    if: needs.consolidate.outputs.total-entries > 0 && needs.prepare.outputs.skip-processing != 'true'
+    needs: consolidate
+    if: needs.consolidate.outputs.total-entries > 0
     
     steps:
       - uses: actions/checkout@v4
@@ -398,13 +398,13 @@ jobs:
             STATUS="Failed"
           fi
           
-          SUMMARY="*UI Test Files:* ${{ needs.consolidate.outputs.total-entries }}\n"
-          SUMMARY="${SUMMARY}*UI Test Cases:* 61 individual tests\n"
+          SUMMARY="*Tests:* ${{ needs.prepare.outputs.total-tests }}\n"
+          SUMMARY="${SUMMARY}*Entries:* ${{ needs.consolidate.outputs.total-entries }}\n"
           SUMMARY="${SUMMARY}*Coda:* $([ "$CODA_STATUS" == "success" ] && echo "✅" || echo "❌")\n"
           SUMMARY="${SUMMARY}*Notion:* $([ "$NOTION_STATUS" == "success" ] && echo "✅" || echo "❌")\n"
           SUMMARY="${SUMMARY}\n*Links:*\n"
-          SUMMARY="${SUMMARY}• <https://coda.io/d/dza2s1eOIhA/_suLCLolD|Coda UI Tests>\n"
-          SUMMARY="${SUMMARY}• <https://www.notion.so/2bdd92a99cff809e98ddcec14e6b7bdc|Notion UI Tests>"
+          SUMMARY="${SUMMARY}• <https://coda.io/d/dza2s1eOIhA/_suLCLolD|Coda Docs>\n"
+          SUMMARY="${SUMMARY}• <https://www.notion.so/2bdd92a99cff809e98ddcec14e6b7bdc|Notion Docs>"
           
           curl -X POST -H 'Content-type: application/json' --data '{
             "blocks": [
@@ -424,5 +424,4 @@ jobs:
           }' "${{ secrets.SLACK_WEBHOOK_URL }}"
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
-
 
