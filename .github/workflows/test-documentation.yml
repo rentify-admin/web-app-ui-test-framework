@@ -398,8 +398,8 @@ jobs:
             STATUS="Failed"
           fi
           
-          SUMMARY="*UI Test Files:* ${{ needs.consolidate.outputs.total-entries }}\n"
-          SUMMARY="${SUMMARY}*UI Test Cases:* 61 individual tests\n"
+          SUMMARY="*Tests Processed This Run:* ${{ needs.consolidate.outputs.total-entries }}\n"
+          SUMMARY="${SUMMARY}*Total UI Test Cases:* 61 individual tests documented\n"
           SUMMARY="${SUMMARY}*Coda:* $([ "$CODA_STATUS" == "success" ] && echo "✅" || echo "❌")\n"
           SUMMARY="${SUMMARY}*Notion:* $([ "$NOTION_STATUS" == "success" ] && echo "✅" || echo "❌")\n"
           SUMMARY="${SUMMARY}\n*Links:*\n"
