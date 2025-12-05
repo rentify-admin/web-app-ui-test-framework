@@ -316,10 +316,10 @@ jobs:
           retention-days: 365  # Keep metadata for a year
 
   # ==========================================================================
-  # JOB: UPDATE CODA (Parallel with Notion)
+  # JOB: UPDATE CODA
   # ==========================================================================
   update-coda:
-    name: 6️⃣ A Update Coda
+    name: 6️⃣ Update Coda
     runs-on: ubuntu-latest
     needs: [prepare, consolidate]
     if: needs.consolidate.outputs.total-entries > 0 && needs.prepare.outputs.skip-processing != 'true'
@@ -347,56 +347,22 @@ jobs:
           CODA_PAGE_ID: ${{ secrets.CODA_PAGE_ID || 'suLCLolD' }}
 
   # ==========================================================================
-  # JOB: UPDATE NOTION (Parallel with Coda)
-  # ==========================================================================
-  update-notion:
-    name: 6️⃣ B Update Notion
-    runs-on: ubuntu-latest
-    needs: [prepare, consolidate]
-    if: needs.consolidate.outputs.total-entries > 0 && needs.prepare.outputs.skip-processing != 'true'
-    
-    steps:
-      - uses: actions/checkout@v4
-      
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-      
-      - run: npm ci
-      
-      - uses: actions/download-artifact@v4
-        with:
-          name: consolidated-docs
-          path: documentation/
-      
-      - name: Update Notion page
-        run: node auto_documentator/scripts/update-notion-page.mjs
-        env:
-          NOTION_SECRET: ${{ secrets.NOTION_SECRET }}
-          NOTION_PAGE_ID: '2bdd92a99cff809e98ddcec14e6b7bdc'
-
-  # ==========================================================================
   # JOB: NOTIFICATION (Slack notification with results)
   # ==========================================================================
   notify:
     name: 7️⃣ Notify
     runs-on: ubuntu-latest
-    needs: [consolidate, update-coda, update-notion]
+    needs: [consolidate, update-coda]
     if: always()
     
     steps:
       - name: Send Slack notification
         run: |
           CODA_STATUS="${{ needs.update-coda.result }}"
-          NOTION_STATUS="${{ needs.update-notion.result }}"
           
-          if [ "$CODA_STATUS" == "success" ] && [ "$NOTION_STATUS" == "success" ]; then
+          if [ "$CODA_STATUS" == "success" ]; then
             EMOJI="✅"
             STATUS="Success"
-          elif [ "$CODA_STATUS" == "success" ] || [ "$NOTION_STATUS" == "success" ]; then
-            EMOJI="⚠️"
-            STATUS="Partial Success"
           else
             EMOJI="❌"
             STATUS="Failed"
@@ -404,11 +370,9 @@ jobs:
           
           SUMMARY="*Test Files Processed:* ${{ needs.consolidate.outputs.total-entries }}\n"
           SUMMARY="${SUMMARY}*Total Test Cases Documented:* ${{ needs.consolidate.outputs.total-test-cases }}\n"
-          SUMMARY="${SUMMARY}*Coda:* $([ "$CODA_STATUS" == "success" ] && echo "✅" || echo "❌")\n"
-          SUMMARY="${SUMMARY}*Notion:* $([ "$NOTION_STATUS" == "success" ] && echo "✅" || echo "❌")\n"
-          SUMMARY="${SUMMARY}\n*Links:*\n"
-          SUMMARY="${SUMMARY}• <https://coda.io/d/dza2s1eOIhA/_suLCLolD|Coda UI Tests>\n"
-          SUMMARY="${SUMMARY}• <https://www.notion.so/2bdd92a99cff809e98ddcec14e6b7bdc|Notion UI Tests>"
+          SUMMARY="${SUMMARY}*Coda Documentation:* $([ "$CODA_STATUS" == "success" ] && echo "✅ Updated" || echo "❌ Failed")\n"
+          SUMMARY="${SUMMARY}\n*Link:*\n"
+          SUMMARY="${SUMMARY}• <https://coda.io/d/dza2s1eOIhA/_suLCLolD|View UI Test Documentation>"
           
           curl -X POST -H 'Content-type: application/json' --data '{
             "blocks": [
