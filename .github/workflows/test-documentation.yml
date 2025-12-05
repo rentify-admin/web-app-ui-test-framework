@@ -248,6 +248,7 @@ jobs:
     if: always() && needs.prepare.outputs.skip-processing != 'true'
     outputs:
       total-entries: ${{ steps.consolidate.outputs.total }}
+      total-test-cases: ${{ steps.consolidate.outputs.total-cases }}
     
     steps:
       - uses: actions/checkout@v4
@@ -277,9 +278,12 @@ jobs:
           OUTPUT=$(node auto_documentator/scripts/merge-documentation.mjs 2>&1)
           echo "$OUTPUT"
           
-          TOTAL=$(echo "$OUTPUT" | grep -oP 'TOTAL_ENTRIES:\K\d+' || echo "0")
-          echo "total=$TOTAL" >> $GITHUB_OUTPUT
-          echo "✅ Final documentation: $TOTAL entries"
+          TOTAL_FILES=$(echo "$OUTPUT" | grep -oP 'TOTAL_ENTRIES:\K\d+' || echo "0")
+          TOTAL_CASES=$(echo "$OUTPUT" | grep -oP 'TOTAL_TEST_CASES:\K\d+' || echo "0")
+          
+          echo "total=$TOTAL_FILES" >> $GITHUB_OUTPUT
+          echo "total-cases=$TOTAL_CASES" >> $GITHUB_OUTPUT
+          echo "✅ Final documentation: $TOTAL_FILES files, $TOTAL_CASES test cases"
         env:
           GITHUB_ACTOR: ${{ github.actor }}
           GIT_USER_NAME: ${{ github.event.pusher.name || github.actor }}
@@ -398,8 +402,8 @@ jobs:
             STATUS="Failed"
           fi
           
-          SUMMARY="*Tests Processed This Run:* ${{ needs.consolidate.outputs.total-entries }}\n"
-          SUMMARY="${SUMMARY}*Total UI Test Cases:* 61 individual tests documented\n"
+          SUMMARY="*Test Files Processed:* ${{ needs.consolidate.outputs.total-entries }}\n"
+          SUMMARY="${SUMMARY}*Total Test Cases Documented:* ${{ needs.consolidate.outputs.total-test-cases }}\n"
           SUMMARY="${SUMMARY}*Coda:* $([ "$CODA_STATUS" == "success" ] && echo "✅" || echo "❌")\n"
           SUMMARY="${SUMMARY}*Notion:* $([ "$NOTION_STATUS" == "success" ] && echo "✅" || echo "❌")\n"
           SUMMARY="${SUMMARY}\n*Links:*\n"
