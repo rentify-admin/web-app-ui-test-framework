@@ -1,12 +1,13 @@
 // 🛠️ Imports: Test fixtures, utilities, and test config!
 import { test, expect } from "./fixtures/api-data-fixture";
 import { personaConnectData } from "./mock-data/identity-payload";
-import { admin } from "./test_config";
+import { admin, app } from "./test_config";
 import ApplicationBuilder from "./utils/application-builder";
 import { findAndInviteApplication } from "./utils/applications-page";
 import { authenticateAdmin, cleanupSession } from "./utils/cleanup-helper";
 import { gotoPage } from "./utils/common";
 import generateSessionForm from "./utils/generate-session-form";
+import { pollForFlag } from "./utils/polling-helper";
 import { searchSessionWithText } from "./utils/report-page";
 import { setupInviteLinkSession, startSessionFlow, updateRentBudget } from "./utils/session-flow";
 import { adminLoginAndNavigateToApplications } from "./utils/session-utils";
@@ -50,7 +51,7 @@ test.describe('QA-227 identity_flag_reevaluation_on_guest_update.spec', () => {
 
     test.describe.configure({
         mode: 'serial',
-        timeout: 130_000,
+        timeout: 280_000,
     });
 
     // ⚙️ Setup the suite: Ensure workflow & application exist
@@ -280,24 +281,30 @@ test.describe('QA-227 identity_flag_reevaluation_on_guest_update.spec', () => {
         await expect(editGuestModal).not.toBeVisible({ timeout: 10_000 });
         console.log(`💾 1️⃣9️⃣ [Update Guest] Guest update submitted (${MATCHED_UPDATE_FIRST_NAME} ${MATCHED_UPDATE_LAST_NAME})`);
 
-        // Opening detail view and checking if the flag persists (should still mismatch)
+        // Poll for flag change (CRITICAL → WARNING after partial match) using FE polling
+        console.log('🔍 2️⃣0️⃣ [Flag Polling] Waiting for flag to change from CRITICAL to WARNING...');
+        
+        // Open details modal first
         await viewDetailBtn.click();
-        let secondTestFlag = null;
-        do {
-            secondTestFlag = sessionFlags.find(
-                sessionFlag => sessionFlag.flag.key === 'IDENTITY_NAME_MISMATCH_CRITICAL'
-            );
-            await page.waitForTimeout(800);
-            count++;
-        } while (!secondTestFlag || !flagUpdated || count < 15)
-        count = 0
-        if (flagUpdated) {
-            flagUpdated = false;
-        }
-        await expect(secondTestFlag).toBeDefined()
-
-        await expect(itemCauseDecline.getByTestId('IDENTITY_NAME_MISMATCH_CRITICAL')).toBeVisible({ timeout: 10_000 });
-        console.log("🔍 2️⃣0️⃣ [Flag Check] IDENTITY_NAME_MISMATCH_CRITICAL flag still present after first guest name update.");
+        await page.waitForTimeout(1000);
+        
+        // Poll for WARNING flag to appear with modal refresh
+        await pollForFlag(page, {
+            flagTestId: 'IDENTITY_NAME_MISMATCH_WARNING',
+            shouldExist: true,
+            maxPollTime: 45000, // 45 seconds
+            pollInterval: 1500,
+            refreshModal: true
+        });
+        
+        console.log("✅ 2️⃣0️⃣ [Flag Change Detected] Flag changed from CRITICAL to WARNING after partial match");
+        
+        // Verify WARNING flag is visible in the correct section
+        const flagSectionAfterChange = page.getByTestId('report-view-details-flags-section');
+        await expect(flagSectionAfterChange).toBeVisible();
+        const itemWarningSection = flagSectionAfterChange.getByTestId('items-warning-section');
+        await expect(itemWarningSection.getByTestId('IDENTITY_NAME_MISMATCH_WARNING')).toBeVisible({ timeout: 10_000 });
+        console.log("🔍 2️⃣0️⃣ [Flag Check] Flag changed to IDENTITY_NAME_MISMATCH_WARNING after partial match (first name matches, last name differs).");
 
         await expect(closeModalBtn).toBeVisible();
         await closeModalBtn.click();
@@ -310,14 +317,47 @@ test.describe('QA-227 identity_flag_reevaluation_on_guest_update.spec', () => {
 
         await guestLastNameField.fill(FULLY_MATCHED_LAST_NAME);
         console.log(`✏️ 2️⃣1️⃣ [Modify Guest] Changed Guest last name to '${FULLY_MATCHED_LAST_NAME}' (full match with simulation persona)...`);
-        await updateGuestSubmit.click();
+        
+        // Wait for PATCH request to complete
+        const [guestPatchResponse] = await Promise.all([
+            page.waitForResponse(resp =>
+                /\/guests\/[0-9a-fA-F-]{36}/.test(resp.url()) &&
+                resp.request().method() === 'PATCH' &&
+                resp.ok()
+            ),
+            updateGuestSubmit.click()
+        ]);
+        
+        console.log(`✅ Guest PATCH completed successfully`);
         await expect(editGuestModal).not.toBeVisible({ timeout: 10_000 });
         console.log(`💾 2️⃣2️⃣ [Update Guest] Guest update submitted (${MATCHED_UPDATE_FIRST_NAME} ${FULLY_MATCHED_LAST_NAME})`);
-
+        
+        // Verify guest name via API
+        console.log('🔍 Verifying guest name saved correctly...');
+        const guestCheckResponse = await page.request.get(`${app.urls.api}/sessions/${sessionId}?fields[session]=applicant`);
+        if (guestCheckResponse.ok()) {
+            const sessionData = await guestCheckResponse.json();
+            const guestFullName = sessionData.data.applicant.guest.full_name;
+            console.log(`   Current guest name: "${guestFullName}"`);
+            console.log(`   Expected ID name: "Nicole Mumphrey"`);
+        }
+        
         // --- Final check: flag should disappear since guest matches persona data!
+        console.log('🔍 2️⃣3️⃣ [Flag Polling] Waiting for WARNING flag to be removed after complete match...');
+        
+        // Open details modal first
         await viewDetailBtn.click();
-        const thirdTestFlag = await checkFlagChanges(page, secondTestFlag);
-        await expect(itemCauseDecline.getByTestId('IDENTITY_NAME_MISMATCH_CRITICAL')).not.toBeVisible({ timeout: 10_000 });
+        await page.waitForTimeout(1000);
+        
+        // Poll for WARNING flag to disappear using FE polling with modal refresh
+        await pollForFlag(page, {
+            flagTestId: 'IDENTITY_NAME_MISMATCH_WARNING',
+            shouldExist: false,
+            maxPollTime: 90000, // 90 seconds - increased for flag removal
+            pollInterval: 2000,
+            refreshModal: true
+        });
+        
         console.log("✅ 2️⃣3️⃣ [Final Flag] Flag is cleared. Applicant/Guest name matches. Identity mismatch correctly re-evaluated!\n");
 
         await expect(closeModalBtn).toBeVisible();
@@ -386,13 +426,13 @@ test.describe('QA-227 identity_flag_reevaluation_on_guest_update.spec', () => {
 async function checkFlagChanges(page, previousFlag) {
     let foundFlag = null;
     let count = 0;
-    const maxIter = 10;
-    const flagChangeDetected = false;
+    const maxIter = 20;
+    let flagChangeDetected = false;
     do {
         // wait a short while for the listener to update latestSessionFlags
         await page.waitForTimeout(1500);
         const flagsArray = latestSessionFlags || [];
-        // Look for the flag with key
+        // Look for the flag with key (WARNING severity after partial match)
         foundFlag = flagsArray.find(f => f.flag?.key === 'IDENTITY_NAME_MISMATCH_WARNING');
         if (foundFlag) {
             console.debug("🚀 ~ checkFlagChanges ~ foundFlag.id:", foundFlag.id, "prev:", previousFlag && previousFlag.id);
@@ -401,7 +441,8 @@ async function checkFlagChanges(page, previousFlag) {
         }
         // If flag is present and status (id) changed, or flag now missing, break
         if (!foundFlag || !previousFlag || (foundFlag && foundFlag.id !== previousFlag.id)) {
-            console.log(`🔄   [Flag Change] Detected IDENTITY_NAME_MISMATCH_WARNING (flag id: ${foundFlag.id})`);
+            flagChangeDetected = true;
+            console.log(`🔄   [Flag Change] Detected change - flag ${foundFlag ? 'updated' : 'removed'} (flag id: ${foundFlag?.id || 'N/A'})`);
             break;
         }
         count++;

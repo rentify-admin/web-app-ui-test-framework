@@ -210,7 +210,7 @@ const waitForPaystubConnectionCompletion = async (page, timeout = 100_000, custo
     return await waitForConnectionCompletion(page, {
         maxIterations,
         customLocator,
-        selector: '[data-testid="-row-status"]',
+        selector: '[data-testid="connection-row-row-status"]',
         successText: 'Completed',
         timeoutInterval: 2000,
         onSuccess: async (page) => {
