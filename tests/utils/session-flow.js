@@ -2152,7 +2152,7 @@ const simulatorFinancialStepWithVeridocs = async (page, veridocsPayload) => {
     const payloadString = JSON.stringify(veridocsPayload);
     console.log(`📋 Payload ready: ${payloadString.length} characters`);
 
-    page.on('dialog', async dialog => {
+    page.once('dialog', async dialog => {
         // Step 2: Wait for dialog to appear and handle it
         console.log('✅ Browser prompt detected!');
         console.log(`📋 Dialog type: ${dialog.type()}`);
