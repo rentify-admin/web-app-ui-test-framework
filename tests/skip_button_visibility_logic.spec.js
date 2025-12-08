@@ -14,7 +14,7 @@ import {
     waitForPaystubConnectionCompletion,
     identityStep
 } from '~/tests/utils/session-flow';
-import { gotoApplicationsPage, findAndInviteApplication, searchApplication, openInviteModal } from '~/tests/utils/applications-page';
+import { gotoApplicationsPage, findAndInviteApplication } from '~/tests/utils/applications-page';
 import generateSessionForm from '~/tests/utils/generate-session-form';
 import { cleanupSessionAndContexts } from './utils/cleanup-helper';
 
@@ -48,19 +48,11 @@ test.describe('skip_button_visibility_logic', () => {
             console.log('🚀 Step 1: Admin login and navigate to applications');
             await loginForm.adminLoginAndNavigate(page, admin);
 
-            // Step 2: Search for existing application 
+            // Step 2: Search for existing application and invite
             console.log('🚀 Step 2: Search for existing application and invite');
             await gotoApplicationsPage(page);
             const existingAppName = 'Autotest - Full flow skip button test';
-
-            const applications = await searchApplication(page, existingAppName);
-
-            // Step 2.1: making sure that application rent budget is enabled and not required.
-            const application = applications.find(item => item.name === existingAppName);
-            await updateRentBudgetSetting(page, application);
-
-            // Step 2.2 Invite Application
-            await openInviteModal(page, existingAppName);
+            await findAndInviteApplication(page, existingAppName);
 
             // Step 3: Generate Session and Extract Link
             console.log('🚀 Step 3: Generate Session and Extract Link');
@@ -93,7 +85,7 @@ test.describe('skip_button_visibility_logic', () => {
 
             // Step 7: Complete rent budget step
             console.log('🚀 Step 7: Complete rent budget step');
-            await updateRentBudget(applicantPage, sessionId, 500, true);
+            await updateRentBudget(applicantPage, sessionId);
             await applicantPage.waitForTimeout(1000);
 
             // Step 8: Test Skip Button Visibility for Applicants Step
@@ -153,25 +145,6 @@ test.describe('skip_button_visibility_logic', () => {
         );
     });
 });
-
-async function updateRentBudgetSetting(page, application) {
-    await page.getByTestId(`edit-${application.id}`).click();
-    await expect(page.getByTestId('step-#workflow-setup')).toBeVisible({ timeout: 20000 });
-    await page.getByTestId('step-#approval-settings').click();
-
-    const rentBudgetEnableInput = page.locator('input[name="rent_budget_enabled"]');
-    const rentBudgetRequireInput = page.locator('input[name="rent_budget_required"]');
-
-    // Use setChecked for more reliable state changes with custom switches
-    await rentBudgetEnableInput.setChecked(true);
-    await page.waitForTimeout(500); // Wait for any debounced handlers
-    
-    await rentBudgetRequireInput.setChecked(false);
-    await page.waitForTimeout(500); // Wait for any debounced handlers
-
-    await page.getByTestId('submit-application-setting-modal').click();
-    await expect(page.getByTestId('application-table')).toBeVisible({ timeout: 20000 });
-}
 
 /**
  * Test skip button visibility logic for a specific verification step

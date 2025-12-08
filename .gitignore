@@ -42,3 +42,5 @@ coverage/
 
 #local
 /local
+/possible_tickets
+/future-tests

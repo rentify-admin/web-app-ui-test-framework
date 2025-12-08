@@ -107,7 +107,7 @@ test.describe('QA-250 remarks_permissions.spec', () => {
         if (!createdMember || !createdUser) throw new Error("Failed to create test member and user");
     });
 
-    test('Verify session remarks UI and permission gating', async ({ page }) => {
+    test('Verify session remarks UI and permission gating', { tag: ['@regression', '@staging-ready', '@rc-ready'] }, async ({ page }) => {
         // --- Login as test user ---
         console.log('[LOGIN] Logging in as test user...');
         await page.goto('/');
@@ -115,14 +115,10 @@ test.describe('QA-250 remarks_permissions.spec', () => {
         await page.locator('button[type="submit"]').click();
         const applicantMenu = page.getByTestId('applicants-menu');
         await expect(applicantMenu).toBeVisible();
-        const applicantSubmenu = page.getByTestId('applicants-submenu');
         await applicantMenu.click();
-        await page.waitForTimeout(500);
-        if (!(await applicantSubmenu.isVisible())) {
-            await applicantMenu.click();
-        }
-        await expect(applicantSubmenu).toBeVisible();
-        await applicantSubmenu.click()
+        const applicantSubmenu = page.getByTestId('applicants-submenu');
+        await expect(applicantSubmenu).toBeVisible({ timeout: 5000 });
+        await applicantSubmenu.click();
 
         await page.waitForTimeout(3000);
         // --- Step 1: VIEW_SESSIONS Only - No Remarks Access ---
@@ -132,6 +128,9 @@ test.describe('QA-250 remarks_permissions.spec', () => {
         await searchSessionWithText(page, session.id);
         const sessionCard = await findSessionLocator(page, `.application-card[data-session="${session.id}"]`);
         await sessionCard.click();
+        // Wait for session page to load
+        await expect(page.getByTestId('household-status-alert')).toBeVisible({ timeout: 10_000 });
+        await page.waitForTimeout(1000); // Wait for session to fully load
         // Should NOT see "View Remarks"
         await expect(page.getByTestId('view-remarks-btn')).not.toBeVisible();
 
@@ -142,6 +141,11 @@ test.describe('QA-250 remarks_permissions.spec', () => {
             { name: 'view_session_comments', binding: [] }
         ]);
         await page.reload();
+        // Wait for page to load and navigate back to session
+        await expect(page.getByTestId('household-status-alert')).toBeVisible({ timeout: 10_000 });
+        const sessionCard2 = await findSessionLocator(page, `.application-card[data-session="${session.id}"]`);
+        await sessionCard2.click();
+        await page.waitForTimeout(1000); // Wait for session to load
 
         const remarksBtn = page.getByTestId('view-remarks-btn');
         await expect(remarksBtn).toBeVisible();
@@ -169,6 +173,11 @@ test.describe('QA-250 remarks_permissions.spec', () => {
             { name: 'create_session_comments', binding: [] }
         ]);
         await page.reload();
+        // Wait for page to load and navigate back to session
+        await expect(page.getByTestId('household-status-alert')).toBeVisible({ timeout: 10_000 });
+        const sessionCard3 = await findSessionLocator(page, `.application-card[data-session="${session.id}"]`);
+        await sessionCard3.click();
+        await page.waitForTimeout(1000); // Wait for session to load
 
         const remarksBtn2 = page.getByTestId('view-remarks-btn');
         await expect(remarksBtn2).toBeVisible();
@@ -194,6 +203,11 @@ test.describe('QA-250 remarks_permissions.spec', () => {
             { name: 'hide_session_comments', binding: [] }
         ]);
         await page.reload();
+        // Wait for page to load and navigate back to session
+        await expect(page.getByTestId('household-status-alert')).toBeVisible({ timeout: 10_000 });
+        const sessionCard4 = await findSessionLocator(page, `.application-card[data-session="${session.id}"]`);
+        await sessionCard4.click();
+        await page.waitForTimeout(1000); // Wait for session to load
 
         const remarksBtn3 = page.getByTestId('view-remarks-btn');
         await expect(remarksBtn3).toBeVisible();
@@ -214,6 +228,11 @@ test.describe('QA-250 remarks_permissions.spec', () => {
             { name: 'view_session_hidden_comments', binding: [] }
         ]);
         await page.reload();
+        // Wait for page to load and navigate back to session
+        await expect(page.getByTestId('household-status-alert')).toBeVisible({ timeout: 10_000 });
+        const sessionCard5 = await findSessionLocator(page, `.application-card[data-session="${session.id}"]`);
+        await sessionCard5.click();
+        await page.waitForTimeout(1000); // Wait for session to load
 
         const remarksBtn4 = page.getByTestId('view-remarks-btn');
         await expect(remarksBtn4).toBeVisible();

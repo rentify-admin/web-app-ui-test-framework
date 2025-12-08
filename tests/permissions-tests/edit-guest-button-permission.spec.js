@@ -64,6 +64,7 @@ test.describe('QA-245 edit-guest-button-permission.spec', () => {
     let createdUser = null;
     let createdSessionId = null;
     let organizationId = null;
+    let memberContext = null;
 
     test.beforeAll(async ({ request }) => {
         console.log('[SETUP] Authenticating as admin...');
@@ -175,6 +176,7 @@ test.describe('QA-245 edit-guest-button-permission.spec', () => {
 
         // --- Step 1: Login as internal user, navigate directly to session report ---
         const context = await browser.newContext();
+        memberContext = context;
         const memberPage = await context.newPage();
         await memberPage.goto('/');
         await loginForm.fill(memberPage, internalUser);
@@ -182,15 +184,12 @@ test.describe('QA-245 edit-guest-button-permission.spec', () => {
         await memberPage.locator('button[type="submit"]').click();
         await memberPage.waitForResponse(LOGIN_API);
 
-        await memberPage.getByTestId('applicants-menu').click()
+        // Navigate to applicants menu - wait for submenu to be visible before clicking
+        const applicantsMenu = memberPage.getByTestId('applicants-menu');
+        await applicantsMenu.click();
         const applicantsSubmenu = memberPage.getByTestId('applicants-submenu');
-        if (await applicantsSubmenu.isVisible()) {
-            await applicantsSubmenu.click()
-        } else {
-            await memberPage.getByTestId('applicants-menu').click()
-            await applicantsSubmenu.click()
-
-        }
+        await expect(applicantsSubmenu).toBeVisible({ timeout: 5000 });
+        await applicantsSubmenu.click();
         await expect(memberPage).toHaveTitle(/Applicants/, { timeout: 10_000 });
         await expect(memberPage.getByTestId('household-status-alert')).toBeVisible();
 
@@ -224,6 +223,12 @@ test.describe('QA-245 edit-guest-button-permission.spec', () => {
         // --- Step 3: Reload and check that Edit Guest button IS present ---
         console.log('[STEP 3] Reloading page to check Edit Guest button now visible');
         await memberPage.reload();
+        // Wait for page to load and navigate to session report
+        await expect(memberPage.getByTestId('household-status-alert')).toBeVisible({ timeout: 10_000 });
+        // Navigate back to session if needed
+        const sessionLocator2 = await findSessionLocator(memberPage, `.application-card[data-session="${sessionId}"]`);
+        await sessionLocator2.click();
+        await memberPage.waitForTimeout(1000); // Wait for session to load
         const identitySection2 = await openReportSection(memberPage, 'identity-section');
         const editGuestBtn2 = identitySection2.getByTestId('identity-edit-guest-btn');
         await expect(editGuestBtn2).toBeVisible();
@@ -296,73 +301,104 @@ test.describe('QA-245 edit-guest-button-permission.spec', () => {
 
         // --- Step 5: Cancel & close modal does NOT persist changes ---
         // First: modify firstname, click Cancel
-        await editGuestBtn2.click();
+        // Re-fetch identity section and edit button to avoid stale references
+        const identitySection3 = await openReportSection(memberPage, 'identity-section');
+        const editGuestBtn3 = identitySection3.getByTestId('identity-edit-guest-btn');
+        await editGuestBtn3.click();
         await expectAndFillGuestForm(memberPage,
             { ...guestUser, ...dummyUserData }, // Current UI
             { first_name: 'TempName' }
         );
-        const cancelBtn = memberPage.getByTestId('cancel-guest-update-form');
-        await expect(cancelBtn).toBeVisible();
-        await cancelBtn.click();
-        await expect(guestEditModal).toBeHidden();
+        const cancelBtn1 = memberPage.getByTestId('cancel-guest-update-form');
+        await expect(cancelBtn1).toBeVisible();
+        await cancelBtn1.click();
+        const guestEditModal1 = memberPage.getByTestId('identity-update-guest-modal');
+        await expect(guestEditModal1).toBeHidden();
         // Guest name still displays updated (should NOT be 'TempName')
         await expect(userFullNameText).toHaveText(new RegExp(expectedFullName.replace(/\s+/, '\\s+')));
 
         // Second: modify lastname, click X/close, cancel out
-        await editGuestBtn2.click();
+        // Re-fetch identity section and edit button to avoid stale references
+        const identitySection4 = await openReportSection(memberPage, 'identity-section');
+        const editGuestBtn4 = identitySection4.getByTestId('identity-edit-guest-btn');
+        await editGuestBtn4.click();
         await expectAndFillGuestForm(memberPage,
             { ...guestUser, ...dummyUserData },
             { last_name: 'TempLast' }
         );
         // Assume modal can be closed by clicking 'cancel' again for this implementation
-        await expect(cancelBtn).toBeVisible();
-        await cancelBtn.click();
-        await expect(guestEditModal).toBeHidden();
+        const cancelBtn2 = memberPage.getByTestId('cancel-guest-update-form');
+        await expect(cancelBtn2).toBeVisible();
+        await cancelBtn2.click();
+        const guestEditModal2 = memberPage.getByTestId('identity-update-guest-modal');
+        await expect(guestEditModal2).toBeHidden();
         await expect(userFullNameText).toHaveText(new RegExp(expectedFullName.replace(/\s+/, '\\s+')));
         console.log('[STEP 5] Modal cancel/close does NOT save changes - verified');
 
         // Final: open and close modal with no changes for coverage
-        await editGuestBtn2.click();
-        await expect(guestEditModal).toBeVisible();
+        // Re-fetch identity section and edit button to avoid stale references
+        const identitySection5 = await openReportSection(memberPage, 'identity-section');
+        const editGuestBtn5 = identitySection5.getByTestId('identity-edit-guest-btn');
+        await editGuestBtn5.click();
+        const guestEditModal3 = memberPage.getByTestId('identity-update-guest-modal');
+        await expect(guestEditModal3).toBeVisible();
         await expectAndFillGuestForm(memberPage,
             { ...guestUser, ...dummyUserData },
             {}
         );
-        await expect(cancelBtn).toBeVisible();
-        await cancelBtn.click();
-        await expect(guestEditModal).toBeHidden();
+        const cancelBtn3 = memberPage.getByTestId('cancel-guest-update-form');
+        await expect(cancelBtn3).toBeVisible();
+        await cancelBtn3.click();
+        await expect(guestEditModal3).toBeHidden();
 
         console.log("✅ Test flow completed successfully");
     });
 
     test.afterAll(async ({ request }, testInfo) => {
-        if(testInfo.status === 'passed'){
-            try {
-                if (createdSessionId) {
+        try {
+            // Close browser context if it exists
+            if (memberContext) {
+                try {
+                    await memberContext.close();
+                    console.log('[CLEANUP] Member browser context closed');
+                } catch (e) {
+                    console.error('[CLEANUP ERROR] Could not close member context:', e.message);
+                }
+            }
+
+            // Delete member first (remove organization relationship)
+            if (createdMember) {
+                try {
+                    await adminClient.delete(`/organizations/${organizationId}/members/${createdMember}`);
+                    console.log('[CLEANUP] Test member cleaned up:', createdMember);
+                } catch (e) {
+                    console.log(`[CLEANUP ERROR] Could not cleanup member with id ${createdMember}`);
+                    console.error('[CLEANUP ERROR] Could not cleanup member:', e.message);
+                }
+            }
+
+            // Always delete user (to prevent orphaned users)
+            if (createdUser) {
+                try {
+                    await adminClient.delete(`/users/${createdUser}`);
+                    console.log('[CLEANUP] Test user cleaned up:', createdUser);
+                } catch (e) {
+                    console.log(`[CLEANUP ERROR] Could not cleanup user with id ${createdUser}`);
+                    console.error('[CLEANUP ERROR] Could not cleanup user:', e.message);
+                }
+            }
+
+            // Delete session (only if test passed, keep for debugging if failed)
+            if (createdSessionId) {
+                if (testInfo.status === 'passed') {
                     await cleanupSession(request, createdSessionId);
                     console.log('[CLEANUP] Session cleaned up:', createdSessionId);
+                } else {
+                    console.log(`[CLEANUP] Keeping session for debugging: ${createdSessionId}`);
                 }
-                if (createdMember) {
-                    try {
-                        await adminClient.delete(`/organizations/${organizationId}/members/${createdMember}`)
-                        console.log('[CLEANUP] Test member cleaned up:', createdMember);
-                    } catch (e) {
-                        console.log(`[CLEANUP ERROR] Could not cleanup member with id ${createdMember}`);
-                        console.error('[CLEANUP ERROR] Could not cleanup member:', e.message);
-                    }
-                }
-                if (createdUser) {
-                    try {
-                        await adminClient.delete(`/users/${createdUser}`)
-                        console.log('[CLEANUP] Test user cleaned up:', createdUser);
-                    } catch (e) {
-                        console.log(`[CLEANUP ERROR] Could not cleanup user with id ${createdUser}`);
-                        console.error('[CLEANUP ERROR] Could not cleanup user:', e.message);
-                    }
-                }
-            } catch (cleanupError) {
-                console.error('[CLEANUP ERROR] Test cleanup failed:', cleanupError.message);
             }
+        } catch (cleanupError) {
+            console.error('[CLEANUP ERROR] Test cleanup failed:', cleanupError.message);
         }
     });
 });

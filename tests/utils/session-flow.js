@@ -1956,7 +1956,7 @@ const completePlaidFinancialStepBetterment = async (applicantPage, username = 'c
     console.log('✅ Plaid iframe closed successfully in Betterment flow');
 };
 
-const updateRentBudget = async (applicantPage, sessionId, amount = '2500', skip = false) => {
+const updateRentBudget = async (applicantPage, sessionId, amount = '2500') => {
     await applicantPage.locator('input#rent_budget').fill(amount);
 
     await Promise.all([
@@ -1965,7 +1965,7 @@ const updateRentBudget = async (applicantPage, sessionId, amount = '2500', skip 
                 && resp.request().method() === 'PATCH'
                 && resp.ok()
         ),
-        applicantPage.getByTestId(skip ? 'rent-budget-step-skip' : 'rent-budget-step-continue').click()
+        applicantPage.getByTestId('rent-budget-step-continue').click()
     ]);
 };
 
