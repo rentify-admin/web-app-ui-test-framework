@@ -593,8 +593,11 @@ test.describe("QA-128 income-source-transaction-management.spec", () => {
         checkCount = await checkedCheckboxes.count();
         await expect(checkCount).toBe(noOfRowToCheck);
         for (let index = 0; index < checkCount; index++) {
-            const element = checkedCheckboxes.nth(index);
-            if (await element.isChecked()) await element.click()
+            const element = await checkedCheckboxes.nth(index);
+            const wasChecked = await element.isChecked()
+            if (wasChecked) {
+                await element.click()
+            }
         }
         const patchPromise2 = page.waitForResponse(
             (resp) =>
@@ -615,7 +618,7 @@ test.describe("QA-128 income-source-transaction-management.spec", () => {
         await modalX.click();
     });
 
-    test.afterAll(async ({ request }, testInfo ) => {
+    test.afterAll(async ({ request }, testInfo) => {
         if (testInfo.status === 'passed') {
             console.log(`🧹 Cleaning up created session: ${createdSessionId}`);
             await cleanupSession(request, createdSessionId);
@@ -699,6 +702,7 @@ async function verifyUpdateTransactionResponse(page, sessionId, incomeSource, up
     await expect(updatedIncomeSource.transactions.length).toBe(remainingTransactions.length);
 
     await expect(updatedIncomeSource.average_monthly_income).not.toBe(incomeSource.average_monthly_income);
+    await expect(updatedIncomeSource.last_transaction_date).not.toBe(incomeSource.last_transaction_date);
 
     return updatedIncomeSource;
 }
