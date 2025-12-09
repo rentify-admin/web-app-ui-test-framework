@@ -26,6 +26,7 @@ import {
 import { ApiDataManager } from './utils/api-data-manager';
 import { createPermissionTestSession } from './utils/session-generator';
 import { cleanupPermissionTest } from './utils/cleanup-helper';
+import { resolveAllFlagsUntilApproveClickable } from './utils/robust-flag-resolver';
 
 // Global state management for test isolation
 let globalTestUser = null;
@@ -64,7 +65,8 @@ test.describe('user_permissions_verify', () => {
             firstName: 'UserPerm',
             lastName: 'Test',
             email: `user-perm-test-${Date.now()}@verifast.com`,
-            rentBudget: '2500'
+            rentBudget: '2500',
+            useCorrectMockData: true // ✅ Use flag-free corrected mock data
         });
         
         sharedSessionId = sessionId;
@@ -358,111 +360,17 @@ test.describe('user_permissions_verify', () => {
             // ! Should able to edit rent budget
             await checkRentBudgetEdit(page);
 
-            // ✅ RESOLVE FLAGS BEFORE APPROVAL: Mark all flags as non-issue
-            console.log('🏴 Checking for flags that require review...');
-            await page.getByTestId('view-details-btn').click();
-            await page.waitForTimeout(2000);
-            
-            const itemsRequiringReview = page.getByTestId('items-requiring-review-section');
-            const hasFlags = await itemsRequiringReview.count() > 0;
-            
-            if (hasFlags) {
-                console.log('   ⚠️ Flags requiring review found - marking as non-issue...');
-                
-                let flagCount = 0;
-                let maxAttempts = 20; // Safety limit to prevent infinite loops
-                let attempts = 0;
-                
-                while (attempts < maxAttempts) {
-                    // ✅ REFRESH: Query flags on each iteration
-                    const flagItems = await itemsRequiringReview.locator('li[id^="flag-"]').all();
-                    
-                    if (flagItems.length === 0) {
-                        console.log(`   ✅ All ${flagCount} flag(s) resolved`);
-                        break;
-                    }
-                    
-                    // ✅ Always process the FIRST flag (index 0) since list shrinks
-                    const flagItem = flagItems[0];
-                    const flagId = await flagItem.getAttribute('id');
-                    flagCount++;
-                    console.log(`   🏴 Resolving flag ${flagCount}: ${flagId} (${flagItems.length} remaining)`);
-                    
-                    const markAsNonIssueBtn = flagItem.getByTestId('mark_as_non_issue');
-                    await markAsNonIssueBtn.click();
-                    await page.waitForTimeout(500);
-                    
-                    const submitBtn = page.getByRole('button', { name: 'Mark as Non Issue' });
-                    
-                    // ✅ Wait for API response instead of fixed timeout
-                    await Promise.all([
-                        page.waitForResponse(resp => 
-                            resp.url().includes('/flags/') && 
-                            resp.request().method() === 'PATCH' &&
-                            resp.ok(),
-                            { timeout: 10000 }
-                        ),
-                        submitBtn.click()
-                    ]);
-                    
-                    await page.waitForTimeout(2000);
-                    
-                    attempts++;
-                }
-                
-                if (attempts >= maxAttempts) {
-                    console.warn(`   ⚠️ Reached max attempts (${maxAttempts}) - some flags may remain`);
-                }
-                
-                await page.waitForTimeout(2000); // Final wait for UI to stabilize
-            } else {
-                console.log('   ✅ No flags requiring review');
-            }
-            
-            await page.getByTestId('close-event-history-modal').click();
-            await page.waitForTimeout(1000);
-            console.log('✅ Flags resolved and modal closed');
-            
-            // ✅ POLL for backend to finish processing flags before reload
-            console.log('🔄 Polling for backend flag processing to complete...');
-            const maxPollAttempts = 30; // 30 × 1s = 30s max
-            let flagsProcessed = false;
-            
-            for (let i = 0; i < maxPollAttempts; i++) {
-                await page.waitForTimeout(1000);
-                
-                // Fetch flags via API to check if processing is complete
-                const flagsResponse = await page.request.get(`${app.urls.api}/sessions/${sharedSessionId}/flags`, {
-                    params: {
-                        filters: JSON.stringify({
-                            session_flag: { flag: { scope: { $neq: 'APPLICANT' } } }
-                        })
-                    }
-                });
-                
-                if (flagsResponse.ok()) {
-                    const flagsData = await flagsResponse.json();
-                    const flagsInReview = flagsData.data.filter(f => f.in_review === true);
-                    
-                    if (flagsInReview.length === 0) {
-                        flagsProcessed = true;
-                        console.log(`✅ All flags processed by backend (attempt ${i + 1}/${maxPollAttempts})`);
-                        break;
-                    } else {
-                        console.log(`   ⏳ ${flagsInReview.length} flag(s) still processing (attempt ${i + 1}/${maxPollAttempts})...`);
-                    }
-                }
-            }
-            
-            if (!flagsProcessed) {
-                console.warn('⚠️ Flag processing did not complete within 30s - proceeding anyway');
-            }
-            
-            // ✅ RELOAD page to ensure fresh state
-            console.log('🔄 Reloading page to refresh state...');
-            await page.reload();
-            await expect(page.getByTestId('household-status-alert')).toBeVisible({ timeout: 10000 });
-            console.log('✅ Page reloaded and household visible');
+            // ✅ ROBUST FLAG RESOLUTION: Resolve all flags until approve button is clickable
+            console.log('🏴 Starting robust flag resolution...');
+            await resolveAllFlagsUntilApproveClickable(page, sharedSessionId, {
+                maxFlagResolutionCycles: 10,
+                maxFlagsPerCycle: 20,
+                flagResolutionTimeout: 10000,
+                backendProcessingWait: 3000,
+                maxApproveButtonPollAttempts: 30,
+                approveButtonPollInterval: 2000
+            });
+            console.log('✅ All flags resolved and approve button is clickable');
 
             // ! Should allow user to approve and reject the application
             await checkSessionApproveReject(page, viewDetailBtn);

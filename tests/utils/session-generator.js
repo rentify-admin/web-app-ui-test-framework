@@ -24,6 +24,10 @@ import {
     getVeridocsBankStatementPayload,
     getAtomicEmploymentPayload
 } from '../mock-data/permission-test-simulators';
+import {
+    getVeridocsBankStatementPayloadCorrect,
+    getAtomicEmploymentPayloadCorrect
+} from '../mock-data/permission-test-simulators-correct';
 
 /**
  * Creates a session for permission/heartbeat tests
@@ -40,6 +44,7 @@ import {
  * @param {boolean} options.completeFinancial - Complete financial step (default: true)
  * @param {boolean} options.completeEmployment - Complete employment step (default: true)
  * @param {boolean} options.addChildApplicant - Add child applicant (default: true)
+ * @param {boolean} options.useCorrectMockData - Use flag-free corrected mock data (default: false)
  * @returns {Promise<{ sessionId: string, userData: object, applicantContext: BrowserContext }>}
  */
 export async function createPermissionTestSession(adminPage, browser, options = {}) {
@@ -53,7 +58,9 @@ export async function createPermissionTestSession(adminPage, browser, options = 
         completeIdentity = true,
         completeFinancial = true,
         completeEmployment = true,
-        addChildApplicant = true
+        addChildApplicant = true,
+        // ✅ NEW: Use flag-free corrected mock data
+        useCorrectMockData = false
     } = options;
     
     const userData = {
@@ -238,8 +245,8 @@ export async function createPermissionTestSession(adminPage, browser, options = 
             console.log('✅ On Financial Verification step');
             
             console.log('\n💳 FINANCIAL STEP: Completing via VERIDOCS_PAYLOAD (API)...');
-            await completeFinancialStepViaVeridocs(applicantPage, context, sessionId, authToken, userData);
-            console.log('✅ Financial verification completed with bank statement document (6 transactions, 3 employment income)');
+            await completeFinancialStepViaVeridocs(applicantPage, context, sessionId, authToken, userData, useCorrectMockData);
+            console.log(`✅ Financial verification completed with bank statement document (${useCorrectMockData ? 'FLAG-FREE' : 'standard'} mock data)`);
         } else {
             console.log('\n⏭️  Skipping financial verification...');
         }
@@ -252,8 +259,8 @@ export async function createPermissionTestSession(adminPage, browser, options = 
             console.log('✅ On Employment Verification step');
             
             console.log('\n💼 EMPLOYMENT STEP: Completing via ATOMIC_PAYLOAD (API)...');
-            await completeEmploymentStepViaAtomic(applicantPage, context, sessionId, authToken, userData);
-            console.log('✅ Employment verification completed with employment document');
+            await completeEmploymentStepViaAtomic(applicantPage, context, sessionId, authToken, userData, useCorrectMockData);
+            console.log(`✅ Employment verification completed with employment document (${useCorrectMockData ? 'FLAG-FREE' : 'standard'} mock data)`);
         } else {
             console.log('\n⏭️  Skipping employment verification...');
         }
@@ -382,10 +389,14 @@ async function waitForStepTransition(page, sessionId, authToken, expectedStep, m
 /**
  * Completes Financial step via VERIDOCS_PAYLOAD
  * Creates bank statement document with matching user name
+ * 
+ * @param {boolean} useCorrectMockData - Use flag-free corrected mock data
  */
-async function completeFinancialStepViaVeridocs(page, context, sessionId, authToken, userData) {
-    console.log('   📄 Generating VERIDOCS_PAYLOAD bank statement data...');
-    const bankStatementPayload = getVeridocsBankStatementPayload(userData);
+async function completeFinancialStepViaVeridocs(page, context, sessionId, authToken, userData, useCorrectMockData = false) {
+    console.log(`   📄 Generating VERIDOCS_PAYLOAD bank statement data (${useCorrectMockData ? 'FLAG-FREE' : 'standard'})...`);
+    const bankStatementPayload = useCorrectMockData 
+        ? getVeridocsBankStatementPayloadCorrect(userData)
+        : getVeridocsBankStatementPayload(userData);
     const accountOwner = bankStatementPayload.documents[0].documents[0].data.accounts[0].account_owners[0].name;
     const transactionCount = bankStatementPayload.documents[0].documents[0].data.accounts[0].transactions.length;
     console.log(`   ✅ Bank statement generated for: ${accountOwner}`);
@@ -473,10 +484,14 @@ async function completeFinancialStepViaVeridocs(page, context, sessionId, authTo
 /**
  * Completes Employment step via ATOMIC_PAYLOAD
  * Creates employment document with matching user name
+ * 
+ * @param {boolean} useCorrectMockData - Use flag-free corrected mock data
  */
-async function completeEmploymentStepViaAtomic(page, context, sessionId, authToken, userData) {
-    console.log('   📄 Generating ATOMIC_PAYLOAD employment data...');
-    const employmentPayload = getAtomicEmploymentPayload(userData);
+async function completeEmploymentStepViaAtomic(page, context, sessionId, authToken, userData, useCorrectMockData = false) {
+    console.log(`   📄 Generating ATOMIC_PAYLOAD employment data (${useCorrectMockData ? 'FLAG-FREE' : 'standard'})...`);
+    const employmentPayload = useCorrectMockData
+        ? getAtomicEmploymentPayloadCorrect(userData)
+        : getAtomicEmploymentPayload(userData);
     const employeeName = `${employmentPayload.FETCH_EMPLOYMENT_IDENTITY.response.data[0].identity.firstName} ${employmentPayload.FETCH_EMPLOYMENT_IDENTITY.response.data[0].identity.lastName}`;
     console.log(`   ✅ Employment data generated for: ${employeeName}`);
     

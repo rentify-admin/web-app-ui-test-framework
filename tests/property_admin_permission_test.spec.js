@@ -12,6 +12,7 @@ import { checkRolesVisibleInTable } from '~/tests/utils/roles-page';
 import { ApiDataManager } from './utils/api-data-manager';
 import { createPermissionTestSession } from './utils/session-generator';
 import { cleanupPermissionTest } from './utils/cleanup-helper';
+import { resolveAllFlagsUntilApproveClickable } from './utils/robust-flag-resolver';
 
 // Global state management for test isolation
 let globalPropertyAdminUser = null;
@@ -51,7 +52,8 @@ test.describe('property_admin_permission_test', () => {
             firstName: 'PropAdmin',
             lastName: 'Test',
             email: `prop-admin-test-${Date.now()}@verifast.com`,
-            rentBudget: '2500'
+            rentBudget: '2500',
+            useCorrectMockData: true // ✅ Use flag-free corrected mock data
         });
         
         sharedSessionId = sessionId;
@@ -392,64 +394,17 @@ test.describe('property_admin_permission_test', () => {
 
             await reportUtils.checkRentBudgetEdit(page);
             
-            // ✅ RESOLVE FLAGS BEFORE APPROVAL: Mark all flags as non-issue
-            console.log('🏴 Checking for flags that require review...');
-            await page.getByTestId('view-details-btn').click();
-            await page.waitForTimeout(2000);
-            
-            const itemsRequiringReview = page.getByTestId('items-requiring-review-section');
-            const hasFlags = await itemsRequiringReview.count() > 0;
-            
-            if (hasFlags) {
-                console.log('   ⚠️ Flags requiring review found - marking as non-issue...');
-                const flagItems = await itemsRequiringReview.locator('li[id^="flag-"]').all();
-                console.log(`   📊 Found ${flagItems.length} flag(s) to resolve`);
-                
-                for (let i = 0; i < flagItems.length; i++) {
-                    const flagItem = flagItems[i];
-                    const flagId = await flagItem.getAttribute('id');
-                    console.log(`   🏴 Resolving flag ${i + 1}/${flagItems.length}: ${flagId}`);
-                    
-                    // Click "mark as non-issue" button
-                    const markAsNonIssueBtn = flagItem.getByTestId('mark_as_non_issue');
-                    await markAsNonIssueBtn.click();
-                    await page.waitForTimeout(500);
-                    
-                    // Click "Mark as Non Issue" submit button and wait for API response
-                    const submitBtn = page.getByRole('button', { name: 'Mark as Non Issue' });
-                    
-                    await Promise.all([
-                        // Wait for PATCH /sessions/{id}/flags/{id} response
-                        page.waitForResponse(resp => {
-                            const url = resp.url();
-                            return url.includes('/sessions/') && 
-                                   url.includes('/flags/') &&
-                                   resp.request().method() === 'PATCH' &&
-                                   resp.ok();
-                        }),
-                        submitBtn.click()
-                    ]);
-                    
-                    await page.waitForTimeout(500); // Brief pause between flags
-                    console.log(`   ✅ Flag ${i + 1} resolved and saved to backend`);
-                }
-                
-                console.log('   ✅ All flags marked as non-issue');
-                await page.waitForTimeout(5000); // Wait for backend to process
-            } else {
-                console.log('   ✅ No flags requiring review');
-            }
-            
-            // Close event history modal
-            await page.getByTestId('close-event-history-modal').click();
-            await page.waitForTimeout(1000);
-            console.log('✅ Flags resolved and modal closed');
-            
-            // ✅ RELOAD page to ensure fresh state
-            console.log('🔄 Reloading page to refresh state...');
-            await page.reload();
-            await expect(page.getByTestId('household-status-alert')).toBeVisible({ timeout: 10000 });
-            console.log('✅ Page reloaded and household visible');
+            // ✅ ROBUST FLAG RESOLUTION: Resolve all flags until approve button is clickable
+            console.log('🏴 Starting robust flag resolution...');
+            await resolveAllFlagsUntilApproveClickable(page, sharedSessionId, {
+                maxFlagResolutionCycles: 10,
+                maxFlagsPerCycle: 20,
+                flagResolutionTimeout: 10000,
+                backendProcessingWait: 3000,
+                maxApproveButtonPollAttempts: 30,
+                approveButtonPollInterval: 2000
+            });
+            console.log('✅ All flags resolved and approve button is clickable');
             
             // ✅ NOW test approve/reject (session should be approvable)
             await reportUtils.checkSessionApproveReject(page, sharedSessionId);

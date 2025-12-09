@@ -8,7 +8,7 @@ import config from '~/tests/test_config';
 import { joinUrl } from '~/tests/utils/helper.js';
 import { waitForJsonResponse } from '~/tests/utils/wait-response';
 import { gotoApplicationsPage, searchApplication } from '~/tests/utils/applications-page';
-import { setupInviteLinkSession } from '~/tests/utils/session-flow';
+import { setupInviteLinkSession, handleOptionalTermsCheckbox, handleOptionalStateModal } from '~/tests/utils/session-flow';
 import { cleanupSessionAndContexts } from './utils/cleanup-helper';
 
 const API_URL = config.app.urls.api;
@@ -34,6 +34,35 @@ test.describe('financial_mx_2_attempts_success_and_failed_password', () => {
     let createdSessionId = null;
     let applicantContext = null;
     let allTestsPassed = true;
+
+    // Helper function to handle modals after page reload (for applicant pages)
+    const handleModalsAfterReload = async (page) => {
+        console.log('🔄 Handling modals after reload...');
+        await page.waitForLoadState('domcontentloaded');
+        await page.waitForTimeout(1000);
+        
+        // Handle modals in order: State → Terms (for financial-only apps, no applicant type)
+        await handleOptionalStateModal(page);
+        await handleOptionalTermsCheckbox(page);
+        
+        console.log('✅ Modals handled after reload');
+    };
+
+    // Helper function to handle modals after page reload (for admin pages - optional)
+    const handleModalsAfterReloadAdmin = async (page) => {
+        console.log('🔄 Handling modals after admin page reload...');
+        await page.waitForLoadState('domcontentloaded');
+        await page.waitForTimeout(1000);
+        
+        // Admin pages might show modals too, handle them if they appear
+        try {
+            await handleOptionalStateModal(page);
+            await handleOptionalTermsCheckbox(page);
+            console.log('✅ Modals handled after admin reload (if any)');
+        } catch (error) {
+            console.log('⏭️ No modals found after admin reload, continuing...');
+        }
+    };
 
     test('Financial - mx - 2 attempts + Eligibility status transitions', {
       tag: ['@regression', '@external-integration', '@eligibility', '@core', '@staging-ready', '@rc-ready'],
@@ -182,7 +211,8 @@ test.describe('financial_mx_2_attempts_success_and_failed_password', () => {
         if (!connectionComplete) {
             console.log('⚠️ Iframe polling timeout - checking if connection completed in background...');
             await applicantPage.reload();
-            await applicantPage.waitForTimeout(3000);
+            await handleModalsAfterReload(applicantPage);
+            await applicantPage.waitForTimeout(2000);
             
             // Poll for completion status after reload (max 20 seconds)
             const reloadMaxAttempts = 10; // 10 attempts * 2 seconds = 20 seconds
@@ -212,42 +242,250 @@ test.describe('financial_mx_2_attempts_success_and_failed_password', () => {
             }
         }
 
-        // If iframe closed automatically, we need to re-open it for the second (failed) attempt
-        if (iframeClosedAutomatically) {
-            console.log('🔄 Iframe closed automatically - re-opening for second connection attempt');
-            await applicantPage.waitForTimeout(2000);
+        // ===================================================================
+        // CRITICAL: Close modal after successful connection
+        // ===================================================================
+        console.log('🔒 Step: Explicitly closing modal after successful OAuth connection...');
+        
+        // Check if modal is still open and close it
+        const bankConnectModal = applicantPage.locator('iframe[title="Bank Connect"]');
+        const isModalOpen = await bankConnectModal.isVisible().catch(() => false);
+        
+        if (isModalOpen) {
+            console.log('   Modal is still open - closing it explicitly...');
+            // Try to find and click the cancel/close button
+            const cancelBtn = applicantPage.getByTestId('connnect-modal-cancel');
+            const isCancelVisible = await cancelBtn.isVisible({ timeout: 5000 }).catch(() => false);
             
-            // Click connect bank button again to re-open the MX iframe
-            const connectBankBtn = applicantPage.getByTestId('connect-bank');
-            const isConnectBtnVisible = await connectBankBtn.isVisible().catch(() => false);
-            
-            if (isConnectBtnVisible) {
-                await connectBankBtn.click();
-                console.log('   ✅ MX iframe re-opened for second attempt');
-                
-                // Wait for iframe to load
-                const mxFrameReopened = applicantPage.frameLocator('iframe[src*="int-widgets.moneydesktop.com"]');
-                await expect(mxFrameReopened.locator('[data-test="search-header"]')).toBeVisible({ timeout: 30000 });
+            if (isCancelVisible) {
+                await cancelBtn.click();
+                console.log('   ✅ Modal closed via cancel button');
             } else {
-                console.log('   ⚠️ Connect button not found - iframe might still be open');
+                // If cancel button not found, try alternative close methods
+                console.log('   ⚠️ Cancel button not found, trying alternative close method...');
+                // Press Escape key as fallback
+                await applicantPage.keyboard.press('Escape');
+                await applicantPage.waitForTimeout(1000);
+                console.log('   ✅ Modal closed via Escape key');
             }
         } else {
-            console.log('   ℹ️ Done button clicked - iframe should still be open');
+            console.log('   ✅ Modal already closed');
         }
-
+        
+        // Wait a bit for modal to fully close
         await applicantPage.waitForTimeout(2000);
-        await mxFrame.locator('[data-test="search-input"]').fill('mx bank');
-        await mxFrame.locator('[data-test="MX-Bank-row"]').click();
-        await mxFrame.locator('#LOGIN').fill('fail_user');
-        await mxFrame.locator('#PASSWORD').fill('fail_password');
-        await mxFrame.locator('[data-test="credentials-continue"]').click();
+        
+        // Verify modal is closed
+        const isModalStillOpen = await bankConnectModal.isVisible({ timeout: 2000 }).catch(() => false);
+        if (isModalStillOpen) {
+            throw new Error('Modal did not close after explicit close action');
+        }
+        console.log('✅ Modal confirmed closed');
 
-        await mxFrame.locator('[data-test="credentials-error-message-box"]').waitFor({ state: 'visible', timeout: 150_000 });
+        // ===================================================================
+        // CRITICAL: Wait for connection to be correctly recorded
+        // ===================================================================
+        console.log('⏳ Step: Waiting for successful connection to be correctly recorded...');
+        const connectionRecordMaxAttempts = 30; // 30 attempts = 60 seconds max
+        const connectionRecordPollInterval = 2000; // 2 seconds
+        let connectionRecordAttempt = 0;
+        let connectionRecorded = false;
+        
+        while (!connectionRecorded && connectionRecordAttempt < connectionRecordMaxAttempts) {
+            try {
+                // Check if connection row exists and shows completed status
+                const connectionRow = applicantPage.getByTestId('connection-row');
+                const connectionRowCount = await connectionRow.count().catch(() => 0);
+                
+                if (connectionRowCount > 0) {
+                    // Check if at least one connection shows completed status
+                    for (let i = 0; i < connectionRowCount; i++) {
+                        const rowText = await connectionRow.nth(i).textContent().catch(() => '');
+                        const lowerText = rowText.toLowerCase();
+                        
+                        if (lowerText.includes('completed') || lowerText.includes('complete')) {
+                            connectionRecorded = true;
+                            console.log(`✅ Successful connection recorded in row ${i + 1} (attempt ${connectionRecordAttempt + 1})`);
+                            break;
+                        }
+                    }
+                }
+                
+                if (!connectionRecorded) {
+                    connectionRecordAttempt++;
+                    if (connectionRecordAttempt < connectionRecordMaxAttempts) {
+                        console.log(`   Attempt ${connectionRecordAttempt}/${connectionRecordMaxAttempts}: Waiting for connection to be recorded...`);
+                        await applicantPage.waitForTimeout(connectionRecordPollInterval);
+                    }
+                }
+            } catch (error) {
+                connectionRecordAttempt++;
+                if (connectionRecordAttempt < connectionRecordMaxAttempts) {
+                    console.log(`   ⚠️ Error checking connection record (attempt ${connectionRecordAttempt}): ${error.message}`);
+                    await applicantPage.waitForTimeout(connectionRecordPollInterval);
+                }
+            }
+        }
+        
+        if (!connectionRecorded) {
+            throw new Error(`Successful connection was not recorded after ${connectionRecordMaxAttempts * connectionRecordPollInterval / 1000} seconds`);
+        }
+        
+        // Additional wait for UI to fully stabilize
+        await applicantPage.waitForTimeout(2000);
+        console.log('✅ Connection correctly recorded and UI stabilized');
+
+        // ===================================================================
+        // CRITICAL: Open modal again for failed credentials test
+        // ===================================================================
+        console.log('🔓 Step: Opening modal again for failed credentials test...');
+        
+        // Click connect bank button to open the modal again
+        const connectBankBtn = applicantPage.getByTestId('connect-bank');
+        await expect(connectBankBtn).toBeVisible({ timeout: 10000 });
+        await connectBankBtn.click();
+        console.log('   ✅ Connect bank button clicked');
+        
+        // Wait for modal to open and iframe to load
+        await applicantPage.waitForTimeout(2000);
+        const mxFrameReopened = applicantPage.frameLocator('iframe[src*="int-widgets.moneydesktop.com"]');
+        await expect(mxFrameReopened.locator('[data-test="search-header"]')).toBeVisible({ timeout: 30000 });
+        console.log('✅ Modal reopened and MX iframe loaded');
+
+        // ===================================================================
+        // Step: Test failed credentials
+        // ===================================================================
+        console.log('🧪 Step: Testing failed credentials...');
+        await applicantPage.waitForTimeout(1000);
+        await mxFrameReopened.locator('[data-test="search-input"]').fill('mx bank');
+        await mxFrameReopened.locator('[data-test="MX-Bank-row"]').click();
+        await mxFrameReopened.locator('#LOGIN').fill('fail_user');
+        await mxFrameReopened.locator('#PASSWORD').fill('fail_password');
+        await mxFrameReopened.locator('[data-test="credentials-continue"]').click();
+
+        await mxFrameReopened.locator('[data-test="credentials-error-message-box"]').waitFor({ state: 'visible', timeout: 150_000 });
         console.log('✅ Error message displayed for failed credentials');
         
         // Click the close icon after error message
         await applicantPage.getByTestId('connnect-modal-cancel').click();
-        await applicantPage.locator('[data-testid="financial-verification-continue-btn"]').click();
+        console.log('✅ Modal cancel button clicked');
+        
+        // Poll for modal closure and connection state stabilization (similar to first connection)
+        console.log('⏳ Polling for failed connection state to stabilize...');
+        const failedConnectionMaxAttempts = 40; // 40 attempts = 80 seconds max
+        const failedConnectionPollInterval = 2000; // 2 seconds
+        let failedConnectionAttempt = 0;
+        let modalClosed = false;
+        let connectionStateStable = false;
+        
+        while ((!modalClosed || !connectionStateStable) && failedConnectionAttempt < failedConnectionMaxAttempts) {
+            try {
+                // Check if modal is closed (Bank Connect iframe should not be visible)
+                const bankConnectModal = applicantPage.locator('iframe[title="Bank Connect"]');
+                const isModalVisible = await bankConnectModal.isVisible().catch(() => false);
+                
+                if (!isModalVisible && !modalClosed) {
+                    console.log(`✅ Bank Connect modal closed (attempt ${failedConnectionAttempt + 1})`);
+                    modalClosed = true;
+                }
+                
+                // Check if connection row exists and shows failed/error state
+                const connectionRow = applicantPage.getByTestId('connection-row');
+                const connectionRowCount = await connectionRow.count().catch(() => 0);
+                
+                if (connectionRowCount > 0) {
+                    // Check connection states across all rows
+                    let hasCompletedConnection = false;
+                    let hasFailedConnection = false;
+                    let hasProcessingConnection = false;
+                    
+                    for (let i = 0; i < connectionRowCount; i++) {
+                        const rowText = await connectionRow.nth(i).textContent().catch(() => '');
+                        const lowerText = rowText.toLowerCase();
+                        
+                        // Check for completed connection (the first successful OAuth connection)
+                        if (lowerText.includes('completed') || lowerText.includes('complete')) {
+                            hasCompletedConnection = true;
+                        }
+                        
+                        // Check for failed/error connection (the second failed password attempt)
+                        if (lowerText.includes('failed') || 
+                            lowerText.includes('error') || 
+                            lowerText.includes('incomplete') ||
+                            lowerText.includes('expired')) {
+                            hasFailedConnection = true;
+                        }
+                        
+                        // Check if still processing (connection state not yet finalized)
+                        if (lowerText.includes('processing')) {
+                            hasProcessingConnection = true;
+                        }
+                    }
+                    
+                    // Connection state is stable when:
+                    // 1. We have at least one completed connection (first OAuth success)
+                    // 2. We have a failed connection OR at least 2 connections total (indicating both attempts were recorded)
+                    // 3. No connections are still processing (state is finalized)
+                    const hasMultipleConnections = connectionRowCount >= 2;
+                    const hasBothStates = hasCompletedConnection && hasFailedConnection;
+                    const stateIsFinalized = !hasProcessingConnection;
+                    
+                    if (hasCompletedConnection && (hasFailedConnection || hasMultipleConnections) && stateIsFinalized) {
+                        connectionStateStable = true;
+                        console.log(`✅ Connection state stabilized: ${connectionRowCount} connection(s) - Completed: ${hasCompletedConnection}, Failed: ${hasFailedConnection}`);
+                    } else if (hasProcessingConnection) {
+                        console.log(`   ⏳ Connection(s) still processing (attempt ${failedConnectionAttempt + 1})...`);
+                    }
+                }
+                
+                // Check if continue button is visible and ready
+                const continueBtn = applicantPage.locator('[data-testid="financial-verification-continue-btn"]');
+                const isContinueBtnVisible = await continueBtn.isVisible().catch(() => false);
+                
+                if (modalClosed && connectionStateStable && isContinueBtnVisible) {
+                    console.log('✅ All conditions met: Modal closed, connection state stable, continue button ready');
+                    // Wait a bit more for UI to fully stabilize
+                    await applicantPage.waitForTimeout(1000);
+                    break;
+                }
+                
+                failedConnectionAttempt++;
+                if (failedConnectionAttempt < failedConnectionMaxAttempts) {
+                    console.log(`   Attempt ${failedConnectionAttempt}/${failedConnectionMaxAttempts}: Modal closed: ${modalClosed}, State stable: ${connectionStateStable}, Continue visible: ${isContinueBtnVisible}`);
+                    await applicantPage.waitForTimeout(failedConnectionPollInterval);
+                }
+            } catch (error) {
+                failedConnectionAttempt++;
+                if (failedConnectionAttempt < failedConnectionMaxAttempts) {
+                    console.log(`   ⚠️ Error during polling (attempt ${failedConnectionAttempt}): ${error.message}`);
+                    await applicantPage.waitForTimeout(failedConnectionPollInterval);
+                }
+            }
+        }
+        
+        // If polling didn't fully stabilize, reload and check again (fallback)
+        if (!modalClosed || !connectionStateStable) {
+            console.log('⚠️ Connection state not fully stabilized - checking after reload...');
+            await applicantPage.reload();
+            await handleModalsAfterReload(applicantPage);
+            await applicantPage.waitForTimeout(2000);
+            
+            // Quick verification after reload
+            const connectionRow = applicantPage.getByTestId('connection-row');
+            const connectionRowCount = await connectionRow.count().catch(() => 0);
+            console.log(`   Found ${connectionRowCount} connection row(s) after reload`);
+            
+            if (connectionRowCount === 0) {
+                throw new Error(`No connection rows found after reload - connection state may not have been saved properly`);
+            }
+        }
+        
+        // Verify continue button is visible before clicking
+        const continueBtn = applicantPage.locator('[data-testid="financial-verification-continue-btn"]');
+        await expect(continueBtn).toBeVisible({ timeout: 10000 });
+        console.log('✅ Continue button is visible and ready');
+        
+        await continueBtn.click();
 
         // Wait for summary page
         await expect(applicantPage.locator('h3', { hasText: 'Summary' })).toBeVisible({ timeout: 110_000 });
@@ -318,6 +556,7 @@ test.describe('financial_mx_2_attempts_success_and_failed_password', () => {
                 if (attempt > 0 && attempt % 3 === 0) {
                     console.log('   🔄 Reloading page to refresh session state...');
                     await page.reload();
+                    await handleModalsAfterReloadAdmin(page);
                     await page.waitForTimeout(2000);
                 }
             }
@@ -342,6 +581,7 @@ test.describe('financial_mx_2_attempts_success_and_failed_password', () => {
         
         await page.waitForTimeout(2000);
         await page.reload();
+        await handleModalsAfterReloadAdmin(page);
         
         // Poll for "Criteria Not Met" status (max 60 seconds)
         console.log('   ⏳ Polling for "Criteria Not Met" status...');
@@ -366,6 +606,7 @@ test.describe('financial_mx_2_attempts_success_and_failed_password', () => {
                 if (attempt > 0 && attempt % 3 === 0) {
                     console.log('   🔄 Reloading page to refresh session state...');
                     await page.reload();
+                    await handleModalsAfterReloadAdmin(page);
                     await page.waitForTimeout(2000);
                 }
             }
@@ -420,6 +661,7 @@ test.describe('financial_mx_2_attempts_success_and_failed_password', () => {
         // Step 10: Verify status changed back to Meets Criteria
         console.log('Step 10: Verifying status returns to "Meets Criteria"...');
         await page.reload();
+        await handleModalsAfterReloadAdmin(page);
 
         const statusBackToCriteriaMaxPolls = 20;
         const statusBackToCriteriaInterval = 2000;
@@ -436,6 +678,7 @@ test.describe('financial_mx_2_attempts_success_and_failed_password', () => {
             if (i % 5 === 4) {
                 console.log('   🔄 Reloading page to refresh UI state...');
                 await page.reload();
+                await handleModalsAfterReloadAdmin(page);
             }
 
             await page.waitForTimeout(statusBackToCriteriaInterval);

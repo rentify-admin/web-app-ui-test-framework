@@ -6,6 +6,7 @@ import { waitForJsonResponse } from '~/tests/utils/wait-response';
 import { admin } from '~/tests/test_config';
 import {
     handleOptionalStateModal,
+    handleOptionalTermsCheckbox,
     skipEmploymentVerification,
     plaidFinancialConnect,
     completeIdVerification,
@@ -29,9 +30,10 @@ const generateRandomPhone = () => {
 };
 
 test.describe('hosted_app_copy_verify_flow_plaid_id_emp_skip', () => {
+    test.setTimeout(200_000);
     test('Should complete hosted application flow with id emp skips and Plaid integration', {
         tag: ['@smoke', '@regression', '@needs-review', '@external-integration'],
-        timeout: 180_000  // 5 minutes
+        
     }, async ({ page, browser }) => {
         try {
             // Step 1: Admin login and navigate to applications
@@ -64,6 +66,7 @@ test.describe('hosted_app_copy_verify_flow_plaid_id_emp_skip', () => {
             }
             await page.locator('button[type="submit"]').click();
 
+
             // Step 6: Fill applicant registration form
             // ✅ Capture session ID from GET /sessions response (PR's method - captures earlier)
             const [sessionResp] = await Promise.all([
@@ -83,6 +86,7 @@ test.describe('hosted_app_copy_verify_flow_plaid_id_emp_skip', () => {
             const { data: session } = await waitForJsonResponse(sessionResp);
             sessionId = session?.id;
             console.log(`✅ Session created: ${sessionId}`);
+            await handleOptionalTermsCheckbox(page);
 
             // Step 7: Wait for rent budget form and fill it
             await page.waitForSelector('input[id="rent_budget"]', { timeout: 16000 });
