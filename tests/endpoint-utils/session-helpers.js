@@ -179,20 +179,21 @@ async function inviteUser(adminSessionApi, application, user) {
 
 async function createSession(adminClient, user, applicationId) {
     try {
-        const sessionResponse = await adminClient.post('/sessions', {
+        console.log('[createSession] Initiating session creation...');
+        const payload = {
             ...user,
             application: applicationId,
             invite: true
-        });
+        };
+        console.log('[createSession] Payload:', payload);
+
+        const sessionResponse = await adminClient.post('/sessions', payload);
         const session = sessionResponse.data.data;
+        console.log('[createSession] Extracted session:', session?.id);
+
         return session;
     } catch (error) {
-        console.error("Error in createSession", JSON.stringify({
-            file: "tests/endpoint-utils/session-helpers.js",
-            function: "createSession",
-            error: error.message,
-            stack: error.stack
-        }));
+        console.error("❌ Error in createSession", error.message, error.stack);
         throw error;
     }
 }
