@@ -35,48 +35,99 @@ console.log(`🤖 Provider: ${PROVIDER.name}`);
 console.log(`⏱️  20 second delay between tests\n`);
 
 /**
- * Call AI
+ * Call AI with retry logic for rate limits and transient errors
  */
-async function callAI(systemPrompt, userPrompt) {
-    const TIMEOUT_MS = 60000; // 60 seconds for overnight run
+async function callAI(systemPrompt, userPrompt, maxRetries = 2) {
+    const TIMEOUT_MS = 120000; // 120 seconds (increased for large files)
     
-    const apiCall = async () => {
-        if (PROVIDER.type === 'openai') {
-            const client = new OpenAI({ apiKey: PROVIDER.apiKey, timeout: TIMEOUT_MS });
-            const response = await client.chat.completions.create({
-                model: PROVIDER.model,
-                messages: [
-                    { role: 'system', content: systemPrompt },
-                    { role: 'user', content: userPrompt }
-                ],
-                temperature: 0.1,
-                response_format: { type: 'json_object' }
-            });
-            return JSON.parse(response.choices[0].message.content);
-        } else if (PROVIDER.type === 'openrouter') {
-            const response = await axios.post('https://openrouter.ai/api/v1/chat/completions', {
-                model: PROVIDER.model,
-                messages: [
-                    { role: 'system', content: systemPrompt },
-                    { role: 'user', content: userPrompt }
-                ],
-                temperature: 0.1
-            }, {
-                timeout: TIMEOUT_MS,
-                headers: {
-                    'Authorization': `Bearer ${PROVIDER.apiKey}`,
-                    'Content-Type': 'application/json'
+    const apiCall = async (attempt = 1) => {
+        try {
+            if (PROVIDER.type === 'openai') {
+                const client = new OpenAI({ apiKey: PROVIDER.apiKey, timeout: TIMEOUT_MS });
+                const response = await client.chat.completions.create({
+                    model: PROVIDER.model,
+                    messages: [
+                        { role: 'system', content: systemPrompt },
+                        { role: 'user', content: userPrompt }
+                    ],
+                    temperature: 0.1,
+                    response_format: { type: 'json_object' }
+                });
+                return JSON.parse(response.choices[0].message.content);
+            } else if (PROVIDER.type === 'openrouter') {
+                const response = await axios.post('https://openrouter.ai/api/v1/chat/completions', {
+                    model: PROVIDER.model,
+                    messages: [
+                        { role: 'system', content: systemPrompt },
+                        { role: 'user', content: userPrompt }
+                    ],
+                    temperature: 0.1
+                }, {
+                    timeout: TIMEOUT_MS,
+                    headers: {
+                        'Authorization': `Bearer ${PROVIDER.apiKey}`,
+                        'Content-Type': 'application/json'
+                    },
+                    validateStatus: (status) => status < 500 // Don't throw on 4xx errors
+                });
+                
+                // Handle rate limit (429)
+                if (response.status === 429) {
+                    const retryAfter = response.headers['retry-after'] 
+                        ? parseInt(response.headers['retry-after']) 
+                        : Math.pow(2, attempt) * 10; // Exponential backoff: 20s, 40s, 80s
+                    
+                    if (attempt <= maxRetries) {
+                        console.log(`   ⚠️  Rate limit hit, waiting ${retryAfter}s before retry ${attempt}/${maxRetries}...`);
+                        await new Promise(resolve => setTimeout(resolve, retryAfter * 1000));
+                        return apiCall(attempt + 1);
+                    }
+                    throw new Error(`Rate limit exceeded after ${maxRetries} retries`);
                 }
-            });
-            
-            const content = response.data.choices[0].message.content;
-            const jsonMatch = content.match(/\{[\s\S]*\}/);
-            return JSON.parse(jsonMatch ? jsonMatch[0] : content);
+                
+                // Handle bad request (400)
+                if (response.status === 400) {
+                    const errorMsg = response.data?.error?.message || 'Bad Request';
+                    console.log(`   ⚠️  Bad request details: ${JSON.stringify(response.data?.error || {})}`);
+                    throw new Error(`Bad Request: ${errorMsg}`);
+                }
+                
+                // Handle other errors
+                if (response.status >= 400) {
+                    throw new Error(`API error ${response.status}: ${response.data?.error?.message || 'Unknown error'}`);
+                }
+                
+                const content = response.data.choices[0].message.content;
+                if (!content) {
+                    throw new Error('Empty response from API');
+                }
+                
+                // Try to extract JSON from response
+                const jsonMatch = content.match(/\{[\s\S]*\}/);
+                const jsonContent = jsonMatch ? jsonMatch[0] : content;
+                
+                try {
+                    return JSON.parse(jsonContent);
+                } catch (parseError) {
+                    console.log(`   ⚠️  JSON parse error: ${parseError.message}`);
+                    console.log(`   ⚠️  Response preview: ${content.substring(0, 200)}...`);
+                    throw new Error(`Failed to parse JSON response: ${parseError.message}`);
+                }
+            }
+        } catch (error) {
+            // Retry on network errors or timeouts
+            if ((error.code === 'ECONNRESET' || error.code === 'ETIMEDOUT' || error.message.includes('Timeout')) && attempt <= maxRetries) {
+                const retryDelay = Math.pow(2, attempt) * 5; // 10s, 20s, 40s
+                console.log(`   ⚠️  Network/timeout error, retrying in ${retryDelay}s (${attempt}/${maxRetries})...`);
+                await new Promise(resolve => setTimeout(resolve, retryDelay * 1000));
+                return apiCall(attempt + 1);
+            }
+            throw error;
         }
     };
     
     const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Timeout')), TIMEOUT_MS)
+        setTimeout(() => reject(new Error('Timeout after 120 seconds')), TIMEOUT_MS)
     );
     
     return Promise.race([apiCall(), timeoutPromise]);
@@ -199,7 +250,10 @@ Please document ALL ${testCases.length} test cases listed above.`;
         console.log(`   ✅ Success with ${PROVIDER.name}`);
         return { aiResult, actualPath: actualTestFile };
     } catch (error) {
-        console.log(`   ❌ Failed: ${error.message?.substring(0, 60)}`);
+        // Provide more detailed error message
+        const errorMsg = error.response?.data?.error?.message || error.message;
+        const errorCode = error.response?.status || error.code || '';
+        console.log(`   ❌ Failed: ${errorCode ? `[${errorCode}] ` : ''}${errorMsg?.substring(0, 80) || 'Unknown error'}`);
         return null;
     }
 }
@@ -313,7 +367,7 @@ async function main() {
     const testFiles = getTestsForBatch();
     
     console.log(`📦 Processing ${testFiles.length} tests`);
-    console.log(`⏱️  Estimated time: ${(testFiles.length * 20 / 60).toFixed(1)} minutes\n`);
+    console.log(`⏱️  Estimated time: ${(testFiles.length * 30 / 60).toFixed(1)} minutes (30s delay between tests)\n`);
     
     const results = [];
     let successful = 0;

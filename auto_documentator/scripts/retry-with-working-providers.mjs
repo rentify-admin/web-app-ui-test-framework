@@ -41,48 +41,99 @@ console.log(`\n🔄 RETRY PHASE - Using working provider: ${PROVIDER.name}`);
 console.log(`⏱️  STRICT 1 minute delay between tests\n`);
 
 /**
- * Call AI
+ * Call AI with retry logic for rate limits and transient errors
  */
-async function callAI(systemPrompt, userPrompt) {
-    const TIMEOUT_MS = 60000;
+async function callAI(systemPrompt, userPrompt, maxRetries = 2) {
+    const TIMEOUT_MS = 120000; // 120 seconds (increased for large files)
     
-    const apiCall = async () => {
-        if (PROVIDER.type === 'openai') {
-            const client = new OpenAI({ apiKey: PROVIDER.apiKey, timeout: TIMEOUT_MS });
-            const response = await client.chat.completions.create({
-                model: PROVIDER.model,
-                messages: [
-                    { role: 'system', content: systemPrompt },
-                    { role: 'user', content: userPrompt }
-                ],
-                temperature: 0.1,
-                response_format: { type: 'json_object' }
-            });
-            return JSON.parse(response.choices[0].message.content);
-        } else if (PROVIDER.type === 'openrouter') {
-            const response = await axios.post('https://openrouter.ai/api/v1/chat/completions', {
-                model: PROVIDER.model,
-                messages: [
-                    { role: 'system', content: systemPrompt },
-                    { role: 'user', content: userPrompt }
-                ],
-                temperature: 0.1
-            }, {
-                timeout: TIMEOUT_MS,
-                headers: {
-                    'Authorization': `Bearer ${PROVIDER.apiKey}`,
-                    'Content-Type': 'application/json'
+    const apiCall = async (attempt = 1) => {
+        try {
+            if (PROVIDER.type === 'openai') {
+                const client = new OpenAI({ apiKey: PROVIDER.apiKey, timeout: TIMEOUT_MS });
+                const response = await client.chat.completions.create({
+                    model: PROVIDER.model,
+                    messages: [
+                        { role: 'system', content: systemPrompt },
+                        { role: 'user', content: userPrompt }
+                    ],
+                    temperature: 0.1,
+                    response_format: { type: 'json_object' }
+                });
+                return JSON.parse(response.choices[0].message.content);
+            } else if (PROVIDER.type === 'openrouter') {
+                const response = await axios.post('https://openrouter.ai/api/v1/chat/completions', {
+                    model: PROVIDER.model,
+                    messages: [
+                        { role: 'system', content: systemPrompt },
+                        { role: 'user', content: userPrompt }
+                    ],
+                    temperature: 0.1
+                }, {
+                    timeout: TIMEOUT_MS,
+                    headers: {
+                        'Authorization': `Bearer ${PROVIDER.apiKey}`,
+                        'Content-Type': 'application/json'
+                    },
+                    validateStatus: (status) => status < 500 // Don't throw on 4xx errors
+                });
+                
+                // Handle rate limit (429)
+                if (response.status === 429) {
+                    const retryAfter = response.headers['retry-after'] 
+                        ? parseInt(response.headers['retry-after']) 
+                        : Math.pow(2, attempt) * 30; // Exponential backoff: 60s, 120s for retry phase
+                    
+                    if (attempt <= maxRetries) {
+                        console.log(`   ⚠️  Rate limit hit, waiting ${retryAfter}s before retry ${attempt}/${maxRetries}...`);
+                        await new Promise(resolve => setTimeout(resolve, retryAfter * 1000));
+                        return apiCall(attempt + 1);
+                    }
+                    throw new Error(`Rate limit exceeded after ${maxRetries} retries`);
                 }
-            });
-            
-            const content = response.data.choices[0].message.content;
-            const jsonMatch = content.match(/\{[\s\S]*\}/);
-            return JSON.parse(jsonMatch ? jsonMatch[0] : content);
+                
+                // Handle bad request (400)
+                if (response.status === 400) {
+                    const errorMsg = response.data?.error?.message || 'Bad Request';
+                    console.log(`   ⚠️  Bad request details: ${JSON.stringify(response.data?.error || {})}`);
+                    throw new Error(`Bad Request: ${errorMsg}`);
+                }
+                
+                // Handle other errors
+                if (response.status >= 400) {
+                    throw new Error(`API error ${response.status}: ${response.data?.error?.message || 'Unknown error'}`);
+                }
+                
+                const content = response.data.choices[0].message.content;
+                if (!content) {
+                    throw new Error('Empty response from API');
+                }
+                
+                // Try to extract JSON from response
+                const jsonMatch = content.match(/\{[\s\S]*\}/);
+                const jsonContent = jsonMatch ? jsonMatch[0] : content;
+                
+                try {
+                    return JSON.parse(jsonContent);
+                } catch (parseError) {
+                    console.log(`   ⚠️  JSON parse error: ${parseError.message}`);
+                    console.log(`   ⚠️  Response preview: ${content.substring(0, 200)}...`);
+                    throw new Error(`Failed to parse JSON response: ${parseError.message}`);
+                }
+            }
+        } catch (error) {
+            // Retry on network errors or timeouts
+            if ((error.code === 'ECONNRESET' || error.code === 'ETIMEDOUT' || error.message.includes('Timeout')) && attempt <= maxRetries) {
+                const retryDelay = Math.pow(2, attempt) * 10; // 20s, 40s for retry phase
+                console.log(`   ⚠️  Network/timeout error, retrying in ${retryDelay}s (${attempt}/${maxRetries})...`);
+                await new Promise(resolve => setTimeout(resolve, retryDelay * 1000));
+                return apiCall(attempt + 1);
+            }
+            throw error;
         }
     };
     
     const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Timeout')), TIMEOUT_MS)
+        setTimeout(() => reject(new Error('Timeout after 120 seconds')), TIMEOUT_MS)
     );
     
     return Promise.race([apiCall(), timeoutPromise]);
@@ -116,21 +167,34 @@ function extractTestCasesFromFile(fileContent) {
 
 /**
  * Analyze test with test-case awareness
+ * Handles file moves automatically
  */
 async function analyzeTest(testFilePath) {
     const fileName = path.basename(testFilePath);
     
-    // Resolve file path (handle both relative and absolute)
+    // Resolve file path and check existence
     const fullPath = path.isAbsolute(testFilePath)
         ? testFilePath
         : path.join(__dirname, '../..', testFilePath);
     
-    // Verify file exists
+    let actualPath = fullPath;
+    let actualTestFile = testFilePath;
+    
+    // If file doesn't exist, try to find it (handle file moves)
     if (!fs.existsSync(fullPath)) {
-        throw new Error(`File not found: ${testFilePath}`);
+        console.log(`   ⚠️  File not found at original path, searching...`);
+        const foundPath = findFileByBasename(testFilePath);
+        
+        if (foundPath) {
+            actualPath = path.join(__dirname, '../..', foundPath);
+            actualTestFile = foundPath;
+            console.log(`   ✅ Found file at: ${foundPath}`);
+        } else {
+            throw new Error(`File not found: ${testFilePath}`);
+        }
     }
     
-    const testContent = fs.readFileSync(fullPath, 'utf-8');
+    const testContent = fs.readFileSync(actualPath, 'utf-8');
     const promptTemplate = fs.readFileSync(AI_PROMPT_FILE, 'utf-8');
     
     // Extract individual test cases
@@ -159,9 +223,12 @@ Please document ALL ${testCases.length} test cases listed above.`;
     try {
         const result = await callAI(systemPrompt, userPrompt);
         console.log(`   ✅ Success with ${PROVIDER.name}`);
-        return result;
+        return { aiResult: result, actualPath: actualTestFile };
     } catch (error) {
-        console.log(`   ❌ Failed: ${error.message?.substring(0, 60)}`);
+        // Provide more detailed error message
+        const errorMsg = error.response?.data?.error?.message || error.message;
+        const errorCode = error.response?.status || error.code || '';
+        console.log(`   ❌ Failed: ${errorCode ? `[${errorCode}] ` : ''}${errorMsg?.substring(0, 80) || 'Unknown error'}`);
         return null;
     }
 }
@@ -280,49 +347,25 @@ async function main() {
         
         console.log(`[${i + 1}/${failedTests.length}] Retrying...`);
         
-        // Check if file exists before processing
-        let actualTestFile = testFile;
-        let fullPath = path.isAbsolute(testFile) 
-            ? testFile 
-            : path.join(__dirname, '../..', testFile);
-        
-        if (!fs.existsSync(fullPath)) {
-            console.log(`   ⚠️  File not found at original path: ${testFile}`);
-            console.log(`   🔍 Searching for file by basename...`);
+        try {
+            const result = await analyzeTest(testFile);
             
-            // Try to find the file in a different location
-            const foundPath = findFileByBasename(testFile);
-            
-            if (foundPath) {
-                actualTestFile = foundPath;
-                fullPath = path.join(__dirname, '../..', foundPath);
-                console.log(`   ✅ Found file at new location: ${foundPath}`);
-                console.log(`   📝 Using updated path for processing`);
+            if (result && result.aiResult) {
+                // Use actual path if file was found in different location
+                const actualPath = result.actualPath || testFile;
+                results.push({
+                    fileName: path.basename(actualPath),
+                    filePath: actualPath, // Actual path used (may differ if file was moved)
+                    aiResult: result.aiResult,
+                    markdown: generateMarkdown(result.aiResult, path.basename(actualPath))
+                });
+                successful++;
             } else {
-                console.log(`   ❌ File not found anywhere - may have been deleted`);
-                console.log(`   ⏭️  Skipping this test`);
                 failed++;
-                
-                // Still wait before next test (except last)
-                if (i < failedTests.length - 1) {
-                    console.log(`   ⏳ STRICT 1 MINUTE WAIT...`);
-                    await strictSleep(60);
-                }
-                continue;
             }
-        }
-        
-        const aiResult = await analyzeTest(actualTestFile);
-        
-        if (aiResult) {
-            results.push({
-                fileName: path.basename(actualTestFile),
-                filePath: actualTestFile, // Use actual path (may be different if file was moved)
-                aiResult: aiResult,
-                markdown: generateMarkdown(aiResult, path.basename(actualTestFile))
-            });
-            successful++;
-        } else {
+        } catch (error) {
+            // File not found (even after search) - skip this test
+            console.log(`   ❌ Skipping: ${error.message}`);
             failed++;
         }
         
