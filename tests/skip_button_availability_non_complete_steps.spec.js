@@ -26,7 +26,7 @@ test.describe('QA-228 skip_button_availability_non_complete_steps.spec', () => {
         tag: ['@smoke', '@regression'],
         timeout: 360_000
     }, async ({ page, context }) => {
-
+        test.setTimeout(360_000)
         // ------ Step 1: Admin Login and Navigation ------
         console.log('🚀 Step 1: Logging in as admin and navigating to Applications page...');
         await adminLoginAndNavigateToApplications(page, admin);
@@ -283,7 +283,7 @@ test.describe('QA-228 skip_button_availability_non_complete_steps.spec', () => {
         // Upload paystub, keep step "in progress" (simulate failed employment doc)
         console.log('📄 Step 12: Uploading employment document to trigger failure...');
         let employmentVerification = await uploadPaystubDocuments(page, [
-            'passport.jpg'
+            'id-back.jpg'
         ], { continueStep: false, timeout: 90_000, waitForCompletion: false });
 
         const empConnectionRow = employmentStep.getByTestId('connection-row');
