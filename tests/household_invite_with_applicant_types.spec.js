@@ -42,7 +42,7 @@ test.describe('QA-252 household-invite-with-applicant-types.spec', () => {
     })
 
     test('Verify Co-Applicant and Guarantor Invitation with Applicant Types (VC-26)',{
-        tag: ['@regression'],
+        tag: ['@regression', '@staging-ready', '@rc-ready'],
         timeout: 150_000
     }, async ({ page }) => {
         console.log('🌐 Step 1: Navigating to homepage...');
@@ -58,6 +58,8 @@ test.describe('QA-252 household-invite-with-applicant-types.spec', () => {
         const sessionLocator = await findSessionLocator(page, `.application-card[data-session="${session.id}"]`)
 
         await sessionLocator.click()
+        await expect(page.getByTestId('household-status-alert')).toBeVisible({ timeout: 10_000 });
+        await page.waitForTimeout(1000); // Wait for session to fully load
         console.log('👉 Step 5: Session card clicked.');
 
         const actionBtn = page.getByTestId('session-action-btn');
@@ -83,6 +85,7 @@ test.describe('QA-252 household-invite-with-applicant-types.spec', () => {
         console.log('🔽 Step 11: Applicant role dropdown is visible.');
 
         await applicantRoleDd.click()
+        await page.waitForTimeout(500); // Wait for dropdown options to appear
         console.log('⏬ Step 12: Applicant role dropdown clicked.');
 
         const coAppRoleOpt = applicantRoleDd.getByTestId('applicant-role-co-app');
@@ -109,27 +112,36 @@ test.describe('QA-252 household-invite-with-applicant-types.spec', () => {
 
         console.log('🟢 Step 15: Inviting Co-Applicant...');
         await addApplicant(page, inviteModal, coApp, session);
-        await page.waitForTimeout(3000);
+        await page.waitForTimeout(2000); // Wait for modal to update after co-applicant invitation
         console.log('🟢 Step 16: Inviting Guarantor...');
         await addApplicant(page, inviteModal, guarantor, session);
+        await page.waitForTimeout(2000); // Wait for modal to update after guarantor invitation
 
-        await applicantRoleDd.click()
-        await expect(coAppRoleOpt).toBeVisible();
-        await expect(guarantorRoleDd).not.toBeVisible();
+        // Re-fetch locators after modal updates to avoid stale element references
+        const inviteModalAfter = page.getByTestId('invite-modal');
+        const applicantRoleDdAfter = inviteModalAfter.getByTestId('applicant-role');
+        await applicantRoleDdAfter.click();
+        await page.waitForTimeout(500); // Wait for dropdown to open
+        const coAppRoleOptAfter = applicantRoleDdAfter.getByTestId('applicant-role-co-app');
+        const guarantorRoleDdAfter = applicantRoleDdAfter.getByTestId('applicant-role-guarantor');
+        await expect(coAppRoleOptAfter).toBeVisible();
+        await expect(guarantorRoleDdAfter).not.toBeVisible();
         console.log('🔄 Step 17: Verified role visibility after inviting applicants.');
     })
 
     test.afterAll(async ({ request }) => {
         console.log('🧹 [Cleanup] Starting session cleanup...');
-        if (createdSession && createdSession.children.length > 0) {
-            for (let index = 0; index < createdSession.length; index++) {
-                const element = createdSession[index];
+        if (createdSession && createdSession.children && createdSession.children.length > 0) {
+            for (let index = 0; index < createdSession.children.length; index++) {
+                const element = createdSession.children[index];
                 console.log(`❌ [Cleanup] Cleaning up session child: ${element.id} ...`);
                 await cleanupSession(request, element.id)
             }
         }
-        console.log(`❌ [Cleanup] Cleaning up main created session: ${createdSession.id} ...`);
-        await cleanupSession(request, createdSession.id)
+        if (createdSession && createdSession.id) {
+            console.log(`❌ [Cleanup] Cleaning up main created session: ${createdSession.id} ...`);
+            await cleanupSession(request, createdSession.id)
+        }
         console.log('✅ [Cleanup] Finished session cleanup!');
     })
 

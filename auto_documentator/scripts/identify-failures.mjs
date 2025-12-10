@@ -121,7 +121,7 @@ function main() {
     
     // Save stats
     fs.writeFileSync(STATS_FILE, JSON.stringify({
-        totalTests: allTests.length,
+        totalTests: allTestsBasenames.length,
         documented: documentedTests.size,
         failed: failedTests.length,
         workingBatches: workingBatches,

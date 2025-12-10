@@ -41,48 +41,113 @@ console.log(`\n🔄 RETRY PHASE - Using working provider: ${PROVIDER.name}`);
 console.log(`⏱️  STRICT 1 minute delay between tests\n`);
 
 /**
- * Call AI
+ * Call AI with retry logic for rate limits and transient errors
  */
-async function callAI(systemPrompt, userPrompt) {
-    const TIMEOUT_MS = 60000;
+async function callAI(systemPrompt, userPrompt, maxRetries = 2) {
+    const TIMEOUT_MS = 120000; // 120 seconds (increased for large files)
     
-    const apiCall = async () => {
-        if (PROVIDER.type === 'openai') {
-            const client = new OpenAI({ apiKey: PROVIDER.apiKey, timeout: TIMEOUT_MS });
-            const response = await client.chat.completions.create({
-                model: PROVIDER.model,
-                messages: [
-                    { role: 'system', content: systemPrompt },
-                    { role: 'user', content: userPrompt }
-                ],
-                temperature: 0.1,
-                response_format: { type: 'json_object' }
-            });
-            return JSON.parse(response.choices[0].message.content);
-        } else if (PROVIDER.type === 'openrouter') {
-            const response = await axios.post('https://openrouter.ai/api/v1/chat/completions', {
-                model: PROVIDER.model,
-                messages: [
-                    { role: 'system', content: systemPrompt },
-                    { role: 'user', content: userPrompt }
-                ],
-                temperature: 0.1
-            }, {
-                timeout: TIMEOUT_MS,
-                headers: {
-                    'Authorization': `Bearer ${PROVIDER.apiKey}`,
-                    'Content-Type': 'application/json'
+    // Check if this is a Gemma model (doesn't support system messages)
+    const isGemmaModel = PROVIDER.model.includes('gemma');
+    
+    const apiCall = async (attempt = 1) => {
+        try {
+            if (PROVIDER.type === 'openai') {
+                const client = new OpenAI({ apiKey: PROVIDER.apiKey, timeout: TIMEOUT_MS });
+                const response = await client.chat.completions.create({
+                    model: PROVIDER.model,
+                    messages: [
+                        { role: 'system', content: systemPrompt },
+                        { role: 'user', content: userPrompt }
+                    ],
+                    temperature: 0.1,
+                    response_format: { type: 'json_object' }
+                });
+                return JSON.parse(response.choices[0].message.content);
+            } else if (PROVIDER.type === 'openrouter') {
+                // For Gemma models, merge system prompt into user message
+                // (Gemma doesn't support separate system messages)
+                const messages = isGemmaModel
+                    ? [
+                        { 
+                            role: 'user', 
+                            content: `${systemPrompt}\n\n${userPrompt}` 
+                        }
+                    ]
+                    : [
+                        { role: 'system', content: systemPrompt },
+                        { role: 'user', content: userPrompt }
+                    ];
+                
+                const response = await axios.post('https://openrouter.ai/api/v1/chat/completions', {
+                    model: PROVIDER.model,
+                    messages: messages,
+                    temperature: 0.1
+                }, {
+                    timeout: TIMEOUT_MS,
+                    headers: {
+                        'Authorization': `Bearer ${PROVIDER.apiKey}`,
+                        'Content-Type': 'application/json'
+                    },
+                    validateStatus: (status) => status < 500 // Don't throw on 4xx errors
+                });
+                
+                // Handle rate limit (429)
+                if (response.status === 429) {
+                    const retryAfter = response.headers['retry-after'] 
+                        ? parseInt(response.headers['retry-after']) 
+                        : Math.pow(2, attempt) * 30; // Exponential backoff: 60s, 120s, 240s (longer for retry phase)
+                    
+                    if (attempt <= maxRetries) {
+                        console.log(`   ⚠️  Rate limit hit, waiting ${retryAfter}s before retry ${attempt}/${maxRetries}...`);
+                        await new Promise(resolve => setTimeout(resolve, retryAfter * 1000));
+                        return apiCall(attempt + 1);
+                    }
+                    throw new Error(`Rate limit exceeded after ${maxRetries} retries`);
                 }
-            });
-            
-            const content = response.data.choices[0].message.content;
-            const jsonMatch = content.match(/\{[\s\S]*\}/);
-            return JSON.parse(jsonMatch ? jsonMatch[0] : content);
+                
+                // Handle bad request (400)
+                if (response.status === 400) {
+                    const errorMsg = response.data?.error?.message || 'Bad Request';
+                    console.log(`   ⚠️  Bad request details: ${JSON.stringify(response.data?.error || {})}`);
+                    throw new Error(`Bad Request: ${errorMsg}`);
+                }
+                
+                // Handle other errors
+                if (response.status >= 400) {
+                    throw new Error(`API error ${response.status}: ${response.data?.error?.message || 'Unknown error'}`);
+                }
+                
+                const content = response.data.choices[0].message.content;
+                if (!content) {
+                    throw new Error('Empty response from API');
+                }
+                
+                // Try to extract JSON from response
+                const jsonMatch = content.match(/\{[\s\S]*\}/);
+                const jsonContent = jsonMatch ? jsonMatch[0] : content;
+                
+                try {
+                    return JSON.parse(jsonContent);
+                } catch (parseError) {
+                    console.log(`   ⚠️  JSON parse error: ${parseError.message}`);
+                    console.log(`   ⚠️  Response preview: ${content.substring(0, 200)}...`);
+                    throw new Error(`Failed to parse JSON response: ${parseError.message}`);
+                }
+            }
+        } catch (error) {
+            // Retry on network errors or timeouts
+            if ((error.code === 'ECONNRESET' || error.code === 'ETIMEDOUT' || error.message.includes('Timeout')) && attempt <= maxRetries) {
+                const retryDelay = Math.pow(2, attempt) * 10; // 20s, 40s, 80s
+                console.log(`   ⚠️  Network/timeout error, retrying in ${retryDelay}s (${attempt}/${maxRetries})...`);
+                await new Promise(resolve => setTimeout(resolve, retryDelay * 1000));
+                return apiCall(attempt + 1);
+            }
+            throw error;
         }
     };
     
     const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Timeout')), TIMEOUT_MS)
+        setTimeout(() => reject(new Error('Timeout after 120 seconds')), TIMEOUT_MS)
     );
     
     return Promise.race([apiCall(), timeoutPromise]);
@@ -116,21 +181,33 @@ function extractTestCasesFromFile(fileContent) {
 
 /**
  * Analyze test with test-case awareness
+ * Returns: { aiResult, actualPath } or null
  */
 async function analyzeTest(testFilePath) {
     const fileName = path.basename(testFilePath);
     
-    // Resolve file path (handle both relative and absolute)
+    // Resolve file path and check existence
     const fullPath = path.isAbsolute(testFilePath)
         ? testFilePath
         : path.join(__dirname, '../..', testFilePath);
     
-    // Verify file exists
+    let actualPath = fullPath;
+    let actualTestFile = testFilePath;
+    
     if (!fs.existsSync(fullPath)) {
-        throw new Error(`File not found: ${testFilePath}`);
+        console.log(`   ⚠️  File not found at original path, searching...`);
+        const foundPath = findFileByBasename(testFilePath);
+        
+        if (foundPath) {
+            actualPath = path.join(__dirname, '../..', foundPath);
+            actualTestFile = foundPath;
+            console.log(`   ✅ Found file at: ${foundPath}`);
+        } else {
+            throw new Error(`File not found: ${testFilePath}`);
+        }
     }
     
-    const testContent = fs.readFileSync(fullPath, 'utf-8');
+    const testContent = fs.readFileSync(actualPath, 'utf-8');
     const promptTemplate = fs.readFileSync(AI_PROMPT_FILE, 'utf-8');
     
     // Extract individual test cases
@@ -157,11 +234,14 @@ Please document ALL ${testCases.length} test cases listed above.`;
     console.log(`\n📄 ${fileName} (${testCases.length} test cases)`);
     
     try {
-        const result = await callAI(systemPrompt, userPrompt);
+        const aiResult = await callAI(systemPrompt, userPrompt);
         console.log(`   ✅ Success with ${PROVIDER.name}`);
-        return result;
+        return { aiResult, actualPath: actualTestFile };
     } catch (error) {
-        console.log(`   ❌ Failed: ${error.message?.substring(0, 60)}`);
+        // Provide more detailed error message
+        const errorMsg = error.response?.data?.error?.message || error.message;
+        const errorCode = error.response?.status || error.code || '';
+        console.log(`   ❌ Failed: ${errorCode ? `[${errorCode}] ` : ''}${errorMsg?.substring(0, 80) || 'Unknown error'}`);
         return null;
     }
 }
@@ -312,14 +392,16 @@ async function main() {
             }
         }
         
-        const aiResult = await analyzeTest(actualTestFile);
+        const result = await analyzeTest(actualTestFile);
         
-        if (aiResult) {
+        if (result && result.aiResult) {
+            // Use actual path if file was found in different location
+            const finalPath = result.actualPath || actualTestFile;
             results.push({
-                fileName: path.basename(actualTestFile),
-                filePath: actualTestFile, // Use actual path (may be different if file was moved)
-                aiResult: aiResult,
-                markdown: generateMarkdown(aiResult, path.basename(actualTestFile))
+                fileName: path.basename(finalPath),
+                filePath: finalPath, // Actual path used (may differ if file was moved)
+                aiResult: result.aiResult,
+                markdown: generateMarkdown(result.aiResult, path.basename(finalPath))
             });
             successful++;
         } else {
