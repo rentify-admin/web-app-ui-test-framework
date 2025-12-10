@@ -1973,8 +1973,8 @@ const updateRentBudget = async (applicantPage, sessionId, amount = '2500') => {
  * Complete identity verification step with camera-based verification
  * @param {import('@playwright/test').Page} applicantPage
  */
-const identityStep = async applicantPage => {
-    await applicantPage.getByTestId('start-id-verification').click({ timeout: 20_000 });
+const identityStep = async (applicantPage, connectBtnTestId = 'start-id-verification') => {
+    await applicantPage.getByTestId(connectBtnTestId).click({ timeout: 20_000 });
 
     const personaIFrame = applicantPage.frameLocator('iframe[src*="withpersona.com"]');
 
