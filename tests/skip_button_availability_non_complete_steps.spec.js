@@ -283,7 +283,7 @@ test.describe('QA-228 skip_button_availability_non_complete_steps.spec', () => {
         // Upload paystub, keep step "in progress" (simulate failed employment doc)
         console.log('📄 Step 12: Uploading employment document to trigger failure...');
         let employmentVerification = await uploadPaystubDocuments(page, [
-            'id-back.jpg'
+            'id-back.png'
         ], { continueStep: false, timeout: 90_000, waitForCompletion: false });
 
         const empConnectionRow = employmentStep.getByTestId('connection-row');
