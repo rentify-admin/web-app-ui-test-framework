@@ -10,6 +10,7 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { execSync } from 'child_process';
 import OpenAI from 'openai';
 import axios from 'axios';
 import { execSync } from 'child_process';
@@ -109,11 +110,66 @@ function extractTestCasesFromFile(fileContent) {
 }
 
 /**
+ * Find file by basename if it doesn't exist at original path
+ */
+function findFileByBasename(originalPath) {
+    const basename = path.basename(originalPath);
+    
+    try {
+        const output = execSync(`find tests -name "${basename}" -type f`, {
+            cwd: path.join(__dirname, '../..'),
+            encoding: 'utf-8'
+        });
+        
+        const matches = output.split('\n').filter(f => f.trim());
+        
+        if (matches.length === 0) {
+            return null;
+        }
+        
+        if (matches.length === 1) {
+            return matches[0];
+        }
+        
+        // Multiple matches - prefer the one that's different from original
+        const originalBasenameDir = path.dirname(originalPath);
+        const differentMatch = matches.find(m => path.dirname(m) !== originalBasenameDir);
+        
+        return differentMatch || matches[0];
+    } catch (error) {
+        return null;
+    }
+}
+
+/**
  * Analyze test with test-case awareness
+ * Returns: { aiResult, actualPath } or null
  */
 async function analyzeTest(testFilePath) {
     const fileName = path.basename(testFilePath);
-    const testContent = fs.readFileSync(testFilePath, 'utf-8');
+    
+    // Resolve file path and check existence
+    const fullPath = path.isAbsolute(testFilePath)
+        ? testFilePath
+        : path.join(__dirname, '../..', testFilePath);
+    
+    let actualPath = fullPath;
+    let actualTestFile = testFilePath;
+    
+    if (!fs.existsSync(fullPath)) {
+        console.log(`   ⚠️  File not found at original path, searching...`);
+        const foundPath = findFileByBasename(testFilePath);
+        
+        if (foundPath) {
+            actualPath = path.join(__dirname, '../..', foundPath);
+            actualTestFile = foundPath;
+            console.log(`   ✅ Found file at: ${foundPath}`);
+        } else {
+            throw new Error(`File not found: ${testFilePath}`);
+        }
+    }
+    
+    const testContent = fs.readFileSync(actualPath, 'utf-8');
     const promptTemplate = fs.readFileSync(AI_PROMPT_FILE, 'utf-8');
     
     // Extract individual test cases
@@ -140,9 +196,9 @@ Please document ALL ${testCases.length} test cases listed above.`;
     console.log(`\n📄 ${fileName} (${testCases.length} test cases)`);
     
     try {
-        const result = await callAI(systemPrompt, userPrompt);
+        const aiResult = await callAI(systemPrompt, userPrompt);
         console.log(`   ✅ Success with ${PROVIDER.name}`);
-        return result;
+        return { aiResult, actualPath: actualTestFile };
     } catch (error) {
         console.log(`   ❌ Failed: ${error.message?.substring(0, 60)}`);
         return null;
@@ -269,17 +325,25 @@ async function main() {
         
         console.log(`[${i + 1}/${testFiles.length}] Processing...`);
         
-        const aiResult = await analyzeTest(testFile);
-        
-        if (aiResult) {
-            results.push({
-                fileName: path.basename(testFile),
-                filePath: testFile,
-                aiResult: aiResult,
-                markdown: generateMarkdown(aiResult, path.basename(testFile))
-            });
-            successful++;
-        } else {
+        try {
+            const result = await analyzeTest(testFile);
+            
+            if (result && result.aiResult) {
+                // Use actual path if file was found in different location
+                const actualPath = result.actualPath || testFile;
+                results.push({
+                    fileName: path.basename(actualPath),
+                    filePath: actualPath, // Actual path used (may differ if file was moved)
+                    aiResult: result.aiResult,
+                    markdown: generateMarkdown(result.aiResult, path.basename(actualPath))
+                });
+                successful++;
+            } else {
+                failed++;
+            }
+        } catch (error) {
+            // File not found (even after search) - skip this test
+            console.log(`   ❌ Skipping: ${error.message}`);
             failed++;
         }
         

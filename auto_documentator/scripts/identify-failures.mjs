@@ -21,7 +21,7 @@ const OUTPUT_FILE = path.join(__dirname, '../../documentation/failed-tests.txt')
 const STATS_FILE = path.join(__dirname, '../../documentation/batch-stats.json');
 
 /**
- * Get all test files
+ * Get all test files (returns both basename and full path for mapping)
  */
 function getAllTests() {
     const output = execSync('find tests -name "*.spec.js" -o -name "*.test.js"', {
@@ -29,7 +29,16 @@ function getAllTests() {
         encoding: 'utf-8'
     });
     
-    return output.split('\n').filter(f => f.trim()).map(f => path.basename(f));
+    const allFiles = output.split('\n').filter(f => f.trim());
+    
+    // Return Map: basename -> full relative path
+    const testMap = new Map();
+    for (const file of allFiles) {
+        const basename = path.basename(file);
+        testMap.set(basename, file);
+    }
+    
+    return testMap;
 }
 
 /**
@@ -74,19 +83,21 @@ function main() {
         console.log(`📦 Batch ${batchNum}: ${successCount} successes ${hasSuccess ? '✅' : '❌'}`);
     }
     
-    // Find all tests
-    const allTests = getAllTests();
+    // Find all tests (Map: basename -> full relative path)
+    const allTestsMap = getAllTests();
+    const allTestsBasenames = Array.from(allTestsMap.keys());
     
-    // Find failed tests
-    const failedTests = allTests.filter(test => !documentedTests.has(test));
+    // Find failed tests (by basename comparison, but preserve full paths)
+    const failedTestsBasenames = allTestsBasenames.filter(basename => !documentedTests.has(basename));
+    const failedTests = failedTestsBasenames.map(basename => allTestsMap.get(basename));
     
     console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     console.log('📊 ANALYSIS SUMMARY');
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    console.log(`   Total tests:      ${allTests.length}`);
+    console.log(`   Total tests:      ${allTestsBasenames.length}`);
     console.log(`   Documented:       ${documentedTests.size}`);
     console.log(`   Failed:           ${failedTests.length}`);
-    console.log(`   Success rate:     ${((documentedTests.size / allTests.length) * 100).toFixed(1)}%`);
+    console.log(`   Success rate:     ${((documentedTests.size / allTestsBasenames.length) * 100).toFixed(1)}%`);
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
     
     // Identify working batches
@@ -103,8 +114,8 @@ function main() {
         failedTests.forEach(t => console.log(`   ${t}`));
         console.log('');
         
-        // Save failed tests
-        fs.writeFileSync(OUTPUT_FILE, failedTests.map(t => `tests/${t}`).join('\n'));
+        // Save failed tests with their full relative paths (already include 'tests/' prefix)
+        fs.writeFileSync(OUTPUT_FILE, failedTests.join('\n'));
         console.log(`💾 Saved ${failedTests.length} failed tests for retry\n`);
     }
     

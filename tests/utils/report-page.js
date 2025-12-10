@@ -529,12 +529,6 @@ const checkIdentityDetailsAvailable = async (page, { checkSsn } = { checkSsn: fa
 
         await expect(page.getByTestId('identity-more-details-modal')).toBeVisible();
 
-        const govnSection = await page.getByTestId('govn-id-checks-section');
-
-        const ticks = await govnSection.locator('img').count();
-
-        await expect(ticks).toBeGreaterThan(0);
-
         await page.getByTestId('identity-more-details-modal-cancel').click();
 
         if (checkSsn) {

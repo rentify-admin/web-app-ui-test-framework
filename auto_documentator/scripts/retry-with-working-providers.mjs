@@ -11,6 +11,7 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { execSync } from 'child_process';
 import OpenAI from 'openai';
 import axios from 'axios';
 
@@ -118,7 +119,18 @@ function extractTestCasesFromFile(fileContent) {
  */
 async function analyzeTest(testFilePath) {
     const fileName = path.basename(testFilePath);
-    const testContent = fs.readFileSync(testFilePath, 'utf-8');
+    
+    // Resolve file path (handle both relative and absolute)
+    const fullPath = path.isAbsolute(testFilePath)
+        ? testFilePath
+        : path.join(__dirname, '../..', testFilePath);
+    
+    // Verify file exists
+    if (!fs.existsSync(fullPath)) {
+        throw new Error(`File not found: ${testFilePath}`);
+    }
+    
+    const testContent = fs.readFileSync(fullPath, 'utf-8');
     const promptTemplate = fs.readFileSync(AI_PROMPT_FILE, 'utf-8');
     
     // Extract individual test cases
@@ -198,6 +210,41 @@ ${stepsTable}
 }
 
 /**
+ * Find file by basename if it doesn't exist at original path
+ * Searches the entire tests directory for a file with the same name
+ */
+function findFileByBasename(originalPath) {
+    const basename = path.basename(originalPath);
+    
+    try {
+        // Search for files with this basename in the tests directory
+        const output = execSync(`find tests -name "${basename}" -type f`, {
+            cwd: path.join(__dirname, '../..'),
+            encoding: 'utf-8'
+        });
+        
+        const matches = output.split('\n').filter(f => f.trim());
+        
+        if (matches.length === 0) {
+            return null; // File not found anywhere
+        }
+        
+        if (matches.length === 1) {
+            return matches[0]; // Found exactly one match - likely the moved file
+        }
+        
+        // Multiple matches found - prefer the one that's different from original
+        const originalBasenameDir = path.dirname(originalPath);
+        const differentMatch = matches.find(m => path.dirname(m) !== originalBasenameDir);
+        
+        return differentMatch || matches[0]; // Return different location or first match
+    } catch (error) {
+        // find command failed or no matches
+        return null;
+    }
+}
+
+/**
  * Sleep with strict timing
  */
 async function strictSleep(seconds) {
@@ -233,14 +280,46 @@ async function main() {
         
         console.log(`[${i + 1}/${failedTests.length}] Retrying...`);
         
-        const aiResult = await analyzeTest(testFile);
+        // Check if file exists before processing
+        let actualTestFile = testFile;
+        let fullPath = path.isAbsolute(testFile) 
+            ? testFile 
+            : path.join(__dirname, '../..', testFile);
+        
+        if (!fs.existsSync(fullPath)) {
+            console.log(`   ⚠️  File not found at original path: ${testFile}`);
+            console.log(`   🔍 Searching for file by basename...`);
+            
+            // Try to find the file in a different location
+            const foundPath = findFileByBasename(testFile);
+            
+            if (foundPath) {
+                actualTestFile = foundPath;
+                fullPath = path.join(__dirname, '../..', foundPath);
+                console.log(`   ✅ Found file at new location: ${foundPath}`);
+                console.log(`   📝 Using updated path for processing`);
+            } else {
+                console.log(`   ❌ File not found anywhere - may have been deleted`);
+                console.log(`   ⏭️  Skipping this test`);
+                failed++;
+                
+                // Still wait before next test (except last)
+                if (i < failedTests.length - 1) {
+                    console.log(`   ⏳ STRICT 1 MINUTE WAIT...`);
+                    await strictSleep(60);
+                }
+                continue;
+            }
+        }
+        
+        const aiResult = await analyzeTest(actualTestFile);
         
         if (aiResult) {
             results.push({
-                fileName: path.basename(testFile),
-                filePath: testFile,
+                fileName: path.basename(actualTestFile),
+                filePath: actualTestFile, // Use actual path (may be different if file was moved)
                 aiResult: aiResult,
-                markdown: generateMarkdown(aiResult, path.basename(testFile))
+                markdown: generateMarkdown(aiResult, path.basename(actualTestFile))
             });
             successful++;
         } else {
