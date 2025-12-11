@@ -259,6 +259,15 @@ jobs:
       
       - run: npm ci
       
+      - name: Download existing documentation from previous run
+        continue-on-error: true
+        uses: dawidd6/action-download-artifact@v2
+        with:
+          workflow: test-documentation.yml
+          name: existing-docs
+          path: documentation/
+          if_no_artifact_found: ignore
+      
       - uses: actions/download-artifact@v4
         with:
           pattern: batch-docs-*
@@ -272,6 +281,19 @@ jobs:
           path: documentation/
           merge-multiple: true
       
+      - name: Verify existing documentation loaded
+        run: |
+          if [ -f "documentation/EXISTING_DOCUMENTATION.md" ]; then
+            EXISTING_COUNT=$(grep -c "^## 🧪" documentation/EXISTING_DOCUMENTATION.md || echo "0")
+            echo "✅ Existing documentation found: $EXISTING_COUNT tests"
+            if [ "$EXISTING_COUNT" -eq 0 ]; then
+              echo "⚠️  Warning: Existing documentation file is empty"
+            fi
+          else
+            echo "⚠️  Warning: No existing documentation found (first run or download failed)"
+            echo "   Proceeding with merge (may only include new tests if this is not first run)"
+          fi
+      
       - name: Merge all documentation
         id: consolidate
         run: |
@@ -280,6 +302,17 @@ jobs:
           
           TOTAL_FILES=$(echo "$OUTPUT" | grep -oP 'TOTAL_ENTRIES:\K\d+' || echo "0")
           TOTAL_CASES=$(echo "$OUTPUT" | grep -oP 'TOTAL_TEST_CASES:\K\d+' || echo "0")
+          KEPT=$(echo "$OUTPUT" | grep -oP 'KEPT:\K\d+' || echo "0")
+          
+          # Safety check: If we're processing a few tests but total is too low, warn
+          if [ -f "documentation/tests-to-process.txt" ]; then
+            PROCESSING=$(wc -l < documentation/tests-to-process.txt | tr -d ' ')
+            if [ "$PROCESSING" -lt "$TOTAL_FILES" ] && [ "$KEPT" -eq 0 ] && [ "$TOTAL_FILES" -lt 10 ]; then
+              echo "⚠️  WARNING: Processing $PROCESSING test(s) but total is only $TOTAL_FILES and none were kept!"
+              echo "   This suggests existing documentation may not have loaded correctly."
+              echo "   Check if existing-docs artifact was downloaded successfully."
+            fi
+          fi
           
           echo "total=$TOTAL_FILES" >> $GITHUB_OUTPUT
           echo "total-cases=$TOTAL_CASES" >> $GITHUB_OUTPUT
