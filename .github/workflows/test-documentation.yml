@@ -159,6 +159,12 @@ jobs:
       
       - uses: actions/download-artifact@v4
         with:
+          name: tests-to-process
+          path: documentation/
+          continue-on-error: true
+      
+      - uses: actions/download-artifact@v4
+        with:
           pattern: batch-docs-*
           path: documentation/
           merge-multiple: true
