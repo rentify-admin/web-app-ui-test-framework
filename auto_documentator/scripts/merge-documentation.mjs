@@ -46,19 +46,43 @@ function extractTestEntries(markdown) {
 }
 
 /**
- * Get list of tests that were processed in this run
+ * Get list of tests that were actually processed (documented) in this run
+ * Uses the actual batch/retry results, not tests-to-process.txt which may contain failed attempts
  */
 function getProcessedTests() {
-    if (!fs.existsSync(TESTS_TO_PROCESS_FILE)) {
-        return new Set();
+    const processed = new Set();
+    
+    // Look in both documentation/ and documentation/batches/
+    const searchDirs = [
+        NEW_BATCHES_DIR,
+        path.join(__dirname, '../../documentation')
+    ];
+    
+    for (const dir of searchDirs) {
+        if (!fs.existsSync(dir)) continue;
+        
+        const batchFiles = fs.readdirSync(dir)
+            .filter(f => (f.startsWith('batch-') || f.startsWith('batch-retry-')) && f.endsWith('.json'))
+            .sort();
+        
+        for (const file of batchFiles) {
+            const filePath = path.join(dir, file);
+            try {
+                const data = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+                const batchEntries = data.entries || data;
+                
+                for (const entry of batchEntries) {
+                    if (entry.fileName) {
+                        processed.add(entry.fileName); // Already basename from overnight-processor
+                    }
+                }
+            } catch (error) {
+                console.log(`⚠️  Error reading ${file}: ${error.message}`);
+            }
+        }
     }
     
-    const content = fs.readFileSync(TESTS_TO_PROCESS_FILE, 'utf-8');
-    const tests = content.split('\n')
-        .filter(t => t.trim())
-        .map(t => path.basename(t)); // Get just the filename
-    
-    return new Set(tests);
+    return processed;
 }
 
 /**
