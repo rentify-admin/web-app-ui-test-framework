@@ -12,6 +12,11 @@ on:
       - master
       - main
   workflow_dispatch:  # Manual trigger option
+    inputs:
+      full_run:
+        description: 'Force process ALL UI tests (ignore metadata)'
+        required: false
+        default: 'false'
 
 # ==============================================================================
 # JOBS
@@ -47,6 +52,8 @@ jobs:
       
       - name: Detect new or changed tests
         id: detect
+        env:
+          FORCE_FULL_DOC_RUN: ${{ github.event.inputs.full_run || 'false' }}
         run: |
           node auto_documentator/scripts/detect-changes.mjs | tee detect-output.txt
           

@@ -68,10 +68,36 @@ function findTestFiles() {
  * Detect changes
  */
 function detectChanges() {
+    const forceFullRun = process.env.FORCE_FULL_DOC_RUN === 'true';
+    
     console.log('🔍 Detecting new or changed tests...\n');
     
-    const metadata = loadMetadata();
     const currentTests = findTestFiles();
+    
+    // Optional full-run mode: process ALL tests, ignoring metadata
+    if (forceFullRun) {
+        console.log('🚨 FORCE FULL DOC RUN ENABLED - processing ALL tests from codebase\n');
+        
+        console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        console.log('📊 FULL RUN SUMMARY');
+        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        console.log(`   Total tests:      ${currentTests.length}`);
+        console.log(`   New tests:        ${currentTests.length}`);
+        console.log(`   Changed tests:    0`);
+        console.log(`   Unchanged tests:  0`);
+        console.log(`   To process:       ${currentTests.length}`);
+        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
+        
+        // Save all tests to process
+        fs.mkdirSync(path.dirname(OUTPUT_FILE), { recursive: true });
+        fs.writeFileSync(OUTPUT_FILE, currentTests.join('\n'));
+        
+        console.log(`🚀 Will process ${currentTests.length} test(s) (FULL RUN)\n`);
+        return currentTests.length;
+    }
+    
+    // Normal incremental mode (metadata-based)
+    const metadata = loadMetadata();
     
     const newTests = [];
     const changedTests = [];
