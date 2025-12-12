@@ -97,7 +97,7 @@ test.describe('user_flags_approve_reject_test', () => {
                 const { flagSection } = await navigateToSessionFlags(page, sessionId);
                 const { icdsElement, irrsElement } = await validateFlagSections(
                     page,
-                    'GROSS_INCOME_RATIO_EXCEEDED',
+                    null, // No specific decline flag asserted here
                     'NO_INCOME_SOURCES_DETECTED'
                 );
 

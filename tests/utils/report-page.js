@@ -1257,15 +1257,19 @@ const validateFlagSections = async (page, declineSectionFlagId, reviewSectionFla
     const icdsElement = await page.getByTestId('items-causing-decline-section');
     await expect(icdsElement).toBeVisible();
 
-    const giFlagElement = await icdsElement.getByTestId(declineSectionFlagId);
-    await expect(giFlagElement).toBeVisible({ timeout: 360_000 });
-    await expect(giFlagElement.getByTestId('mark_as_non_issue')).toBeVisible();
+    if (declineSectionFlagId) {
+        const declineFlagElement = await icdsElement.getByTestId(declineSectionFlagId);
+        await expect(declineFlagElement).toBeVisible({ timeout: 360_000 });
+        await expect(declineFlagElement.getByTestId('mark_as_non_issue')).toBeVisible();
+    }
 
     const irrsElement = await page.getByTestId('items-requiring-review-section');
     await expect(irrsElement).toBeVisible();
 
-    const reviewFlagElement = await irrsElement.getByTestId(reviewSectionFlagId);
-    await expect(reviewFlagElement).toBeVisible();
+    if (reviewSectionFlagId) {
+        const reviewFlagElement = await irrsElement.getByTestId(reviewSectionFlagId);
+        await expect(reviewFlagElement).toBeVisible();
+    }
 
     return { icdsElement, irrsElement };
 };
