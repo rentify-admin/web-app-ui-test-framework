@@ -180,6 +180,16 @@ const veriDocsBankStatementData = (userData = null) => {
     };
 };
 
+
+const createDate = (daysAgo) => {
+    const date = new Date();
+    date.setUTCDate(date.getUTCDate() - daysAgo);
+    const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+    const day = String(date.getUTCDate()).padStart(2, '0');
+    const year = date.getUTCFullYear();
+    return `${month}/${day}/${year}`;
+};
+
 /**
  * Helper for cadence in number of days
  */
@@ -188,6 +198,7 @@ const getCadenceDays = (cadence) => {
         case 'weekly': return 7;
         case 'semiweekly': return 3; // 2 per week ~ every 3 days
         case 'monthly': return 30;
+        case 'biweekly': return 14;
         case 'semimonthly': return 15;
         case 'quarterly': return 90;
         case 'halfyearly': return 182;
@@ -220,15 +231,6 @@ const customVeriDocsBankStatementData = (
     miscCount = 3,
     opts = {}
 ) => {
-    const createDate = (daysAgo) => {
-        const date = new Date();
-        date.setUTCDate(date.getUTCDate() - daysAgo);
-        const month = String(date.getUTCMonth() + 1).padStart(2, '0');
-        const day = String(date.getUTCDate()).padStart(2, '0');
-        const year = date.getUTCFullYear();
-        return `${month}/${day}/${year}`;
-    };
-
     const todayAgo = 1;
     const periodDays = 30;
     const startPeriodAgo = todayAgo + periodDays - 1;
@@ -243,7 +245,7 @@ const customVeriDocsBankStatementData = (
     const payrollAmount = opts.creditAmount ?? 1000;
     const payrollCadenceDays = getCadenceDays(payrollCadence);
 
-    let firstPayrollAgo = startPeriodAgo + (payrollCadenceDays * Math.max(payrollCount-1,0));
+    let firstPayrollAgo = startPeriodAgo + (payrollCadenceDays * Math.max(payrollCount - 1, 0));
     if (firstPayrollAgo > periodDays + todayAgo - 1) firstPayrollAgo = periodDays + todayAgo - 1;
     for (let i = 0; i < payrollCount; ++i) {
         const daysAgo = startPeriodAgo + (payrollCadenceDays * (payrollCount - i - 1));
@@ -284,9 +286,10 @@ const customVeriDocsBankStatementData = (
         }
     }
 
-    // Miscellaneous credit/debit transactions (alternating debits and misc descriptions)
+    // Miscellaneous debit transactions
     const miscTxs = [];
-    const miscAmount = opts.debitAmount ?? -500;
+    // Always use absolute value and apply negative sign for debit amount
+    let miscAmount = opts.debitAmount !== undefined ? -Math.abs(opts.debitAmount) : -500;
     const miscDescriptions = opts.miscDescriptions || [
         "Transfer-From-Savings-APItest",
         "Mortgage-Payment-APItest",
@@ -320,7 +323,19 @@ const customVeriDocsBankStatementData = (
         return getDaysAgo(a.date) - getDaysAgo(b.date);
     });
 
-    // Calculate running balances if user wants
+    // Make sure debit transactions always show as negative (in case userData has positive manual value)
+    allTxs = allTxs.map(tx => {
+        if (tx.type === "debit") {
+            // If amount > 0, make it negative; if already negative, leave; if zero, just zero.
+            return {
+                ...tx,
+                amount: -Math.abs(tx.amount)
+            }
+        }
+        return tx;
+    });
+
+    // Calculate running balances so that credits add to balance and debits subtract from balance
     let startBalance = opts.startBalance ?? 10500.00;
     let runningBalance = startBalance;
     for (let i = allTxs.length - 1; i >= 0; --i) {
@@ -407,8 +422,8 @@ const customVeriDocsBankStatementData = (
                                     "balance_end_date": period_end_date,
                                     "balance_total_start": Number(balance_total_start.toFixed(2)),
                                     "balance_total_end": Number(balance_total_end.toFixed(2)),
-                                    "total_credits": Number(allTxs.filter(t => t.amount > 0).reduce((a, t) => a + t.amount, 0).toFixed(2)),
-                                    "total_debits": Number(allTxs.filter(t => t.amount < 0).reduce((a, t) => a + Math.abs(t.amount), 0).toFixed(2)),
+                                    "total_credits": Number(allTxs.filter(t => t.type === "credit").reduce((a, t) => a + Math.abs(t.amount), 0).toFixed(2)),
+                                    "total_debits": Number(allTxs.filter(t => t.type === "debit").reduce((a, t) => a + Math.abs(t.amount), 0).toFixed(2)),
                                     "transactions": allTxs
                                 }
                             ]
