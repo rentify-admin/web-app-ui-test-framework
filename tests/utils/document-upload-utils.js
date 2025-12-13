@@ -18,8 +18,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
  * @param {number} options.timeout - Timeout for processing (default: 10000)
  */
 export const uploadPaystubDocuments = async (page, filePaths, options = {}) => {
-    const { cadence = 'Bi-Weekly', timeout = 10000 } = options;
-    
+    const { cadence = 'Bi-Weekly', timeout = 10000, continueStep = true, waitForCompletion = true } = options;
     // Click paystub upload button
     await page.getByTestId('document-pay_stub').click();
     await page.locator('button').filter({ hasText: /^Upload Paystubs$/ }).click();
@@ -51,13 +50,14 @@ export const uploadPaystubDocuments = async (page, filePaths, options = {}) => {
     // Wait for Pay Stub section to appear and check for processing
     await expect(page.getByText('Pay StubProcessing')).toBeVisible({ timeout });
     const payStubConnectionRow = page.locator('span:has-text("Pay Stub")').first().locator('xpath=../..');
-    
-    // Wait for completion
-    await waitForConnectionCompletion(page, {
-        maxIterations: 130,
-        customLocator: payStubConnectionRow
-    });
-    
+
+    if (waitForCompletion) {
+        // Wait for completion
+        await waitForConnectionCompletion(page, {
+            maxIterations: 130,
+            customLocator: payStubConnectionRow
+        });
+    }
     // Verify employment verification API response
     const employmentData = await employmentResponse.json();
     console.log('🚀 ~ Employment verification API response:', employmentData);
@@ -66,10 +66,11 @@ export const uploadPaystubDocuments = async (page, filePaths, options = {}) => {
     if (!employmentData.data) {
         throw new Error('Employment verification API did not return expected data structure');
     }
-    
-    // Continue to next step
-    await page.getByTestId('employment-step-continue').click();
-    
+    if (continueStep) {
+        // Continue to next step
+        await page.getByTestId('employment-step-continue').click();
+    }
+
     return employmentData;
 };
 
