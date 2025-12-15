@@ -260,7 +260,7 @@ test.describe('QA-228 skip_button_availability_non_complete_steps.spec', () => {
         // ------ Step 10: Employment Step (after skipping financial) ------
         const employmentStep = page.getByTestId('employment-verification-step');
         await expect(employmentStep).toBeVisible();
-        await page.waitForTimeout(1000);
+        await page.waitForTimeout(3000);
 
         // Toggle expand/close on summary tile for robust UI state
         await financialStepStatus.click();

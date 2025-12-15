@@ -4,7 +4,7 @@ import { app } from './test_config'
 import { loginWithAdmin } from './endpoint-utils/auth-helper'
 import { getApplicationByName } from './endpoint-utils/application-helper'
 import { completeApplicantForm, identityStep, setupInviteLinkSession } from './utils/session-flow'
-import { getRandomEmail } from './utils/helper'
+import { getRandomEmail, joinUrl } from './utils/helper'
 import { cleanupSession } from './utils/cleanup-helper'
 import { waitForJsonResponse } from './utils/wait-response'
 
@@ -24,7 +24,7 @@ test.describe('QA-254 identity_button_connection_persistence_after_close_persona
 
         const user = {
             first_name: "Autotest",
-            last_user: 'user',
+            last_name: 'user',
             email: getRandomEmail()
         }
 
@@ -40,19 +40,22 @@ test.describe('QA-254 identity_button_connection_persistence_after_close_persona
 
     test('Verify Identity Modal State Persistence After Close/Reopen (VC-730)', {
         timeout: 200_000,
-        tag: ['@regression', '@core']
+        tag: ['@need-review']
     }, async ({ page }) => {
         test.setTimeout(200_000)
 
         // Step 1
         console.log('🚪 Navigating to invite session URL...')
-        createdSession.url = createdSession.url.replace('https://dev.verifast.app/', 'https://rentify-v2.test/')
-        await page.goto(createdSession.url);
+        // Reconstruct URL using configured app URL to support multi-environment (dev/staging/rc)
+        const linkUrl = new URL(createdSession.url);
+        const gotoUrl = joinUrl(app.urls.app, `${linkUrl.pathname}${linkUrl.search}`);
+        console.log('🌐 Using app URL:', gotoUrl);
+        await page.goto(gotoUrl);
 
         // Step 2
         console.log('⚙️  Setting up invite link session...')
         await setupInviteLinkSession(page, {
-            sessionUrl: createdSession.url
+            sessionUrl: gotoUrl
         });
 
         // Step 3

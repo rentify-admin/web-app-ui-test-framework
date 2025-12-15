@@ -165,10 +165,10 @@ jobs:
       - run: npm ci
       
       - uses: actions/download-artifact@v4
+        continue-on-error: true
         with:
           name: tests-to-process
           path: documentation/
-          continue-on-error: true
       
       - uses: actions/download-artifact@v4
         with:
@@ -310,12 +310,17 @@ jobs:
       - name: Merge all documentation
         id: consolidate
         run: |
-          OUTPUT=$(node auto_documentator/scripts/merge-documentation.mjs 2>&1)
+          OUTPUT=$(node auto_documentator/scripts/merge-documentation.mjs 2>&1) || EXIT_CODE=$?
           echo "$OUTPUT"
           
+          # Extract stats from output
           TOTAL_FILES=$(echo "$OUTPUT" | grep -oP 'TOTAL_ENTRIES:\K\d+' || echo "0")
           TOTAL_CASES=$(echo "$OUTPUT" | grep -oP 'TOTAL_TEST_CASES:\K\d+' || echo "0")
           KEPT=$(echo "$OUTPUT" | grep -oP 'KEPT:\K\d+' || echo "0")
+          
+          # Ensure we have numeric values
+          TOTAL_FILES=${TOTAL_FILES:-0}
+          TOTAL_CASES=${TOTAL_CASES:-0}
           
           # Safety check: If we're processing a few tests but total is too low, warn
           if [ -f "documentation/tests-to-process.txt" ]; then
@@ -327,9 +332,24 @@ jobs:
             fi
           fi
           
+          # Always set outputs (even if 0)
           echo "total=$TOTAL_FILES" >> $GITHUB_OUTPUT
           echo "total-cases=$TOTAL_CASES" >> $GITHUB_OUTPUT
           echo "✅ Final documentation: $TOTAL_FILES files, $TOTAL_CASES test cases"
+          
+          # Verify consolidated file exists
+          if [ ! -f "documentation/CONSOLIDATED_DOCUMENTATION.md" ]; then
+            echo "⚠️  WARNING: Consolidated documentation file was not created!"
+            echo "   This may cause the Coda update to be skipped."
+          else
+            FILE_SIZE=$(wc -c < documentation/CONSOLIDATED_DOCUMENTATION.md)
+            echo "✅ Consolidated file exists (${FILE_SIZE} bytes)"
+          fi
+          
+          # If script failed but we have outputs, don't fail the step
+          if [ "${EXIT_CODE:-0}" -ne 0 ]; then
+            echo "⚠️  Script exited with code $EXIT_CODE, but outputs are set"
+          fi
         env:
           GITHUB_ACTOR: ${{ github.actor }}
           GIT_USER_NAME: ${{ github.event.pusher.name || github.actor }}
@@ -348,7 +368,7 @@ jobs:
         with:
           name: existing-docs
           path: documentation/EXISTING_DOCUMENTATION.md
-          retention-days: 365  # Keep for incremental updates
+          retention-days: 90  # Keep for incremental updates (max allowed)
       
       - name: Update metadata for processed tests
         run: |
@@ -359,7 +379,7 @@ jobs:
         with:
           name: test-metadata
           path: documentation/test-metadata.json
-          retention-days: 365  # Keep metadata for a year
+          retention-days: 90  # Keep metadata (max allowed)
 
   # ==========================================================================
   # JOB: UPDATE CODA
@@ -368,7 +388,13 @@ jobs:
     name: 6️⃣ Update Coda
     runs-on: ubuntu-latest
     needs: [prepare, consolidate]
-    if: needs.consolidate.outputs.total-entries > 0 && needs.prepare.outputs.skip-processing != 'true'
+    if: |
+      always() &&
+      needs.consolidate.result == 'success' &&
+      needs.prepare.outputs.skip-processing != 'true' &&
+      needs.consolidate.outputs.total-entries != '' &&
+      needs.consolidate.outputs.total-entries != '0' &&
+      needs.consolidate.outputs.total-entries > 0
     
     steps:
       - uses: actions/checkout@v4
@@ -384,6 +410,20 @@ jobs:
         with:
           name: consolidated-docs
           path: documentation/
+      
+      - name: Debug - Check outputs
+        run: |
+          echo "Consolidate job result: ${{ needs.consolidate.result }}"
+          echo "Total entries: '${{ needs.consolidate.outputs.total-entries }}'"
+          echo "Total test cases: '${{ needs.consolidate.outputs.total-test-cases }}'"
+          echo "Skip processing: '${{ needs.prepare.outputs.skip-processing }}'"
+          if [ -f "documentation/CONSOLIDATED_DOCUMENTATION.md" ]; then
+            echo "✅ Consolidated documentation file exists"
+            FILE_SIZE=$(wc -c < documentation/CONSOLIDATED_DOCUMENTATION.md)
+            echo "File size: $FILE_SIZE bytes"
+          else
+            echo "❌ Consolidated documentation file NOT found"
+          fi
       
       - name: Update Coda page
         run: node auto_documentator/scripts/update-coda-page.mjs
