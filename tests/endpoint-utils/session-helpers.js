@@ -198,6 +198,33 @@ async function createSession(adminClient, user, applicationId) {
     }
 }
 
+async function getSession(apiClient, sessionId, fields = null) {
+    try {
+        console.log('[getSession] Fetching session data...');
+        const sessionFields = {
+            session_step: ':all',
+            session: 'state,applicant,application,children,target,parent,completion_status,actions,flags,type,role,stakeholder_count',
+            applicant: 'guest',
+            guest: ':all',
+            application: 'name,settings,workflow,eligibility_template',
+            workflow_step: ':all'
+        }
+
+        const usedFields = fields ? fields : sessionFields;
+        console.log(`[getSession] sessionId: ${sessionId}`);
+
+        const response = await apiClient.get(`/sessions/${sessionId}`, { fields: usedFields })
+
+        console.log('[getSession] Session data received:', response?.data?.data?.id || '[No ID]');
+        return response.data.data;
+    } catch (error) {
+        console.error("❌ Error in getSession", error.message, error.stack);
+        throw error;
+    }
+}
+
+
+
 export {
     createCurrentStep,
     simulateVerification,
@@ -205,5 +232,6 @@ export {
     waitForStepTransition,
     loginWithGuestUser,
     inviteUser,
-    createSession
+    createSession,
+    getSession
 }
