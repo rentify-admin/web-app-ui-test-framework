@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 import { adminLoginAndNavigateToApplications } from './utils/session-utils';
 import { admin, app } from './test_config';
 import { findAndCopyApplication } from './utils/applications-page';
-import { completeApplicantForm, completeApplicantRegistrationForm, connectBankOAuthFlow, setupInviteLinkSession } from './utils/session-flow';
+import { completeApplicantForm, completeApplicantRegistrationForm, connectBankOAuthFlow, setupInviteLinkSession, waitForElementVisible, waitForElementText, verifyAndClickSkipButton } from './utils/session-flow';
 import { waitForJsonResponse } from './utils/wait-response';
 import { uploadPaystubDocuments } from './utils/document-upload-utils';
 import { joinUrl } from './utils/helper';
@@ -160,16 +160,14 @@ test.describe('QA-228 skip_button_availability_non_complete_steps.spec', () => {
         const statusTextDiv = await idStatusTile.getByTestId('verification-status')
         await expect(statusTextDiv).toHaveText('incomplete', { ignoreCase: true, timeout: 20_000 })
 
-        // Confirm skip button is available on incomplete ID verification step
-        const identitySkipBtn = idStep.getByTestId('identity-skip-btn');
-        await expect(identitySkipBtn).toBeVisible({ timeout: 30_000 });
-
-        // Click skip and confirm skip applied
-        console.log('⏩ Skipping ID Verification step (incomplete)...');
-        await identitySkipBtn.click();
-        const identityStepStatus = page.locator('[data-testid^="step-IDENTITY_VERIFICATION"]').filter({ visible: true });
-        await expect(identityStepStatus.getByTestId('step-status')).toHaveText('skipped', { ignoreCase: true });
-        console.log('✅ ID Verification step skipped.');
+        // Confirm skip button is available on incomplete ID verification step and click it
+        await verifyAndClickSkipButton(
+            page,
+            idStep,
+            'identity-skip-btn',
+            'ID Verification',
+            'IDENTITY_VERIFICATION'
+        );
 
         // ------ Step 9: Interact with Financial Verification ------
         const financialStep = page.getByTestId('financial-verification-step');
@@ -211,51 +209,35 @@ test.describe('QA-228 skip_button_availability_non_complete_steps.spec', () => {
 
         // Wait for failed connection row to appear
         const finConnectionRow = financialStep.getByTestId('connection-row');
-        let finConnVisible = false;
-        for (let i = 0; i < 10; i++) {
-            if (i === 9) {
-                console.log('⚠️ Reloading page on last attempt to detect financial connection row...');
-                await page.reload();
-            }
-            if (await finConnectionRow.isVisible()) {
-                finConnVisible = true;
-                break;
-            }
-            await page.waitForTimeout(5000);
-        }
-        if (!finConnVisible) {
-            throw new Error('Connection row did not become visible after 10 attempts');
-        }
+        await waitForElementVisible(page, finConnectionRow, {
+            maxAttempts: 10,
+            pollInterval: 5000,
+            reloadOnLastAttempt: true,
+            errorMessage: 'Connection row did not become visible after 10 attempts'
+        });
         console.log('✅ Financial connection row found.');
 
         // Wait for financial-row-status to actually say 'failed'
-        let statusFailed = false;
-        for (let i = 0; i < 10; i++) {
-            if (i === 9) {
-                console.log('⚠️ Reloading page on last attempt to detect failed status...');
-                await page.reload();
-            }
-            const text = (await finConnectionRow.getByTestId('financial-row-status').textContent() || '').toLowerCase().trim();
-            if (text === 'failed') {
-                statusFailed = true;
-                break;
-            }
-            await page.waitForTimeout(5000);
-        }
-        if (!statusFailed) {
-            throw new Error('financial-row-status did not become "failed" after 10 attempts');
-        }
-        await expect(finConnectionRow.getByTestId('financial-row-status')).toHaveText('failed', { ignoreCase: true, timeout: 20_000 });
+        const finStatusLocator = finConnectionRow.getByTestId('financial-row-status');
+        await waitForElementText(page, finStatusLocator, 'failed', {
+            maxAttempts: 10,
+            pollInterval: 5000,
+            reloadOnLastAttempt: true,
+            errorMessage: 'financial-row-status did not become "failed" after 10 attempts'
+        });
         console.log('❌ Simulated failed financial connection.');
 
-        // Check skip button is still present on failed financial verification
-        await expect(finSkipBtn).toBeVisible();
-        console.log('⏩ Skipping Financial Verification step (failed connection)...');
-        await finSkipBtn.click();
+        // Check skip button is still present on failed financial verification and click it
+        await verifyAndClickSkipButton(
+            page,
+            financialStep,
+            'skip-financials-btn',
+            'Financial Verification',
+            'FINANCIAL_VERIFICATION'
+        );
 
+        // Get financial step status locator for later use
         const financialStepStatus = page.locator('[data-testid^="step-FINANCIAL_VERIFICATION"]').filter({ visible: true });
-        await expect(financialStepStatus.getByTestId('step-status')).toHaveText('skipped', { ignoreCase: true });
-        console.log('✅ Financial Verification step skipped.');
 
         // ------ Step 10: Employment Step (after skipping financial) ------
         const employmentStep = page.getByTestId('employment-verification-step');
@@ -293,11 +275,13 @@ test.describe('QA-228 skip_button_availability_non_complete_steps.spec', () => {
         console.log('❌ Detected employment document was marked failed.');
 
         // Check skip button available after failure and skip
-        const empStepSkipBtn = employmentStep.getByTestId('employment-step-skip-btn');
-        await expect(empStepSkipBtn).toBeVisible();
-        console.log('⏩ Skipping Employment Verification step (failed doc)...');
-
-        await empStepSkipBtn.click();
+        await verifyAndClickSkipButton(
+            page,
+            employmentStep,
+            'employment-step-skip-btn',
+            'Employment Verification',
+            'EMPLOYMENT_VERIFICATION'
+        );
 
         // Confirm summary step is reached
         const summaryStep = page.getByTestId('summary-step');

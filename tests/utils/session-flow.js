@@ -473,7 +473,7 @@ const handleOptionalTermsCheckbox = async page => {
         
         // Additional wait for page to stabilize
         await page.waitForLoadState('domcontentloaded');
-        await page.waitForTimeout(1000);
+        await page.waitForTimeout(3000);
     } catch (error) {
         console.log(`⚠️ Error during terms handling: ${error.message}, continuing...`);
     }
@@ -2640,6 +2640,164 @@ async function startSessionFlow(link, browser) {
     return applicantPage;
 }
 
+/**
+ * Wait for an element to become visible with optional retry and reload logic
+ * More robust than simple expect().toBeVisible() for elements that may take time to appear
+ * 
+ * @param {import('@playwright/test').Page} page - Playwright page object
+ * @param {import('@playwright/test').Locator} locator - Element locator to wait for
+ * @param {Object} options - Configuration options
+ * @param {number} options.maxAttempts - Maximum retry attempts (default: 10)
+ * @param {number} options.pollInterval - Time between retries in ms (default: 5000)
+ * @param {boolean} options.reloadOnLastAttempt - Reload page on last attempt if still not visible (default: false)
+ * @param {string} options.errorMessage - Custom error message if element not found
+ * @returns {Promise<void>}
+ * 
+ * @example
+ * await waitForElementVisible(page, finConnectionRow, {
+ *     maxAttempts: 10,
+ *     pollInterval: 5000,
+ *     reloadOnLastAttempt: true,
+ *     errorMessage: 'Connection row did not become visible'
+ * });
+ */
+const waitForElementVisible = async (page, locator, options = {}) => {
+    const {
+        maxAttempts = 10,
+        pollInterval = 5000,
+        reloadOnLastAttempt = false,
+        errorMessage = 'Element did not become visible after maximum attempts'
+    } = options;
+
+    let elementVisible = false;
+    for (let i = 0; i < maxAttempts; i++) {
+        if (i === maxAttempts - 1 && reloadOnLastAttempt) {
+            console.log(`⚠️ Reloading page on last attempt to detect element...`);
+            await page.reload();
+            await page.waitForTimeout(2000); // Wait for page to stabilize after reload
+        }
+        
+        if (await locator.isVisible()) {
+            elementVisible = true;
+            break;
+        }
+        
+        if (i < maxAttempts - 1) {
+            await page.waitForTimeout(pollInterval);
+        }
+    }
+    
+    if (!elementVisible) {
+        throw new Error(errorMessage);
+    }
+};
+
+/**
+ * Wait for an element's text content to match expected value with polling
+ * More robust than simple expect().toHaveText() for text that may change during render
+ * 
+ * @param {import('@playwright/test').Page} page - Playwright page object
+ * @param {import('@playwright/test').Locator} locator - Element locator containing text
+ * @param {string} expectedText - Expected text value (case-insensitive comparison)
+ * @param {Object} options - Configuration options
+ * @param {number} options.maxAttempts - Maximum retry attempts (default: 10)
+ * @param {number} options.pollInterval - Time between retries in ms (default: 5000)
+ * @param {boolean} options.reloadOnLastAttempt - Reload page on last attempt if still not matching (default: false)
+ * @param {string} options.errorMessage - Custom error message if text doesn't match
+ * @returns {Promise<void>}
+ * 
+ * @example
+ * await waitForElementText(page, statusLocator, 'failed', {
+ *     maxAttempts: 10,
+ *     pollInterval: 5000,
+ *     reloadOnLastAttempt: true,
+ *     errorMessage: 'Status did not become "failed"'
+ * });
+ */
+const waitForElementText = async (page, locator, expectedText, options = {}) => {
+    const {
+        maxAttempts = 10,
+        pollInterval = 5000,
+        reloadOnLastAttempt = false,
+        errorMessage = `Element text did not become "${expectedText}" after maximum attempts`
+    } = options;
+
+    const normalizedExpected = expectedText.toLowerCase().trim();
+    let textMatched = false;
+    
+    for (let i = 0; i < maxAttempts; i++) {
+        if (i === maxAttempts - 1 && reloadOnLastAttempt) {
+            console.log(`⚠️ Reloading page on last attempt to detect text "${expectedText}"...`);
+            await page.reload();
+            await page.waitForTimeout(2000); // Wait for page to stabilize after reload
+        }
+        
+        try {
+            const text = (await locator.textContent() || '').toLowerCase().trim();
+            if (text === normalizedExpected) {
+                textMatched = true;
+                break;
+            }
+        } catch (error) {
+            // Element might not be available yet, continue polling
+            console.log(`⚠️ Error reading text content (attempt ${i + 1}/${maxAttempts}): ${error.message}`);
+        }
+        
+        if (i < maxAttempts - 1) {
+            await page.waitForTimeout(pollInterval);
+        }
+    }
+    
+    if (!textMatched) {
+        throw new Error(errorMessage);
+    }
+    
+    // Final verification using expect for better error message
+    await expect(locator).toHaveText(expectedText, { ignoreCase: true, timeout: 20_000 });
+};
+
+/**
+ * Verify skip button is visible, click it, and confirm step status becomes "skipped"
+ * Extracts the common pattern of skip button verification and clicking
+ * 
+ * @param {import('@playwright/test').Page} page - Playwright page object
+ * @param {import('@playwright/test').Locator} stepLocator - Locator for the step container
+ * @param {string} skipButtonTestId - Test ID for the skip button
+ * @param {string} stepName - Name of the step (for logging)
+ * @param {string} stepType - Step type for status locator (e.g., 'IDENTITY_VERIFICATION', 'FINANCIAL_VERIFICATION')
+ * @param {Object} options - Configuration options
+ * @param {number} options.skipButtonTimeout - Timeout for skip button visibility (default: 30_000)
+ * @returns {Promise<void>}
+ * 
+ * @example
+ * await verifyAndClickSkipButton(
+ *     page,
+ *     idStep,
+ *     'identity-skip-btn',
+ *     'ID Verification',
+ *     'IDENTITY_VERIFICATION'
+ * );
+ */
+const verifyAndClickSkipButton = async (page, stepLocator, skipButtonTestId, stepName, stepType, options = {}) => {
+    const { skipButtonTimeout = 30_000 } = options;
+    
+    // Small stabilization wait to give the UI time to render the skip button
+    await page.waitForTimeout(2_000);
+
+    // Verify skip button is available
+    const skipBtn = stepLocator.getByTestId(skipButtonTestId);
+    await expect(skipBtn).toBeVisible({ timeout: skipButtonTimeout });
+    
+    // Click skip button
+    console.log(`⏩ Skipping ${stepName} step...`);
+    await skipBtn.click();
+    
+    // Verify step status becomes "skipped"
+    const stepStatus = page.locator(`[data-testid^="step-${stepType}"]`).filter({ visible: true });
+    await expect(stepStatus.getByTestId('step-status')).toHaveText('skipped', { ignoreCase: true });
+    console.log(`✅ ${stepName} step skipped.`);
+};
+
 export {
     uploadStatementFinancialStep,
     simulatorFinancialStepWithVeridocs,
@@ -2673,6 +2831,9 @@ export {
     identityStep,
     completePlaidFinancialStepBetterment,
     waitForButtonOrAutoAdvance,
-    startSessionFlow
+    startSessionFlow,
+    waitForElementVisible,
+    waitForElementText,
+    verifyAndClickSkipButton
 };
 

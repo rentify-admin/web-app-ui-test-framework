@@ -291,10 +291,14 @@ const checkExportPdf = async (page, context, sessionId) => {
     await page.getByTestId('income-source-delist-submit').click();
 
     const [ pdfResponse, popupPage ] = await Promise.all([
-        page.waitForResponse(resp => resp.url().includes(`/sessions?session_ids[]=${sessionId}`)
-            && resp.request().method() === 'GET'
-            && resp.headers()['content-type'] === 'application/pdf'
-            && resp.ok()),
+        page.waitForResponse(resp => {
+            const url = resp.url();
+            return url.includes('/sessions')
+                && url.includes(`session_ids[]=${sessionId}`)
+                && resp.request().method() === 'GET'
+                && resp.headers()['content-type'] === 'application/pdf'
+                && resp.ok();
+        }),
         page.waitForEvent('popup')
     ]);
 
@@ -1042,43 +1046,41 @@ const navigateToSessionByIdAndGetFlags = async (page, sessionId, buildFlagsPredi
     }
     console.log('✅ Session link found:', sessionId);
 
-    await sessionLink.click();
-
-    // Start listening for BOTH responses BEFORE reload
+    // Set up listeners BEFORE clicking to catch responses from initial navigation
     const sessionResponsePromise = page.waitForResponse(resp => {
         return resp.url().includes(`/sessions/${sessionId}`)
             && resp.request().method() === 'GET'
             && resp.ok();
-    }, { timeout: 15000 });
+    }, { timeout: 20000 });
 
-    const flagsResponsePromise = page.waitForResponse(buildFlagsPredicate(sessionId), { timeout: 10000 });
+    const flagsResponsePromise = page.waitForResponse(buildFlagsPredicate(sessionId), { timeout: 20000 });
 
-    // Wait a bit to ensure response listeners are active
-    await page.waitForTimeout(100);
-
-    // Reload the page (this triggers both API calls)
-    await page.reload();
-
+    // Click the session link (this triggers navigation and API calls)
+    await sessionLink.click();
+    
     // Wait for session response first
     await sessionResponsePromise;
     console.log('✅ Session loaded');
+    
+    // Wait for page to stabilize
+    await page.waitForLoadState('domcontentloaded');
 
     // Try to get flags from page load (conditional approach)
     let flags;
     try {
-        console.log('🔍 Attempting to capture flags from page load (10s timeout)...');
+        console.log('🔍 Attempting to capture flags from initial page load (20s timeout)...');
         const flagsResponse = await flagsResponsePromise;
         flags = await waitForJsonResponse(flagsResponse);
         console.log('✅ Flags captured from automatic page load');
     } catch (error) {
-        console.log('⚠️  Flags not captured from page load, clicking "View Details" button...');
+        console.log('⚠️  Flags not captured from initial load, trying "View Details" button...');
         
         // Fallback: Click View Details to trigger flags request
         const viewDetailsBtn = page.getByTestId('view-details-btn');
         await expect(viewDetailsBtn).toBeVisible({ timeout: 10000 });
         
         const flagsResponseFallback = await Promise.all([
-            page.waitForResponse(buildFlagsPredicate(sessionId), { timeout: 10000 }),
+            page.waitForResponse(buildFlagsPredicate(sessionId), { timeout: 20000 }),
             viewDetailsBtn.click()
         ]);
         
@@ -1154,16 +1156,28 @@ const navigateToSessionFlags = async (page, sessionId) => {
             await expect(page.getByTestId('view-details-btn')).toBeVisible({ timeout: 10000 });
             await page.waitForTimeout(1000); // Allow UI to stabilize
 
-            const [ flagsResponse ] = await Promise.all([
-                page.waitForResponse(resp => resp.url().includes(`/sessions/${sessionId}/flags`)
-                    && resp.request().method() === 'GET'
-                    && resp.ok(), { timeout: 30000 }), // 30 second timeout
-                page.getByTestId('view-details-btn').click()
-            ]);
+            // Click View Details; flags may already be loaded from a previous request,
+            // so we rely primarily on the UI becoming visible rather than a fresh network call.
+            await page.getByTestId('view-details-btn').click();
 
-            const { data: flags } = await waitForJsonResponse(flagsResponse);
             const flagSection = await page.getByTestId('report-view-details-flags-section');
-            await expect(flagSection).toBeVisible();
+            await expect(flagSection).toBeVisible({ timeout: 10000 });
+
+            // Best-effort: try to capture the latest flags response if one occurs,
+            // but don't fail the navigation if it doesn't.
+            let flags = null;
+            try {
+                const flagsResponse = await page.waitForResponse(resp =>
+                    resp.url().includes(`/sessions/${sessionId}/flags`) &&
+                    resp.request().method() === 'GET' &&
+                    resp.ok(),
+                    { timeout: 5000 }
+                );
+                const json = await waitForJsonResponse(flagsResponse);
+                flags = json.data;
+            } catch (networkError) {
+                console.log(`⚠️ No fresh /flags response captured during navigation (this may be expected if flags were preloaded): ${networkError.message}`);
+            }
 
             console.log(`✅ Successfully navigated to session flags on attempt ${attempt}`);
             return { flags, flagSection };

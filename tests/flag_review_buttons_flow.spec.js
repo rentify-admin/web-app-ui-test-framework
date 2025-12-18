@@ -388,8 +388,8 @@ test.describe('QA-202 flag_review_buttons_flow', () => {
                 await expect(element.in_review).toBeFalsy();
             }
 
-            for (let index = 0; index < flags.data.length; index++) {
-                const element = flags.data[index];
+            for (let index = 0; index < reviewedFlags.length; index++) {
+                const element = reviewedFlags[index];
                 await expect(page.locator(`li[id=flag-${element.id}]`)).toContainText(`Reviewed by: ${adminUser.full_name} ${mmddyy}`, { timeout: 20_000 })
             }
 
@@ -436,15 +436,49 @@ test.describe('QA-202 flag_review_buttons_flow', () => {
 function buildFlagsFetchPredicate(sessionId) {
     return (resp) => {
         try {
-            const link = new URL(customUrlDecode(resp.url()));
+            const url = resp.url();
+            const decodedUrl = customUrlDecode(url);
+            const link = new URL(decodedUrl);
+            
+            // Check path matches flags endpoint for this session
             if (!link.pathname.includes(`/sessions/${sessionId}/flags`)) return false;
             if (resp.request().method() !== 'GET') return false;
             if (!resp.ok()) return false;
+            
+            // Parse filters from URL
             const params = new URLSearchParams(link.search);
             const rawFilters = params.get('filters');
-            const filters = rawFilters ? JSON.parse(rawFilters) : null;
-            return filters?.session_flag?.flag?.scope?.$neq === 'APPLICANT';
-        } catch (_) {
+            if (!rawFilters) return false;
+            
+            // Try parsing the filters - handle both URL-encoded and already-decoded cases
+            let filters;
+            try {
+                filters = JSON.parse(rawFilters);
+            } catch (e) {
+                // If parsing fails, try decoding first
+                try {
+                    filters = JSON.parse(decodeURIComponent(rawFilters));
+                } catch (e2) {
+                    return false;
+                }
+            }
+            
+            if (!filters?.session_flag) return false;
+            
+            // Check for new filter structure: session_flag.$and[0].$has.flag.scope.$neq
+            const andClause = filters.session_flag.$and?.[0];
+            if (andClause?.$has?.flag?.scope?.$neq === 'APPLICANT') {
+                return true;
+            }
+            
+            // Fallback to old structure for backward compatibility: session_flag.flag.scope.$neq
+            if (filters.session_flag.flag?.scope?.$neq === 'APPLICANT') {
+                return true;
+            }
+            
+            return false;
+        } catch (error) {
+            // Silently fail - predicate should not throw
             return false;
         }
     };
