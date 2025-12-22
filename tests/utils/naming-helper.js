@@ -38,6 +38,24 @@ const addPrefix = (name) => {
 };
 
 /**
+ * Remove prefix from a name (idempotent - won't remove if not prefixed)
+ * @param {string} name - Name to remove prefix from
+ * @returns {string} Name without prefix
+ */
+const removePrefix = (name) => {
+    if (!name || typeof name !== 'string') {
+        return name || '';
+    }
+    
+    // If name has prefix, remove it
+    if (hasPrefix(name)) {
+        return name.substring(NAME_PREFIX.length).trim();
+    }
+    
+    return name;
+};
+
+/**
  * Generate a random name with prefix
  * @param {string} [baseName='Test'] - Base name to use (default: 'Test')
  * @returns {string} Random name with prefix (e.g., 'AutoT - Test12345')
@@ -149,6 +167,7 @@ export {
     EMAIL_SUFFIX,
     hasPrefix,
     addPrefix,
+    removePrefix,
     addEmailSuffix,
     generateRandomName,
     formatUserData,
@@ -161,6 +180,7 @@ export default {
     EMAIL_SUFFIX,
     hasPrefix,
     addPrefix,
+    removePrefix,
     addEmailSuffix,
     generateRandomName,
     formatUserData,
