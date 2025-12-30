@@ -61,10 +61,33 @@ const pollForFlag = async (page, options) => {
 
         if (i < maxPolls - 1) {
             console.log(`⏳ Flag "${flagTestId}" not yet ${shouldExist ? 'visible' : 'gone'}, waiting... (poll ${i + 1}/${maxPolls})`);
-            await page.waitForTimeout(pollInterval);
+            
+            // Reload page every 6 checks to ensure fresh state
+            if (i > 0 && i % 6 === 0) {
+                console.log(`🔄 Reloading page after ${i} checks to refresh state...`);
+                try {
+                    await page.reload({ waitUntil: 'domcontentloaded' });
+                    await page.waitForTimeout(2000); // Wait for page to stabilize
+                    console.log(`✅ Page reloaded, continuing with check ${i + 1}...`);
+                    
+                    // If refreshModal was enabled, reopen the modal after reload
+                    if (refreshModal) {
+                        try {
+                            await page.getByTestId('view-details-btn').click({ timeout: 10000 });
+                            await page.waitForTimeout(1000);
+                        } catch (e) {
+                            console.log(`⚠️ Could not reopen modal after reload: ${e.message}`);
+                        }
+                    }
+                } catch (e) {
+                    console.log(`⚠️ Could not reload page: ${e.message}`);
+                }
+            } else {
+                await page.waitForTimeout(pollInterval);
+            }
 
-            // Optional: Refresh modal to get updated flags
-            if (refreshModal) {
+            // Optional: Refresh modal to get updated flags (only if not just reloaded)
+            if (refreshModal && !(i > 0 && i % 6 === 0)) {
                 try {
                     await page.getByTestId('close-event-history-modal').click({ timeout: 5000 });
                     await page.waitForTimeout(500);

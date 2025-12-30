@@ -235,14 +235,66 @@ async function fillFinancialStep(page, financialData) {
 
     for (let index = 0; index < financialData.docs.length; index++) {
         const element = financialData.docs[index];
-        const bankDocForm = page.getByTestId(`${element.testid}-doc`);
+        
+        // Check if document type already exists - if so, delete it first before adding
+        const documentForm = page.getByTestId(`${element.testid}-doc`);
+        let documentNeedsAdding = true;
+        
+        try {
+            // Check if document form exists (this determines if we need to delete first)
+            const isFormVisible = await documentForm.isVisible({ timeout: 1000 });
+            
+            if (isFormVisible) {
+                console.log(`⚠️  Document type "${element.docType}" already exists (found form: ${element.testid}-doc). Deleting it first...`);
+                // Get delete button from within the form
+                const deleteButton = documentForm.getByTestId(`doc-${element.testid}-delete`);
+                await deleteButton.click({ timeout: 5000 });
+                // Wait for form to be removed from DOM
+                await documentForm.waitFor({ state: 'detached', timeout: 5000 }).catch(() => {
+                    // If it doesn't detach, at least wait a bit
+                    return page.waitForTimeout(500);
+                });
+                console.log(`✅ Deleted existing "${element.docType}" document type - form removed`);
+                documentNeedsAdding = true; // After deletion, we need to add it
+            }
+        } catch (error) {
+            // If document form doesn't exist, we'll add it fresh
+            console.log(`ℹ️  Document type "${element.docType}" does not exist yet (form not found: ${element.testid}-doc), will add it fresh`);
+            documentNeedsAdding = true;
+        }
 
         // Only add document type if not an update (not needed in this case but logic preserved)
-        if (element.action !== 'update') {
-            await fillMultiselect(page, page.getByTestId('document-type'), [element.docType]);
-            await page.getByTestId('document-type-add-btn').click();
-            console.log(`Added type: ${element.docType}`);
+        if (element.action !== 'update' && documentNeedsAdding) {
+            try {
+                await fillMultiselect(page, page.getByTestId('document-type'), [element.docType]);
+                await page.getByTestId('document-type-add-btn').click();
+                await page.waitForTimeout(300); // Wait for form to appear after adding
+                console.log(`✅ Added type: ${element.docType}`);
+            } catch (error) {
+                // If option not found in dropdown, it might mean the document type already exists
+                if (error.message && error.message.includes('Option not found')) {
+                    console.log(`⚠️  Could not find "${element.docType}" in dropdown - checking if document already exists...`);
+                    
+                    // Re-check if document form exists (maybe it was added by auto-selection or already present)
+                    const docFormCheck = page.getByTestId(`${element.testid}-doc`);
+                    const existsAfterError = await docFormCheck.isVisible({ timeout: 2000 }).catch(() => false);
+                    
+                    if (existsAfterError) {
+                        console.log(`ℹ️  Document "${element.docType}" already exists in the form, continuing with configuration...`);
+                    } else {
+                        console.error(`❌ Failed to add "${element.docType}" - option not found and document does not exist`);
+                        throw error;
+                    }
+                } else {
+                    throw error;
+                }
+            }
         }
+
+        // Now get the document form (it should exist after adding or if it already existed)
+        const bankDocForm = page.getByTestId(`${element.testid}-doc`);
+        // Ensure the form is visible before proceeding
+        await expect(bankDocForm).toBeVisible({ timeout: 5000 });
 
         // Policy field and checks; if policy field pre-filled verify, else set as needed.
         const policyMultiselect = bankDocForm.getByTestId(`doc-${element.testid}-policy`)

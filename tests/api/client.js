@@ -97,7 +97,16 @@ class ApiClient {
             const response = await this.client.patch(endpoint, data, options);
             return response;
         } catch (error) {
-            throw new Error(`PATCH ${endpoint} failed: ${error.message}`);
+            let errorMessage = `PATCH ${endpoint} failed: ${error.message}`;
+            if (error.response) {
+                errorMessage += `\nStatus: ${error.response.status}`;
+                try {
+                    errorMessage += `\nData: ${JSON.stringify(error.response.data, null, 2)}`;
+                } catch {
+                    errorMessage += `\nData: [unserializable]`;
+                }
+            }
+            throw new Error(errorMessage);
         }
     }
 

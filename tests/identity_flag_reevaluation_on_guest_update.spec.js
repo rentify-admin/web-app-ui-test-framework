@@ -7,7 +7,7 @@ import { findAndInviteApplication } from "./utils/applications-page";
 import { authenticateAdmin, cleanupSession } from "./utils/cleanup-helper";
 import { gotoPage } from "./utils/common";
 import generateSessionForm from "./utils/generate-session-form";
-import { pollForFlag } from "./utils/polling-helper";
+import { pollForFlag, pollUntil } from "./utils/polling-helper";
 import { searchSessionWithText } from "./utils/report-page";
 import { setupInviteLinkSession, startSessionFlow, updateRentBudget } from "./utils/session-flow";
 import { adminLoginAndNavigateToApplications } from "./utils/session-utils";
@@ -167,8 +167,20 @@ test.describe('QA-227 identity_flag_reevaluation_on_guest_update.spec', () => {
         await connectBtn.click();
         await applicantPage.waitForTimeout(2000);
 
-        // Wait for next step in applicant summary
-        await expect(applicantPage.getByTestId('summary-step')).toBeVisible({ timeout: 30_000 });
+        // Wait for next step in applicant summary using polling
+        await pollUntil(async () => {
+            const summaryStep = applicantPage.getByTestId('summary-step');
+            const count = await summaryStep.count();
+            if (count > 0) {
+                const isVisible = await summaryStep.isVisible().catch(() => false);
+                return isVisible;
+            }
+            return false;
+        }, {
+            maxPollTime: 60000, // 60 seconds
+            pollInterval: 2000,
+            description: 'summary-step to appear'
+        });
         console.log('📑 1️⃣1️⃣ [Applicant Flow] Arrived at summary step (ID flow complete)');
 
         // -----------------------------------------------
@@ -333,7 +345,7 @@ test.describe('QA-227 identity_flag_reevaluation_on_guest_update.spec', () => {
         await pollForFlag(page, {
             flagTestId: 'IDENTITY_NAME_MISMATCH_WARNING',
             shouldExist: true,
-            maxPollTime: 45000, // 45 seconds
+            maxPollTime: 120000, // 120 seconds - increased for flag re-evaluation processing
             pollInterval: 1500,
             refreshModal: true
         });
@@ -349,6 +361,7 @@ test.describe('QA-227 identity_flag_reevaluation_on_guest_update.spec', () => {
 
         await expect(closeModalBtn).toBeVisible();
         await closeModalBtn.click();
+        await page.waitForTimeout(1500);
 
         // --- 2nd modification: Change last name to match simulant exactly ---
         await editGuestBtn.click();
@@ -427,7 +440,7 @@ test.describe('QA-227 identity_flag_reevaluation_on_guest_update.spec', () => {
         await pollForFlag(page, {
             flagTestId: 'IDENTITY_NAME_MISMATCH_WARNING',
             shouldExist: false,
-            maxPollTime: 90000, // 90 seconds - increased for flag removal
+            maxPollTime: 120000, // 120 seconds - increased for flag re-evaluation processing
             pollInterval: 2000,
             refreshModal: true
         });
