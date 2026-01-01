@@ -14,8 +14,11 @@ const API_URL = app.urls.api;
  * @param {string} [userData.last_name='User'] - Last name
  * @param {string} [userData.email='test@example.com'] - Email address
  */
-const fill = async (page, userData = {}) => {
-
+const fill = async (page, userData = {}, options = {}) => {
+    const defaultOptions = {
+        prefix: true,
+        ...options
+    }
     // Use default values if userData is not provided or specific fields are missing
     const defaultUserData = {
         first_name: 'Test',
@@ -25,10 +28,10 @@ const fill = async (page, userData = {}) => {
     };
 
     // Auto-prefix first name with 'AutoT - ' (idempotent - won't double-prefix)
-    const prefixedFirstName = addPrefix(defaultUserData.first_name);
+    const prefixedFirstName = defaultOptions.noPrefix ? addPrefix(defaultUserData.first_name) : defaultUserData.first_name;
     // Auto-suffix email with '+autotest' (since app uses email to determine guest name)
     const modifiedEmail = addEmailSuffix(defaultUserData.email);
-    
+
     console.log(`🏷️  Naming Helper:`);
     console.log(`   First Name: '${defaultUserData.first_name}' → '${prefixedFirstName}'`);
     console.log(`   Email: '${defaultUserData.email}' → '${modifiedEmail}'`);
@@ -41,10 +44,10 @@ const fill = async (page, userData = {}) => {
 };
 
 const submit = async page => {
-    const [ sessionResponse ] = await Promise.all([
+    const [sessionResponse] = await Promise.all([
         page.waitForResponse(
             resp => resp.url().includes('/sessions')
-            && resp.request().method() === 'POST'
+                && resp.request().method() === 'POST'
                 && resp.ok()
         ),
         page.getByTestId('submit-generate-session').click()
@@ -60,13 +63,13 @@ const submit = async page => {
  * @param {Object} [userData] - Optional user data, will use defaults if not provided
  * @returns {Object} { sessionData, sessionId, sessionUrl, link }
  */
-const generateSessionAndExtractLink = async (page, userData = {}) => {
+const generateSessionAndExtractLink = async (page, userData = {}, options = {}) => {
     const generateForm = await page.locator('#generate-session-form');
     await expect(generateForm).toBeVisible();
 
-    await fill(page, userData);
+    await fill(page, userData, options);
     const sessionData = await submit(page);
-    
+
     const linkSection = page.getByTestId('session-invite-link');
     await expect(linkSection).toBeVisible();
 
