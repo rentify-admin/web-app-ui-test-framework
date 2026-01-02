@@ -22,6 +22,44 @@ test.describe('QA-219: merged_transactions_ui_display.spec', () => {
         await cleanupSession(request, createdSessionId, allTestsPassed);
     });
 
+    /**
+     * Handle "Bank Connect Information — Please Read" modal that can appear
+     * when starting bank connection on the financial step.
+     *
+     * We poll briefly for the dialog and click the "Acknowledge" button so the
+     * actual bank connection / simulation flow can proceed.
+     * If the modal never appears (older builds), this is a no-op.
+     *
+     * @param {import('@playwright/test').Page} page
+     */
+    const handleBankConnectInfoModal = async (page) => {
+        const maxAttempts = 10;      // up to ~10 seconds
+        const intervalMs = 1000;
+
+        for (let attempt = 0; attempt < maxAttempts; attempt++) {
+            const dialog = page.getByRole('dialog');
+            const dialogVisible = await dialog.isVisible().catch(() => false);
+
+            if (dialogVisible) {
+                const titleVisible = await dialog
+                    .getByText('Bank Connect Information — Please Read')
+                    .isVisible()
+                    .catch(() => false);
+
+                if (titleVisible) {
+                    const acknowledgeBtn = dialog.getByRole('button', { name: /Acknowledge/i });
+                    const btnVisible = await acknowledgeBtn.isVisible().catch(() => false);
+                    if (btnVisible) {
+                        await acknowledgeBtn.click({ timeout: 20_000 });
+                        return;
+                    }
+                }
+            }
+
+            await page.waitForTimeout(intervalMs);
+        }
+    };
+
     test('UI Validation for Combined Transactions Display', {
         tag: ['@regression', '@staging-ready', '@rc-ready'],
         timeout: 180_000
@@ -78,6 +116,9 @@ test.describe('QA-219: merged_transactions_ui_display.spec', () => {
             // Click connect bank and wait for the verification POST
             console.log("➡️ Clicking 'connect bank' button...");
             await financialStep.getByTestId('connect-bank').click();
+
+            // NEW: handle bank connect info modal (Acknowledge), if it appears
+            await handleBankConnectInfoModal(applicantPage);
 
             console.log("➡️ Awaiting /financial-verifications POST response...");
             await responsePromise;

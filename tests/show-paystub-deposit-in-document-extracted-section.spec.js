@@ -248,6 +248,36 @@ async function checkDeposits(page, file, paystubData) {
     console.log('✅ View document modal closed');
 }
 
+/**
+ * Handle "Upload your Paystubs" intro modal that can appear
+ * after clicking the employment upload paystub button.
+ *
+ * We poll briefly for the modal and click "Upload Paystubs" so that
+ * the underlying simulation upload controls are available.
+ * Safe no-op if the modal never appears (older builds).
+ *
+ * @param {import('@playwright/test').Page} page
+ */
+async function handleUploadPaystubsIntroModal(page) {
+    const maxAttempts = 10;      // up to ~10 seconds
+    const intervalMs = 1000;
+
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+        const dialog = page.getByRole('dialog');
+        const dialogVisible = await dialog.isVisible().catch(() => false);
+
+        if (dialogVisible) {
+            const uploadBtn = dialog.getByRole('button', { name: /Upload Paystubs/i });
+            const btnVisible = await uploadBtn.isVisible().catch(() => false);
+            if (btnVisible) {
+                await uploadBtn.click({ timeout: 20_000 });
+                return;
+            }
+        }
+
+        await page.waitForTimeout(intervalMs);
+    }
+}
 
 async function uploadVeridocsDoc(applicationPage, paystubData) {
     console.log('🚀 Waiting for pay_stub document tile to be visible');
@@ -257,6 +287,9 @@ async function uploadVeridocsDoc(applicationPage, paystubData) {
 
     console.log('🚀 Clicking upload paystub button');
     await applicationPage.getByTestId('employment-upload-paystub-btn').click();
+
+    // NEW: handle introductory "Upload your Paystubs" modal, if present
+    await handleUploadPaystubsIntroModal(applicationPage);
 
     console.log('🚀 Waiting for browser dialog...');
     const dialogPromise = applicationPage.waitForEvent('dialog').then(async (dialog) => {

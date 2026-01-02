@@ -18,6 +18,38 @@ const appName = 'AutoTest - Internal Scope No Doc Limit';
 let createdSessionId = null;
 let guestAuthToken = null;  // ✅ Store guest token for API polling
 
+/**
+ * Handle employment "Upload your Paystubs" intro modal that appears
+ * after clicking the applicant-side "Upload Paystubs" button.
+ *
+ * We poll briefly for the dialog and click its "Upload Paystubs" primary
+ * button so the underlying cadence selector and file input are usable.
+ * Safe no-op if the modal never appears (older builds).
+ *
+ * @param {import('@playwright/test').Page} page
+ */
+const handleUploadPaystubsIntroModal = async page => {
+    const maxAttempts = 10;      // up to ~10 seconds
+    const intervalMs = 1000;
+
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+        const dialog = page.getByRole('dialog');
+        const dialogVisible = await dialog.isVisible().catch(() => false);
+
+        if (dialogVisible) {
+            const uploadBtn = dialog.getByRole('button', { name: /Upload Paystubs/i });
+            const btnVisible = await uploadBtn.isVisible().catch(() => false);
+            if (btnVisible) {
+                await uploadBtn.click({ timeout: 20_000 });
+                await page.waitForTimeout(1500);
+                return;
+            }
+        }
+
+        await page.waitForTimeout(intervalMs);
+    }
+};
+
 test.describe('QA-212 internal_scope_user_can_override_upload_doc_limit.spec', () => {
 
     test.afterEach(async ({ request }, testInfo) => {
@@ -169,9 +201,23 @@ async function uploadDocument(page, filePaths, options = {}) {
     await page.getByTestId('document-pay_stub').click();
     await page.locator('button').filter({ hasText: /^Upload Paystubs$/ }).click();
 
+    // Handle employment intro modal, if present
+    await handleUploadPaystubsIntroModal(page);
+
     console.log('   📅 Selecting pay cadence:', cadence);
-    await page.locator('.multiselect__tags').click();
-    await page.locator('li').filter({ hasText: new RegExp(`^${cadence}$`) }).click();
+    // Wait for the pay cadence selector to be visible
+    const cadenceSelector = page.getByTestId('pay-cadence');
+    await expect(cadenceSelector).toBeVisible({ timeout: 10000 });
+    
+    // Use direct click approach similar to admin modal (more reliable than fillMultiselect)
+    await cadenceSelector.getByTestId('pay-cadence-tags').click();
+    await page.waitForTimeout(500);
+    
+    // Find and click the cadence option by text
+    const cadenceOption = cadenceSelector.locator('ul>li').filter({ hasText: new RegExp(cadence, 'i') });
+    await expect(cadenceOption.first()).toBeVisible({ timeout: 5000 });
+    await cadenceOption.first().click();
+    await page.waitForTimeout(500);
 
     const resolvedFilePaths = Array.isArray(filePaths)
         ? filePaths.map(file => join(__dirname, '/test_files', file))

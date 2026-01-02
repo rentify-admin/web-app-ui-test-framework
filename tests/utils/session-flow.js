@@ -1655,6 +1655,59 @@ const handleAtomicPayrollChoiceModal = async (page, mode = 'employer') => {
 };
 
 /**
+ * Handle financial intro dialogs that can block financial step actions.
+ *
+ * This includes:
+ * - "Upload Bank Statements" (click "Upload Statements")
+ * - "Bank Connect Information — Please Read" (click "Acknowledge")
+ *
+ * We poll briefly for any such dialog and click the appropriate primary
+ * button so the underlying financial controls (connect-bank, etc.) are usable.
+ * Safe no-op when no dialog is present.
+ *
+ * @param {import('@playwright/test').Page} page
+ */
+const handleFinancialIntroDialogs = async page => {
+    const maxAttempts = 10;      // up to ~10 seconds
+    const intervalMs = 1000;
+
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+        const dialog = page.getByRole('dialog');
+        const dialogVisible = await dialog.isVisible().catch(() => false);
+
+        if (dialogVisible) {
+            // Upload Bank Statements intro
+            const uploadTitleVisible = await dialog
+                .getByText('Upload Bank Statements')
+                .isVisible()
+                .catch(() => false);
+            if (uploadTitleVisible) {
+                const uploadStatementsBtn = dialog.getByRole('button', { name: /Upload Statements/i });
+                if (await uploadStatementsBtn.isVisible().catch(() => false)) {
+                    await uploadStatementsBtn.click({ timeout: 20_000 });
+                    return;
+                }
+            }
+
+            // Bank Connect Information intro
+            const bankInfoTitleVisible = await dialog
+                .getByText('Bank Connect Information — Please Read')
+                .isVisible()
+                .catch(() => false);
+            if (bankInfoTitleVisible) {
+                const acknowledgeBtn = dialog.getByRole('button', { name: /Acknowledge/i });
+                if (await acknowledgeBtn.isVisible().catch(() => false)) {
+                    await acknowledgeBtn.click({ timeout: 20_000 });
+                    return;
+                }
+            }
+        }
+
+        await page.waitForTimeout(intervalMs);
+    }
+};
+
+/**
  * Complete paystub connection
  *
  * @param {import('@playwright/test').Page} applicantPage
@@ -2175,6 +2228,9 @@ const simulatorFinancialStepWithVeridocs = async (page, veridocsPayload) => {
     await uploadStatementBtn.click();
     await page.waitForTimeout(2000);
 
+    // Handle any blocking financial intro dialogs before continuing
+    await handleFinancialIntroDialogs(page);
+
     // Step 3: Click "Connect Bank" button and handle browser prompt
     console.log('🔍 Setting up browser prompt handler...');
     const connectBankBtn = await page.getByTestId('connect-bank');
@@ -2200,6 +2256,10 @@ const simulatorFinancialStepWithVeridocs = async (page, veridocsPayload) => {
     console.log('🔍 Clicking Connect Bank button...');
     await connectBankBtn.click();
     console.log('✅ Connect Bank clicked');
+
+    // Handle any financial intro dialogs that may appear after clicking connect-bank
+    await handleFinancialIntroDialogs(page);
+
     console.log('🔍 Waiting for dialog to appear...');
 
     // Step 4: Wait for simulator to process

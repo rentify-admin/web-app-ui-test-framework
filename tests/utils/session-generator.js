@@ -17,7 +17,8 @@ import { findAndInviteApplication, gotoApplicationsPage } from '~/tests/utils/ap
 import { joinUrl } from '~/tests/utils/helper';
 import { 
     setupInviteLinkSession,
-    fillhouseholdForm
+    fillhouseholdForm,
+    identityStep
 } from '~/tests/utils/session-flow';
 import { personaConnectData } from '~/tests/mock-data/identity-payload';
 import { 
@@ -223,36 +224,14 @@ export async function createPermissionTestSession(adminPage, browser, options = 
         console.log('✅ Primary added to household, continuing...');
     }
     
-    // Step 5: IDENTITY Step - Persona Simulator (OPTIONAL)
+    // Step 5: IDENTITY Step - Persona camera flow (OPTIONAL)
     if (completeIdentity) {
-        console.log('\n📸 IDENTITY STEP: Completing via Persona Simulator...');
-        
-        // Wait for identity-verification step to appear
-        const identityStep = applicantPage.getByTestId('identify-step');
-        await expect(identityStep).toBeVisible({ timeout: 10_000 });
-        console.log('✅ Identity step visible');
-        
-        // Use persona simulator data (matches userData for consistent testing)
-        const data = personaConnectData(userData);
-        
-        const connectBtn = applicantPage.getByTestId('id-simulation-connect-btn');
-        
-        // Set up dialog handler to accept persona simulation data
-        applicantPage.on('dialog', async dialog => {
-            console.log('💬 [Dialog] Browser prompt detected for ID simulation!');
-            await applicantPage.waitForTimeout(500);
-            await dialog.accept(JSON.stringify(data));
-            console.log('✅ [Dialog] Payload sent to the persona simulation dialog.');
-        });
-        
-        // Start the simulation (acts as ID verification by applicant)
-        console.log('🔗 [Persona Sim] Clicking connect button for identity simulation...');
-        await connectBtn.click();
-        await applicantPage.waitForTimeout(2000);
-        
-        // Wait for summary step to appear (indicates identity step completed)
-        await applicantPage.getByTestId('summary-step').waitFor({ state: 'visible', timeout: 60_000 });
-        console.log('✅ Identity verification completed via Persona Simulator');
+        console.log('\n📸 IDENTITY STEP: Completing via Persona camera-based flow (Persona iframe)...');
+
+        // Use shared camera-based Persona helper (same flow as affordable_occupant test)
+        await identityStep(applicantPage);
+
+        console.log('✅ Identity verification completed via Persona camera flow');
     } else {
         console.log('\n⏭️  Skipping identity verification...');
     }

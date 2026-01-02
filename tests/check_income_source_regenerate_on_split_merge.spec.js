@@ -15,6 +15,39 @@ import { fillMultiselect } from './utils/common';
 import { cleanupSession } from './utils/cleanup-helper';
 
 /**
+ * Handle bank connect info modal that may appear after clicking connect-bank
+ * @param {import('@playwright/test').Page} page
+ */
+async function handleBankConnectInfoModal(page) {
+    const maxAttempts = 10;      // up to ~10 seconds
+    const intervalMs = 1000;
+
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+        const dialog = page.getByRole('dialog');
+        const dialogVisible = await dialog.isVisible().catch(() => false);
+
+        if (dialogVisible) {
+            const titleVisible = await dialog
+                .getByText('Bank Connect Information — Please Read')
+                .isVisible()
+                .catch(() => false);
+
+            if (titleVisible) {
+                const acknowledgeBtn = dialog.getByRole('button', { name: /Acknowledge/i });
+                const btnVisible = await acknowledgeBtn.isVisible().catch(() => false);
+                if (btnVisible) {
+                    await acknowledgeBtn.click({ timeout: 20_000 });
+                    await page.waitForTimeout(500);
+                    return;
+                }
+            }
+        }
+
+        await page.waitForTimeout(intervalMs);
+    }
+}
+
+/**
  * Completes the applicant session flow with banking data.
  */
 async function completeSession(inviteLink, browser, sessionId, customData) {
@@ -39,19 +72,31 @@ async function completeSession(inviteLink, browser, sessionId, customData) {
     const financialStep = applicantPage.getByTestId('financial-verification-step');
     await expect(financialStep).toBeVisible();
 
+    console.log('➡️ Preparing mock bank data and waiting for /financial-verifications POST...');
     const responsePromise = applicantPage.waitForResponse(response =>
         response.url().includes('/financial-verifications') &&
         response.request().method() === 'POST' &&
-        response.ok()
+        response.ok(),
+        { timeout: 120_000 } // 2 minutes timeout
     );
 
+    // Set up dialog handler for simulator payload
     applicantPage.on('dialog', async (dialog) => {
+        console.log('✅ Dialog detected, accepting with custom data');
         await dialog.accept(JSON.stringify(customData));
     });
 
     // Click connect bank and wait for the verification POST
+    console.log('➡️ Clicking connect-bank button...');
     await financialStep.getByTestId('connect-bank').click();
+
+    // Handle bank connect info modal (Acknowledge), if it appears
+    console.log('➡️ Checking for bank connect info modal...');
+    await handleBankConnectInfoModal(applicantPage);
+
+    console.log('➡️ Awaiting /financial-verifications POST response...');
     await responsePromise;
+    console.log('✅ Financial verification POST response received');
 
     // ✅ Wait for simulator connection to complete (Processing → Complete)
     console.log('⏳ Waiting for simulator connection to complete...');
