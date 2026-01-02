@@ -35,6 +35,71 @@ test.describe('financial_mx_2_attempts_success_and_failed_password', () => {
     let applicantContext = null;
     let allTestsPassed = true;
 
+    /**
+     * Handle "Bank Connect Information — Please Read" modal that can appear
+     * when starting bank connect (MX / Plaid).
+     *
+     * We look for the "Acknowledge" button and click it so the flow can
+     * proceed to the MX iframe and the POST /financial-verifications call.
+     * If the modal is not present (older builds), this is a no-op.
+     *
+     * @param {import('@playwright/test').Page} page
+     */
+    const handleBankConnectIntroModal = async (page) => {
+        const acknowledgeButton = page.getByRole('button', { name: /Acknowledge/i });
+
+        const isVisible = await acknowledgeButton.isVisible().catch(() => false);
+        if (!isVisible) {
+            return;
+        }
+
+        await acknowledgeButton.click({ timeout: 20_000 });
+    };
+
+    /**
+     * Handle "Can't find your bank or having an issue?" options modal
+     * that can appear right after closing the Bank Connect modal.
+     *
+     * We handle possible delay by polling for the modal for a few seconds.
+     * By default we "cancel" it by clicking the X (data-testid="cancel") if present,
+     * otherwise we click the "Back" button to dismiss and stay on the current flow.
+     * If the modal never appears (older builds), this is a no-op.
+     *
+     * @param {import('@playwright/test').Page} page
+     * @param {'back' | 'plaid'} [option='back']
+     */
+    const handleBankConnectOptionsModal = async (page, option = 'back') => {
+        const maxAttempts = 10;      // e.g. up to ~10s
+        const intervalMs = 1000;
+
+        for (let attempt = 0; attempt < maxAttempts; attempt++) {
+            const titleLocator = page.getByText("Can't find your bank or having an issue?");
+            const titleVisible = await titleLocator.isVisible().catch(() => false);
+
+            if (titleVisible) {
+                // Try explicit cancel (X) first
+                const cancelIcon = page.getByTestId('cancel');
+                const cancelVisible = await cancelIcon.isVisible().catch(() => false);
+                if (cancelVisible) {
+                    await cancelIcon.click({ timeout: 20_000 });
+                    return;
+                }
+
+                // Fallback to footer button by text
+                const buttonName = option === 'plaid' ? /Connect using Plaid/i : /Back/i;
+                const button = page.getByRole('button', { name: buttonName });
+                const buttonVisible = await button.isVisible().catch(() => false);
+                if (buttonVisible) {
+                    await button.click({ timeout: 20_000 });
+                    return;
+                }
+            }
+
+            // Modal not ready yet; wait and retry
+            await page.waitForTimeout(intervalMs);
+        }
+    };
+
     // Helper function to handle modals after page reload (for applicant pages)
     const handleModalsAfterReload = async (page) => {
         console.log('🔄 Handling modals after reload...');
@@ -129,7 +194,14 @@ test.describe('financial_mx_2_attempts_success_and_failed_password', () => {
             resp.request().method() === 'POST' &&
             resp.ok()
           ),
-          applicantPage.getByTestId('connect-bank').click()
+          (async () => {
+            const connectBankBtn = applicantPage.getByTestId('connect-bank');
+            await expect(connectBankBtn).toBeVisible({ timeout: 10_000 });
+            await connectBankBtn.click();
+
+            // NEW: handle bank connect intro modal (Acknowledge)
+            await handleBankConnectIntroModal(applicantPage);
+          })()
         ]);
 
         const financialData = await waitForJsonResponse(financialResponse);
@@ -260,6 +332,8 @@ test.describe('financial_mx_2_attempts_success_and_failed_password', () => {
             if (isCancelVisible) {
                 await cancelBtn.click();
                 console.log('   ✅ Modal closed via cancel button');
+                // Handle follow-up options modal, if it appears
+                await handleBankConnectOptionsModal(applicantPage, 'back');
             } else {
                 // If cancel button not found, try alternative close methods
                 console.log('   ⚠️ Cancel button not found, trying alternative close method...');
@@ -369,6 +443,8 @@ test.describe('financial_mx_2_attempts_success_and_failed_password', () => {
         // Click the close icon after error message
         await applicantPage.getByTestId('connnect-modal-cancel').click();
         console.log('✅ Modal cancel button clicked');
+        // Handle follow-up options modal, if it appears
+        await handleBankConnectOptionsModal(applicantPage, 'back');
         
         // Poll for modal closure and connection state stabilization (similar to first connection)
         console.log('⏳ Polling for failed connection state to stabilize...');
@@ -509,6 +585,8 @@ test.describe('financial_mx_2_attempts_success_and_failed_password', () => {
         
         await applicantPage.getByTestId('bank-connect-modal-cancel').click();
         console.log('   ✅ Modal cancelled successfully');
+        // Handle follow-up options modal, if it appears
+        await handleBankConnectOptionsModal(applicantPage, 'back');
         
         console.log('✅ Part 1.5 Complete: Additional bank connect modal validated');
 

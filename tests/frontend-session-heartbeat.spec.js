@@ -9,6 +9,29 @@ import { searchSessionWithText } from '~/tests/utils/report-page';
 import { waitForJsonResponse } from './utils/wait-response';
 import { cleanupSession } from './utils/cleanup-helper';
 
+/**
+ * Handle new "Upload Bank Statements" intro modal that appears
+ * before the financial manual-upload step.
+ *
+ * We look for the "Upload Statements" button in the modal and click it
+ * so the flow can proceed to the actual manual upload UI
+ * (where `cancel-manual-upload-btn` exists).
+ *
+ * Safe to call when the modal is not present (older builds): it becomes a no-op.
+ *
+ * @param {import('@playwright/test').Page} page
+ */
+const handleBankConnectInfoModal = async page => {
+    const uploadStatementsButton = page.getByRole('button', { name: /Upload Statements/i });
+
+    const isVisible = await uploadStatementsButton.isVisible().catch(() => false);
+    if (!isVisible) {
+        return;
+    }
+
+    await uploadStatementsButton.click({ timeout: 20_000 });
+};
+
 test.describe('frontend-session-heartbeat', () => {
     // Global state for cleanup
     let createdSessionId = null;
@@ -114,6 +137,10 @@ test.describe('frontend-session-heartbeat', () => {
 
             console.log('🚀 Clicking manual upload button financial')
             await page.getByTestId('financial-upload-statement-btn').click({ timeout: 20_000 });
+
+            // Handle new bank connect information modal, if present
+            await handleBankConnectInfoModal(page);
+
             await expect(page.getByTestId('cancel-manual-upload-btn')).toBeVisible({ timeout: 10_000 });
             console.log('✅ On Manual upload step')
 

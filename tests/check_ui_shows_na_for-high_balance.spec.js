@@ -27,6 +27,27 @@ test.describe('check_ui_not_show_na_for-high_balance.spec', () => {
     let applicantContext;
     let allTestsPassed = true;
 
+    /**
+     * Handle "Upload Bank Statements" intro modal that appears
+     * after clicking the financial upload statement button.
+     *
+     * We look for the "Upload Statements" button in the modal and click it
+     * so the flow can proceed to the actual financial verification logic.
+     * Safe to call when the modal is not present (older builds): it is a no-op.
+     *
+     * @param {import('@playwright/test').Page} page
+     */
+    const handleUploadBankStatementsIntroModal = async page => {
+        const uploadStatementsButton = page.getByRole('button', { name: /Upload Statements/i });
+
+        const isVisible = await uploadStatementsButton.isVisible().catch(() => false);
+        if (!isVisible) {
+            return;
+        }
+
+        await uploadStatementsButton.click({ timeout: 20_000 });
+    };
+
     test('Should check UI not shows N/A for high balance accounts', {
         tag: ['@core', '@regression', '@staging-ready', '@rc-ready'],
     }, async ({ page }, testInfo) => {
@@ -86,6 +107,10 @@ test.describe('check_ui_not_show_na_for-high_balance.spec', () => {
             });
 
             await applicantPage.getByTestId('financial-upload-statement-btn').click();
+
+            // Handle "Upload Bank Statements" intro modal, if present
+            await handleUploadBankStatementsIntroModal(applicantPage);
+
             await applicantPage.getByTestId('connect-bank').click();
 
             const response = await responsePromise;

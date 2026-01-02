@@ -1629,6 +1629,32 @@ const selectApplicantType = async (applicantPage, sessionUrl, selectorKey = '#af
 };
 
 /**
+ * Handle Atomic payroll choice modal
+ *
+ * This modal appears after clicking the "directly-connect-emp-btn" button and
+ * lets the user choose between connecting employer or uploading paystubs.
+ *
+ * We select the option by button text so we don't depend on missing data-test-ids
+ * or accessibility labels on the dialog itself.
+ *
+ * @param {import('@playwright/test').Page} page
+ * @param {'employer' | 'upload'} mode
+ */
+const handleAtomicPayrollChoiceModal = async (page, mode = 'employer') => {
+    const buttonLocator = mode === 'employer'
+        ? page.getByRole('button', { name: /Connect Employer/i })
+        : page.getByRole('button', { name: /Upload Paystubs/i });
+
+    // If the button isn't present/visible (older build or different flow), fail soft.
+    const isVisible = await buttonLocator.isVisible().catch(() => false);
+    if (!isVisible) {
+        return;
+    }
+
+    await buttonLocator.click({ timeout: 20000 });
+};
+
+/**
  * Complete paystub connection
  *
  * @param {import('@playwright/test').Page} applicantPage
@@ -1640,6 +1666,9 @@ const completePaystubConnection = async applicantPage => {
     await applicantPage
         .getByTestId('directly-connect-emp-btn')
         .click({ timeout: 20000 });
+
+    // New Atomic modal: choose employer connection before entering iframe
+    await handleAtomicPayrollChoiceModal(applicantPage, 'employer');
 
     await applicantPage.waitForTimeout(4000);
     const empIFrame = await applicantPage.frameLocator(
@@ -1720,6 +1749,9 @@ const failPaystubConnection = async applicantPage => {
     await applicantPage
         .getByTestId('directly-connect-emp-btn')
         .click({ timeout: 20000 });
+
+    // New Atomic modal: choose employer connection before entering iframe
+    await handleAtomicPayrollChoiceModal(applicantPage, 'employer');
 
     await applicantPage.waitForTimeout(4000);
     const empIFrame = await applicantPage.frameLocator(

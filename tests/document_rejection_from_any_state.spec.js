@@ -18,14 +18,49 @@ const __dirname = dirname(__filename);
 // --- Helper Functions for Clarity ---
 
 /**
+ * Handle "Upload Bank Statements" intro modal that appears
+ * after clicking the financial upload statement button.
+ *
+ * We poll for the modal briefly and click "Upload Statements" so the
+ * underlying manual upload input (`#manual-statement-upload`) is rendered.
+ *
+ * Safe no-op if the modal never appears (older builds).
+ *
+ * @param {import('@playwright/test').Page} page
+ */
+async function handleUploadBankStatementsIntroModal(page) {
+    const maxAttempts = 10;       // up to ~10s
+    const intervalMs = 1000;
+
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+        const title = page.getByText('Upload Bank Statements');
+        const titleVisible = await title.isVisible().catch(() => false);
+
+        if (titleVisible) {
+            const uploadStatementsButton = page.getByRole('button', { name: /Upload Statements/i });
+            const buttonVisible = await uploadStatementsButton.isVisible().catch(() => false);
+            if (buttonVisible) {
+                await uploadStatementsButton.click({ timeout: 20_000 });
+                return;
+            }
+        }
+
+        await page.waitForTimeout(intervalMs);
+    }
+}
+
+/**
  * Uploads a financial statement document via manual upload.
  */
 async function uploadFinancialStatement(applicantPage) {
     await applicantPage.bringToFront();
     await applicantPage.getByTestId('financial-upload-statement-btn').click();
 
+    // NEW: handle "Upload Bank Statements" intro modal, if present
+    await handleUploadBankStatementsIntroModal(applicantPage);
+
     const uploadInput = applicantPage.locator('#manual-statement-upload');
-    await expect(uploadInput).toBeAttached();
+    await expect(uploadInput).toBeAttached({ timeout: 10_000 });
 
     const filePath = join(__dirname, '/test_files', 'test_bank_statement.pdf');
     console.log(`🚀 Uploading file from: ${filePath}`);
