@@ -2,6 +2,7 @@ import { expect } from '@playwright/test';
 import { waitForJsonResponse } from '~/tests/utils/wait-response';
 import { customUrlDecode } from './helper';
 import { dragAndDrop, gotoPage } from './common';
+import { pollForFlag } from './polling-helper';
 
 /**
  * Check By Approving and Rejecting Session
@@ -1316,6 +1317,13 @@ async function verifyTransactionErrorAndDeclineFlag(page, randomName) {
     await page.locator('span.font-semibold.text-left.truncate.min-w-0').first()
         .click();
 
+    // Extract sessionId from URL after clicking session
+    const sessionId = await page.evaluate(() => {
+        const urlParts = window.location.href.split('/');
+        return urlParts[urlParts.length - 1];
+    });
+    console.log(`📋 Session ID extracted: ${sessionId}`);
+
     // Verify that "User Error" exists and click it (manual polling up to 45s)
     const userErrorLink = page.locator('a[href="#"].decoration-error');
     const maxAttempts = 90; // 90 * 500ms = 45s
@@ -1350,11 +1358,67 @@ async function verifyTransactionErrorAndDeclineFlag(page, randomName) {
     await page.getByTestId('report-financial-status-modal-cancel').click();
 
     // Click on 'View Details' button
-    await page.locator('button:has-text("View Details")').click();
+    await page.getByTestId('view-details-btn').click();
 
-    // Verify that "Gross Income Ratio Exceeded" exist in application details
-    await expect(page.locator('div[title="Gross income ratio is above the configured threshold and may cause automatic rejection"]'))
-        .toHaveText('Gross Income Ratio Exceeded');
+    // Wait for modal to load
+    await page.waitForTimeout(2000);
+
+    // IMPORTANT: MISSING_TRANSACTIONS flag is applicant-scoped, so we need to click the "Applicant" tab first
+    // The View Details modal has two tabs: "System" (default) and "Applicant"
+    console.log('🔍 Clicking Applicant tab to view applicant-scoped flags...');
+    const applicantTab = page.getByRole('button', { name: 'Applicant' });
+    await expect(applicantTab).toBeVisible({ timeout: 10000 });
+    await applicantTab.click();
+    await page.waitForTimeout(1000); // Wait for flags to load after tab switch
+
+    // STEP 1: Wait for and mark MISSING_TRANSACTIONS flag as non-issue
+    // This flag is raised when transactions count <= 1
+    // The GROSS_INCOME_RATIO_EXCEEDED flag only appears AFTER marking MISSING_TRANSACTIONS as non-issue
+    // IMPORTANT: MISSING_TRANSACTIONS is applicant-scoped, so we need applicantScope: true
+    console.log('🔍 Step 1: Waiting for MISSING_TRANSACTIONS flag to appear...');
+    await pollForFlag(page, {
+        flagTestId: 'MISSING_TRANSACTIONS',
+        shouldExist: true,
+        maxPollTime: 30000, // 30 seconds
+        pollInterval: 2000,
+        refreshModal: true,
+        applicantScope: true, // Flag is applicant-scoped, requires Applicant tab
+        errorMessage: 'MISSING_TRANSACTIONS flag not found within 30s. This flag should appear when there is 1 or fewer transactions.'
+    });
+
+    // Mark MISSING_TRANSACTIONS as non-issue
+    console.log('🔧 Step 2: Marking MISSING_TRANSACTIONS as non-issue...');
+    await markFlagAsNonIssue(
+        page,
+        sessionId,
+        'MISSING_TRANSACTIONS',
+        'Marked as non-issue by automated test - testing income ratio flag after resolution'
+    );
+    console.log('✅ MISSING_TRANSACTIONS marked as non-issue');
+
+    // Wait a bit for backend to process the flag resolution
+    await page.waitForTimeout(2000);
+
+    // STEP 3: Now wait for GROSS_INCOME_RATIO_EXCEEDED flag to appear
+    // IMPORTANT: With only 1 debit transaction:
+    // - scopeCredit() filters to only credit transactions (type = 'credit')
+    // - Debit transactions are excluded from income source creation
+    // - No income sources are created → income is null → getTotalIncomeRatio() is null
+    // - The flag SHOULD be raised if hasConcludedIncomeSteps() is true AND getTotalIncomeRatio() is null
+    // - After marking MISSING_TRANSACTIONS as non-issue, the system can evaluate the income ratio
+    console.log('🔍 Step 3: Waiting for GROSS_INCOME_RATIO_EXCEEDED flag to appear...');
+    await pollForFlag(page, {
+        flagTestId: 'GROSS_INCOME_RATIO_EXCEEDED',
+        shouldExist: true,
+        maxPollTime: 30000, // 30 seconds
+        pollInterval: 2000,
+        refreshModal: true,
+        errorMessage: 'Flag "Gross Income Ratio Exceeded" not found within 30s after marking MISSING_TRANSACTIONS as non-issue. With only 1 debit transaction, no income sources are created (income is null). The flag should be raised if hasConcludedIncomeSteps() is true AND getTotalIncomeRatio() is null.'
+    });
+
+    // Verify the flag is visible
+    await expect(page.getByTestId('GROSS_INCOME_RATIO_EXCEEDED')).toBeVisible();
+    console.log('✅ GROSS_INCOME_RATIO_EXCEEDED flag verified successfully');
 }
 
 async function openReportSection(page, sectionId) {

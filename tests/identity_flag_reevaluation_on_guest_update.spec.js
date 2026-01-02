@@ -269,9 +269,7 @@ test.describe('QA-227 identity_flag_reevaluation_on_guest_update.spec', () => {
         console.log("🔔 1️⃣7️⃣ [Edit Guest] Closed flag details modal, ready to edit guest details...");
 
         // Open identity section and edit guest
-        const identitySection = await openIdentitySection(page);
-        const editGuestBtn = identitySection.getByTestId('identity-edit-guest-btn');
-        await expect(editGuestBtn).toBeVisible();
+        const editGuestBtn = await getEditGuestButton(page);
         await editGuestBtn.click();
 
         const editGuestModal = page.getByTestId('identity-update-guest-modal');
@@ -364,7 +362,9 @@ test.describe('QA-227 identity_flag_reevaluation_on_guest_update.spec', () => {
         await page.waitForTimeout(1500);
 
         // --- 2nd modification: Change last name to match simulant exactly ---
-        await editGuestBtn.click();
+        // Ensure identity section is open before clicking edit button
+        const editGuestBtn2 = await getEditGuestButton(page);
+        await editGuestBtn2.click();
         await expect(editGuestModal).toBeVisible();
         
         // Verify fields show the updated values (without prefix)
@@ -452,7 +452,8 @@ test.describe('QA-227 identity_flag_reevaluation_on_guest_update.spec', () => {
 
         // 🧪 Test: Edit guest modal - change first name, cancel, and ensure value is reset
         // Open edit guest modal again
-        await editGuestBtn.click();
+        const editGuestBtn3 = await getEditGuestButton(page);
+        await editGuestBtn3.click();
         await expect(editGuestModal).toBeVisible();
 
         // Change first name to something different
@@ -466,7 +467,8 @@ test.describe('QA-227 identity_flag_reevaluation_on_guest_update.spec', () => {
         await expect(editGuestModal).not.toBeVisible({ timeout: 10_000 });
 
         // Reopen edit guest modal
-        await editGuestBtn.click();
+        const editGuestBtn4 = await getEditGuestButton(page);
+        await editGuestBtn4.click();
         await expect(editGuestModal).toBeVisible();
 
         // Assert first name reset to previously saved value (should remain MATCHED_UPDATE_FIRST_NAME without prefix)
@@ -481,7 +483,8 @@ test.describe('QA-227 identity_flag_reevaluation_on_guest_update.spec', () => {
         // 🧪 Test: Edit guest modal - change last name, cancel, and ensure value is reset
 
         // Open modal again
-        await editGuestBtn.click();
+        const editGuestBtn5 = await getEditGuestButton(page);
+        await editGuestBtn5.click();
         await expect(editGuestModal).toBeVisible();
 
         // Change last name to something different
@@ -493,7 +496,8 @@ test.describe('QA-227 identity_flag_reevaluation_on_guest_update.spec', () => {
         await expect(editGuestModal).not.toBeVisible({ timeout: 10_000 });
 
         // Reopen edit guest modal
-        await editGuestBtn.click();
+        const editGuestBtn6 = await getEditGuestButton(page);
+        await editGuestBtn6.click();
         await expect(editGuestModal).toBeVisible();
 
         // Assert last name reset to previously saved value (should remain FULLY_MATCHED_LAST_NAME)
@@ -547,7 +551,54 @@ async function openIdentitySection(page) {
     await expect(identitySection).toBeVisible();
     const identityHeader = identitySection.getByTestId('identity-section-header');
     await expect(identityHeader).toBeVisible();
-    await identityHeader.click();
-    console.log("🧑‍💼 [Open] Identity section expanded");
+    
+    // Check if content is already visible by checking if identity detail exists and is visible
+    // This is more reliable than checking aria-expanded attribute
+    const identityDetail = identitySection.locator('[data-testid^="identity-detail-"]').first();
+    const isContentVisible = await identityDetail.isVisible({ timeout: 1000 }).catch(() => false);
+    
+    if (!isContentVisible) {
+        // Content is not visible, click header to expand
+        await identityHeader.click();
+        // Wait for the content container to actually become visible (remove display: none)
+        // Wait for the parent container's display style to change from 'none' to visible
+        await page.waitForFunction(() => {
+            const section = document.querySelector('[data-testid="identity-section"]');
+            if (!section) return false;
+            const contentContainer = section.querySelector('.overflow-hidden');
+            if (!contentContainer) return false;
+            const display = window.getComputedStyle(contentContainer).display;
+            return display !== 'none';
+        }, { timeout: 10000 });
+        // Also wait for the identity detail to be visible as final confirmation
+        await expect(identityDetail).toBeVisible({ timeout: 5000 });
+        console.log("🧑‍💼 [Open] Identity section expanded");
+    } else {
+        // Content is already visible, no need to click
+        console.log("🧑‍💼 [Open] Identity section already expanded");
+    }
     return identitySection;
+}
+
+// 💡 Utility: Get edit guest button after ensuring identity section is open
+async function getEditGuestButton(page) {
+    await openIdentitySection(page);
+    const identitySection = page.getByTestId('identity-section');
+    
+    // Get the edit button directly - it will only be visible when parent container is visible
+    const editGuestBtn = identitySection.getByTestId('identity-edit-guest-btn');
+    
+    // Wait for button to become visible (this confirms parent container is no longer display: none)
+    await expect(editGuestBtn).toBeVisible({ timeout: 15000 });
+    
+    // Ensure button is enabled (not disabled)
+    await expect(editGuestBtn).toBeEnabled({ timeout: 5000 });
+    
+    // Scroll button into view to ensure it's not covered
+    await editGuestBtn.scrollIntoViewIfNeeded();
+    
+    // Wait for any animations/transitions to complete
+    await page.waitForTimeout(1000);
+    
+    return editGuestBtn;
 }

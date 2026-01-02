@@ -5,12 +5,14 @@ import { expect } from '@playwright/test';
 const LOGIN_API = joinUrl(config.app.urls.api, 'auth');
 
 const fill = async (page, formData) => {
+    // Wait for page to be ready
+    await page.waitForLoadState('domcontentloaded');
+    
+    // Fill email field - Playwright's fill() already waits for element to be visible/actionable
+    await page.getByRole('textbox', { name: /email/i }).fill(formData.email, { timeout: 30000 });
 
-    // Filling email field - using getByRole for more robust selection
-    await page.getByRole('textbox', { name: /email/i }).fill(formData.email);
-
-    // Filling password field - using getByRole for more robust selection  
-    await page.getByRole('textbox', { name: /password/i }).fill(formData.password);
+    // Fill password field - Playwright's fill() already waits for element to be visible/actionable
+    await page.getByRole('textbox', { name: /password/i }).fill(formData.password, { timeout: 30000 });
 
 };
 
@@ -83,7 +85,7 @@ const submitAndSetLocale = async page => {
  * @returns {Promise<string>} Admin authentication token for API calls
  */
 const adminLoginAndNavigate = async (page, adminCredentials) => {
-    await page.goto('/');
+    await page.goto('/', { waitUntil: 'domcontentloaded' });
     await fill(page, adminCredentials);
     
     // Wait for both auth response and users/self response

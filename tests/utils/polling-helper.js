@@ -13,6 +13,7 @@
  * @param {number} [options.maxPollTime=30000] - Max polling time in ms (default: 30s)
  * @param {number} [options.pollInterval=2000] - Interval between polls in ms (default: 2s)
  * @param {boolean} [options.refreshModal=false] - Whether to close/reopen details modal between polls
+ * @param {boolean} [options.applicantScope=false] - Whether flag is applicant-scoped (requires Applicant tab to be active)
  * @param {boolean} [options.throwOnFail=true] - Whether to throw error if condition not met
  * @param {string} [options.errorMessage] - Custom error message
  * @returns {Promise<boolean>} - True if condition met, false otherwise
@@ -40,6 +41,7 @@ const pollForFlag = async (page, options) => {
         maxPollTime = 30000,
         pollInterval = 2000,
         refreshModal = false,
+        applicantScope = false,
         throwOnFail = true,
         errorMessage
     } = options;
@@ -75,6 +77,21 @@ const pollForFlag = async (page, options) => {
                         try {
                             await page.getByTestId('view-details-btn').click({ timeout: 10000 });
                             await page.waitForTimeout(1000);
+                            
+                            // If flag is applicant-scoped, click Applicant tab after modal opens
+                            if (applicantScope) {
+                                const applicantTab = page.getByRole('button', { name: 'Applicant' });
+                                const isApplicantTabVisible = await applicantTab.isVisible({ timeout: 2000 }).catch(() => false);
+                                if (isApplicantTabVisible) {
+                                    const isActive = await applicantTab.evaluate(el => 
+                                        el.classList.contains('bg-primary-400') || el.classList.contains('font-semibold')
+                                    ).catch(() => false);
+                                    if (!isActive) {
+                                        await applicantTab.click({ timeout: 5000 });
+                                        await page.waitForTimeout(500);
+                                    }
+                                }
+                            }
                         } catch (e) {
                             console.log(`⚠️ Could not reopen modal after reload: ${e.message}`);
                         }
@@ -93,6 +110,22 @@ const pollForFlag = async (page, options) => {
                     await page.waitForTimeout(500);
                     await page.getByTestId('view-details-btn').click({ timeout: 10000 });
                     await page.waitForTimeout(1000);
+                    
+                    // If flag is applicant-scoped, click Applicant tab after modal refresh
+                    // Modal resets to System tab by default, so we need to switch to Applicant tab
+                    if (applicantScope) {
+                        const applicantTab = page.getByRole('button', { name: 'Applicant' });
+                        const isApplicantTabVisible = await applicantTab.isVisible({ timeout: 2000 }).catch(() => false);
+                        if (isApplicantTabVisible) {
+                            const isActive = await applicantTab.evaluate(el => 
+                                el.classList.contains('bg-primary-400') || el.classList.contains('font-semibold')
+                            ).catch(() => false);
+                            if (!isActive) {
+                                await applicantTab.click({ timeout: 5000 });
+                                await page.waitForTimeout(500); // Wait for flags to load after tab switch
+                            }
+                        }
+                    }
                 } catch (e) {
                     console.log(`⚠️ Could not refresh modal: ${e.message}`);
                 }

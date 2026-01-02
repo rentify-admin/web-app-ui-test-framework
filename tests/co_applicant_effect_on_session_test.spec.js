@@ -212,9 +212,12 @@ test.describe('co_applicant_effect_on_session_test', () => {
     
         const [ coSessionResp ] = await Promise.all([
             coAppPage.waitForResponse(
-                resp => resp.url().includes(coAppSessionApiUrl)
-                    && resp.ok()
-                    && resp.request().method() === 'GET'
+                resp => {
+                    const url = decodeURI(resp.url());
+                    return url.includes(coAppSessionApiUrl)
+                        && resp.ok()
+                        && resp.request().method() === 'GET';
+                }
             ),
             coAppPage.goto(
                 joinUrl(

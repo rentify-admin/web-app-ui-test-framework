@@ -9,6 +9,7 @@
  * All simulator payloads match user name for proper validation
  */
 
+import { expect } from '@playwright/test';
 import { admin, app } from '~/tests/test_config';
 import generateSessionForm from '~/tests/utils/generate-session-form';
 import loginForm from '~/tests/utils/login-form';
@@ -16,9 +17,9 @@ import { findAndInviteApplication, gotoApplicationsPage } from '~/tests/utils/ap
 import { joinUrl } from '~/tests/utils/helper';
 import { 
     setupInviteLinkSession,
-    identityStep,
     fillhouseholdForm
 } from '~/tests/utils/session-flow';
+import { personaConnectData } from '~/tests/mock-data/identity-payload';
 import { 
     getPersonaPayload,
     getVeridocsBankStatementPayload,
@@ -45,6 +46,8 @@ import {
  * @param {boolean} options.completeEmployment - Complete employment step (default: true)
  * @param {boolean} options.addChildApplicant - Add child applicant (default: true)
  * @param {boolean} options.useCorrectMockData - Use flag-free corrected mock data (default: false)
+ * @param {boolean} options.skipLogin - Skip admin login if already logged in (default: false)
+ * @param {boolean} options.skipApplicantInviteStep - Skip applicant invite step (for identity-only workflows) (default: false)
  * @returns {Promise<{ sessionId: string, userData: object, applicantContext: BrowserContext }>}
  */
 export async function createPermissionTestSession(adminPage, browser, options = {}) {
@@ -60,7 +63,11 @@ export async function createPermissionTestSession(adminPage, browser, options = 
         completeEmployment = true,
         addChildApplicant = true,
         // ✅ NEW: Use flag-free corrected mock data
-        useCorrectMockData = false
+        useCorrectMockData = false,
+        // ✅ NEW: Skip login if already logged in
+        skipLogin = false,
+        // ✅ NEW: Skip applicant invite step (for workflows that go directly from rent to identity)
+        skipApplicantInviteStep = false
     } = options;
     
     const userData = {
@@ -77,9 +84,13 @@ export async function createPermissionTestSession(adminPage, browser, options = 
     // ============================================================
     // PHASE 1: Admin Login and Navigate to Application
     // ============================================================
-    console.log('\n🔑 PHASE 1A: Admin login and navigation...');
-    await loginForm.adminLoginAndNavigate(adminPage, admin);
-    console.log('✅ Admin logged in');
+    if (!skipLogin) {
+        console.log('\n🔑 PHASE 1A: Admin login and navigation...');
+        await loginForm.adminLoginAndNavigate(adminPage, admin);
+        console.log('✅ Admin logged in');
+    } else {
+        console.log('\n🔑 PHASE 1A: Skipping login (already logged in)');
+    }
     
     console.log('🗂️  Navigating to applications page...');
     await gotoApplicationsPage(adminPage);
@@ -168,9 +179,11 @@ export async function createPermissionTestSession(adminPage, browser, options = 
         return { sessionId, userData, applicantContext: context };
     }
     
-    // Step 4: APPLICANTS Step - Add one child applicant (REQUIRED if continuing)
+    // Step 4: APPLICANTS Step - Add applicants (SKIP for identity-only workflows)
     let childData = null;
-    if (addChildApplicant) {
+    if (skipApplicantInviteStep) {
+        console.log('\n⏭️  Skipping applicant invite step (identity-only workflow: Rent → Identity → Summary)');
+    } else if (addChildApplicant) {
         console.log('\n👥 Adding child applicant...');
         await applicantPage.getByTestId('applicant-invite-step').waitFor({ state: 'visible' });
         
@@ -210,11 +223,36 @@ export async function createPermissionTestSession(adminPage, browser, options = 
         console.log('✅ Primary added to household, continuing...');
     }
     
-    // Step 5: IDENTITY Step - Real UI via Persona (OPTIONAL)
+    // Step 5: IDENTITY Step - Persona Simulator (OPTIONAL)
     if (completeIdentity) {
-        console.log('\n📸 IDENTITY STEP: Completing via Persona UI (real images)...');
-        await identityStep(applicantPage);
-        console.log('✅ Identity verification completed with REAL IMAGES');
+        console.log('\n📸 IDENTITY STEP: Completing via Persona Simulator...');
+        
+        // Wait for identity-verification step to appear
+        const identityStep = applicantPage.getByTestId('identify-step');
+        await expect(identityStep).toBeVisible({ timeout: 10_000 });
+        console.log('✅ Identity step visible');
+        
+        // Use persona simulator data (matches userData for consistent testing)
+        const data = personaConnectData(userData);
+        
+        const connectBtn = applicantPage.getByTestId('id-simulation-connect-btn');
+        
+        // Set up dialog handler to accept persona simulation data
+        applicantPage.on('dialog', async dialog => {
+            console.log('💬 [Dialog] Browser prompt detected for ID simulation!');
+            await applicantPage.waitForTimeout(500);
+            await dialog.accept(JSON.stringify(data));
+            console.log('✅ [Dialog] Payload sent to the persona simulation dialog.');
+        });
+        
+        // Start the simulation (acts as ID verification by applicant)
+        console.log('🔗 [Persona Sim] Clicking connect button for identity simulation...');
+        await connectBtn.click();
+        await applicantPage.waitForTimeout(2000);
+        
+        // Wait for summary step to appear (indicates identity step completed)
+        await applicantPage.getByTestId('summary-step').waitFor({ state: 'visible', timeout: 60_000 });
+        console.log('✅ Identity verification completed via Persona Simulator');
     } else {
         console.log('\n⏭️  Skipping identity verification...');
     }
@@ -389,6 +427,7 @@ async function waitForStepTransition(page, sessionId, authToken, expectedStep, m
 /**
  * Completes Financial step via VERIDOCS_PAYLOAD
  * Creates bank statement document with matching user name
+ * ✅ Uses pure API approach (no UI navigation required)
  * 
  * @param {boolean} useCorrectMockData - Use flag-free corrected mock data
  */
@@ -464,8 +503,8 @@ async function completeFinancialStepViaVeridocs(page, context, sessionId, authTo
     const verification = await verificationResponse.json();
     console.log(`   ✅ Verification created: ${verification.data.id}`);
     
-    // Wait for verification to complete
-    console.log('   ⏳ Waiting for verification to complete...');
+    // Wait for verification to complete via API polling
+    console.log('   ⏳ Waiting for verification to complete via API...');
     await waitForVerificationComplete(context, authToken, verification.data.id, 'financial-verifications');
     console.log('   ✅ Financial verification COMPLETED');
     
@@ -577,9 +616,9 @@ async function completeEmploymentStepViaAtomic(page, context, sessionId, authTok
 /**
  * Waits for verification to reach COMPLETED status
  * ✅ FIX: Use context.request instead of page.request to avoid "disposed" errors
- * Reduced polling: 20 attempts × 3s = 60s max (reasonable for simulators)
+ * Extended polling: 40 attempts × 3s = 120s max (to handle slower API responses)
  */
-async function waitForVerificationComplete(context, authToken, verificationId, endpoint, maxAttempts = 20) {
+async function waitForVerificationComplete(context, authToken, verificationId, endpoint, maxAttempts = 40) {
     for (let i = 0; i < maxAttempts; i++) {
         const response = await context.request.get(
             `${app.urls.api}/${endpoint}/${verificationId}`,

@@ -8,6 +8,10 @@ import { plaidFinancialConnect } from './utils/session-flow';
 // Test: Financial - plaid - one or less transaction error, no income with complete verification has decline flag
 
 test.describe('financial_plaid_one_transaction_error_decline', () => {
+    test.describe.configure({ 
+        timeout: 300000 // 5 minutes - increased for external Plaid integration and flag polling
+    });
+
     test('Should handle Plaid Fin verification with insufficient transactions and decline flag', { 
         tag: ['@smoke', '@external-integration', '@regression', '@staging-ready', '@rc-ready'],
     }, async ({ page }) => {

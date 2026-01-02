@@ -195,10 +195,16 @@ test.describe('check_coapp_income_ratio_exceede_flag', () => {
     
         const sessionLocator =  await findSessionLocator(page, `.application-card[data-session="${sessionId}"]`);
     
+        // Remove the previous response listener to avoid interference
+        page.off('response', responseSession);
+    
         const [ sessionResponse ] = await Promise.all([
-            page.waitForResponse(resp => resp.url().includes(`/sessions/${sessionId}?fields[session]`)
-                && resp.ok()
-                && resp.request().method() === 'GET'),
+            page.waitForResponse(resp => {
+                const url = decodeURI(resp.url());
+                return url.includes(`/sessions/${sessionId}?fields[session]`)
+                    && resp.ok()
+                    && resp.request().method() === 'GET';
+            }),
             sessionLocator.click()
         ]);
     
@@ -276,9 +282,12 @@ test.describe('check_coapp_income_ratio_exceede_flag', () => {
         const coAppSessionApiUrl = joinUrl(app.urls.api, coAppLinkUrl.pathname);
     
         const [ coSessionResp ] = await Promise.all([
-            coAppPage.waitForResponse(resp => resp.url().includes(coAppSessionApiUrl)
+            coAppPage.waitForResponse(resp => {
+                const url = decodeURI(resp.url());
+                return url.includes(coAppSessionApiUrl)
                     && resp.ok()
-                    && resp.request().method() === 'GET'),
+                    && resp.request().method() === 'GET';
+            }),
             coAppPage.goto(joinUrl(app.urls.app, `${coAppLinkUrl.pathname}${coAppLinkUrl.search}`))
         ]);
     
@@ -315,9 +324,12 @@ test.describe('check_coapp_income_ratio_exceede_flag', () => {
         
         page.off('response', responseSession);
         const [ sessionResponse1 ] = await Promise.all([
-            page.waitForResponse(resp => resp.url().includes(`/sessions/${sessionId}?fields[session]`)
-                && resp.ok()
-                && resp.request().method() === 'GET'),
+            page.waitForResponse(resp => {
+                const url = decodeURI(resp.url());
+                return url.includes(`/sessions/${sessionId}?fields[session]`)
+                    && resp.ok()
+                    && resp.request().method() === 'GET';
+            }),
             page.reload()
         
         ]);

@@ -339,6 +339,27 @@ test.describe('co_app_household_with_flag_errors', () => {
         });
         console.log('✅ ASSERTION 2a PASSED: GROUP_MISSING_IDENTITY flag is present (co-app invited but incomplete)');
         
+        // ASSERTION 2a-VC616: Verify GROUP_MISSING_IDENTITY flag does NOT show applicant name (VC-616)
+        console.log('🔍 ASSERTION 2a-VC616: Verifying GROUP_MISSING_IDENTITY flag hides applicant name...');
+        const groupFlagElement = page.getByTestId('GROUP_MISSING_IDENTITY');
+        const groupFlagRawText = await groupFlagElement.textContent();
+        const groupFlagText = groupFlagRawText ? groupFlagRawText.replace(/\s+/g, ' ').trim() : '';
+
+        // Verify flag text does NOT contain applicant names (primary or co-app)
+        // Note: Names include 'AutoT - ' prefix from naming helper
+        const primaryName = `${user.first_name} ${user.last_name}`;
+        const coAppName = `${coapplicant.first_name} ${coapplicant.last_name}`;
+        expect(groupFlagText).not.toContain(primaryName);
+        expect(groupFlagText).not.toContain(coAppName);
+        // Also check for partial names (in case of prefix variations)
+        expect(groupFlagText).not.toContain('Primary Applicant');
+        expect(groupFlagText).not.toContain('CoApplicant Household');
+        // Verify flag text contains the flag description but no applicant label
+        expect(groupFlagText).toContain('Group Identity Verification Missing');
+        // Verify no "Primary:", "Co-applicant:", or "Guarantor:" labels appear
+        expect(groupFlagText).not.toMatch(/Primary:|Co-applicant:|Guarantor:/i);
+        console.log('✅ ASSERTION 2a-VC616 PASSED: GROUP_MISSING_IDENTITY flag correctly hides applicant name');
+        
         // Close details modal
         await page.getByTestId('close-event-history-modal').click({ timeout: 10_000 });
         await page.waitForTimeout(1000);
@@ -380,9 +401,12 @@ test.describe('co_app_household_with_flag_errors', () => {
         const coAppSessionApiUrl = joinUrl(app.urls.api, coAppLinkUrl.pathname);
 
         const [coSessionResp] = await Promise.all([
-            coAppPage.waitForResponse(resp => resp.url().includes(coAppSessionApiUrl)
-                && resp.ok()
-                && resp.request().method() === 'GET'),
+            coAppPage.waitForResponse(resp => {
+                const url = decodeURI(resp.url());
+                return url.includes(coAppSessionApiUrl)
+                    && resp.ok()
+                    && resp.request().method() === 'GET';
+            }),
             coAppPage.goto(joinUrl(app.urls.app, `${coAppLinkUrl.pathname}${coAppLinkUrl.search}`))
         ]);
 
@@ -475,6 +499,17 @@ test.describe('co_app_household_with_flag_errors', () => {
         // Note: Name now includes 'AutoT - ' prefix (UI may show as 'Autot - ' due to text transformation)
         expect(flagText).toContain('Coapplicant Household'); // Partial match to work with prefix
         console.log('✅ FLAG TEXT VERIFIED: Contains "Identity Name Mismatch (High)" and co-applicant name');
+        
+        // ASSERTION 3b-VC616: Verify IDENTITY_NAME_MISMATCH_CRITICAL flag DOES show applicant name with label (VC-616)
+        console.log('🔍 ASSERTION 3b-VC616: Verifying IDENTITY_NAME_MISMATCH_CRITICAL flag shows applicant name...');
+        // Reuse flagText from line 473 (already extracted)
+        // Verify flag text contains applicant label (co-applicant)
+        expect(flagText).toMatch(/Co-applicant:/i);
+        // Verify flag description is present (already verified at line 474, but re-verify for clarity)
+        expect(flagText).toContain('Identity Name Mismatch');
+        // Verify applicant name is present (already verified at line 476, but re-verify for clarity)
+        expect(flagText).toContain('Coapplicant Household');
+        console.log('✅ ASSERTION 3b-VC616 PASSED: IDENTITY_NAME_MISMATCH_CRITICAL flag correctly shows applicant name with label');
         
         // ASSERTION 3c: Status should still be REJECTED (API) and "Criteria Not Met" (UI)
         await pollForApprovalStatus(page, sessionId, primaryAuthToken, {
