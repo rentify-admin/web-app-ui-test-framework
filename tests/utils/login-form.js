@@ -31,15 +31,21 @@ const submit = async page => {
  * Enhanced version of submit() that also captures auth response and sets locale
  * @param {import('@playwright/test').Page} page
  */
-const submitAndSetLocale = async page => {
+const submitAndSetLocale = async (page, options = {}) => {
+    const defaultOptions = {
+        waitForHousehold: true,
+        ...options
+    } 
     // Wait for both auth response and users/self response during submit
     const [authResponse, selfResponse] = await Promise.all([
         page.waitForResponse(LOGIN_API),
         page.waitForResponse(resp => resp.url().includes('/users/self') && resp.request().method() === 'GET'),
         (async () => {
             await page.locator('button[type="submit"]').click();
-            await page.waitForSelector('[data-testid=household-status-alert]', { timeout: 100_000 });
-            await expect(page.getByTestId('household-status-alert')).toBeVisible({ timeout: 100_000 });
+            if(defaultOptions.waitForHousehold){
+                await page.waitForSelector('[data-testid=household-status-alert]', { timeout: 100_000 });
+                await expect(page.getByTestId('household-status-alert')).toBeVisible({ timeout: 100_000 });
+            }
         })()
     ]);
     
