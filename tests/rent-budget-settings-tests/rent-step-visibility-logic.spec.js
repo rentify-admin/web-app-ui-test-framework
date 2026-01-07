@@ -16,7 +16,9 @@ test.describe('QA-261 rent-step-visibility-logic.spec.js', () => {
         test3: { passed: false, sessionId: null }
     };
 
-    test('Verify Rent step hidden when enabled=false', async ({ page }) => {
+    test('Verify Rent step hidden when enabled=false', {
+        tag: ['@core', '@regression', '@staging-ready', '@rc-ready']
+    }, async ({ page }) => {
         console.log('========== Test 1: Rent step hidden when enabled=false ==========');
         console.log('Application: Autotest - Rent Disabled');
         console.log('Preconditions: settings.applications.target.enabled = false');
@@ -92,7 +94,9 @@ test.describe('QA-261 rent-step-visibility-logic.spec.js', () => {
         testResults.test1.passed = true;
     });
 
-    test('Verify Rent step visible when enabled=true + locked=false', async ({ page }) => {
+    test('Verify Rent step visible when enabled=true + locked=false', {
+        tag: ['@core', '@regression', '@staging-ready', '@rc-ready']
+    }, async ({ page }) => {
         console.log('========== Test 3: Rent step visible when enabled=true + locked=false ==========');
         console.log('Application: Autotest - Rent Standard');
         console.log('Preconditions: enabled=true, locked=false, required=false');

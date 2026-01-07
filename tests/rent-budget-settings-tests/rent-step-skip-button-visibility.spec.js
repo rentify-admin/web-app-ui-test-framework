@@ -14,9 +14,17 @@ import { cleanupSession } from "../utils/cleanup-helper";
 
 test.describe('VC-262 rent-step-skip-button-visibility', () => {
     let adminClient;
-    let application = null;
+    let optionalRentApplication = null;
+    let requiredRentApplication = null;
 
-    const APPLICATION_NAME = 'Autotest - Rent Standard'
+    // IMPORTANT:
+    // These applications must already exist and be configured accordingly.
+    // - OPTIONAL_RENT_APP: settings.applications.target.required = 0
+    // - REQUIRED_RENT_APP: settings.applications.target.required = 1
+    // We do NOT patch settings in this test to avoid parallel-run conflicts.
+    const OPTIONAL_RENT_APP = 'Autotest - Rent Standard';
+    const REQUIRED_RENT_APP = 'Autotest - Rent Required';
+
     const testResults = {
         test1: { passed: false, sessionId: null },
         test2: { passed: false, sessionId: null }
@@ -28,25 +36,23 @@ test.describe('VC-262 rent-step-skip-button-visibility', () => {
         await loginWithAdmin(adminClient);
         console.log('🔑  [Setup] Admin logged in successfully.');
 
-        console.log(`🔎  [Setup] Fetching application by name "${APPLICATION_NAME}"...`);
-        application = await getApplicationByName(adminClient, APPLICATION_NAME);
-        console.log('✅  [Setup] Application found:', application.name);
+        console.log(`🔎  [Setup] Fetching OPTIONAL rent application by name "${OPTIONAL_RENT_APP}"...`);
+        optionalRentApplication = await getApplicationByName(adminClient, OPTIONAL_RENT_APP);
+        console.log('✅  [Setup] OPTIONAL rent application found:', optionalRentApplication?.name);
+
+        console.log(`🔎  [Setup] Fetching REQUIRED rent application by name "${REQUIRED_RENT_APP}"...`);
+        requiredRentApplication = await getApplicationByName(adminClient, REQUIRED_RENT_APP);
+        console.log('✅  [Setup] REQUIRED rent application found:', requiredRentApplication?.name);
 
     })
 
     test('Verify Skip button visible when required=false', {
-        tag: ['@core', '@regression']
+        tag: ['@core', '@regression', '@staging-ready', '@rc-ready']
     }, async ({ page }) => {
         test.setTimeout(120_000)
-        // ⚙️ Setting Preconditions: enabled=true, locked=false, required=false
-        await adminClient.patch(`/applications/${application.id}`, {
-            settings: {
-                'settings.applications.target.enabled': 1,
-                'settings.applications.target.required': 0,
-                'settings.applications.target.locked': 0,
-            }
-        })
-        console.log('☑️ [Precondition] Application settings set: enabled=1, required=0, locked=0');
+        if (!optionalRentApplication?.id) {
+            throw new Error(`[Setup] OPTIONAL rent application not found: "${OPTIONAL_RENT_APP}"`);
+        }
 
         const user = {
             first_name: 'RentBudget',
@@ -57,7 +63,7 @@ test.describe('VC-262 rent-step-skip-button-visibility', () => {
 
         console.log('➡️ [Admin UI] Navigating to applications page and inviting user...');
         await adminLoginAndNavigateToApplications(page, admin)
-        await findAndInviteApplication(page, APPLICATION_NAME);
+        await findAndInviteApplication(page, OPTIONAL_RENT_APP);
 
         const { sessionId, sessionUrl, link } = await generateSessionForm.generateSessionAndExtractLink(page, user);
         testResults.test1.sessionId = sessionId;
@@ -111,19 +117,13 @@ test.describe('VC-262 rent-step-skip-button-visibility', () => {
     })
 
     test('Verify Skip button hidden when required=true', {
-        tag: ['@core', '@regression']
+        tag: ['@core', '@regression', '@staging-ready', '@rc-ready']
     }, async ({ page }) => {
 
         test.setTimeout(120_000)
-        // ⚙️ Setting Preconditions: enabled=true, locked=false, required=true
-        await adminClient.patch(`/applications/${application.id}`, {
-            settings: {
-                'settings.applications.target.enabled': 1,
-                'settings.applications.target.required': 1,
-                'settings.applications.target.locked': 0,
-            }
-        })
-        console.log('☑️ [Precondition] Application settings set: enabled=1, required=1, locked=0');
+        if (!requiredRentApplication?.id) {
+            throw new Error(`[Setup] REQUIRED rent application not found: "${REQUIRED_RENT_APP}"`);
+        }
 
         const user = {
             first_name: 'RentBudget',
@@ -134,7 +134,7 @@ test.describe('VC-262 rent-step-skip-button-visibility', () => {
 
         console.log('➡️ [Admin UI] Navigating to applications page and inviting user...');
         await adminLoginAndNavigateToApplications(page, admin)
-        await findAndInviteApplication(page, APPLICATION_NAME);
+        await findAndInviteApplication(page, REQUIRED_RENT_APP);
 
         const { sessionId, sessionUrl, link } = await generateSessionForm.generateSessionAndExtractLink(page, user);
         testResults.test2.sessionId = sessionId;

@@ -1426,8 +1426,16 @@ async function openReportSection(page, sectionId) {
     await expect(reportSection).toBeVisible();
     const sectionHeader = reportSection.getByTestId(`${sectionId}-header`);
     await expect(sectionHeader).toBeVisible();
-    await sectionHeader.click();
-    console.log(`🧑‍💼 [Open] ${sectionId} section expanded`);
+    // Accordian body is toggled via v-show, so clicking the header twice will close it.
+    // Make this helper idempotent: only click when the body is not visible.
+    const body = reportSection.locator('div.overflow-hidden').first();
+    const bodyVisible = await body.isVisible().catch(() => false);
+    if (!bodyVisible) {
+        await sectionHeader.click();
+        console.log(`🧑‍💼 [Open] ${sectionId} section expanded`);
+    } else {
+        console.log(`🧑‍💼 [Open] ${sectionId} section already expanded`);
+    }
     return reportSection;
 }
 
