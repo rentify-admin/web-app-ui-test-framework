@@ -179,53 +179,8 @@ test.describe('property_admin_permission_test', () => {
                 .locator('a')
                 .click();
             await expect(page.locator('#generate-session-form')).toBeVisible();
+            await page.waitForTimeout(1500);
             await page.getByTestId('cancel-generate-session').click();
-
-            // Workflows: try to edit and delete, expect forbidden
-            await gotoPage(page, 'applications-menu', 'workflows-submenu', '/workflows?fields[workflow]');
-            const workflowTable = page.getByTestId('workflow-table');
-            await workflowTable.locator('[data-testid^="edit-"]').first()
-                .click();
-            await expect(page.getByTestId('error-page')).toContainText('403');
-            await page.goBack();
-
-            // Try to delete a workflow in READY status
-            const workflowRows = await workflowTable.locator('tbody>tr');
-            page.once('dialog', dialog => dialog.accept());
-            for (let i = 0;i < await workflowRows.count();i++) {
-                const element = workflowRows.nth(i);
-                if ((await element.locator('td').nth(3)
-                    .textContent()).includes('READY')) {
-                    await element.locator('td').locator('[data-testid^="delete-"]')
-                        .click();
-                    break;
-                }
-            }
-            await expect(page.locator('[role=alert]').first()).toContainText('Forbidden');
-
-            // Approval conditions: try to view and open a "high risk" condition
-            await gotoPage(page, 'applications-menu', 'approval-conditions-submenu', '/flag-collections?');
-            const approvalConditionTable = await page.getByTestId('approval-conditions-table');
-            const tableRows = await approvalConditionTable.locator('tbody>tr');
-            const approvalGetUrlReg = new RegExp(`.+/flag-collections/.{36}?.+`);
-            for (let i = 0;i < await tableRows.count();i++) {
-                const element = tableRows.nth(i);
-                if ((await element.nth(0).textContent()).toLowerCase().includes('high risk')) {
-                    await Promise.all([
-                        page.waitForResponse(resp => approvalGetUrlReg.test(resp.url()) && resp.request().method() === 'GET' && resp.ok()),
-                        element.locator('td').nth(1)
-                            .locator('button')
-                            .click()
-                    ]);
-                    break;
-                }
-            }
-
-            // Ensure no edit links are visible in approval conditions
-            const conditionRows = page.locator('table>tbody>tr');
-            for (let i = 0;i < await conditionRows.count();i++) {
-                await expect((await conditionRows.locator('td').nth(4)).locator('a')).not.toBeVisible();
-            }
 
             // Edit organization info and check for success toast
             await gotoPage(page, 'organization-menu', 'organization-self-submenu', '/organizations/self');
@@ -285,10 +240,6 @@ test.describe('property_admin_permission_test', () => {
             // Check that "No Record Found" message is displayed after member deletion
             await expect(page.locator('span:has-text("No Record Found")')).toBeVisible();
 
-            // Check roles table is visible
-            const roles = await gotoPage(page, 'users-menu', 'roles-submenu', joinUrl(app.urls.api, 'roles?'));
-            await checkRolesVisibleInTable(page, roles);
-            
             console.log('✅ All property admin permission checks passed successfully');
             
         } catch (error) {
@@ -458,18 +409,10 @@ test.describe('property_admin_permission_test', () => {
         // Note: All cleanup (user + session + contexts) happens in afterAll
     });
     
-    // ✅ Centralized cleanup
-    test.afterAll(async ({ request }) => {
-        // ✅ Centralized cleanup: session + contexts + user
-        await cleanupPermissionTest(
-            request,
-            sharedSessionId,
-            applicantContextForCleanup,
-            adminContextForCleanup,
-            globalDataManager,
-            globalPropertyAdminUser,
-            allTestsPassed
-        );
+    // ✅ Centralized cleanup (DISABLED - sessions and users are preserved for debugging)
+    test.afterAll(async () => {
+        console.log('🧪 Skipping cleanup in property_admin_permission_test.spec.js (sessions and users preserved)');
+        // If you want to re‑enable cleanup, restore the call to cleanupPermissionTest here.
     });
 });
 

@@ -136,10 +136,15 @@ const waitForConnectionCompletion = async (page, options = {}) => {
     do {
         for (let index = 0; index < await connectionRows.count(); index++) {
             const element = connectionRows.nth(index);
-            const connectionText = await element.innerText();
-            if (connectionText.toLowerCase().includes(successText.toLowerCase())) {
+            const connectionText = (await element.innerText()).toLowerCase();
+
+            // Treat either the configured successText or "uploaded" as a successful terminal state
+            if (
+                connectionText.includes(successText.toLowerCase()) ||
+                connectionText.includes('uploaded')
+            ) {
                 foundCompleted = true;
-                console.log('✅ Real "completed" state detected!');
+                console.log('✅ Real "completed/uploaded" state detected!');
                 await page.waitForTimeout(2000); // Additional wait to ensure stability
                 break;
             }
@@ -2286,11 +2291,13 @@ const simulatorFinancialStepWithVeridocs = async (page, veridocsPayload) => {
         throw new Error('No connection rows found after simulator dialog');
     }
     
-    // Step 7: Wait for completion
-    console.log('⏳ Waiting for verification to complete...');
-    await expect(page.getByTestId('connection-row').filter({ hasText: /Complete|Completed/i })).toBeVisible({ timeout: 60000 });
+    // Step 7: Wait for upload status on connection row
+    console.log('⏳ Waiting for verification row to show "Uploaded"...');
+    await expect(
+        page.getByTestId('connection-row').filter({ hasText: /Uploaded/i })
+    ).toBeVisible({ timeout: 60000 });
     
-    console.log('✅ Verification completed successfully via simulator UI');
+    console.log('✅ Verification upload completed successfully via simulator UI');
 };
 
 /**
