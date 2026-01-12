@@ -719,6 +719,87 @@ const skipEmploymentVerification = async page => {
 };
 
 /**
+ * Handle bank connect info modal that may appear after clicking connect-bank
+ * @param {import('@playwright/test').Page} page
+ */
+const handleBankConnectInfoModal = async (page) => {
+    const maxAttempts = 10;      // up to ~10 seconds
+    const intervalMs = 1000;
+
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+        const dialog = page.getByRole('dialog');
+        const dialogVisible = await dialog.isVisible().catch(() => false);
+
+        if (dialogVisible) {
+            const titleVisible = await dialog
+                .getByText('Bank Connect Information — Please Read')
+                .isVisible()
+                .catch(() => false);
+
+            if (titleVisible) {
+                const acknowledgeBtn = dialog.getByRole('button', { name: /Acknowledge/i });
+                const btnVisible = await acknowledgeBtn.isVisible().catch(() => false);
+                if (btnVisible) {
+                    await acknowledgeBtn.click({ timeout: 20_000 });
+                    await page.waitForTimeout(500);
+                    return;
+                }
+            }
+        }
+
+        await page.waitForTimeout(intervalMs);
+    }
+};
+
+/**
+ * Handle "Can't find your bank or having an issue?" options modal
+ * that can appear right after closing the Bank Connect modal.
+ *
+ * We handle possible delay by polling for the modal for a few seconds.
+ * To avoid flaky DOM detaches on the X icon, we prefer clicking the
+ * footer "Back" / "Connect using Plaid" button inside the dialog,
+ * and only fall back to the X if needed.
+ * If the modal never appears (older builds), this is a no-op.
+ *
+ * @param {import('@playwright/test').Page} page
+ * @param {'back' | 'plaid'} [option='back']
+ */
+const handleBankConnectOptionsModal = async (page, option = 'back') => {
+    const maxAttempts = 10;      // e.g. up to ~10s
+    const intervalMs = 1000;
+
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+        const dialog = page.getByRole('dialog');
+        const dialogVisible = await dialog.isVisible().catch(() => false);
+
+        if (dialogVisible) {
+            const titleLocator = dialog.getByText("Can't find your bank or having an issue?");
+            const titleVisible = await titleLocator.isVisible().catch(() => false);
+
+            if (titleVisible) {
+                // Prefer stable footer button inside this dialog
+                const buttonName = option === 'plaid' ? /Connect using Plaid/i : /Back/i;
+                const button = dialog.getByRole('button', { name: buttonName });
+                const buttonVisible = await button.isVisible().catch(() => false);
+
+                if (buttonVisible) {
+                    try {
+                        await button.click({ timeout: 10_000 });
+                        await page.waitForTimeout(500);
+                        return;
+                    } catch (error) {
+                        // If button click fails, try fallback
+                        console.log('⚠️ Button click failed, trying fallback...');
+                    }
+                }
+            }
+        }
+
+        await page.waitForTimeout(intervalMs);
+    }
+};
+
+/**
  * Complete Plaid financial connection flow
  * @param {import('@playwright/test').Page} page
  * @param {Object} options
@@ -734,12 +815,18 @@ const plaidFinancialConnect = async (
         bankName = 'Betterment'
     } = {}
 ) => {
+    // Step 1: Click primary connect-bank button (opens MX modal)
+    await page.getByTestId('connect-bank').click();
 
-    // Click "Alternate Connect Bank" button
-    await expect(
-        page.locator('button:has-text("Alternate Connect Bank")')
-    ).toBeVisible({ timeout: 10000 });
-    await page.locator('button:has-text("Alternate Connect Bank")').click();
+    // Step 2: Handle bank connect info modal (if appears)
+    await handleBankConnectInfoModal(page);
+
+    // Step 3: Wait for MX iframe and close it
+    await page.waitForSelector('iframe[src*="int-widgets.moneydesktop.com"]', { timeout: 30000 });
+    await page.getByTestId('connnect-modal-cancel').click();
+
+    // Step 4: Handle connection issue modal (click "Connect using Plaid" to directly trigger Plaid)
+    await handleBankConnectOptionsModal(page, 'plaid');
 
     // Wait for Plaid iframe to load
     await page.waitForSelector('#plaid-link-iframe-1', { timeout: 60000 });
@@ -1882,9 +1969,18 @@ const failPaystubConnection = async applicantPage => {
  * @param {import('@playwright/test').Page} applicantPage
  */
 const completePlaidFinancialStep = async applicantPage => {
-    await applicantPage
-        .getByTestId('financial-secondary-connect-btn')
-        .click({ timeout: 20000 });
+    // Step 1: Click primary connect-bank button (opens MX modal)
+    await applicantPage.getByTestId('connect-bank').click();
+
+    // Step 2: Handle bank connect info modal (if appears)
+    await handleBankConnectInfoModal(applicantPage);
+
+    // Step 3: Wait for MX iframe and close it
+    await applicantPage.waitForSelector('iframe[src*="int-widgets.moneydesktop.com"]', { timeout: 30000 });
+    await applicantPage.getByTestId('connnect-modal-cancel').click();
+
+    // Step 4: Handle connection issue modal (click "Connect using Plaid" to directly trigger Plaid)
+    await handleBankConnectOptionsModal(applicantPage, 'plaid');
 
     const pFrame = await applicantPage.frameLocator('#plaid-link-iframe-1');
 
@@ -1942,29 +2038,18 @@ const completePlaidFinancialStep = async applicantPage => {
  * @param {import('@playwright/test').Page} applicantPage
  */
 const completePlaidFinancialStepBetterment = async (applicantPage, username = 'custom_gig', password = 'test') => {
-    // Poll up to 60s for the connect button to appear/be clickable (CI-friendly)
-    const connectBtn = applicantPage.getByTestId('financial-secondary-connect-btn');
-    const maxWaitMs = 60_000;
-    const pollIntervalMs = 1_000;
-    const startTime = Date.now();
-    let clicked = false;
+    // Step 1: Click primary connect-bank button (opens MX modal)
+    await applicantPage.getByTestId('connect-bank').click();
 
-    while (Date.now() - startTime < maxWaitMs) {
-        try {
-            if (await connectBtn.isVisible()) {
-                await connectBtn.click({ timeout: 5000 });
-                clicked = true;
-                break;
-            }
-        } catch (e) {
-            // ignore and retry until maxWaitMs
-        }
-        await applicantPage.waitForTimeout(pollIntervalMs);
-    }
+    // Step 2: Handle bank connect info modal (if appears)
+    await handleBankConnectInfoModal(applicantPage);
 
-    if (!clicked) {
-        throw new Error('Timed out (60s) waiting to click financial-secondary-connect-btn');
-    }
+    // Step 3: Wait for MX iframe and close it
+    await applicantPage.waitForSelector('iframe[src*="int-widgets.moneydesktop.com"]', { timeout: 30000 });
+    await applicantPage.getByTestId('connnect-modal-cancel').click();
+
+    // Step 4: Handle connection issue modal (click "Connect using Plaid" to directly trigger Plaid)
+    await handleBankConnectOptionsModal(applicantPage, 'plaid');
 
     // Wait for iframe to be present and loaded (CI-friendly)
     await applicantPage.waitForSelector('#plaid-link-iframe-1', { timeout: 60000 });
