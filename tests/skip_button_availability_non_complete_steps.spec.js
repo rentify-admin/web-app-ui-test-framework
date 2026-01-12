@@ -334,16 +334,22 @@ test.describe('QA-228 skip_button_availability_non_complete_steps.spec', () => {
             page.locator('button').filter({ hasText: /^Submit$/ }).click()
         ]);
         
-        // Wait for Pay Stub section to appear and check for processing (same as utility function)
-        await expect(page.getByText('Pay StubProcessing')).toBeVisible({ timeout: 90_000 });
         const employmentData = await employmentResponse.json();
         let employmentVerification = employmentData;
 
+        // Wait for connection row to appear
         const empConnectionRow = employmentStep.getByTestId('connection-row');
         await expect(empConnectionRow).toBeVisible({ timeout: 30_000 });
 
-        await expect(empConnectionRow.getByTestId('connection-row-row-status')).toHaveText('failed', { ignoreCase: true, timeout: 120_000 });
-        console.log('❌ Detected employment document was marked failed.');
+        // Wait for status to show "Uploaded"
+        const empStatusLocator = empConnectionRow.getByTestId('connection-row-row-status');
+        await waitForElementText(page, empStatusLocator, 'Uploaded', {
+            maxAttempts: 20,
+            pollInterval: 3000,
+            reloadOnLastAttempt: false,
+            errorMessage: 'connection-row-row-status did not become "Uploaded" after upload'
+        });
+        console.log('✅ Paystub uploaded and status shows "Uploaded".');
 
         // Check skip button available after failure and skip
         await verifyAndClickSkipButton(

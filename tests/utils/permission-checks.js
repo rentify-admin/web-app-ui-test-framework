@@ -173,12 +173,52 @@ const checkSessionApproveReject = async page => {
 const canRequestAdditionalDocuments = async page => {
     console.log('🚀 Should Allow User to Add Additional Documents');
 
-    const btn = await page.getByTestId('request-additional-btn');
-    await page.waitForTimeout(700);
-    if (!await btn.isVisible()) {
-        await page.getByTestId('session-action-btn').click();
+    // Wait a bit for the page to fully render
+    await page.waitForTimeout(1000);
+
+    // First, check if session-action-btn exists and is visible
+    const actionBtn = page.getByTestId('session-action-btn');
+    const actionBtnVisible = await actionBtn.isVisible({ timeout: 10000 }).catch(() => false);
+    
+    if (!actionBtnVisible) {
+        console.log('⚠️ session-action-btn is not visible - checking if dropdown should render...');
+        // Check if request-additional-btn exists at all (might be in DOM but hidden)
+        const requestBtnCount = await page.getByTestId('request-additional-btn').count();
+        if (requestBtnCount === 0) {
+            // Check if the session has the required step by looking at the page
+            const hasFinancialSection = await page.getByTestId('financial-section').count() > 0;
+            console.log(`📊 Debug info: hasFinancialSection=${hasFinancialSection}, requestBtnCount=${requestBtnCount}`);
+            throw new Error(`session-action-btn is not visible. User may lack required permissions or session may not have financial/employment/identity steps. Financial section exists: ${hasFinancialSection}`);
+        }
     }
-    await btn.click();
+
+    // Try to get request-additional-btn
+    let btn = page.getByTestId('request-additional-btn');
+    await page.waitForTimeout(700);
+    
+    // Check if button is visible
+    const isVisible = await btn.isVisible({ timeout: 2000 }).catch(() => false);
+    
+    if (!isVisible) {
+        console.log('⚠️ request-additional-btn not visible, clicking session-action-btn to open dropdown...');
+        // Click the dropdown button to open it
+        await actionBtn.click({ timeout: 10000 });
+        // Wait a bit for dropdown to open
+        await page.waitForTimeout(500);
+        // Check again if button is now visible
+        const isVisibleAfterClick = await btn.isVisible({ timeout: 2000 }).catch(() => false);
+        if (!isVisibleAfterClick) {
+            // Check if button exists in DOM at all
+            const btnCount = await btn.count();
+            if (btnCount === 0) {
+                throw new Error('request-additional-btn does not exist. Session may not have financial/employment/identity steps, or user lacks REQUEST_SESSION_FINANCIAL_CONNECTION permission.');
+            } else {
+                throw new Error('request-additional-btn exists but is not visible after opening dropdown. It may be hidden by other conditions.');
+            }
+        }
+    }
+    
+    await btn.click({ timeout: 5000 });
 
     const availableChecks = [
         'financial_connection',
