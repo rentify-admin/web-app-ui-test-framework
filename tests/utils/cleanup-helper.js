@@ -354,6 +354,141 @@ export async function cleanupUser(dataManager, user, allTestsPassed = true) {
 }
 
 /**
+ * Delete an organization member via API
+ * @param {APIRequestContext} request - Playwright request context
+ * @param {string} organizationId - Organization ID
+ * @param {string} memberId - Member ID to delete
+ * @param {string} token - Auth token
+ * @returns {Promise<boolean>} True if deletion succeeded
+ */
+async function deleteOrganizationMember(request, organizationId, memberId, token) {
+    try {
+        // First, try to get member details to log email (optional, for better logging)
+        let memberEmail = memberId;
+        try {
+            const getResponse = await request.get(
+                `${app.urls.api}/organizations/${organizationId}/members/${memberId}?fields[member]=id,user`,
+                {
+                    headers: { Authorization: `Bearer ${token}` }
+                }
+            );
+            if (getResponse.ok()) {
+                const memberData = await getResponse.json();
+                memberEmail = memberData?.data?.user?.email || memberId;
+            }
+        } catch {
+            // If we can't get member details, just use ID
+        }
+        
+        const deleteResponse = await request.delete(
+            `${app.urls.api}/organizations/${organizationId}/members/${memberId}`,
+            {
+                headers: { Authorization: `Bearer ${token}` }
+            }
+        );
+        
+        if (deleteResponse.ok() || deleteResponse.status() === 204) {
+            console.log(`✅ Member deleted successfully: ${memberEmail} (ID: ${memberId})`);
+            return true;
+        } else {
+            const errorText = await deleteResponse.text().catch(() => '');
+            console.log(`⚠️ Failed to delete member ${memberEmail} (ID: ${memberId}): ${deleteResponse.status()} - ${errorText}`);
+            return false;
+        }
+    } catch (error) {
+        console.error(`❌ Member deletion error for ${memberId}:`, error.message);
+        return false;
+    }
+}
+
+/**
+ * Clean up organization members (delete archived members via API)
+ * @param {APIRequestContext} request - Playwright request context
+ * @param {string} organizationId - Organization ID
+ * @param {Array} memberIds - Array of member IDs to delete
+ * @param {boolean} allTestsPassed - Whether all tests passed (default: true)
+ * @returns {Promise<void>}
+ */
+export async function cleanupOrganizationMembers(request, organizationId, memberIds = [], allTestsPassed = true) {
+    if (!memberIds || memberIds.length === 0) {
+        console.log('ℹ️  No members to clean up');
+        return;
+    }
+    
+    if (!organizationId) {
+        console.log(`⚠️  Organization ID missing - cannot clean up ${memberIds.length} member(s)`);
+        return;
+    }
+    
+    if (!allTestsPassed) {
+        console.log(`⚠️ Keeping ${memberIds.length} archived member(s) for debugging (IDs: ${memberIds.join(', ')})`);
+        return;
+    }
+    
+    try {
+        console.log(`🧹 Starting cleanup of ${memberIds.length} archived member(s) from organization ${organizationId}...`);
+        const token = await authenticateAdmin(request);
+        if (!token) {
+            console.log(`⚠️ Manual cleanup required - ${memberIds.length} archived member(s) (IDs: ${memberIds.join(', ')})`);
+            return;
+        }
+        
+        // First, get member details to log emails
+        const memberDetails = [];
+        for (const memberId of memberIds) {
+            try {
+                const getResponse = await request.get(
+                    `${app.urls.api}/organizations/${organizationId}/members/${memberId}?fields[member]=id,user`,
+                    {
+                        headers: { Authorization: `Bearer ${token}` }
+                    }
+                );
+                if (getResponse.ok()) {
+                    const memberData = await getResponse.json();
+                    memberDetails.push({
+                        id: memberId,
+                        email: memberData?.data?.user?.email || 'unknown'
+                    });
+                } else {
+                    memberDetails.push({ id: memberId, email: 'unknown (not found)' });
+                }
+            } catch {
+                memberDetails.push({ id: memberId, email: 'unknown (error fetching)' });
+            }
+        }
+        
+        console.log(`📋 Members to delete: ${memberDetails.map(m => `${m.email} (${m.id})`).join(', ')}`);
+        
+        let successCount = 0;
+        let failCount = 0;
+        
+        for (const memberDetail of memberDetails) {
+            const deleted = await deleteOrganizationMember(request, organizationId, memberDetail.id, token);
+            if (deleted) {
+                successCount++;
+            } else {
+                failCount++;
+            }
+        }
+        
+        console.log(`🧹 Member cleanup complete: ${successCount} deleted, ${failCount} failed`);
+        
+        if (failCount > 0) {
+            const failedMembers = memberDetails.filter((_, idx) => {
+                // This is a simplified check - in real scenario, track which ones failed
+                return idx >= successCount;
+            });
+            console.log(`⚠️ Manual cleanup may be required for: ${failedMembers.map(m => m.email).join(', ')}`);
+        } else {
+            console.log(`✅ All members successfully deleted: ${memberDetails.map(m => m.email).join(', ')}`);
+        }
+    } catch (error) {
+        console.error('❌ Member cleanup error:', error.message);
+        console.log(`⚠️ Manual cleanup required - ${memberIds.length} archived member(s) (IDs: ${memberIds.join(', ')})`);
+    }
+}
+
+/**
  * Complete cleanup for permission tests (session + contexts + user)
  * ✅ Centralized cleanup - handles everything in one place
  * 

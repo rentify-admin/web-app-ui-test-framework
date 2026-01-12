@@ -142,15 +142,47 @@ const deleteMember = async (page, deleteBtn) => {
 
 };
 
+const archiveMember = async (page, archiveBtn) => {
+    const onDialog = async dialog => {
+        if (dialog.type() === 'confirm') {
+            dialog.accept();
+            await page.off('dialog', onDialog);
+        }
+    };
+    page.on('dialog', onDialog);
+
+    await Promise.all([
+        page.waitForResponse(resp => {
+            const reg = new RegExp('.+organizations/.{36}/members/.{36}');
+            return reg.test(resp.url())
+                        && resp.request().method() === 'PATCH'
+                        && resp.ok();
+        }),
+        page.waitForResponse(resp => {
+            const reg = new RegExp('.+organizations/.{36}/members');
+            return reg.test(resp.url())
+                        && resp.request().method() === 'GET'
+                        && resp.ok();
+        }),
+        archiveBtn.click()
+    ]);
+
+};
+
 const addOrganizationMember = async (page, data, memberCreateModal) => {
     await page.locator('#member-email').fill(data.email);
     await fillMultiselect(page, await page.getByTestId('member-role-field'), [ data.role ]);
 
+    let memberResponseUrl = null;
     const [ memberRes, membersRes ] = await Promise.all([
         page.waitForResponse(resp => {
             const reg = new RegExp('.+organizations/.{36}/members');
-            console.log(reg.test(resp.url()), resp.request().method());
-            return reg.test(resp.url())
+            const matches = reg.test(resp.url());
+            console.log(matches, resp.url(), resp.request().method());
+            if (matches && resp.request().method() === 'POST' && resp.ok()) {
+                memberResponseUrl = resp.url();
+            }
+            return matches
                 && resp.request().method() === 'POST'
                 && resp.ok();
         }),
@@ -173,9 +205,20 @@ const addOrganizationMember = async (page, data, memberCreateModal) => {
 
     const { data: member } = await waitForJsonResponse(memberRes);
     const { data: members } = await waitForJsonResponse(membersRes);
+    
+    // Extract organization ID from response URL if available
+    let organizationId = null;
+    if (memberResponseUrl) {
+        const urlMatch = memberResponseUrl.match(/organizations\/([a-f0-9-]{36})/);
+        if (urlMatch && urlMatch[1]) {
+            organizationId = urlMatch[1];
+        }
+    }
+    
     return {
         member,
-        members
+        members,
+        organizationId
     };
 };
 
@@ -185,6 +228,7 @@ export {
     gotoMembersPage,
     addManageAppPermissionAndCheck,
     deleteMember,
+    archiveMember,
     addOrganizationMember, 
     checkFirstRowHasEmail
 };

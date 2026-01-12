@@ -11,7 +11,7 @@ import * as orgUtils from './utils/organizations-page';
 import { checkRolesVisibleInTable } from '~/tests/utils/roles-page';
 import { ApiDataManager } from './utils/api-data-manager';
 import { createPermissionTestSession } from './utils/session-generator';
-import { cleanupPermissionTest } from './utils/cleanup-helper';
+import { cleanupPermissionTest, cleanupOrganizationMembers } from './utils/cleanup-helper';
 import { resolveAllFlagsUntilApproveClickable } from './utils/robust-flag-resolver';
 
 // Global state management for test isolation
@@ -21,6 +21,8 @@ let sharedSessionId = null;
 let allTestsPassed = true;
 let adminContextForCleanup = null;  // ✅ Store admin context for later cleanup
 let applicantContextForCleanup = null;  // ✅ Store applicant context for later cleanup
+let createdMemberIds = [];  // ✅ Track created member IDs for cleanup
+let organizationId = null;  // ✅ Store organization ID for member cleanup
 
 // Role name to search for
 const roleName = 'Autotest - Property Admin';
@@ -96,6 +98,8 @@ test.describe('property_admin_permission_test', () => {
         }
         
         console.log(`✅ Organization "${organizationName}" found with ID: ${organization.id}`);
+        // Store organization ID for member cleanup
+        organizationId = organization.id;
 
         // Create property admin user via API instead of UI
         const prefix = ApiDataManager.uniquePrefix();
@@ -202,7 +206,7 @@ test.describe('property_admin_permission_test', () => {
             await expect(page).toHaveURL(/application\/create/);
             await page.getByTestId('cancel-application-setup').click();
 
-            // Organization members: add, check, give permission, and delete
+            // Organization members: add, check, give permission, and archive
             await gotoPage(page, 'organization-menu', 'organization-self-submenu', '/organizations/self');
             await orgUtils.gotoMembersPage(page);
             await Promise.all([
@@ -211,33 +215,56 @@ test.describe('property_admin_permission_test', () => {
             ]);
             const orgMemberCreateModal = await page.getByTestId('org-user-create-modal');
             await expect(orgMemberCreateModal).toBeVisible();
-            const staffEmail = `admin_test+${ApiDataManager.uniquePrefix()}@verifast.com`;
-            const userData = { email: staffEmail, role: 'Autotest - Staff' }; // Use Autotest role to avoid permission mismatches
-            await orgUtils.addOrganizationMember(page, userData, orgMemberCreateModal);
-            await orgUtils.checkFirstRowHasEmail(page, userData.email);
+            const staffEmail1 = `admin_test+${ApiDataManager.uniquePrefix()}@verifast.com`;
+            const userData1 = { email: staffEmail1, role: 'Autotest - Staff' }; // Use Autotest role to avoid permission mismatches
+            const memberResult1 = await orgUtils.addOrganizationMember(page, userData1, orgMemberCreateModal);
+            // Store member ID and organization ID for cleanup
+            if (memberResult1?.member?.id) {
+                createdMemberIds.push(memberResult1.member.id);
+            }
+            // Extract organization ID from response if not already set
+            if (!organizationId && memberResult1?.organizationId) {
+                organizationId = memberResult1.organizationId;
+            }
+            // Search for the member we just created to ensure we're working with the right one
+            await orgUtils.checkFirstRowHasEmail(page, userData1.email);
+            // Get the archive button for the member we just created (first row after search)
+            const archiveBtn1 = page.getByTestId('members-table').locator('tbody>tr')
+                .nth(0)
+                .locator('[data-testid^=archive-]');
+            await expect(archiveBtn1).toBeVisible();
             await orgUtils.addManageAppPermissionAndCheck(page, await page.getByTestId('members-table').locator('tbody>tr')
                 .nth(0)
                 .locator('[data-testid^=edit-]'));
-            await orgUtils.deleteMember(page, await page.getByTestId('members-table').locator('tbody>tr')
-                .nth(0)
-                .locator('[data-testid^=delete-]'));
-            // Check that "No Record Found" message is displayed after member deletion
+            await orgUtils.archiveMember(page, archiveBtn1);
+            // Check that "No Record Found" message is displayed after member archiving
             await expect(page.locator('span:has-text("No Record Found")')).toBeVisible();
 
-            // Alternative member modal: add, check, give permission, and delete
+            // Alternative member modal: add, check, give permission, and archive
             await gotoPage(page, 'organization-menu', 'members-submenu', new RegExp('.+organizations/.{36}/members.+'), true);
             await page.getByTestId('create-member-btn').click();
             const memberCreateModal = await page.getByTestId('create-member-modal');
             await expect(memberCreateModal).toBeVisible();
-            await orgUtils.addOrganizationMember(page, userData, memberCreateModal);
-            await orgUtils.checkFirstRowHasEmail(page, userData.email);
+            // Create a NEW member with a different email (cannot reuse archived member's email)
+            const staffEmail2 = `admin_test+${ApiDataManager.uniquePrefix()}@verifast.com`;
+            const userData2 = { email: staffEmail2, role: 'Autotest - Staff' };
+            const memberResult2 = await orgUtils.addOrganizationMember(page, userData2, memberCreateModal);
+            // Store member ID for cleanup
+            if (memberResult2?.member?.id) {
+                createdMemberIds.push(memberResult2.member.id);
+            }
+            // Search for the new member we just created
+            await orgUtils.checkFirstRowHasEmail(page, userData2.email);
+            // Get the archive button for the member we just created (first row after search)
+            const archiveBtn2 = page.getByTestId('members-table').locator('tbody>tr')
+                .nth(0)
+                .locator('[data-testid^=archive-]');
+            await expect(archiveBtn2).toBeVisible();
             await orgUtils.addManageAppPermissionAndCheck(page, await page.getByTestId('members-table').locator('tbody>tr')
                 .nth(0)
                 .locator('[data-testid^=edit-]'));
-            await orgUtils.deleteMember(page, await page.getByTestId('members-table').locator('tbody>tr')
-                .nth(0)
-                .locator('[data-testid^=delete-]'));
-            // Check that "No Record Found" message is displayed after member deletion
+            await orgUtils.archiveMember(page, archiveBtn2);
+            // Check that "No Record Found" message is displayed after member archiving
             await expect(page.locator('span:has-text("No Record Found")')).toBeVisible();
 
             console.log('✅ All property admin permission checks passed successfully');
@@ -409,10 +436,26 @@ test.describe('property_admin_permission_test', () => {
         // Note: All cleanup (user + session + contexts) happens in afterAll
     });
     
-    // ✅ Centralized cleanup (DISABLED - sessions and users are preserved for debugging)
-    test.afterAll(async () => {
-        console.log('🧪 Skipping cleanup in property_admin_permission_test.spec.js (sessions and users preserved)');
-        // If you want to re‑enable cleanup, restore the call to cleanupPermissionTest here.
+    // ✅ Centralized cleanup
+    test.afterAll(async ({ request }) => {
+        console.log('🧹 Starting cleanup in property_admin_permission_test.spec.js...');
+        
+        // Clean up archived members via API (always cleanup members, even on test failure)
+        if (organizationId && createdMemberIds.length > 0) {
+            console.log(`🧹 Cleaning up ${createdMemberIds.length} archived member(s)...`);
+            await cleanupOrganizationMembers(request, organizationId, createdMemberIds, true);
+        }
+        
+        // Clean up session, contexts, and user
+        await cleanupPermissionTest(
+            request,
+            sharedSessionId,
+            applicantContextForCleanup,
+            adminContextForCleanup,
+            globalDataManager,
+            globalPropertyAdminUser,
+            allTestsPassed
+        );
     });
 });
 

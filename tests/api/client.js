@@ -106,7 +106,10 @@ class ApiClient {
                     errorMessage += `\nData: [unserializable]`;
                 }
             }
-            throw new Error(errorMessage);
+            // Preserve the response property (consistent with get() method)
+            const wrappedError = new Error(errorMessage);
+            wrappedError.response = error.response;
+            throw wrappedError;
         }
     }
 
