@@ -99,9 +99,34 @@ test.describe('QA-268 id-name-mismatch-flag-resolution-after-persona.spec', () =
         console.log('🕵️ Completing Persona verification flow (using sandbox sample)...');
         await identityStep(applicantPage);
 
-        // Wait for summary step (Persona completed)
-        await expect(applicantPage.getByTestId('summary-completed-section')).toBeVisible({ timeout: 10_000 });
-        console.log('🎉 Verification complete! Applicant reached summary step.');
+        // Wait for Persona iframe to disappear (Persona flow completed)
+        console.log('⏳ Waiting for Persona iframe to close...');
+        await expect(applicantPage.locator('iframe[src*="withpersona.com"]')).not.toBeAttached({ timeout: 30_000 }).catch(() => {
+            console.log('⚠️ Persona iframe may have already closed');
+        });
+
+        // Poll for summary step (Persona completed and backend processed)
+        console.log('⏳ Polling for summary step to appear...');
+        const maxPolls = 15;
+        const pollInterval = 4000; // 4 seconds
+        
+        for (let attempt = 1; attempt <= maxPolls; attempt++) {
+            try {
+                const summarySection = applicantPage.getByTestId('summary-completed-section');
+                await expect(summarySection).toBeVisible({ timeout: 2000 });
+                console.log(`✅ Summary step appeared after ${attempt} attempt(s)`);
+                console.log('🎉 Verification complete! Applicant reached summary step.');
+                break;
+            } catch (error) {
+                if (attempt < maxPolls) {
+                    console.log(`⏳ Summary step not yet visible, polling... (${attempt}/${maxPolls})`);
+                    await applicantPage.waitForTimeout(pollInterval);
+                } else {
+                    console.error(`❌ Summary step did not appear after ${maxPolls} attempts`);
+                    throw new Error(`Summary step timeout: summary-completed-section not found after ${maxPolls * pollInterval / 1000} seconds`);
+                }
+            }
+        }
 
         // Step 3: Verify No Mismatch Flag in Dashboard
         console.log('\n📊 Step 3: Verify No Mismatch Flag in Dashboard');

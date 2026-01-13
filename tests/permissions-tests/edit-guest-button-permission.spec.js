@@ -147,7 +147,9 @@ test.describe('QA-245 edit-guest-button-permission.spec', () => {
         }
     });
 
-    test('Verify Edit Guest Button permission gating and UI/edit/cancel flows', async ({ page, browser }) => {
+    test('Verify Edit Guest Button permission gating and UI/edit/cancel flows', {
+        tag: ['@qa-245', '@permissions', '@identity', '@ui', '@core', '@regression', '@rc-ready', '@staging-ready']
+    }, async ({ page, browser }) => {
         const timestamp = Date.now();
         const guestUser = {
             first_name: "Autot - Permtest",
@@ -358,7 +360,7 @@ test.describe('QA-245 edit-guest-button-permission.spec', () => {
         try {
             // Close browser context if it exists
             if (memberContext) {
-                try {
+            try {
                     await memberContext.close();
                     console.log('[CLEANUP] Member browser context closed');
                 } catch (e) {
@@ -367,26 +369,26 @@ test.describe('QA-245 edit-guest-button-permission.spec', () => {
             }
 
             // Delete member first (remove organization relationship)
-            if (createdMember) {
-                try {
+                if (createdMember) {
+                    try {
                     await adminClient.delete(`/organizations/${organizationId}/members/${createdMember}`);
-                    console.log('[CLEANUP] Test member cleaned up:', createdMember);
-                } catch (e) {
-                    console.log(`[CLEANUP ERROR] Could not cleanup member with id ${createdMember}`);
-                    console.error('[CLEANUP ERROR] Could not cleanup member:', e.message);
+                        console.log('[CLEANUP] Test member cleaned up:', createdMember);
+                    } catch (e) {
+                        console.log(`[CLEANUP ERROR] Could not cleanup member with id ${createdMember}`);
+                        console.error('[CLEANUP ERROR] Could not cleanup member:', e.message);
+                    }
                 }
-            }
 
             // Always delete user (to prevent orphaned users)
-            if (createdUser) {
-                try {
+                if (createdUser) {
+                    try {
                     await adminClient.delete(`/users/${createdUser}`);
-                    console.log('[CLEANUP] Test user cleaned up:', createdUser);
-                } catch (e) {
-                    console.log(`[CLEANUP ERROR] Could not cleanup user with id ${createdUser}`);
-                    console.error('[CLEANUP ERROR] Could not cleanup user:', e.message);
+                        console.log('[CLEANUP] Test user cleaned up:', createdUser);
+                    } catch (e) {
+                        console.log(`[CLEANUP ERROR] Could not cleanup user with id ${createdUser}`);
+                        console.error('[CLEANUP ERROR] Could not cleanup user:', e.message);
+                    }
                 }
-            }
 
             // Delete session (only if test passed, keep for debugging if failed)
             if (createdSessionId) {
@@ -398,7 +400,7 @@ test.describe('QA-245 edit-guest-button-permission.spec', () => {
                 }
             }
         } catch (cleanupError) {
-            console.error('[CLEANUP ERROR] Test cleanup failed:', cleanupError.message);
+                console.error('[CLEANUP ERROR] Test cleanup failed:', cleanupError.message);
         }
     });
 });
