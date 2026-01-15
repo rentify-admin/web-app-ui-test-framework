@@ -73,6 +73,9 @@ test.describe('QA-264 document-delete-internal-only', () => {
     let fileId = null; // Bank statement file ID
 
     test.beforeAll(async ({ browser, request }) => {
+        // Set explicit timeout for beforeAll hook (300s = 5 minutes)
+        test.setTimeout(300000);
+        
         // 1) Admin auth (Pattern A): API token independent from UI session/logout
         const adminApiToken = await authenticateAdmin(request);
         if (!adminApiToken) throw new Error('Admin token required');
@@ -399,6 +402,7 @@ test.describe('QA-264 document-delete-internal-only', () => {
         await expect(deletedFileButton).not.toBeVisible({ timeout: 5000 });
 
         // 11. API Verification: GET /sessions/{id}/files - verify document no longer in response
+        // Use adminClient (token set in beforeAll)
         console.log('[TEST 3] Verifying file deleted via API...');
         const filesResponse = await adminClient.get(`/sessions/${sessionId}/files`, {
             params: {

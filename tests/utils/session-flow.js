@@ -2356,21 +2356,16 @@ const simulatorFinancialStepWithVeridocs = async (page, veridocsPayload) => {
     console.log('⏳ Waiting for simulator to process payload...');
     await page.waitForTimeout(5000);
     console.log('✅ Simulator processing completed');
-    // Step 6: Poll up to 60s for any connection row to appear
+    // Step 6: Poll up to 60s for any connection row to appear (using Playwright's built-in polling)
     console.log('🔍 Checking if connection row exists (with polling up to 60s)...');
     const connectionRows = page.getByTestId('connection-row');
-    const maxWaitMs = 60_000;
-    const pollIntervalMs = 1_000;
-    const startTime = Date.now();
-    let rowCount = 0;
-
-    while (Date.now() - startTime < maxWaitMs) {
-        rowCount = await connectionRows.count();
-        if (rowCount > 0) break;
-        await page.waitForTimeout(pollIntervalMs);
-    }
-
+    
+    // Use expect().toBeVisible() which has built-in polling - more reliable than manual count() checks
+    await expect(connectionRows.first()).toBeVisible({ timeout: 60_000 });
+    
+    const rowCount = await connectionRows.count();
     console.log(`📊 Found ${rowCount} connection row(s)`);
+    
     if (rowCount === 0) {
         console.log('❌ No connection rows found - simulator may not have processed the payload');
         throw new Error('No connection rows found after simulator dialog');

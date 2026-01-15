@@ -125,6 +125,16 @@ class ApiClient {
     setAuthToken(token) {
         this.authToken = token;
         this.client.defaults.headers.Authorization = `Bearer ${token}`;
+        // If no interceptor was set up in constructor (authToken was null), add one now
+        // Check if request interceptors exist - if not, add one
+        if (this.client.interceptors.request.handlers.length === 0) {
+            this.client.interceptors.request.use(config => {
+                if (this.authToken) {
+                    config.headers.Authorization = `Bearer ${this.authToken}`;
+                }
+                return config;
+            });
+        }
     }
 
     resetAuthToken() {

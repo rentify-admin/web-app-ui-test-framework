@@ -233,7 +233,9 @@ test.describe('property_admin_permission_test', () => {
                 .nth(0)
                 .locator('[data-testid^=archive-]');
             await expect(archiveBtn1).toBeVisible();
-            await orgUtils.addManageAppPermissionAndCheck(page, await page.getByTestId('members-table').locator('tbody>tr')
+            // ✅ VC-2225: Property Admin is external role, cannot manage permissions
+            // Verify that permission management is NOT available (expected behavior)
+            await orgUtils.verifyExternalRoleCannotManagePermissions(page, await page.getByTestId('members-table').locator('tbody>tr')
                 .nth(0)
                 .locator('[data-testid^=edit-]'));
             await orgUtils.archiveMember(page, archiveBtn1);
@@ -260,7 +262,9 @@ test.describe('property_admin_permission_test', () => {
                 .nth(0)
                 .locator('[data-testid^=archive-]');
             await expect(archiveBtn2).toBeVisible();
-            await orgUtils.addManageAppPermissionAndCheck(page, await page.getByTestId('members-table').locator('tbody>tr')
+            // ✅ VC-2225: Property Admin is external role, cannot manage permissions
+            // Verify that permission management is NOT available (expected behavior)
+            await orgUtils.verifyExternalRoleCannotManagePermissions(page, await page.getByTestId('members-table').locator('tbody>tr')
                 .nth(0)
                 .locator('[data-testid^=edit-]'));
             await orgUtils.archiveMember(page, archiveBtn2);
