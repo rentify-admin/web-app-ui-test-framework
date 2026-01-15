@@ -19,7 +19,7 @@ test.describe('QA-310 workflow_creation_background_check_step.spec', () => {
     })
 
     test('Workflow Creation with Background Check Step Configuration', {
-        tag: ['@core', '@regression']
+        tag: ['@core', '@need-review']
     }, async ({ page }) => {
 
         // --- Setup & Login ---

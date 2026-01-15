@@ -28,7 +28,7 @@ const fill = async (page, userData = {}, options = {}) => {
     };
 
     // Auto-prefix first name with 'AutoT - ' (idempotent - won't double-prefix)
-    const prefixedFirstName = defaultOptions.noPrefix ? addPrefix(defaultUserData.first_name) : defaultUserData.first_name;
+    const prefixedFirstName = defaultOptions.prefix !== false ? addPrefix(defaultUserData.first_name) : defaultUserData.first_name;
     // Auto-suffix email with '+autotest' (since app uses email to determine guest name)
     const modifiedEmail = addEmailSuffix(defaultUserData.email);
 
