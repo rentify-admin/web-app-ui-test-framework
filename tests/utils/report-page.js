@@ -941,6 +941,7 @@ const findSessionLocator = async (page, selector) => {
         scrollCount++;
         await page.waitForTimeout(2000);
     }
+    throw new Error(`Locator ${selector} not found`)
 };
 
 const checkMergeWithDragAndDrop = async (page, sessions) => {
