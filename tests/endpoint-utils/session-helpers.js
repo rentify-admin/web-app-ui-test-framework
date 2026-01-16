@@ -25,6 +25,7 @@ async function simulateVerification(guestClient, verificationUrl, provider, step
     console.log(`✅ Session transitioned from ${type} step.`);
     console.log(`✅ ${simulationData.simulation_type} payload uploaded for ${type} verification.`);
     await waitForVerificationComplete(guestClient, verificationUrl, step, response.data, simulationData, type);
+    return response.data
 }
 
 async function waitForVerificationComplete(guestClient, verificationUrl, step, verification, simulationData, type, maxAttempts = 15,) {

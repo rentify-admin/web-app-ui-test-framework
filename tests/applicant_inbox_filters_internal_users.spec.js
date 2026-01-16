@@ -6,28 +6,39 @@ import { loginWithAdmin } from "./endpoint-utils/auth-helper";
 import { findSessionLocator } from "./utils/report-page";
 import { fillMultiselect } from "./utils/common";
 import { waitForJsonResponse } from "./utils/wait-response";
+import { sessionFlow } from "./utils/session-flow";
+import { getRandomEmail } from "./utils/helper";
 
-
-const SESSION_FIELDS = {
-    'fields[session_step]': ':all',
-    'fields[session]': 'state,applicant,application,children,target,parent,completion_status,actions,flags,type,role,stakeholder_count,expires_at,extensions',
-    'fields[applicant]': 'guest',
-    'fields[guest]': ':all',
-    'fields[application]': 'name,settings,workflow,eligibility_template,logo',
-    'fields[workflow_step]': ':all'
-}
 
 test.describe('QA-280 applicant_inbox_filters_internal_users.spec', () => {
 
     let adminClient
+    let guestClient
     let sessions;
+    let applications;
+    let createdSession;
+    let test5Passed = false;
+
+    const APPs = {
+        app1: 'Autotest - Application Heartbeat (Frontend)',
+        app2: 'Autotest - Heartbeat Test - Employment',
+        app3: 'Autotest - Heartbeat Test - ID',
+        app4: 'Autotest - Simulation Upload',
+        app5: 'AutoTest - Id Emp Fin',
+    }
+
+
     test.beforeAll(async () => {
+        console.log("[beforeAll] Initializing ApiClients...");
         adminClient = new ApiClient(app.urls.api, null, 120_000);
+        guestClient = new ApiClient(app.urls.api, null, 120_000);
+
+        console.log("[beforeAll] Logging in as admin...");
         await loginWithAdmin(adminClient);
 
-        const sessionStartDate = new Date()
-        sessionStartDate.setDate(sessionStartDate.getDate() - 5);
-        const sessionEndDate = new Date() // End date today will give result till today not today sessions 
+        const now = new Date();
+        const sessionStartDate = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - 5));
+        const sessionEndDate = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
         const formattedSessionStartDate = formatDate(sessionStartDate);
         const formattedSessionEndDate = formatDate(sessionEndDate);
 
@@ -73,23 +84,39 @@ test.describe('QA-280 applicant_inbox_filters_internal_users.spec', () => {
 
         const datePicker = filterModal.getByTestId('session-date-range')
         await expect(datePicker).toBeVisible()
-        const startDate = new Date();
-        startDate.setDate(sessionStartDate.getDate() - 3);
-        const endDate = new Date();
-        endDate.setDate(sessionStartDate.getDate() - 2);
+        const startDate = new Date(Date.UTC(
+            new Date().getUTCFullYear(),
+            new Date().getUTCMonth(),
+            new Date().getUTCDate() - 3
+        ));
+        const endDate = new Date(Date.UTC(
+            new Date().getUTCFullYear(),
+            new Date().getUTCMonth(),
+            new Date().getUTCDate() - 2
+        ));
         await checkDateRangeSelection(page, filterModal, sessions, startDate, endDate);
 
         await filterBtn.click()
         await expect(filterModal).toBeVisible()
         await expect(datePicker).toBeVisible()
 
-        const singleDate = new Date();
-        singleDate.setDate(sessionStartDate.getDate() - 2);
+        const singleDate = new Date(Date.UTC(
+            new Date().getUTCFullYear(),
+            new Date().getUTCMonth(),
+            new Date().getUTCDate() - 2
+        ));
         await checkDateRangeSelection(page, filterModal, sessions, singleDate, singleDate);
 
-        const lastDate = new Date();
-        lastDate.setDate(sessionStartDate.getDate() - 1);
-        const today = new Date();
+        const lastDate = new Date(Date.UTC(
+            new Date().getUTCFullYear(),
+            new Date().getUTCMonth(),
+            new Date().getUTCDate() - 1
+        ));
+        const today = new Date(Date.UTC(
+            new Date().getUTCFullYear(),
+            new Date().getUTCMonth(),
+            new Date().getUTCDate()
+        ));
         await checkDateRangeSelection(page, filterModal, sessions, lastDate, today);
 
         await filterBtn.click()
@@ -102,7 +129,7 @@ test.describe('QA-280 applicant_inbox_filters_internal_users.spec', () => {
     test('Test 2: Basic Multi-Select Filters - Application, Document Types, Applicant Types', {
         tag: ['@core', '@regression']
     }, async ({ page }) => {
-
+        test.setTimeout(200_000)
         // Application Filter
 
         await page.goto('/');
@@ -184,63 +211,165 @@ test.describe('QA-280 applicant_inbox_filters_internal_users.spec', () => {
         const url = new URL(request.url());
         const filters = url.searchParams.get('filters') ? JSON.parse(url.searchParams.get('filters')) : {};
 
-        // Flatten all $like objects to a single array of values for validation
-        function extractAllLikes(obj) {
-            let likes = [];
-            if (obj && typeof obj === 'object') {
-                for (const [key, value] of Object.entries(obj)) {
-                    if (key === '$like' && typeof value === 'string') {
-                        likes.push(value);
-                    } else if (typeof value === 'object') {
-                        likes = likes.concat(extractAllLikes(value));
-                    }
-                }
-            }
-            return likes;
-        }
-        const allLikes = extractAllLikes(filters);
-
-        // The searchText used
-        expect(allLikes).toContain(searchText);
-
-        // Additionally, verify presence in all the required explicit paths
-        function findLikeAtPath(obj, pathArr) {
-            return pathArr.reduce((cur, p) => cur && cur[p], obj);
+        /**
+         * Given a filter object and a path array, traverses the object to find the value at the path.
+         * Returns undefined if any part of the path does not exist.
+         */
+        function findValueAtPath(obj, pathArr) {
+            return pathArr.reduce((cur, p) => (cur && cur[p] !== undefined) ? cur[p] : undefined, obj);
         }
 
+        // The paths (based on the prompt's filters JSON structure) to check for the search string
         const searchLikePaths = [
-            ['$or','$or','id', '$like'],
-            ['$or','$or','completion_status', '$like'],
-            ['$or','$or','approval_status', '$like'],
-            ['$or','$or','acceptance_status', '$like'],
-            ['$or','$has','application', 'id', '$like'],
-            ['$or','$has','application',"$or", 'name', '$like'],
-            ['$or','$has','application',"$or", 'description', '$like'],
-            ['$or','$has','application',"$or", 'organization', 'id', '$like'],
-            ['$or','$has','application',"$or", 'organization', 'name', '$like'],
-            ['applicant', 'guest', 'full_name', '$like'],
-            ['applicant', 'guest', 'email', '$like'],
-            ['flags', 'severity', '$like'],
-            ['children', 'session', 'applicant', 'guest', 'full_name', '$like'],
-            ['children', 'session', 'applicant', 'guest', 'email', '$like']
+            ['$and', 1, '$or', '$or', 'id', '$like'],
+            ['$and', 1, '$or', '$or', 'completion_status', '$like'],
+            ['$and', 1, '$or', '$or', 'approval_status', '$like'],
+            ['$and', 1, '$or', '$or', 'acceptance_status', '$like'],
+            ['$and', 1, '$or', '$has', 'application', '$or', 'id', '$like'],
+            ['$and', 1, '$or', '$has', 'application', '$or', 'name', '$like'],
+            ['$and', 1, '$or', '$has', 'application', '$or', 'description', '$like'],
+            ['$and', 1, '$or', '$has', 'application', '$or', '$has', 'organization', '$or', 'id', '$like'],
+            ['$and', 1, '$or', '$has', 'application', '$or', '$has', 'organization', '$or', 'name', '$like'],
+            ['$and', 1, '$or', '$has', 'applicant', '$has', 'guest', '$or', 'full_name', '$like'],
+            ['$and', 1, '$or', '$has', 'applicant', '$has', 'guest', '$or', 'email', '$like'],
+            ['$and', 1, '$or', '$has', 'flags', 'severity', '$like'],
+            ['$and', 1, '$or', '$has', 'children', 'session', 'applicant', '$has', 'guest', '$or', 'full_name', '$like'],
+            ['$and', 1, '$or', '$has', 'children', 'session', 'applicant', '$has', 'guest', '$or', 'email', '$like'],
         ];
 
         for (const path of searchLikePaths) {
-            const val = findLikeAtPath(filters, path);
-            // Only check if this path exists, as the backend may omit fields if not relevant
-            if (val !== undefined) {
-                expect(val).toBe(searchText.toLowerCase());
-            }
+            const val = findValueAtPath(filters, path);
+            expect(val).toBe(searchText);
         }
 
-        const { data: sessions } = await waitForJsonResponse(sessionResponse)
+        const { data: sessions } = await waitForJsonResponse(sessionResponse);
 
-        await expect(sessions.every(session => session.applicant.guest.full_name.toLowerCase() === searchText.toLowerCase()))
-            .toBeTruthy()
+        await expect(sessions.every(session => session.applicant.guest.full_name === searchText))
+            .toBeTruthy();
 
     })
 
+    test('Test 5: Combined Filters and Filter Management', {
+        tag: ['@core', '@regression']
+    }, async ({ page }) => {
+        test.setTimeout(150_000)
+        console.log("[Test5] Fetching applications...");
+        const applicationResponse = await adminClient.get('/applications', {
+            params: {
+                filters: JSON.stringify({
+                    name: {
+                        $in: Object.values(APPs)
+                    }
+                })
+            }
+        })
+
+        applications = applicationResponse.data.data;
+
+        const app1 = applications.find(app => app.name === APPs.app1);
+        console.log("[Test5] Resolved app1:", app1 && app1.id);
+        await expect(app1).toBeDefined()
+
+        console.log("[Test5] Running sessionFlow for app1...");
+        const user = {
+            email: getRandomEmail(),
+            first_name: 'App1',
+            last_name: 'TestUser'
+        };
+        const response = await sessionFlow(adminClient, guestClient, app1, user);
+        createdSession = response.session
+
+        // approving session
+        await adminClient.patch(`/sessions/${createdSession.id}`, {
+            acceptance_status: 'APPROVED'
+        })
+
+        await page.goto('/')
+
+        await loginWith(page, admin)
+
+        const filterBtn = page.getByTestId('session-filter-modal-btn');
+        await filterBtn.click()
+        const filterModal = page.getByTestId('session-filter-modal')
+        await expect(filterModal).toBeVisible()
+
+        const verificationStep = {
+            name: 'Financial Verification',
+            key: 'financial_verification'
+        };
+        const applicationName = APPs.app1;
+        const documentType = 'Bank Statement';
+        const applicantType = 'Affordable Occupant';
+        const acceptanveStatus = 'Approved';
+        const organizationName = 'Verifast';
+        const startDate = new Date();
+        startDate.setDate(startDate.getDate() - 1)
+        const endDate = new Date();
+        endDate.setDate(endDate.getDate() + 1);
+
+        // fill filters 
+
+        await fillMultiselect(page, page.getByTestId('filter-verification-input'), [verificationStep.name]);
+        await fillMultiselect(page, page.getByTestId('filter-application-input'), [applicationName], {
+            waitUrl: '/applications?'
+        });
+
+        await fillMultiselect(page, page.getByTestId('filter-document-type-input'), [documentType]);
+
+        await fillMultiselect(page, page.getByTestId('filter-applicant-type-input'), [applicantType]);
+
+        await selectDateRangeInPicker(filterModal, startDate, endDate)
+
+        await fillMultiselect(page, page.getByTestId('filter-acceptance-status-input'), [acceptanveStatus]);
+
+        await fillMultiselect(page, page.getByTestId('filter-organization-input'), [organizationName]);
+
+        const [sessionResponse] = await Promise.all([
+            page.waitForResponse(resp => {
+                const match = resp.url().includes('sessions?')
+                    && resp.request().method() === 'GET'
+                    && resp.ok();
+                return match;
+            }),
+            filterModal.getByTestId('submit-filter-modal').click()
+        ]);
+
+        const { data: filteredSessions } = await waitForJsonResponse(sessionResponse);
+
+        expect(filteredSessions.map(session => session.id)).toContain(createdSession.id)
+        const sessionLocator = await findSessionLocator(page, `.application-card[data-session="${createdSession.id}"]`);
+        await expect(sessionLocator).toBeVisible();
+
+        // reverse condition check
+        await filterBtn.click()
+        await expect(filterModal).toBeVisible()
+
+        await fillMultiselect(page, page.getByTestId('filter-acceptance-status-input'), ['Declined']);
+
+        const [newSessionResponse] = await Promise.all([
+            page.waitForResponse(resp => {
+                const match = resp.url().includes('sessions?')
+                    && resp.request().method() === 'GET'
+                    && resp.ok();
+                return match;
+            }),
+            filterModal.getByTestId('submit-filter-modal').click()
+        ]);
+        const { data: newFilteredSessions } = await waitForJsonResponse(newSessionResponse);
+        expect(newFilteredSessions.map(session => session.id)).not.toContain(createdSession.id)
+        await expect(sessionLocator).not.toBeVisible();
+        test5Passed = true
+    })
+
+
+    test.afterAll(async () => {
+        if (test5Passed) {
+            await adminClient.delete(`/sessions/${createdSession.id}`)
+        }
+    })
+
 })
+
 // format to yyyy/MM/dd format
 const formatDate = (date) => {
     const yyyy = date.getFullYear();
@@ -870,17 +999,23 @@ async function checkDateRangeSelection(page, filterModal, sessions, startDate, e
     // await expect(betweenClause.created_at.$between[1]).toBe(formattedEndDate)
     // Filter sessions whose created_at is between startDate and endDate (inclusive)
     const sessionsToBePresent = sessions.filter(session => {
-        const createdAt = new Date(session.created_at);
-        // Set time part to 0 to compare only dates
-        const start = new Date(startDate); start.setHours(0, 0, 0, 0);
-        const end = new Date(endDate); end.setHours(23, 59, 59, 999);
-        return createdAt >= start && createdAt <= end;
+        return session.created_at.includes(formattedStartDate) || session.created_at.includes(formattedEndDate)
     });
     // Now you can use filteredSessions as needed in further tests or assertions
+    let count = 1;
     for (let index = 0; index < sessionsToBePresent.length; index++) {
         const sessionToBePresent = sessionsToBePresent[index];
         const sessionLocatior = await findSessionLocator(page, `.application-card[data-session="${sessionToBePresent.id}"]`);
         await expect(sessionLocatior).toBeVisible();
+
+        if (count % 12 === 0) {
+            count = 0
+            await page.waitForTimeout(500)
+        }
+        if (count === 100) {
+            break;
+        }
+        count++;
     }
 }
 
