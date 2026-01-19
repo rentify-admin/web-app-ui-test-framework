@@ -1634,6 +1634,101 @@ async function expectAndFillGuestForm(page, expectData = {}, guestFormData = {})
 }
 
 
+async function openModalWithButton(page, btnKey, modalKey) {
+    const button = page.getByTestId(btnKey);
+    await expect(button).toBeVisible();
+
+    await button.click()
+
+    const modal = page.getByTestId(modalKey);
+    await expect(modal).toBeVisible();
+
+    return {
+        button,
+        modal
+    }
+
+}
+
+async function fillCreateSessionForm(page, sessionForm) {
+    console.log('📝 [fillCreateSessionForm] Filling new session form with data:', sessionForm);
+
+    const createSessionModal = page.getByTestId('create-session-modal');
+    await expect(createSessionModal).toBeVisible();
+    console.log('🪟 [fillCreateSessionForm] Create session modal is visible.');
+
+    // Organization select
+    const orgSelect = createSessionModal.getByTestId('crt-session-organization-field');
+    await expect(orgSelect).toBeVisible();
+    console.log('🏢 [fillCreateSessionForm] Organization select is visible.');
+
+    const inputValue = orgSelect.getByTestId('crt-session-organization-field-single-value');
+    const isInputValueVisible = await inputValue.isVisible();
+    console.log('🔍 [fillCreateSessionForm] Organization input visible:', isInputValueVisible);
+    const currentOrgValue = (await inputValue.textContent()).trim();
+    const valueIsNotSame = currentOrgValue !== sessionForm.organization;
+    console.log(`🔁 [fillCreateSessionForm] Current org value: "${currentOrgValue}" | Desired: "${sessionForm.organization}" | Need update: ${valueIsNotSame}`);
+
+    if (isInputValueVisible && valueIsNotSame) {
+        console.log(`✏️ [fillCreateSessionForm] Selecting organization: "${sessionForm.organization}"`);
+        await fillMultiselect(page, orgSelect, [sessionForm.organization]);
+    } else {
+        console.log('✅ [fillCreateSessionForm] Organization already selected correctly.');
+    }
+
+    // Application select
+    const applicationInput = createSessionModal.getByTestId('crt-session-application-field');
+    console.log(`📋 [fillCreateSessionForm] Selecting application: "${sessionForm.application}"`);
+    await fillMultiselect(page, applicationInput, [sessionForm.application], {
+        waitUrl: '/applications'
+    });
+
+    // Reference number (optional)
+    if (sessionForm.reference_no) {
+        const refInput = createSessionModal.getByTestId('crt-session-ref-number-field');
+        console.log(`🏷️ [fillCreateSessionForm] Filling reference number: "${sessionForm.reference_no}"`);
+        await refInput.fill(sessionForm.reference_no);
+    } else {
+        console.log('ℹ️ [fillCreateSessionForm] No reference number provided.');
+    }
+
+    // First Name
+    const firstNameField = createSessionModal.getByTestId('crt-session-first-name-field');
+    console.log(`👤 [fillCreateSessionForm] Filling first name: "${sessionForm.first_name}"`);
+    await firstNameField.fill(sessionForm.first_name);
+
+    // Last Name
+    const lastNameField = createSessionModal.getByTestId('crt-session-last-name-field');
+    console.log(`👤 [fillCreateSessionForm] Filling last name: "${sessionForm.last_name}"`);
+    await lastNameField.fill(sessionForm.last_name);
+
+    // Email (optional)
+    if (sessionForm.email) {
+        const emailField = createSessionModal.getByTestId('crt-session-email-field');
+        console.log(`📧 [fillCreateSessionForm] Filling email: "${sessionForm.email}"`);
+        await emailField.fill(sessionForm.email);
+    } else {
+        console.log('ℹ️ [fillCreateSessionForm] No email provided.');
+    }
+
+    // Send invite checkbox
+    const inviteCheck = createSessionModal.getByTestId('crt-session-invite-checkbox');
+    const isChecked = await inviteCheck.isChecked();
+    console.log(`🟢 [fillCreateSessionForm] Invite checkbox current state: ${isChecked}, desired: ${!!sessionForm.send_invite}`);
+
+    if (!isChecked && sessionForm.send_invite) {
+        console.log('✅ [fillCreateSessionForm] Clicking to check invite checkbox.');
+        await inviteCheck.click();
+    } else if (isChecked && !sessionForm.send_invite) {
+        console.log('🚫 [fillCreateSessionForm] Invite checkbox is checked but send_invite is false. (No uncheck logic implemented)');
+    } else {
+        console.log('✔️ [fillCreateSessionForm] Invite checkbox state is correct, no action taken.');
+    }
+
+    console.log('🎉 [fillCreateSessionForm] Finished filling the session form.');
+}
+
+
 export {
     checkSessionApproveReject,
     checkFlagsPresentInSection,
@@ -1661,5 +1756,8 @@ export {
     validateFlagSections,
     verifyTransactionErrorAndDeclineFlag,
     openReportSection,
-    expectAndFillGuestForm
+    expectAndFillGuestForm,
+    openModalWithButton,
+    fillCreateSessionForm
 };
+
