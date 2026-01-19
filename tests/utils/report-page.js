@@ -1072,7 +1072,9 @@ const scrollDown = async locator => {
  * @param {String} selector
  * @returns Locator
  */
-const findSessionLocator = async (page, selector) => {
+const findSessionLocator = async (page, selector, {
+    timeout = 2000
+} = {}) => {
 
     await page.locator('#container').first()
         .evaluate(element => element.scrollTop = 150);
@@ -1083,7 +1085,7 @@ const findSessionLocator = async (page, selector) => {
     let scrollCount = 0;
 
     while (!found && maxScrolls > scrollCount) {
-        const isVisible = await targetElement.isVisible();
+        const isVisible = await targetElement.isVisible({ timeout });
         if (isVisible) {
             found = true;
             return targetElement;
