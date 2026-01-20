@@ -6,7 +6,7 @@ import generateSessionForm from "./utils/generate-session-form";
 import { joinUrl } from "./utils/helper";
 import { navigateToSessionById, searchSessionWithText } from "./utils/report-page";
 import { highBalanceBankStatementData } from "./mock-data/high-balance-financial-payload";
-import { setupInviteLinkSession } from "./utils/session-flow";
+import { setupInviteLinkSession, handleSkipReasonModal } from "./utils/session-flow";
 import { cleanupSessionAndContexts } from "./utils/cleanup-helper";
 
 
@@ -123,6 +123,7 @@ test.describe('check_ui_not_show_na_for-high_balance.spec', () => {
             await expect(applicantPage.getByTestId('employment-verification-step')).toBeVisible();
 
             await applicantPage.getByTestId('employment-step-skip-btn').click();
+            await handleSkipReasonModal(applicantPage, "Skipping employment step for test purposes");
 
             // Step 10: Back to admin view and navigate to applicant's financial section
             await page.bringToFront();

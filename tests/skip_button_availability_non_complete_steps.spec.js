@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 import { adminLoginAndNavigateToApplications } from './utils/session-utils';
 import { admin, app } from './test_config';
 import { findAndCopyApplication } from './utils/applications-page';
-import { completeApplicantForm, completeApplicantRegistrationForm, connectBankOAuthFlow, setupInviteLinkSession, waitForElementVisible, waitForElementText, verifyAndClickSkipButton } from './utils/session-flow';
+import { completeApplicantForm, completeApplicantRegistrationForm, connectBankOAuthFlow, setupInviteLinkSession, waitForElementVisible, waitForElementText, verifyAndClickSkipButton, handleSkipReasonModal } from './utils/session-flow';
 import { waitForJsonResponse } from './utils/wait-response';
 import { joinUrl } from './utils/helper';
 import { cleanupSession } from './utils/cleanup-helper';
@@ -102,6 +102,8 @@ test.describe('QA-228 skip_button_availability_non_complete_steps.spec', () => {
         console.log('🚀 Step 7: Skipping applicant invite step to proceed to ID Verification...');
         await expect(page.getByTestId('applicant-invite-skip-btn')).toBeVisible({ timeout: 10_000 });
         await page.getByTestId('applicant-invite-skip-btn').click();
+        // Handle skip reason modal if it appears
+        await handleSkipReasonModal(page, "Skipping applicants step for test purposes");
         console.log('✅ Step 7: Applicant invite step skipped.');
 
         // ------ Step 8: Interact with ID Verification step ------

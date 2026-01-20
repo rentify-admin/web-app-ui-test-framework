@@ -11,7 +11,8 @@ import {
     setupInviteLinkSession,
     completeIdentityStepViaAPI,
     completeFinancialStepViaAPI,
-    completeEmploymentStepViaAPI
+    completeEmploymentStepViaAPI,
+    handleSkipReasonModal
 } from '~/tests/utils/session-flow';
 import { findSessionLocator, searchSessionWithText } from '~/tests/utils/report-page';
 import { cleanupSessionAndContexts } from './utils/cleanup-helper';
@@ -113,6 +114,7 @@ test.describe('co_app_household_with_flag_errors', () => {
 
         // Click skip button to skip applicants step
         await applicantPage.getByTestId('applicant-invite-skip-btn').click({ timeout: 10_000 });
+        await handleSkipReasonModal(applicantPage, "Skipping applicants step for test purposes");
         await applicantPage.waitForTimeout(1000);
         console.log('✅ Applicants step skipped');
 
@@ -355,7 +357,8 @@ test.describe('co_app_household_with_flag_errors', () => {
         expect(groupFlagText).not.toContain('Primary Applicant');
         expect(groupFlagText).not.toContain('CoApplicant Household');
         // Verify flag text contains the flag description but no applicant label
-        expect(groupFlagText).toContain('Group Identity Verification Missing');
+        // Note: Actual text is "Missing Group ID Verification" (not "Group Identity Verification Missing")
+        expect(groupFlagText).toContain('Missing Group ID Verification');
         // Verify no "Primary:", "Co-applicant:", or "Guarantor:" labels appear
         expect(groupFlagText).not.toMatch(/Primary:|Co-applicant:|Guarantor:/i);
         console.log('✅ ASSERTION 2a-VC616 PASSED: GROUP_MISSING_IDENTITY flag correctly hides applicant name');

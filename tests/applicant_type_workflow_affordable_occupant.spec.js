@@ -4,7 +4,7 @@ import { admin } from '~/tests/test_config';
 import app from '~/tests/test_config/app';
 import { findAndInviteApplication, gotoApplicationsPage } from '~/tests/utils/applications-page';
 import generateSessionForm from '~/tests/utils/generate-session-form';
-import { setupInviteLinkSession, completeApplicantForm, identityStep } from '~/tests/utils/session-flow';
+import { setupInviteLinkSession, completeApplicantForm, identityStep, handleSkipReasonModal } from '~/tests/utils/session-flow';
 import { cleanupSession } from './utils/cleanup-helper';
 
 let createdSessionId = null;
@@ -75,6 +75,7 @@ test.describe('applicant_type_workflow_affordable_occupant', () => {
         console.log('🚀 Skipping applicant invite step');
         await expect(page.getByTestId('applicant-invite-skip-btn')).toBeVisible({ timeout: 10_000 });
         await page.getByTestId('applicant-invite-skip-btn').click();
+        await handleSkipReasonModal(page, "Skipping applicants step for test purposes");
         console.log('✅ Applicant invite step skipped');
         
         // Step 10: Wait for ID verification step to be visible

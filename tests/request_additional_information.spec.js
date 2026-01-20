@@ -8,7 +8,8 @@ import {
     setupInviteLinkSession,
     updateRentBudget,
     completeIdentityStepViaAPI,
-    completeEmploymentStepViaAPI
+    completeEmploymentStepViaAPI,
+    handleSkipReasonModal
 } from '~/tests/utils/session-flow';
 import { cleanupSession } from './utils/cleanup-helper';
 
@@ -125,6 +126,8 @@ test.describe('request_additional_information', () => {
             // Skip Applicants step (stay on flow)
             try {
                 await applicantPage.getByTestId('applicant-invite-skip-btn').click({ timeout: 10_000 });
+                // Handle skip reason modal if it appears
+                await handleSkipReasonModal(applicantPage, "Skipping applicants step for test purposes");
                 await applicantPage.waitForTimeout(1000);
             } catch (_) { /* if not present, continue */ }
 
@@ -142,6 +145,8 @@ test.describe('request_additional_information', () => {
             console.log('⏳ Waiting for skip-financials-btn to appear...');
             await applicantPage.getByTestId('skip-financials-btn').waitFor({ state: 'visible', timeout: 30000 });
             await applicantPage.getByTestId('skip-financials-btn').click();
+            // Handle skip reason modal if it appears
+            await handleSkipReasonModal(applicantPage, "Skipping financial step for test purposes");
             console.log('✅ Financial step skipped');
 
             // Wait for Employment step to load - document-pay_stub should appear

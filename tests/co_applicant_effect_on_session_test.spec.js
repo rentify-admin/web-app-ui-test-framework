@@ -15,7 +15,8 @@ import {
     fillhouseholdForm,
     setupInviteLinkSession,
     updateRentBudget,
-    waitForPlaidConnectionCompletion
+    waitForPlaidConnectionCompletion,
+    handleSkipReasonModal
 } from '~/tests/utils/session-flow';
 import {
     checkFinancialSectionData,
@@ -95,6 +96,7 @@ test.describe('co_applicant_effect_on_session_test', () => {
         await applicantPage
             .getByTestId('skip-id-verification-btn')
             .click({ timeout: 20_000 });
+        await handleSkipReasonModal(applicantPage, "Skipping identity verification step for test purposes");
     
         await completePlaidFinancialStepBetterment(applicantPage, 'custom_gig', 'test');
 
@@ -240,6 +242,7 @@ test.describe('co_applicant_effect_on_session_test', () => {
         await coAppPage
             .getByTestId('skip-id-verification-btn')
             .click({ timeout: 20_000 });
+        await handleSkipReasonModal(coAppPage, "Skipping identity verification step for co-applicant test purposes");
     
         await coAppPage.waitForTimeout(1000);
     

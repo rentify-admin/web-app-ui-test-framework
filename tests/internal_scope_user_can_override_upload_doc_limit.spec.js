@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test'
 import { adminLoginAndNavigateToApplications } from './utils/session-utils'
 import { admin, app } from './test_config'
 import { findAndInviteApplication } from './utils/applications-page';
-import { setupInviteLinkSession, startSessionFlow, updateRentBudget } from './utils/session-flow';
+import { setupInviteLinkSession, startSessionFlow, updateRentBudget, handleSkipReasonModal } from './utils/session-flow';
 import { fillMultiselect } from './utils/common';
 import generateSessionForm from './utils/generate-session-form';
 
@@ -124,6 +124,7 @@ test.describe('QA-212 internal_scope_user_can_override_upload_doc_limit.spec', (
 
         console.log('⏩ Skipping pre-screening step');
         await applicantPage.getByTestId('pre-screening-skip-btn').click();
+        await handleSkipReasonModal(applicantPage, "Skipping pre-screening step for test purposes");
 
         console.log('📄 Making sure employment verification step is visible');
         await expect(applicantPage.getByTestId('employment-verification-step')).toBeVisible({ timeout: 20_000 });

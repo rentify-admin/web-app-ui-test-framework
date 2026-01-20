@@ -3,7 +3,7 @@ import { adminLoginAndNavigateToApplications } from '~/tests/utils/session-utils
 import { admin } from '~/tests/test_config';
 import { findAndInviteApplication } from '~/tests/utils/applications-page';
 import { getRandomEmail } from '~/tests/utils/helper';
-import { completePaystubConnection, fillhouseholdForm, identityStep, setupInviteLinkSession, updateRentBudget, completePlaidFinancialStepBetterment, waitForPlaidConnectionCompletion } from '~/tests/utils/session-flow';
+import { completePaystubConnection, fillhouseholdForm, identityStep, setupInviteLinkSession, updateRentBudget, completePlaidFinancialStepBetterment, waitForPlaidConnectionCompletion, handleSkipReasonModal } from '~/tests/utils/session-flow';
 import generateSessionForm from '~/tests/utils/generate-session-form';
 import { cleanupSession } from './utils/cleanup-helper';
 
@@ -72,6 +72,7 @@ test.describe('application_step_should_skip_properly', () => {
     
         console.log('🚀 Skip invite page')
         await page.getByTestId('applicant-invite-skip-btn').click();
+        await handleSkipReasonModal(page, "Skipping applicants step for test purposes");
         console.log('✅ Skip invite page')
     
         console.log('🚀 Id verification step')
@@ -87,11 +88,13 @@ test.describe('application_step_should_skip_properly', () => {
     
         console.log('🚀 Skip employment step')
         await page.getByTestId('employment-step-skip-btn').click({ timeout: 10_000 });
+        await handleSkipReasonModal(page, "Skipping employment step for test purposes");
         console.log('✅ Done Skip employment step')
     
         console.log('🚀 Summary page')
         await expect(page.getByTestId('summary-completed-section')).toBeVisible({ timeout: 10_000 });
-    
+        await page.waitForTimeout(3000);
+
         console.log('🚀 Going to Invite Page')
         await page.locator('div[role=button]').filter({
             hasText: 'Applicants',
@@ -105,6 +108,7 @@ test.describe('application_step_should_skip_properly', () => {
     
         console.log('🚀 Skipping Invite Page')
         await page.getByTestId('applicant-invite-skip-btn').click();
+        await handleSkipReasonModal(page, "Skipping applicants step for test purposes");
     
         await expect(page.getByTestId('summary-completed-section')).toBeVisible({ timeout: 10_000 });
         console.log('✅ On Summary Page')
@@ -122,6 +126,7 @@ test.describe('application_step_should_skip_properly', () => {
     
         console.log('🚀 Skipping employment page')
         await page.getByTestId('employment-step-skip-btn').click();
+        await handleSkipReasonModal(page, "Skipping employment step for test purposes");
     
         await expect(page.getByTestId('summary-completed-section')).toBeVisible({ timeout: 10_000 });;
         console.log('✅ On Summary page')

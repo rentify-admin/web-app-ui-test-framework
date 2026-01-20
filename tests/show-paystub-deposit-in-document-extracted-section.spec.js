@@ -6,7 +6,7 @@ import { cleanupSession } from "./utils/cleanup-helper";
 import generateSessionForm from "./utils/generate-session-form";
 import { getAmount, joinUrl } from "./utils/helper";
 import { findSessionLocator, searchSessionWithText } from "./utils/report-page";
-import { setupInviteLinkSession, updateRentBudget } from "./utils/session-flow";
+import { setupInviteLinkSession, updateRentBudget, handleSkipReasonModal } from "./utils/session-flow";
 import { adminLoginAndNavigateToApplications } from "./utils/session-utils";
 import { waitForJsonResponse } from "./utils/wait-response";
 import { pollForVerificationStatus } from "./utils/polling-helper";
@@ -99,6 +99,7 @@ test.describe('QA-213 show-paystub-deposit-in-document-extracted-section.spec', 
             }),
             preScreeningStep.getByTestId('pre-screening-skip-btn').click()
         ])
+        await handleSkipReasonModal(applicationPage, "Skipping pre-screening step for test purposes");
         console.log('✅ Pre-screening skipped');
 
         console.log('🚀 Waiting for employment verification step to be visible');

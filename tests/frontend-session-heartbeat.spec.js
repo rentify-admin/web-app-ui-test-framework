@@ -3,7 +3,7 @@ import { adminLoginAndNavigateToApplications, findSessionLocator, loginWith } fr
 import { findAndInviteApplication } from '~/tests/utils/applications-page';
 import { admin, app } from './test_config';
 import generateSessionForm from '~/tests/utils/generate-session-form';
-import { completePaystubConnection, fillhouseholdForm, setupInviteLinkSession, updateRentBudget, waitForButtonOrAutoAdvance } from '~/tests/utils/session-flow';
+import { completePaystubConnection, fillhouseholdForm, setupInviteLinkSession, updateRentBudget, waitForButtonOrAutoAdvance, handleSkipReasonModal } from '~/tests/utils/session-flow';
 import { getRandomEmail, joinUrl } from '~/tests/utils/helper';
 import { searchSessionWithText } from '~/tests/utils/report-page';
 import { waitForJsonResponse } from './utils/wait-response';
@@ -91,6 +91,7 @@ test.describe('frontend-session-heartbeat', () => {
 
             console.log('🚀 Skip invite page')
             await page.getByTestId('applicant-invite-skip-btn').click();
+            await handleSkipReasonModal(page, "Skipping applicants step for test purposes");
             console.log('✅ Skip invite page')
 
             console.log('🚀 Id verification step')
@@ -132,6 +133,7 @@ test.describe('frontend-session-heartbeat', () => {
 
             console.log('🚀 Skipping ID Step')
             await page.getByTestId('skip-id-verification-btn').click();
+            await handleSkipReasonModal(page, "Skipping identity verification step for test purposes");
             await expect(page.getByTestId('connect-bank')).toBeVisible({ timeout: 30_000 });
             console.log('✅ On Financial step')
 
@@ -151,6 +153,7 @@ test.describe('frontend-session-heartbeat', () => {
 
             console.log('🚀 Skipping financial step')
             await page.getByTestId('skip-financials-btn').click({ timeout: 10_000 });
+            await handleSkipReasonModal(page, "Skipping financial step for test purposes");
             await expect(page.getByTestId('document-pay_stub')).toBeVisible({ timeout: 20_000 })
             console.log('✅ On employment step')
 

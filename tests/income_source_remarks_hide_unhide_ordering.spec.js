@@ -6,7 +6,7 @@ import { navigateToSessionById, searchSessionWithText } from './utils/report-pag
 import { waitForJsonResponse } from './utils/wait-response';
 import { findAndInviteApplication, gotoApplicationsPage } from './utils/applications-page';
 import generateSessionForm from './utils/generate-session-form';
-import { setupInviteLinkSession, simulatorFinancialStepWithVeridocs, updateRentBudget } from './utils/session-flow';
+import { setupInviteLinkSession, simulatorFinancialStepWithVeridocs, updateRentBudget, handleSkipReasonModal } from './utils/session-flow';
 import { joinUrl } from './utils/helper';
 import { veriDocsBankStatementData } from './mock-data/bank-statement-veridocs-payload';
 import { cleanupSessionAndContexts } from './utils/cleanup-helper';
@@ -61,6 +61,7 @@ test.describe('QA-191:create_multiple_remarks.spec', () => {
             // Skip question step
             await expect(applicantPage.getByTestId('pre-screening-step')).toBeVisible();
             await applicantPage.getByTestId('pre-screening-skip-btn').click();
+            await handleSkipReasonModal(applicantPage, "Skipping pre-screening step for test purposes");
 
             await simulatorFinancialStepWithVeridocs(applicantPage, payload)
 

@@ -532,6 +532,7 @@ const setupInviteLinkSession = async (page, options = {}) => {
         console.log('🚀 Session setup: WITH applicant type selection');
         
         // Step 1: Terms modal (appears FIRST, before applicant type)
+        // Use individual handler here since terms appears before applicant type selection
         if (!skipTerms) {
             console.log('  → [1/3] Handling optional terms checkbox');
             await handleOptionalTermsCheckbox(page);
@@ -542,27 +543,33 @@ const setupInviteLinkSession = async (page, options = {}) => {
         await selectApplicantType(page, sessionUrl, applicantTypeSelector);
         
         // Step 3: State modal (appears AFTER applicant type selection)
+        // After applicant type, state modal might appear with delay, so use unified handler
+        // But we only need to check for state modal (terms already handled)
         if (!skipState) {
-            console.log('  → [3/3] Handling optional state modal');
-            await handleOptionalStateModal(page);
+            console.log('  → [3/3] Handling optional state modal (with race condition protection)');
+            // Use unified handler but only for state modal (terms already handled)
+            await handleModalsWithRaceConditionFix(page, { 
+                maxWaitTime: 10000,
+                skipTerms: true // Terms already handled in step 1
+            });
         }
         
         console.log('✅ Session setup complete (with applicant type)');
     } 
     // PATTERN 2: NO applicant type selection
-    // Order: State → Terms
+    // Order: State → Terms (but handle race condition)
     else {
         console.log('🚀 Session setup: NO applicant type selection');
         
-        // Step 1: State modal (appears FIRST, before terms)
-        if (!skipState) {
-            console.log('  → [1/2] Handling optional state modal');
+        // Use unified handler to avoid race condition between state modal and terms
+        if (!skipState && !skipTerms) {
+            console.log('  → [1/1] Handling modals with race condition fix (State → Terms)');
+            await handleModalsWithRaceConditionFix(page);
+        } else if (!skipState) {
+            console.log('  → [1/1] Handling optional state modal');
             await handleOptionalStateModal(page);
-        }
-        
-        // Step 2: Terms modal
-        if (!skipTerms) {
-            console.log('  → [2/2] Handling optional terms checkbox');
+        } else if (!skipTerms) {
+            console.log('  → [1/1] Handling optional terms checkbox');
             await handleOptionalTermsCheckbox(page);
         }
         
@@ -570,12 +577,274 @@ const setupInviteLinkSession = async (page, options = {}) => {
     }
 };
 
+/**
+ * Unified handler that polls for both state modal and terms checkbox simultaneously
+ * Handles race condition where state modal appears with delay
+ * @param {import('@playwright/test').Page} page
+ * @param {Object} options
+ * @param {number} options.maxWaitTime - Maximum time to wait for modals (default: 15000ms)
+ * @param {number} options.pollInterval - Polling interval (default: 500ms)
+ * @returns {Promise<void>}
+ */
+const handleModalsWithRaceConditionFix = async (page, options = {}) => {
+    const { maxWaitTime = 15000, pollInterval = 500, skipTerms = false, skipState = false } = options;
+    const maxAttempts = Math.ceil(maxWaitTime / pollInterval);
+    
+    console.log('🔍 Polling for modals (state modal and terms checkbox)...');
+    
+    // Wait for page to be fully loaded
+    await page.waitForLoadState('domcontentloaded');
+    await page.waitForTimeout(1000);
+    
+    // Use .first() to avoid strict mode violation (modal container and form both have same test-id)
+    const stateModal = page.getByTestId('state-modal').first();
+    const termsCheckbox = page.getByTestId('user-terms');
+    
+    let stateModalHandled = false;
+    let termsHandled = false;
+    
+    // Poll for both modals simultaneously
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+        let stateVisible = false;
+        let termsVisible = false;
+        
+        // Check for state modal - use waitFor with visible state instead of isVisible
+        // This is more reliable as it waits for the element to actually become visible
+        // Modal might be in DOM but not yet visible due to CSS transitions
+        if (!stateModalHandled && !skipState) {
+            try {
+                // First check if element exists in DOM
+                const stateModalCount = await stateModal.count();
+                if (stateModalCount > 0) {
+                    // Element exists in DOM - try multiple approaches to detect visibility
+                    // Approach 1: Wait for modal to be visible
+                    try {
+                        await stateModal.waitFor({ state: 'visible', timeout: 2000 });
+                        const isActuallyVisible = await stateModal.isVisible();
+                        if (isActuallyVisible) {
+                            stateVisible = true;
+                        }
+                    } catch (waitError) {
+                        // waitFor failed, try fallback: check if submit button is visible
+                        // This is a more reliable indicator that modal is actually interactive
+                        const submitButton = page.getByTestId('submit-state-modal');
+                        try {
+                            const submitCount = await submitButton.count();
+                            if (submitCount > 0) {
+                                await submitButton.waitFor({ state: 'visible', timeout: 1000 });
+                                const submitVisible = await submitButton.isVisible();
+                                if (submitVisible) {
+                                    // Submit button is visible, modal must be visible too
+                                    stateVisible = true;
+                                }
+                            }
+                        } catch (submitError) {
+                            // Submit button not visible either, continue polling
+                        }
+                    }
+                }
+            } catch (error) {
+                // State modal not visible yet or doesn't exist - continue polling
+                // This is expected during initial render, so we continue
+            }
+        }
+        
+        // Check for terms checkbox (only check if state modal is not currently visible)
+        if (!termsHandled && !stateVisible && !skipTerms) {
+            try {
+                // First check if element exists in DOM
+                const termsCount = await termsCheckbox.count();
+                if (termsCount > 0) {
+                    // Element exists in DOM - wait for it to become visible
+                    await termsCheckbox.waitFor({ state: 'visible', timeout: 2000 });
+                    // Double-check visibility after waitFor succeeds
+                    const isActuallyVisible = await termsCheckbox.isVisible();
+                    if (isActuallyVisible) {
+                        termsVisible = true;
+                    }
+                }
+            } catch (error) {
+                // Terms checkbox not visible yet or doesn't exist - continue polling
+            }
+        }
+        
+        // Handle state modal first if it appears (higher priority)
+        if (stateVisible && !stateModalHandled) {
+            console.log(`✅ State modal found and visible (attempt ${attempt + 1}/${maxAttempts})`);
+            await handleStateModalInternal(page);
+            stateModalHandled = true;
+            // Wait for state modal to fully close before checking for terms
+            try {
+                await stateModal.waitFor({ state: 'hidden', timeout: 5000 });
+            } catch (error) {
+                // Modal might have closed already or timeout, continue
+            }
+            await page.waitForTimeout(1000);
+            // Continue polling to check for terms after state modal is closed
+            continue;
+        }
+        
+        // Handle terms checkbox if it appears (and state modal is not visible)
+        if (termsVisible && !termsHandled && !stateVisible) {
+            console.log(`✅ Terms checkbox found and visible (attempt ${attempt + 1}/${maxAttempts})`);
+            await handleTermsCheckboxInternal(page);
+            termsHandled = true;
+            break; // Terms handled, we're done
+        }
+        
+        // If state modal was just handled, continue polling for terms
+        if (stateModalHandled && !termsHandled) {
+            // Continue polling for terms
+            await page.waitForTimeout(pollInterval);
+            continue;
+        }
+        
+        // If neither modal is visible yet, wait and retry
+        if (!stateVisible && !termsVisible) {
+            await page.waitForTimeout(pollInterval);
+        }
+        
+        // If we've handled both or terms is handled, we're done
+        if ((stateModalHandled && termsHandled) || termsHandled) {
+            break;
+        }
+    }
+    
+    if (!stateModalHandled && !termsHandled) {
+        console.log('⏭️ No modals found after polling, continuing...');
+    } else {
+        console.log('✅ Modals handled successfully');
+    }
+};
+
+/**
+ * Internal handler for state modal (extracted for reuse)
+ * @param {import('@playwright/test').Page} page
+ */
+const handleStateModalInternal = async page => {
+    // Use .first() to avoid strict mode violation (modal container and form both have same test-id)
+    const stateModal = page.getByTestId('state-modal').first();
+    
+    // Wait for modal to be fully visible - use longer timeout and ensure it's actually visible
+    // The modal might exist in DOM but not be visible yet due to CSS transitions
+    try {
+        await stateModal.waitFor({ state: 'visible', timeout: 5000 });
+    } catch (error) {
+        // If waitFor fails, try checking if it exists and is attached
+        const count = await stateModal.count();
+        if (count === 0) {
+            throw new Error('State modal not found in DOM');
+        }
+        // Element exists, wait a bit more for visibility
+        await page.waitForTimeout(1000);
+        // Try one more time
+        await stateModal.waitFor({ state: 'visible', timeout: 3000 });
+    }
+    await page.waitForTimeout(1000);
+    
+    // Check if first state is already "US"
+    const firstStateText = await page.locator('.multiselect__single').textContent();
+
+    if (firstStateText && firstStateText.trim() === 'US') {
+        // First state is already US, skip to second state
+        console.log('First state is already US, skipping to second state');
+    } else {
+        // First state is not US, click the country select multiselect if dropdown is closed
+        const countryListbox = page.locator('#listbox-state-modal-country-select');
+        const countryListboxParent = countryListbox.locator('..');
+        const countryIsHidden = await countryListboxParent.evaluate(el => {
+            const style = window.getComputedStyle(el);
+            return style.display === 'none';
+        });
+        
+        if (countryIsHidden) {
+            await page.getByTestId('state-modal-country-select').click();
+        }
+        await page.waitForTimeout(500);
+        await page.keyboard.press('Enter');
+    }
+
+    // Click state select multiselect if dropdown is closed
+    const stateListbox = page.locator('#listbox-state-modal-state-select');
+    const stateListboxParent = stateListbox.locator('..');
+    const stateIsHidden = await stateListboxParent.evaluate(el => {
+        const style = window.getComputedStyle(el);
+        return style.display === 'none';
+    });
+    
+    if (stateIsHidden) {
+        await page.getByTestId('state-modal-state-select').click();
+    }
+
+    // Wait 500ms
+    await page.waitForTimeout(500);
+
+    // Press Enter
+    await page.keyboard.press('Enter');
+
+    // Click submit state modal
+    await page.getByTestId('submit-state-modal').click();
+    await page.waitForTimeout(4000);
+    console.log('✅ State modal handled');
+};
+
+/**
+ * Internal handler for terms checkbox (extracted for reuse)
+ * @param {import('@playwright/test').Page} page
+ */
+const handleTermsCheckboxInternal = async page => {
+    const termsCheckbox = page.getByTestId('user-terms');
+    
+    // Wait for checkbox to be visible
+    await termsCheckbox.waitFor({ state: 'visible', timeout: 2000 });
+    
+    const isChecked = await termsCheckbox.isChecked();
+    
+    if (!isChecked) {
+        console.log('📝 Checking terms checkbox...');
+        await termsCheckbox.click();
+        await page.waitForTimeout(500);
+        console.log('✅ Terms checkbox checked');
+    } else {
+        console.log('✅ Terms checkbox already checked');
+    }
+    
+    // Click "Continue to Verifast" button and wait for page transition
+    console.log('🚀 Clicking "Continue to Verifast" button...');
+    const continueButton = page.getByRole('button', { name: 'Continue to Verifast' });
+    
+    // Wait for button to be enabled (not just visible)
+    await continueButton.waitFor({ state: 'visible', timeout: 5000 });
+    const isEnabled = await continueButton.isEnabled();
+    if (!isEnabled) {
+        console.log('⏳ Button not enabled yet, waiting...');
+        await page.waitForTimeout(1000);
+    }
+    
+    await continueButton.click();
+    console.log('✅ Continue button clicked, waiting for page transition...');
+    
+    // Wait for terms checkbox to disappear (indicates page navigated)
+    await termsCheckbox.waitFor({ state: 'hidden', timeout: 10000 });
+    console.log('✅ Page transition completed');
+    
+    // Additional wait for page to stabilize
+    await page.waitForLoadState('domcontentloaded');
+    await page.waitForTimeout(3000);
+    console.log('✅ Terms checkbox handled');
+};
+
+/**
+ * Handle optional state modal (backward compatibility wrapper)
+ * @param {import('@playwright/test').Page} page
+ */
 const handleOptionalStateModal = async page => {
     // Wait for page to be fully loaded before checking for modal
     await page.waitForLoadState('domcontentloaded');
     await page.waitForTimeout(1000); // Additional wait for dynamic content
 
-    const stateModal = page.getByTestId('state-modal');
+    // Use .first() to avoid strict mode violation (modal container and form both have same test-id)
+    const stateModal = page.getByTestId('state-modal').first();
 
     // Check if state modal is visible for up to 6 seconds
     let isModalVisible = false;
@@ -590,52 +859,7 @@ const handleOptionalStateModal = async page => {
     }
 
     if (isModalVisible) {
-
-        // Check if first state is already "US"
-        const firstStateText = await page.locator('.multiselect__single').textContent();
-
-        if (firstStateText && firstStateText.trim() === 'US') {
-
-            // First state is already US, skip to second state
-            console.log('First state is already US, skipping to second state');
-        } else {
-
-            // First state is not US, click the country select multiselect if dropdown is closed
-            const countryListbox = page.locator('#listbox-state-modal-country-select');
-            const countryListboxParent = countryListbox.locator('..');
-            const countryIsHidden = await countryListboxParent.evaluate(el => {
-                const style = window.getComputedStyle(el);
-                return style.display === 'none';
-            });
-            
-            if (countryIsHidden) {
-                await page.getByTestId('state-modal-country-select').click();
-            }
-            await page.waitForTimeout(500);
-            await page.keyboard.press('Enter');
-        }
-
-        // 4. Click state select multiselect if dropdown is closed
-        const stateListbox = page.locator('#listbox-state-modal-state-select');
-        const stateListboxParent = stateListbox.locator('..');
-        const stateIsHidden = await stateListboxParent.evaluate(el => {
-            const style = window.getComputedStyle(el);
-            return style.display === 'none';
-        });
-        
-        if (stateIsHidden) {
-            await page.getByTestId('state-modal-state-select').click();
-        }
-
-        // 5. Wait 500ms
-        await page.waitForTimeout(500);
-
-        // 6. Press Enter
-        await page.keyboard.press('Enter');
-
-        // 7. Click submit state modal
-        await page.getByTestId('submit-state-modal').click();
-        await page.waitForTimeout(4000);
+        await handleStateModalInternal(page);
     }
 };
 
@@ -705,6 +929,9 @@ const skipEmploymentVerification = async page => {
 
     // Click skip employment verification button
     await skipButton.click();
+
+    // Handle skip reason modal if it appears
+    await handleSkipReasonModal(page, "Skipping employment verification step for test purposes");
 
     // Wait for confirmation if needed
     await page.waitForTimeout(1000);
@@ -954,6 +1181,9 @@ const skipApplicants = async page => {
     // Wait for applicants step to be visible
     await expect(page.getByRole('button', { name: 'Skip' })).toBeVisible({ timeout: 20000 });
     await page.getByRole('button', { name: 'Skip' }).click();
+    
+    // Handle skip reason modal if it appears
+    await handleSkipReasonModal(page, "Skipping applicants step for test purposes");
 };
 
 /**
@@ -1642,7 +1872,8 @@ const updateStateModal = async (page, state = 'FLORIDA') => {
 
     let isStateVisible = false;
     try{
-        await page.getByTestId('state-modal').waitFor({ state: 'visible', timeout: 5000 })
+        // Use .first() to avoid strict mode violation (modal container and form both have same test-id)
+        await page.getByTestId('state-modal').first().waitFor({ state: 'visible', timeout: 5000 })
         isStateVisible = true;
     }catch(err){
         isStateVisible = false;
@@ -2971,10 +3202,108 @@ const verifyAndClickSkipButton = async (page, stepLocator, skipButtonTestId, ste
     console.log(`⏩ Skipping ${stepName} step...`);
     await skipBtn.click();
     
+    // Handle skip reason modal if it appears
+    await handleSkipReasonModal(page, `Skipping ${stepName} step for test purposes`);
+    
     // Verify step status becomes "skipped"
     const stepStatus = page.locator(`[data-testid^="step-${stepType}"]`).filter({ visible: true });
     await expect(stepStatus.getByTestId('step-status')).toHaveText('skipped', { ignoreCase: true });
     console.log(`✅ ${stepName} step skipped.`);
+};
+
+/**
+ * Handle skip reason modal that appears when skipping a step
+ * Fills in the reason textarea and clicks the Skip button
+ * 
+ * @param {import('@playwright/test').Page} page - Playwright page object
+ * @param {string} reason - Reason text to fill in (default: "Test skip reason")
+ * @param {Object} options - Configuration options
+ * @param {number} options.timeout - Timeout for modal to appear (default: 10000ms)
+ * @param {boolean} options.cancel - If true, clicks Cancel instead of Skip (default: false)
+ * @returns {Promise<void>}
+ * 
+ * @example
+ * // After clicking skip button, handle the reason modal
+ * await handleSkipReasonModal(page, "Not applicable for this applicant");
+ * 
+ * @example
+ * // Cancel the skip operation
+ * await handleSkipReasonModal(page, "", { cancel: true });
+ */
+const handleSkipReasonModal = async (page, reason = 'Test skip reason', options = {}) => {
+    const { timeout = 10000, cancel = false } = options;
+    
+    console.log('🔍 Waiting for skip reason modal to appear...');
+    
+    // TODO: Change to data-testid="skip-reason-modal" when available
+    // Currently using text-based selector as fallback (modal title)
+    const modalTitle = page.locator('h3:has-text("Skip:")');
+    
+    try {
+        // Wait for modal to appear (checking for title)
+        await modalTitle.waitFor({ state: 'visible', timeout });
+        console.log('✅ Skip reason modal appeared');
+    } catch (error) {
+        // Modal might not appear if skip doesn't require reason
+        console.log('⏭️ Skip reason modal not found, step may not require reason');
+        return;
+    }
+    
+    // Get dialog reference for scoped selectors
+    const dialog = page.getByRole('dialog');
+    
+    if (cancel) {
+        // TODO: Change to data-testid="skip-reason-cancel-btn" when available
+        // Currently using button text "Cancel" scoped to dialog as fallback
+        const cancelButton = dialog.getByRole('button', { name: 'Cancel' });
+        
+        console.log('🚫 Clicking Cancel button in reason modal...');
+        await cancelButton.waitFor({ state: 'visible', timeout: 5000 });
+        await cancelButton.click();
+        
+        // Wait for modal to close
+        try {
+            await modalTitle.waitFor({ state: 'hidden', timeout: 5000 });
+            console.log('✅ Skip reason modal closed (cancelled)');
+        } catch (error) {
+            console.log('ℹ️ Modal closed (or closed quickly)');
+        }
+        
+        await page.waitForTimeout(1000);
+        return;
+    }
+    
+    // TODO: Change to data-testid="skip-reason-textarea" when available
+    // Currently using id="skip-reason" as fallback
+    const reasonTextarea = page.locator('textarea#skip-reason');
+    
+    // Fill in the reason
+    console.log(`📝 Filling skip reason: "${reason}"`);
+    await reasonTextarea.waitFor({ state: 'visible', timeout: 5000 });
+    await reasonTextarea.fill(reason);
+    await page.waitForTimeout(500); // Small wait for input to register
+    
+    // TODO: Change to data-testid="skip-reason-skip-btn" when available
+    // Currently using button text "Skip" scoped to dialog as fallback
+    const skipButton = dialog.getByRole('button', { name: 'Skip' });
+    
+    // Click Skip button
+    console.log('🚀 Clicking Skip button in reason modal...');
+    await skipButton.waitFor({ state: 'visible', timeout: 5000 });
+    await skipButton.click();
+    
+    // Wait for modal to close
+    try {
+        await modalTitle.waitFor({ state: 'hidden', timeout: 5000 });
+        console.log('✅ Skip reason modal closed');
+    } catch (error) {
+        // Modal might close quickly, continue anyway
+        console.log('ℹ️ Modal closed (or closed quickly)');
+    }
+    
+    // Small wait for page to update
+    await page.waitForTimeout(1000);
+    console.log('✅ Skip reason modal handled successfully');
 };
 
 export {
@@ -2993,6 +3322,7 @@ export {
     createSessionWithSimulator,
     handleOptionalStateModal,
     handleOptionalTermsCheckbox,
+    handleModalsWithRaceConditionFix,
     setupInviteLinkSession,
     employmentVerificationWalmartPayStub,
     skipEmploymentVerification,
@@ -3013,6 +3343,7 @@ export {
     startSessionFlow,
     waitForElementVisible,
     waitForElementText,
-    verifyAndClickSkipButton
+    verifyAndClickSkipButton,
+    handleSkipReasonModal
 };
 

@@ -10,7 +10,7 @@ import generateSessionForm from './utils/generate-session-form';
 import { getBankData } from './mock-data/high-balance-financial-payload';
 import { searchSessionWithText, navigateToSessionById } from './utils/report-page';
 import { getRandomEmail } from './utils/helper';
-import { setupInviteLinkSession, updateRentBudget, waitForSimulatorConnectionCompletion } from './utils/session-flow';
+import { setupInviteLinkSession, updateRentBudget, waitForSimulatorConnectionCompletion, handleSkipReasonModal } from './utils/session-flow';
 import { fillMultiselect } from './utils/common';
 import { cleanupSession } from './utils/cleanup-helper';
 
@@ -67,6 +67,7 @@ async function completeSession(inviteLink, browser, sessionId, customData) {
     const questionStep = applicantPage.getByTestId('pre-screening-step');
     await expect(questionStep).toBeVisible();
     await questionStep.getByTestId('pre-screening-skip-btn').click();
+    await handleSkipReasonModal(applicantPage, "Skipping pre-screening step for test purposes");
 
     // Financial Verification
     const financialStep = applicantPage.getByTestId('financial-verification-step');
