@@ -627,7 +627,7 @@ const handleModalsWithRaceConditionFix = async (page, options = {}) => {
                     } catch (waitError) {
                         // waitFor failed, try fallback: check if submit button is visible
                         // This is a more reliable indicator that modal is actually interactive
-                        const submitButton = page.getByTestId('submit-state-modal');
+                        const submitButton = page.getByTestId('submit-state-modal-form');
                         try {
                             const submitCount = await submitButton.count();
                             if (submitCount > 0) {
@@ -783,7 +783,7 @@ const handleStateModalInternal = async page => {
     await page.keyboard.press('Enter');
 
     // Click submit state modal
-    await page.getByTestId('submit-state-modal').click();
+    await page.getByTestId('submit-state-modal-form').click();
     await page.waitForTimeout(4000);
     console.log('✅ State modal handled');
 };
@@ -1888,7 +1888,7 @@ const updateStateModal = async (page, state = 'FLORIDA') => {
             [ state ]
         );
 
-        await page.getByTestId('submit-state-modal').click();
+        await page.getByTestId('submit-state-modal-form').click();
         await page.waitForSelector('[data-testid=state-modal]', {
             state: 'detached',
             timeout: 10_000
@@ -3302,7 +3302,7 @@ const handleSkipReasonModal = async (page, reason = 'Test skip reason', options 
     }
     
     // Small wait for page to update
-    await page.waitForTimeout(1000);
+    await page.waitForTimeout(3000);
     console.log('✅ Skip reason modal handled successfully');
 };
 

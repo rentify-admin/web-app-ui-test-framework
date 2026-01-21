@@ -79,8 +79,8 @@ export async function resolveAllFlagsUntilApproveClickable(
                     await page.waitForTimeout(500);
                 }
 
-                // Open View Details modal
-                await page.getByTestId('view-details-btn').click();
+                // Open Alert modal
+                await page.getByRole('button', { name: 'Alert' }).click();
                 await page.waitForTimeout(2000); // Wait for modal to load
             }
         } catch (error) {

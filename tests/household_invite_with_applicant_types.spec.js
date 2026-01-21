@@ -58,7 +58,9 @@ test.describe('QA-252 household-invite-with-applicant-types.spec', () => {
         const sessionLocator = await findSessionLocator(page, `.application-card[data-session="${session.id}"]`)
 
         await sessionLocator.click()
-        await expect(page.getByTestId('household-status-alert')).toBeVisible({ timeout: 10_000 });
+        // Wait for Alert button to be visible (indicates report page is loaded)
+        // Note: household-status-alert is only visible inside the Alert modal, so we wait for the button instead
+        await expect(page.getByRole('button', { name: 'Alert' })).toBeVisible({ timeout: 10_000 });
         await page.waitForTimeout(1000); // Wait for session to fully load
         console.log('👉 Step 5: Session card clicked.');
 

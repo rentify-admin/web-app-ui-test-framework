@@ -36,10 +36,10 @@ test.describe('frontend_heartbeat', () => {
     };
 
     const testViewDetailsModal = async (page) => {
-        // Test View Details button
-        const viewDetailsBtn = page.getByTestId('view-details-btn');
-        await expect(viewDetailsBtn).toBeVisible();
-        await viewDetailsBtn.click();
+        // Test Alert button
+        const alertBtn = page.getByRole('button', { name: 'Alert' });
+        await expect(alertBtn).toBeVisible();
+        await alertBtn.click();
         
         // Check if details modal is open
         await expect(page.getByTestId('report-view-details-flags-section')).toBeVisible();
@@ -54,7 +54,8 @@ test.describe('frontend_heartbeat', () => {
         await page.goto('/');
         await loginForm.fill(page, admin);
         await loginForm.submitAndSetLocale(page);
-        await expect(page.getByTestId('household-status-alert')).toBeVisible({ timeout: 10_000 });
+        // submitAndSetLocale already waits for applicants page to load (side-panel and session loading)
+        // No need to check for household-status-alert here as it's only visible inside a session's Alert modal
 
         // Check header, menu, profile, and applicants submenu
         await checkHeaderAndProfileMenu(page);
@@ -101,7 +102,8 @@ test.describe('frontend_heartbeat', () => {
             await page.goto('/');
             await loginForm.fill(page, admin);
             await loginForm.submitAndSetLocale(page);
-            await expect(page.getByTestId('household-status-alert')).toBeVisible({ timeout: 10_000 });
+            // submitAndSetLocale already waits for applicants page to load (side-panel and session loading)
+            // No need to check for household-status-alert here as it's only visible inside a session's Alert modal
 
             // Navigate to applicants inbox
             const applicantsMenu = page.getByTestId('applicants-menu');
@@ -115,7 +117,9 @@ test.describe('frontend_heartbeat', () => {
 
             // Navigate to our created session
             await navigateToSessionById(page, sharedSessionId, 'all');
-        await expect(page.getByTestId('household-status-alert')).toBeVisible({ timeout: 10_000 });
+            // Wait for Alert button to be visible (indicates report page is loaded)
+            // Note: household-status-alert is only visible inside the Alert modal, so we wait for the button instead
+            await expect(page.getByRole('button', { name: 'Alert' })).toBeVisible({ timeout: 10_000 });
 
         // 1) Assert action dropdown buttons exist and are enabled
         const actionButton = page.getByTestId('session-action-btn');

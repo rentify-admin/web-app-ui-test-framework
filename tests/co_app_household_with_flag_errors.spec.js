@@ -234,7 +234,7 @@ test.describe('co_app_household_with_flag_errors', () => {
         
         // Open View Details to access flags
         console.log('🔍 Opening View Details to mark flags as non-issue...');
-        await page.getByTestId('view-details-btn').click({ timeout: 10_000 });
+        await page.getByRole('button', { name: 'Alert' }).click({ timeout: 10_000 });
         await page.waitForTimeout(1000);
         
         // Poll for INCOME_SOURCE_CADENCE_MISMATCH_ERROR flag (max 1 minute, 2 sec intervals)
@@ -329,7 +329,7 @@ test.describe('co_app_household_with_flag_errors', () => {
         const sessionAfterCoAppInvite = await waitForJsonResponse(sessionAfterCoAppInviteResponse);
         
         // Open details to check for GROUP_MISSING_IDENTITY flag
-        await page.getByTestId('view-details-btn').click({ timeout: 10_000 });
+        await page.getByRole('button', { name: 'Alert' }).click({ timeout: 10_000 });
         await page.waitForTimeout(1000);
         
         // Poll for GROUP_MISSING_IDENTITY flag to appear
@@ -473,7 +473,7 @@ test.describe('co_app_household_with_flag_errors', () => {
         const sessionAfterCoAppId = await waitForJsonResponse(sessionAfterCoAppIdResponse);
         
         // Open details to check flags
-        await page.getByTestId('view-details-btn').click({ timeout: 10_000 });
+        await page.getByRole('button', { name: 'Alert' }).click({ timeout: 10_000 });
         await page.waitForTimeout(1000);
         
         // GROUP_MISSING_IDENTITY should be GONE

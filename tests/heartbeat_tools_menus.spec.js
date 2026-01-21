@@ -12,7 +12,7 @@ test.describe('heartbeat_tools_menus.spec', () => {
         await page.goto('/');
         await loginForm.fill(page, admin);
         await loginForm.submit(page);
-        await expect(page.getByTestId('household-status-alert')).toBeVisible({ timeout: 10_000 });
+        // loginForm.submit() already waits for page to be ready (side-panel and sessions loaded)
 
         const documentTesterMenu = await page.getByTestId('tools-menu');
 

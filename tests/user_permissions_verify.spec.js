@@ -350,9 +350,9 @@ test.describe('user_permissions_verify', () => {
             const { data: files } = await waitForJsonResponse(filesResponse);
             const { data: sessionDetails } = await waitForJsonResponse(sessionResponse);
 
-            const viewDetailBtn = page.getByTestId('view-details-btn');
+            const alertBtn = page.getByRole('button', { name: 'Alert' });
 
-            await expect(viewDetailBtn).toBeVisible();
+            await expect(alertBtn).toBeVisible();
 
             // ! Should able to see session flags loaded
             await checkFlagsAreLoaded(page, viewDetailBtn);

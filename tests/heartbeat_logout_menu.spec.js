@@ -13,7 +13,7 @@ test.describe('heartbeat_logout_menu.spec.spec', () => {
         await page.goto('/');
         await loginForm.fill(page, admin);
         await loginForm.submit(page);
-        await expect(page.getByTestId('household-status-alert')).toBeVisible({ timeout: 10_000 });
+        // loginForm.submit() already waits for page to be ready (side-panel and sessions loaded)
 
         const logoutMenu = await page.getByTestId('logout-menu');
 

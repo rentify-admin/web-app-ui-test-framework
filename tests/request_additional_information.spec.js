@@ -288,7 +288,7 @@ test.describe('request_additional_information', () => {
             await page.goto(joinUrl(app.urls.app, `applicants/all/${sessionId}`));
             
             // Click view details button to open the events panel
-            await page.getByTestId('view-details-btn').click();
+            await page.getByRole('button', { name: 'Alert' }).click();
             await page.waitForTimeout(1000);
             console.log('✅ View details panel opened');
             

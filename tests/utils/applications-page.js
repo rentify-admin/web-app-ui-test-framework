@@ -6,6 +6,7 @@ import generateSessionForm from '~/tests/utils/generate-session-form';
 import { handleOptionalStateModal, handleOptionalTermsCheckbox } from '~/tests/utils/session-flow';
 
 const applicationUrl = joinUrl(app.urls.api, 'applications');
+const sessionsUrl = joinUrl(app.urls.api, 'sessions');
 
 /**
  * Helper function to find application row by name
@@ -30,22 +31,58 @@ const findApplicationRowByName = async (page, applicationName, tableSelector = '
 };
 
 /**
- * Helper function to wait for applications API response
+ * Helper function to wait for applications page API response
+ * Note: Applications page uses /applications endpoint for listing/searching applications
  * @param {import('@playwright/test').Page} page
  * @param {Function} urlMatcher - Custom URL matching function
  * @param {Function} action - Action to trigger the API call
+ * @param {Object} options - Configuration options
+ * @param {number} options.timeout - Timeout in milliseconds (default: 60000)
+ * @param {string} options.endpoint - Which endpoint to check for: 'applications' or 'sessions' (default: 'applications')
  * @returns {Promise<Object>} API response data
  */
-const waitForApplicationsResponse = async (page, urlMatcher, action) => {
+const waitForApplicationsResponse = async (page, urlMatcher, action, options = {}) => {
+    const { timeout = 60000, endpoint = 'applications' } = options; // Default 60 seconds, default endpoint is applications
+    const endpointUrl = endpoint === 'applications' ? applicationUrl : sessionsUrl;
+    const endpointName = endpoint === 'applications' ? 'applications' : 'sessions';
+    
+    console.log(`🔍 Waiting for ${endpointName} API response (timeout: ${timeout}ms)...`);
+    
     const [applicationResponse] = await Promise.all([
-        page.waitForResponse(resp => 
-            resp.url().includes(applicationUrl) &&
-            resp.request().method() === 'GET' &&
-            resp.ok() &&
-            urlMatcher(resp)
-        , { timeout: 15000 }), 
+        page.waitForResponse(resp => {
+            // Check basic conditions first
+            if (!resp.url().includes(endpointUrl)) return false;
+            if (resp.request().method() !== 'GET') return false;
+            
+            // Check status - use resp.ok() which is more reliable
+            try {
+                if (!resp.ok()) {
+                    const status = resp.status();
+                    console.log(`⚠️ ${endpointName} API response has non-OK status: ${status} for ${resp.url()}`);
+                    return false;
+                }
+            } catch (error) {
+                // If response isn't ready yet, skip
+                return false;
+            }
+            
+            // Apply custom URL matcher
+            const matches = urlMatcher(resp);
+            if (matches) {
+                console.log(`✅ Matched ${endpointName} API response: ${resp.url().substring(0, 200)}...`);
+            }
+            return matches;
+        }, { timeout }), 
         action()
     ]);
+
+    // Verify response is OK before processing
+    if (!applicationResponse.ok()) {
+        const status = applicationResponse.status();
+        const statusText = applicationResponse.statusText();
+        const url = applicationResponse.url();
+        throw new Error(`${endpointName} API request failed: ${status} ${statusText} - ${url}`);
+    }
 
     const { data: applications } = await waitForJsonResponse(applicationResponse);
     return applications;
@@ -62,7 +99,8 @@ const searchAppsWithOrganizations = async (page, organization) => {
             const url = new URL(resp.url());
             return decodeURI(url.search).includes('"$has":{"organization"');
         },
-        () => page.locator('#application-filter-0').click()
+        () => page.locator('#application-filter-0').click(),
+        { endpoint: 'sessions' } // Organization filtering on applications page uses sessions endpoint
     );
 };
 
@@ -72,16 +110,27 @@ const gotoApplicationsPage = async page => {
 };
 
 const searchApplication = async (page, search) => {
-    const searchInput = await page.getByTestId('application-search');
+    // Ensure we're on the applications page - verify by checking for application-search input
+    // The applications page uses 'application-search', sessions/report page uses 'search-sessions-input'
+    const searchInput = page.getByTestId('application-search');
+    
+    // Check if we're on the right page
+    try {
+        await expect(searchInput).toBeVisible({ timeout: 5000 });
+    } catch (error) {
+        throw new Error('Not on applications page. Please navigate to applications page first using gotoApplicationsPage() or gotoPage() with applications-menu/submenu');
+    }
 
     const searchText = search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
+    // Applications page uses /applications endpoint, not /sessions
     const appUrlRegex = new RegExp(`${applicationUrl}.+${searchText}.+`, 'i');
 
     return waitForApplicationsResponse(
         page,
         resp => appUrlRegex.test(customUrlDecode(resp.url().replaceAll('+', ' '))),
-        () => searchInput.fill(search)
+        () => searchInput.fill(search),
+        { endpoint: 'applications' } // Use applications endpoint, not sessions
     );
 };
 
@@ -94,15 +143,25 @@ const searchApplication = async (page, search) => {
 const searchAndEditApplication = async (page, applicationName, options = {}) => {
     // Wait for "No Record Found" to disappear (data to load) before searching
     await page.getByText('No Record Found').waitFor({ state: 'hidden', timeout: 30000 });
+    // Use application-search on applications page, not search-sessions-input
     await page.getByTestId('application-search').fill(applicationName);
     await page.waitForTimeout(2000);
 
-    // Click edit button - use applicationId if provided, otherwise fallback to title
+    // Click edit button - use applicationId if provided, otherwise find by application name
     if (options.applicationId) {
         console.log(`📝 Using application ID ${options.applicationId} for editing`);
         await page.getByTestId(`edit-${options.applicationId}`).click();
     } else {
-        await page.locator('a[title="Edit"]').click();
+        // Find the row with the application name and click its edit button
+        const applicationTable = page.getByTestId('application-table');
+        const row = await findApplicationRowByName(page, applicationName);
+        if (row) {
+            // Extract application ID from the row's data-testid on edit button
+            const editButton = row.locator('[data-testid^="edit-"]');
+            await editButton.click();
+        } else {
+            throw new Error(`Application '${applicationName}' not found for editing`);
+        }
     }
     await page.waitForTimeout(2000);
 
@@ -136,7 +195,7 @@ const searchAndEditApplication = async (page, applicationName, options = {}) => 
                 resp.url().includes('/applications')
                 && resp.request().method() === 'PATCH'
                 && resp.ok(), 
-                { timeout: 15000 }
+                { timeout: 60000 } // Increased timeout to match other requests
             );
             
             await settingsBtn.click();
@@ -160,15 +219,24 @@ const searchAndEditApplication = async (page, applicationName, options = {}) => 
  * @returns {Promise<number>}
  */
 const searchAndVerifyApplication = async (page, applicationName, applicationId = null) => {
+    // Use application-search on applications page, not search-sessions-input
     await page.getByTestId('application-search').fill(applicationName);
     await page.waitForTimeout(2000);
 
-    // Click edit button - use applicationId if provided, otherwise fallback to title
+    // Click edit button - use applicationId if provided, otherwise find by application name
     if (applicationId) {
         console.log(`📝 Using application ID ${applicationId} for verification`);
         await page.getByTestId(`edit-${applicationId}`).click();
     } else {
-        await page.locator('a[title="Edit"]').click();
+        // Find the row with the application name and click its edit button
+        const row = await findApplicationRowByName(page, applicationName);
+        if (row) {
+            // Extract application ID from the row's data-testid on edit button
+            const editButton = row.locator('[data-testid^="edit-"]');
+            await editButton.click();
+        } else {
+            throw new Error(`Application '${applicationName}' not found for verification`);
+        }
     }
     await page.waitForTimeout(2000);
 

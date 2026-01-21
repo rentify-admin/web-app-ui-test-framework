@@ -364,7 +364,7 @@ test.describe('property_admin_permission_test', () => {
                 page.waitForResponse(resp => resp.url().includes(`/sessions/${sharedSessionId}/events`)
                     && resp.ok()
                     && resp.request().method() === 'GET'),
-                page.getByTestId('view-details-btn').click()
+                page.getByRole('button', { name: 'Alert' }).click()
             ]);
 
             await reportUtils.checkAllFlagsSection(page, flags, { checkIssueButtonPresent: false });

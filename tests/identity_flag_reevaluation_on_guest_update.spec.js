@@ -233,9 +233,9 @@ test.describe('QA-227 identity_flag_reevaluation_on_guest_update.spec', () => {
         ]);
         const primarySessionData = await waitForJsonResponse(primarySessionResponse);
 
-        const viewDetailBtn = page.getByTestId('view-details-btn');
-        await expect(viewDetailBtn).toBeVisible();
-        await viewDetailBtn.click();
+        const alertBtn = page.getByRole('button', { name: 'Alert' });
+        await expect(alertBtn).toBeVisible();
+        await alertBtn.click();
 
         // Capture the flag object for later checks
         console.log('🔴 1️⃣5️⃣ [Verify] IDENTITY_NAME_MISMATCH_CRITICAL flag is present (due to mismatched applicant data)');

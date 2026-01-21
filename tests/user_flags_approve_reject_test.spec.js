@@ -337,12 +337,12 @@ test.describe('user_flags_approve_reject_test', () => {
 
         console.log('✅ Document approval completed');
         
-        // Step 5: Click View Details button to access flags
-        console.log('🚀 Clicking View Details button...');
+        // Step 5: Click Alert button to access flags
+        console.log('🚀 Clicking Alert button...');
         await page.waitForTimeout(2000); // Wait for modal to close
-        const viewDetailsBtn = page.getByTestId('view-details-btn');
-        await expect(viewDetailsBtn).toBeVisible({ timeout: 10_000 });
-        await viewDetailsBtn.click();
+        const alertBtn = page.getByRole('button', { name: 'Alert' });
+        await expect(alertBtn).toBeVisible({ timeout: 10_000 });
+        await alertBtn.click();
         console.log('✅ View Details clicked');
         
         // Step 6: Wait for details screen to load

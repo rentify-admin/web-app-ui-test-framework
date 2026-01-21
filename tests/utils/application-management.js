@@ -159,14 +159,39 @@ export const configureApplicationSettings = async (page, config) => {
 };
 
 /**
+ * Handle Members step (step 4) - Click Save and Continue to proceed
+ * @param {import('@playwright/test').Page} page
+ */
+export const handleMembersStep = async page => {
+    // Wait for members step to be visible
+    await expect(page.getByTestId('application-members-setting')).toBeVisible({ timeout: 10_000 });
+
+    await page.waitForTimeout(1000);
+
+    // Set up response waiter BEFORE the action (members step may trigger navigation/API call)
+    const membersResponsePromise = page.waitForResponse(resp => resp.url().includes('/applications')
+        && (resp.request().method() === 'PATCH' || resp.request().method() === 'GET')
+        && resp.ok(), { timeout: 10_000 }).catch(() => null); // Optional response
+
+    // Click Save and Continue on members step
+    await page.getByTestId('submit-application-members-setting').click();
+
+    // Wait for the response (if any)
+    await membersResponsePromise;
+
+    await page.waitForTimeout(2000);
+};
+
+/**
  * Publish application to live
  * @param {import('@playwright/test').Page} page
  */
 export const publishApplicationToLive = async page => {
-    // TODO: Request locator update: searching for h3 is no good.
-    await page.locator('h3').filter({ hasText: 'Publish Live' }).waitFor({ state: 'visible', timeout: 10000 });
-    await page.waitForSelector('[data-testid="app-publish-live-btn"]', { state: 'visible', timeout: 3000 });
-    await page.getByTestId('app-publish-live-btn').click();
+    // Wait for publish button to be visible and enabled using robust data-testid
+    const publishBtn = page.getByTestId('app-publish-live-btn');
+    await expect(publishBtn).toBeVisible({ timeout: 10_000 });
+    await expect(publishBtn).toBeEnabled({ timeout: 10_000 });
+    await publishBtn.click();
     await page.waitForTimeout(2000); //Wait for UI animation
 
     // Set up response waiter BEFORE the action
@@ -264,6 +289,9 @@ export const createApplicationFlow = async (page, config) => {
 
     // Configure settings
     responses.settings = await configureApplicationSettings(page, config);
+
+    // Handle Members step (step 4) - Click Save and Continue
+    await handleMembersStep(page);
 
     if (!config.noPublish) {
         // Publish to live

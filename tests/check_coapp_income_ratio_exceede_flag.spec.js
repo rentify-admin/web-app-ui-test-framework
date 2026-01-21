@@ -241,7 +241,7 @@ test.describe('check_coapp_income_ratio_exceede_flag', () => {
             await expect(calculatedRatio).toBeGreaterThan(30); // Assuming 30% threshold
         }
     
-        await page.getByTestId('view-details-btn').click({ timeout: 10_000 });
+        await page.getByRole('button', { name: 'Alert' }).click({ timeout: 10_000 });
     
         await expect(page.getByTestId('GROSS_INCOME_RATIO_EXCEEDED')).toBeVisible();
     
@@ -398,7 +398,7 @@ test.describe('check_coapp_income_ratio_exceede_flag', () => {
 
         // Use the retry result for the assertion
         await expect(calculatedRatioNew).toBeLessThanOrEqual(30); // Should be below 30% threshold
-        await page.getByTestId('view-details-btn').click({ timeout: 20_000 });
+        await page.getByRole('button', { name: 'Alert' }).click({ timeout: 20_000 });
     
         // Poll for flag to clear (backend needs time to recalculate)
         console.log('🔍 Polling for GROSS_INCOME_RATIO_EXCEEDED flag to clear...');
@@ -418,7 +418,7 @@ test.describe('check_coapp_income_ratio_exceede_flag', () => {
             if (i < maxFlagPolls - 1) {
                 await page.getByTestId('close-event-history-modal').click({ timeout: 5_000 });
                 await page.waitForTimeout(2000);
-                await page.getByTestId('view-details-btn').click({ timeout: 5_000 });
+                await page.getByRole('button', { name: 'Alert' }).click({ timeout: 5_000 });
                 await page.waitForTimeout(1000);
             }
         }

@@ -157,10 +157,10 @@ test.describe('QA-268 id-name-mismatch-flag-resolution-after-persona.spec', () =
         console.log('⏳ Waiting for flags to load (15s)...');
         await page.waitForTimeout(15_000);
 
-        // Click "View Details"
-        const viewDetailBtn = page.getByTestId('view-details-btn');
-        await expect(viewDetailBtn).toBeVisible();
-        await viewDetailBtn.click();
+        // Click "Alert" button
+        const alertBtn = page.getByRole('button', { name: 'Alert' });
+        await expect(alertBtn).toBeVisible();
+        await alertBtn.click();
         console.log('👁️ Opened session view details.');
 
         // Verify flag absence

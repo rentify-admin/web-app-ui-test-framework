@@ -139,7 +139,11 @@ export const updateApplicationFinancialSettings = async (page, settings = {}) =>
  * @returns {Promise<void>}
  */
 export const publishApplicationToLive = async (page) => {
-    await page.getByTestId('app-publish-live-btn').click();
+    // Wait for publish button to be visible and enabled using robust data-testid
+    const publishBtn = page.getByTestId('app-publish-live-btn');
+    await expect(publishBtn).toBeVisible({ timeout: 10_000 });
+    await expect(publishBtn).toBeEnabled({ timeout: 10_000 });
+    await publishBtn.click();
 
     const appUrlReg = new RegExp(`${joinUrl(app.urls.api, 'applications')}.{36}`);
     

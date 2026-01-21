@@ -194,7 +194,7 @@ const checkAllFlagsSection = async (
 const searchSessionWithText = async (page, searchText) => {
     console.log('🚀 ~ searchSessionWithText called with:', searchText);
 
-    const sessionSearchInput = await page.locator('[id="search_sessions"]');
+    const sessionSearchInput = await page.getByTestId('search-sessions-input');
     
     // Wait for the search input to be ready
     await sessionSearchInput.waitFor({ state: 'visible', timeout: 10_000 });
@@ -1096,13 +1096,13 @@ const navigateToSessionByIdAndGetFlags = async (page, sessionId, buildFlagsPredi
     } catch (error) {
         console.log('⚠️  Flags not captured from initial load, trying "View Details" button...');
         
-        // Fallback: Click View Details to trigger flags request
-        const viewDetailsBtn = page.getByTestId('view-details-btn');
-        await expect(viewDetailsBtn).toBeVisible({ timeout: 10000 });
+        // Fallback: Click Alert button to trigger flags request
+        const alertBtn = page.getByRole('button', { name: 'Alert' });
+        await expect(alertBtn).toBeVisible({ timeout: 10000 });
         
         const flagsResponseFallback = await Promise.all([
             page.waitForResponse(buildFlagsPredicate(sessionId), { timeout: 20000 }),
-            viewDetailsBtn.click()
+            alertBtn.click()
         ]);
         
         flags = await waitForJsonResponse(flagsResponseFallback[0]);
@@ -1173,13 +1173,13 @@ const navigateToSessionFlags = async (page, sessionId) => {
         try {
             console.log(`🔄 Attempt ${attempt}/${maxRetries}: Navigating to session flags for session ${sessionId}`);
             
-            // Wait for view-details-btn to be ready first
-            await expect(page.getByTestId('view-details-btn')).toBeVisible({ timeout: 10000 });
+            // Wait for Alert button to be ready first
+            await expect(page.getByRole('button', { name: 'Alert' })).toBeVisible({ timeout: 10000 });
             await page.waitForTimeout(1000); // Allow UI to stabilize
 
-            // Click View Details; flags may already be loaded from a previous request,
+            // Click Alert button; flags may already be loaded from a previous request,
             // so we rely primarily on the UI becoming visible rather than a fresh network call.
-            await page.getByTestId('view-details-btn').click();
+            await page.getByRole('button', { name: 'Alert' }).click();
 
             const flagSection = await page.getByTestId('report-view-details-flags-section');
             await expect(flagSection).toBeVisible({ timeout: 10000 });
@@ -1324,7 +1324,7 @@ async function verifyTransactionErrorAndDeclineFlag(page, randomName) {
     });
     console.log(`📋 Session ID extracted: ${sessionId}`);
 
-    // Verify that "User Error" exists and click it (manual polling up to 45s)
+    // Verify that "Incomplete" exists and click it (manual polling up to 45s)
     const userErrorLink = page.locator('a[href="#"].decoration-error');
     const maxAttempts = 90; // 90 * 500ms = 45s
     let userErrorReady = false;
@@ -1333,7 +1333,7 @@ async function verifyTransactionErrorAndDeclineFlag(page, randomName) {
         try {
             if (await userErrorLink.isVisible()) {
                 const text = (await userErrorLink.textContent())?.trim();
-                if (text === 'User Error') {
+                if (text === 'Incomplete') {
                     userErrorReady = true;
                     break;
                 }
@@ -1345,7 +1345,7 @@ async function verifyTransactionErrorAndDeclineFlag(page, randomName) {
     }
 
     if (!userErrorReady) {
-        throw new Error('User Error link not found with expected text within 45s');
+        throw new Error('Incomplete link not found with expected text within 45s');
     }
 
     await userErrorLink.click();
@@ -1357,8 +1357,8 @@ async function verifyTransactionErrorAndDeclineFlag(page, randomName) {
     // Close the modal, click 'X'
     await page.getByTestId('report-financial-status-modal-cancel').click();
 
-    // Click on 'View Details' button
-    await page.getByTestId('view-details-btn').click();
+    // Click on 'Alert' button
+    await page.getByRole('button', { name: 'Alert' }).click();
 
     // Wait for modal to load
     await page.waitForTimeout(2000);

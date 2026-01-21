@@ -248,15 +248,17 @@ test.describe('QA-202 flag_review_buttons_flow', () => {
             // This function will try to get flags automatically, or click View Details if needed
             let flags = await navigateToSessionByIdAndGetFlags(page, session.id, buildFlagsFetchPredicate);
 
-            await expect(page.getByTestId('household-status-alert').first()).toBeVisible({ timeout: 10_000 });
+            // Wait for Alert button to be visible (indicates report page is loaded)
+            // Note: household-status-alert is only visible inside the Alert modal, so we wait for the button instead
+            await expect(page.getByRole('button', { name: 'Alert' })).toBeVisible({ timeout: 10_000 });
 
             // Ensure View Details section is open (might already be open from navigateToSessionByIdAndGetFlags)
             const flagSectionVisible = await page.getByTestId('report-view-details-flags-section').isVisible().catch(() => false);
             
             if (!flagSectionVisible) {
                 console.log('🔍 Opening View Details section...');
-                const viewDetailsBtn = await page.getByTestId('view-details-btn');
-                await viewDetailsBtn.click();
+                const alertBtn = await page.getByRole('button', { name: 'Alert' });
+                await alertBtn.click();
             } else {
                 console.log('✅ View Details section already open');
             }

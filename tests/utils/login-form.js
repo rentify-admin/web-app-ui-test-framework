@@ -22,8 +22,19 @@ const submit = async page => {
     await page.locator('button[type="submit"]').click();
     // Waiting for the login api response
     await page.waitForResponse(LOGIN_API);
-    await page.waitForSelector('[data-testid=household-status-alert]', { timeout: 100_000 });
-    await expect(page.getByTestId('household-status-alert')).toBeVisible({ timeout: 100_000 });
+    // Wait for page structure to be ready
+    await expect(page.getByTestId('side-panel')).toBeVisible({ timeout: 30_000 });
+    // Wait for sessions to finish loading (skeleton disappears or content appears)
+    await page.waitForFunction(() => {
+        const sidePanel = document.querySelector('[data-testid="side-panel"]');
+        if (!sidePanel) return false;
+        // Check if skeleton loader ul exists (shows when isLoading && !chunkIsLoading)
+        const skeletonUl = sidePanel.querySelector('ul.px-4');
+        // Sessions are loaded when: skeleton is gone OR date-collapse exists OR empty state exists
+        const hasDateCollapse = sidePanel.querySelector('date-collapse, [class*="date-collapse"]');
+        const hasEmptyState = sidePanel.parentElement?.querySelector('[class*="no_applicants"]');
+        return !skeletonUl || hasDateCollapse || hasEmptyState;
+    }, { timeout: 30_000 });
 };
 
 /**
@@ -38,8 +49,19 @@ const submitAndSetLocale = async page => {
         page.waitForResponse(resp => resp.url().includes('/users/self') && resp.request().method() === 'GET'),
         (async () => {
             await page.locator('button[type="submit"]').click();
-            await page.waitForSelector('[data-testid=household-status-alert]', { timeout: 100_000 });
-            await expect(page.getByTestId('household-status-alert')).toBeVisible({ timeout: 100_000 });
+            // Wait for page structure to be ready
+            await expect(page.getByTestId('side-panel')).toBeVisible({ timeout: 30_000 });
+            // Wait for sessions to finish loading (skeleton disappears or content appears)
+            await page.waitForFunction(() => {
+                const sidePanel = document.querySelector('[data-testid="side-panel"]');
+                if (!sidePanel) return false;
+                // Check if skeleton loader ul exists (shows when isLoading && !chunkIsLoading)
+                const skeletonUl = sidePanel.querySelector('ul.px-4');
+                // Sessions are loaded when: skeleton is gone OR date-collapse exists OR empty state exists
+                const hasDateCollapse = sidePanel.querySelector('date-collapse, [class*="date-collapse"]');
+                const hasEmptyState = sidePanel.parentElement?.querySelector('[class*="no_applicants"]');
+                return !skeletonUl || hasDateCollapse || hasEmptyState;
+            }, { timeout: 30_000 });
         })()
     ]);
     
