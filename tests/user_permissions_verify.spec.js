@@ -350,9 +350,9 @@ test.describe('user_permissions_verify', () => {
             const { data: files } = await waitForJsonResponse(filesResponse);
             const { data: sessionDetails } = await waitForJsonResponse(sessionResponse);
 
-            const alertBtn = page.getByRole('button', { name: 'Alert' });
-
-            await expect(alertBtn).toBeVisible();
+            // View Details is opened via the Alert button (label can include a count, e.g. "5 Alerts")
+            const viewDetailBtn = page.getByRole('button', { name: /alert/i });
+            await expect(viewDetailBtn).toBeVisible({ timeout: 10_000 });
 
             // ! Should able to see session flags loaded
             await checkFlagsAreLoaded(page, viewDetailBtn);
@@ -373,7 +373,7 @@ test.describe('user_permissions_verify', () => {
             console.log('✅ All flags resolved and approve button is clickable');
 
             // ! Should allow user to approve and reject the application
-            await checkSessionApproveReject(page, viewDetailBtn);
+            await checkSessionApproveReject(page);
 
             // ! Should allow admin to export session pdf
             await checkExportPdf(page, context, sharedSessionId);

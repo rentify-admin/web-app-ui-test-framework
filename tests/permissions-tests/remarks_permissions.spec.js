@@ -121,18 +121,27 @@ test.describe('QA-250 remarks_permissions.spec', () => {
         await applicantSubmenu.click();
 
         await page.waitForTimeout(3000);
+
+        // Helper: open the target session and wait for the report panel to load.
+        // NOTE: `household-status-alert` is not a reliable load indicator (often modal-only).
+        const openSessionReport = async () => {
+            const sessionCard = await findSessionLocator(page, `.application-card[data-session="${session.id}"]`);
+            // ✅ Do not wait on a specific network response here (can be flaky / cached / already fulfilled).
+            // Instead rely on UI readiness of the report container.
+            await sessionCard.click();
+            await expect(page.locator('#applicant-report')).toBeVisible({ timeout: 10_000 });
+            await page.waitForTimeout(1000); // allow report UI to stabilize
+        };
+
         // --- Step 1: VIEW_SESSIONS Only - No Remarks Access ---
         console.log('[STEP 1] Set permissions: view_sessions only, and check no remarks access');
 
         // Navigate to session report page
         await searchSessionWithText(page, session.id);
-        const sessionCard = await findSessionLocator(page, `.application-card[data-session="${session.id}"]`);
-        await sessionCard.click();
-        // Wait for session page to load
-        await expect(page.getByTestId('household-status-alert')).toBeVisible({ timeout: 10_000 });
-        await page.waitForTimeout(1000); // Wait for session to fully load
-        // Should NOT see "View Remarks"
+        await openSessionReport();
+        // Should NOT see remarks button (UI changed from `view-remarks-btn` to "Notes")
         await expect(page.getByTestId('view-remarks-btn')).not.toBeVisible();
+        await expect(page.locator('#applicant-report').getByRole('button', { name: /notes/i })).not.toBeVisible();
 
         // --- Step 2: Add VIEW_SESSION_COMMENTS - View Button Appears ---
         console.log('[STEP 2] Add view_session_comments, should see View Remarks button, but no add/hide');
@@ -141,14 +150,12 @@ test.describe('QA-250 remarks_permissions.spec', () => {
             { name: 'view_session_comments', binding: [] }
         ]);
         await page.reload();
-        // Wait for page to load and navigate back to session
-        await expect(page.getByTestId('household-status-alert')).toBeVisible({ timeout: 10_000 });
-        const sessionCard2 = await findSessionLocator(page, `.application-card[data-session="${session.id}"]`);
-        await sessionCard2.click();
-        await page.waitForTimeout(1000); // Wait for session to load
+        await openSessionReport();
 
-        const remarksBtn = page.getByTestId('view-remarks-btn');
-        await expect(remarksBtn).toBeVisible();
+        const legacyRemarksBtn = page.getByTestId('view-remarks-btn');
+        const notesBtn = page.locator('#applicant-report').getByRole('button', { name: /notes/i });
+        const remarksBtn = (await legacyRemarksBtn.count()) > 0 ? legacyRemarksBtn : notesBtn;
+        await expect(remarksBtn).toBeVisible({ timeout: 10_000 });
         await remarksBtn.click();
 
         const remarksModal = page.getByTestId('remark-history-modal');
@@ -173,14 +180,12 @@ test.describe('QA-250 remarks_permissions.spec', () => {
             { name: 'create_session_comments', binding: [] }
         ]);
         await page.reload();
-        // Wait for page to load and navigate back to session
-        await expect(page.getByTestId('household-status-alert')).toBeVisible({ timeout: 10_000 });
-        const sessionCard3 = await findSessionLocator(page, `.application-card[data-session="${session.id}"]`);
-        await sessionCard3.click();
-        await page.waitForTimeout(1000); // Wait for session to load
+        await openSessionReport();
 
-        const remarksBtn2 = page.getByTestId('view-remarks-btn');
-        await expect(remarksBtn2).toBeVisible();
+        const legacyRemarksBtn2 = page.getByTestId('view-remarks-btn');
+        const notesBtn2 = page.locator('#applicant-report').getByRole('button', { name: /notes/i });
+        const remarksBtn2 = (await legacyRemarksBtn2.count()) > 0 ? legacyRemarksBtn2 : notesBtn2;
+        await expect(remarksBtn2).toBeVisible({ timeout: 10_000 });
         await remarksBtn2.click();
         const remarksModal2 = page.getByTestId('remark-history-modal');
         await expect(remarksModal2.getByTestId('remark-history-form-section')).toBeVisible();
@@ -203,14 +208,12 @@ test.describe('QA-250 remarks_permissions.spec', () => {
             { name: 'hide_session_comments', binding: [] }
         ]);
         await page.reload();
-        // Wait for page to load and navigate back to session
-        await expect(page.getByTestId('household-status-alert')).toBeVisible({ timeout: 10_000 });
-        const sessionCard4 = await findSessionLocator(page, `.application-card[data-session="${session.id}"]`);
-        await sessionCard4.click();
-        await page.waitForTimeout(1000); // Wait for session to load
+        await openSessionReport();
 
-        const remarksBtn3 = page.getByTestId('view-remarks-btn');
-        await expect(remarksBtn3).toBeVisible();
+        const legacyRemarksBtn3 = page.getByTestId('view-remarks-btn');
+        const notesBtn3 = page.locator('#applicant-report').getByRole('button', { name: /notes/i });
+        const remarksBtn3 = (await legacyRemarksBtn3.count()) > 0 ? legacyRemarksBtn3 : notesBtn3;
+        await expect(remarksBtn3).toBeVisible({ timeout: 10_000 });
         await remarksBtn3.click();
         const remarksModal3 = page.getByTestId('remark-history-modal');
         const visibleRemarkDiv3 = remarksModal3.getByTestId(`remark-comment-${visibleRemark.id}`);
@@ -228,14 +231,12 @@ test.describe('QA-250 remarks_permissions.spec', () => {
             { name: 'view_session_hidden_comments', binding: [] }
         ]);
         await page.reload();
-        // Wait for page to load and navigate back to session
-        await expect(page.getByTestId('household-status-alert')).toBeVisible({ timeout: 10_000 });
-        const sessionCard5 = await findSessionLocator(page, `.application-card[data-session="${session.id}"]`);
-        await sessionCard5.click();
-        await page.waitForTimeout(1000); // Wait for session to load
+        await openSessionReport();
 
-        const remarksBtn4 = page.getByTestId('view-remarks-btn');
-        await expect(remarksBtn4).toBeVisible();
+        const legacyRemarksBtn4 = page.getByTestId('view-remarks-btn');
+        const notesBtn4 = page.locator('#applicant-report').getByRole('button', { name: /notes/i });
+        const remarksBtn4 = (await legacyRemarksBtn4.count()) > 0 ? legacyRemarksBtn4 : notesBtn4;
+        await expect(remarksBtn4).toBeVisible({ timeout: 10_000 });
         await remarksBtn4.click();
         const remarksModal4 = page.getByTestId('remark-history-modal');
         // Show hidden toggle visible

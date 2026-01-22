@@ -193,12 +193,15 @@ test.describe('QA-245 edit-guest-button-permission.spec', () => {
         await expect(applicantsSubmenu).toBeVisible({ timeout: 5000 });
         await applicantsSubmenu.click();
         await expect(memberPage).toHaveTitle(/Applicants/, { timeout: 10_000 });
-        await expect(memberPage.getByTestId('household-status-alert')).toBeVisible();
+        // `household-status-alert` is not a reliable page-load indicator (often only visible inside Alert modal).
+        // Wait for the report container instead once a session is selected.
+        await expect(memberPage.getByTestId('side-panel')).toBeVisible({ timeout: 10_000 });
 
         console.log('[STEP 1] Loading session details as test user');
         const sessionLocator =  await findSessionLocator(memberPage, `.application-card[data-session="${sessionId}"]`);
-        // Wait for report session GET to load
-        sessionLocator.click()
+        // Click session and wait for report to render
+        await sessionLocator.click();
+        await expect(memberPage.locator('#applicant-report')).toBeVisible({ timeout: 10_000 });
         
         // Open identity section, verify Edit Guest button is NOT visible ("step 1" of functional test)
         console.log('[STEP 1] Expanding Identity section and checking no Edit Guest button (NO manage_guests)');
@@ -225,12 +228,13 @@ test.describe('QA-245 edit-guest-button-permission.spec', () => {
         // --- Step 3: Reload and check that Edit Guest button IS present ---
         console.log('[STEP 3] Reloading page to check Edit Guest button now visible');
         await memberPage.reload();
-        // Wait for page to load and navigate to session report
-        await expect(memberPage.getByTestId('household-status-alert')).toBeVisible({ timeout: 10_000 });
+        // Wait for page to load and navigate back to session report
+        await expect(memberPage.getByTestId('side-panel')).toBeVisible({ timeout: 10_000 });
         // Navigate back to session if needed
         const sessionLocator2 = await findSessionLocator(memberPage, `.application-card[data-session="${sessionId}"]`);
         await sessionLocator2.click();
-        await memberPage.waitForTimeout(1000); // Wait for session to load
+        await expect(memberPage.locator('#applicant-report')).toBeVisible({ timeout: 10_000 });
+        await memberPage.waitForTimeout(1000); // Wait for session to stabilize
         const identitySection2 = await openReportSection(memberPage, 'identity-section');
         const editGuestBtn2 = identitySection2.getByTestId('identity-edit-guest-btn');
         await expect(editGuestBtn2).toBeVisible();

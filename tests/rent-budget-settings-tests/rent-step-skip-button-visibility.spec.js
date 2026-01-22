@@ -8,7 +8,7 @@ import generateSessionForm from "../utils/generate-session-form";
 import { getRandomEmail } from "../utils/helper";
 import { waitForJsonResponse } from "../utils/wait-response";
 import { findAndInviteApplication } from "../utils/applications-page";
-import { setupInviteLinkSession } from "../utils/session-flow";
+import { handleSkipReasonModal, setupInviteLinkSession } from "../utils/session-flow";
 import { cleanupSession } from "../utils/cleanup-helper";
 
 
@@ -88,13 +88,17 @@ test.describe('VC-262 rent-step-skip-button-visibility', () => {
         await expect(rentBudgetSkip).toBeVisible();
         console.log('✅ [UI] rent-budget-step-skip (Skip button) is visible as expected');
 
-        await Promise.all([
-            page.waitForResponse(resp => resp.url().includes(`/sessions/${sessionId}`)
+        // Skipping a step now triggers a "Skip reason" modal; the session update request
+        // won't fire until the modal is submitted.
+        const sessionUpdateResp = page.waitForResponse(
+            resp => resp.url().includes(`/sessions/${sessionId}`)
                 && resp.ok()
-                && resp.request().method() === 'GET'
-            ),
-            rentBudgetSkip.click()
-        ]);
+                && resp.request().method() === 'GET',
+            { timeout: 30_000 }
+        );
+        await rentBudgetSkip.click();
+        await handleSkipReasonModal(page, 'Skipping rent budget step for test purposes');
+        await sessionUpdateResp;
         console.log('👉 [UI] Clicked Skip on rent-budget-step; waiting for session update');
 
         // Check session target (rent budget) is null

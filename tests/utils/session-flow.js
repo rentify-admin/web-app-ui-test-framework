@@ -446,30 +446,60 @@ const handleOptionalTermsCheckbox = async page => {
     
     // Checkbox found - proceed with checking and clicking
     try {
-        const isChecked = await termsCheckbox.isChecked();
-        
-        if (!isChecked) {
-            console.log('📝 Checking terms checkbox...');
-            await termsCheckbox.click();
-            await page.waitForTimeout(500);
-            console.log('✅ Terms checkbox checked');
-        } else {
-            console.log('✅ Terms checkbox already checked');
-        }
-        
-        // Click "Continue to Verifast" button and wait for page transition
+        // Click "Continue to Verifast" button and wait for page transition.
+        // This click can be intermittently blocked by an overlapping modal/backdrop
+        // (e.g. state modal appearing after terms modal is rendered).
         console.log('🚀 Clicking "Continue to Verifast" button...');
         const continueButton = page.getByRole('button', { name: 'Continue to Verifast' });
-        
-        // Wait for button to be enabled (not just visible)
-        await continueButton.waitFor({ state: 'visible', timeout: 5000 });
-        const isEnabled = await continueButton.isEnabled();
-        if (!isEnabled) {
-            console.log('⏳ Button not enabled yet, waiting...');
-            await page.waitForTimeout(1000);
+        await continueButton.waitFor({ state: 'visible', timeout: 10_000 });
+
+        const maxClickAttempts = 4;
+        for (let attempt = 1; attempt <= maxClickAttempts; attempt++) {
+            // If a state modal appeared on top, handle it before trying to continue.
+            await handleOptionalStateModal(page);
+
+            // Re-check terms after any modal interaction (it can reset).
+            const isTermsVisible = await termsCheckbox.isVisible().catch(() => false);
+            if (isTermsVisible) {
+                const isChecked = await termsCheckbox.isChecked().catch(() => false);
+                if (!isChecked) {
+                    console.log('📝 Checking terms checkbox...');
+                    await termsCheckbox.click();
+                    await page.waitForTimeout(500);
+                    console.log('✅ Terms checkbox checked');
+                }
+            }
+
+            try {
+                // Wait for button to be enabled (not just visible)
+                const isEnabled = await continueButton.isEnabled().catch(() => true);
+                if (!isEnabled) {
+                    console.log('⏳ Button not enabled yet, waiting...');
+                    await page.waitForTimeout(1000);
+                }
+
+                if (attempt === maxClickAttempts) {
+                    // Last attempt: force click to bypass transient overlays.
+                    await continueButton.click({ force: true, timeout: 10_000 });
+                } else {
+                    await continueButton.click({ timeout: 10_000 });
+                }
+
+                console.log(`✅ Continue button clicked (attempt ${attempt}/${maxClickAttempts}), waiting for page transition...`);
+                break;
+            } catch (e) {
+                const msg = e?.message || '';
+                const isIntercept =
+                    msg.includes('intercepts pointer events') ||
+                    msg.includes('Element is not attached') ||
+                    msg.includes('element is not receiving pointer events');
+                if (!isIntercept || attempt === maxClickAttempts) {
+                    throw e;
+                }
+                console.log(`⚠️ Continue click intercepted (attempt ${attempt}/${maxClickAttempts}), handling modals and retrying...`);
+                await page.waitForTimeout(500);
+            }
         }
-        
-        await continueButton.click();
         console.log('✅ Continue button clicked, waiting for page transition...');
         
         // Wait for terms checkbox to disappear (indicates page navigated)
@@ -815,14 +845,50 @@ const handleTermsCheckboxInternal = async page => {
     
     // Wait for button to be enabled (not just visible)
     await continueButton.waitFor({ state: 'visible', timeout: 5000 });
-    const isEnabled = await continueButton.isEnabled();
-    if (!isEnabled) {
-        console.log('⏳ Button not enabled yet, waiting...');
-        await page.waitForTimeout(1000);
+    const maxClickAttempts = 4;
+    for (let attempt = 1; attempt <= maxClickAttempts; attempt++) {
+        // State modal can appear on top of terms modal; handle it if present.
+        await handleOptionalStateModal(page);
+
+        // Terms can become unchecked after modal interaction; re-check if needed.
+        const isTermsVisible = await termsCheckbox.isVisible().catch(() => false);
+        if (isTermsVisible) {
+            const isCheckedNow = await termsCheckbox.isChecked().catch(() => false);
+            if (!isCheckedNow) {
+                console.log('📝 Checking terms checkbox...');
+                await termsCheckbox.click();
+                await page.waitForTimeout(500);
+                console.log('✅ Terms checkbox checked');
+            }
+        }
+
+        try {
+            const isEnabled = await continueButton.isEnabled().catch(() => true);
+            if (!isEnabled) {
+                console.log('⏳ Button not enabled yet, waiting...');
+                await page.waitForTimeout(1000);
+            }
+
+            if (attempt === maxClickAttempts) {
+                await continueButton.click({ force: true, timeout: 10_000 });
+            } else {
+                await continueButton.click({ timeout: 10_000 });
+            }
+            console.log(`✅ Continue button clicked (attempt ${attempt}/${maxClickAttempts}), waiting for page transition...`);
+            break;
+        } catch (e) {
+            const msg = e?.message || '';
+            const isIntercept =
+                msg.includes('intercepts pointer events') ||
+                msg.includes('Element is not attached') ||
+                msg.includes('element is not receiving pointer events');
+            if (!isIntercept || attempt === maxClickAttempts) {
+                throw e;
+            }
+            console.log(`⚠️ Continue click intercepted (attempt ${attempt}/${maxClickAttempts}), handling modals and retrying...`);
+            await page.waitForTimeout(500);
+        }
     }
-    
-    await continueButton.click();
-    console.log('✅ Continue button clicked, waiting for page transition...');
     
     // Wait for terms checkbox to disappear (indicates page navigated)
     await termsCheckbox.waitFor({ state: 'hidden', timeout: 10000 });

@@ -1,6 +1,7 @@
 import { admin, app } from '~/tests/test_config';
 import loginForm from '~/tests/utils/login-form';
 import { customUrlDecode, getRandomEmail } from './utils/helper';
+import { fillMultiselect } from './utils/common';
 import { waitForJsonResponse } from './utils/wait-response';
 import { expect, test } from '@playwright/test';
 import { cleanupPermissionTest } from './utils/cleanup-helper';
@@ -34,7 +35,11 @@ test.describe('QA-102: org_member_application_binding_scoping_check', () => {
 
             await loginForm.adminLoginAndNavigate(page, admin)
 
-            await expect(page.getByTestId('household-status-alert')).toBeVisible(10_000)
+            // ✅ Do not wait for `household-status-alert` here:
+            // - it is often only visible inside the Alert/View Details modal
+            // - and it requires a session to be selected
+            // For this test we only need to confirm admin UI is ready to navigate to Organizations.
+            await expect(page.getByTestId('organizations-menu')).toBeVisible({ timeout: 10_000 });
 
             await page.getByTestId('organizations-menu').click()
 
@@ -82,7 +87,10 @@ test.describe('QA-102: org_member_application_binding_scoping_check', () => {
             await page.getByRole('textbox', { name: 'Email' }).click();
             await page.getByRole('textbox', { name: 'Email' }).fill(user.email);
             await page.getByRole('textbox', { name: 'Email' }).press('Tab');
-            await page.getByTestId('member-role-field-autotest---empty-role').click();
+            // Give the UI time to render/populate role field after blur/tab
+            await page.waitForTimeout(2000);
+            // Role dropdown options are dynamic (e.g. `member-role-field-11`), so select by visible text.
+            await fillMultiselect(page, await page.getByTestId('member-role-field'), ['Autotest - Empty role']);
             await page.getByTestId('submit-create-member').click();
             await page.getByTestId('copy-invitation-link').click();
 
@@ -113,7 +121,7 @@ test.describe('QA-102: org_member_application_binding_scoping_check', () => {
             // Wait for authentication to complete
             await expect(applicantPage.getByTestId('user-dropdown-toggle-btn')).toBeVisible({ timeout: 15000 });
             
-            await expect(applicantPage.getByTestId('applicants-menu')).not.toBeVisible();
+            await expect(applicantPage.getByTestId('applicants-menu')).not.toBeVisible({ timeout: 10_000 });
 
             await memberSearchInput.click();
             const escapedEmail = user.email.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -205,7 +213,7 @@ test.describe('QA-102: org_member_application_binding_scoping_check', () => {
             await page.getByTestId('save-app-permission-btn').click();
 
             
-            applicantPage.reload()
+            await applicantPage.reload({ waitUntil: 'domcontentloaded' });
             
 
             await applicantPage.waitForTimeout(6000);

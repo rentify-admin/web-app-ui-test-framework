@@ -178,10 +178,14 @@ test.describe('QA-221 report_remarks_section.spec', () => {
 
             const session = await waitForJsonResponse(sessionResponse);
 
-            const viewRemarksBtn = page.getByTestId('view-remarks-btn');
+            // Remarks button UI changed from data-testid="view-remarks-btn" to a "Notes" button
+            // (e.g. accessible name like "0 Notes"). Support both for backwards compatibility.
+            const legacyViewRemarksBtn = page.getByTestId('view-remarks-btn');
+            const notesBtn = page.locator('#applicant-report').getByRole('button', { name: /notes/i });
+            const viewRemarksBtn = (await legacyViewRemarksBtn.count()) > 0 ? legacyViewRemarksBtn : notesBtn;
 
             console.log('Opening remark history modal by clicking on remarks button');
-            await expect(viewRemarksBtn).toBeVisible()
+            await expect(viewRemarksBtn).toBeVisible({ timeout: 10_000 });
             await viewRemarksBtn.click()
 
             const remarkHistoryModal = page.getByTestId('remark-history-modal');

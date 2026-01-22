@@ -265,31 +265,54 @@ const checkRentBudgetEdit = async page => {
 const checkExportPdf = async (page, context, sessionId) => {
     console.log('🚀 Should Allow User to Export Report');
 
-    // ✅ Handle duplicate test-id: If multiple found, use nth(1)
-    let exportBtn = page.getByTestId('export-session-btn');
-    const exportBtnCount = await exportBtn.count();
-    
-    if (exportBtnCount > 1) {
-        console.log(`   ⚠️ Found ${exportBtnCount} export buttons - using nth(1)`);
-        exportBtn = exportBtn.nth(1);
-    } else if (exportBtnCount === 1) {
-        console.log('   ✅ Found 1 export button');
-        exportBtn = exportBtn.first();
+    // Export button has had multiple UI implementations over time:
+    // - standalone `button[data-name="Export"]` (current)
+    // - dropdown `data-testid="export-session-btn"` (legacy)
+    const exportBtnDataName = page.locator('button[data-name="Export"]').first();
+    const exportBtnTestId = page.getByTestId('export-session-btn').first();
+
+    // If neither is immediately visible, try opening the session action dropdown (legacy UI).
+    const exportDataNameVisible = await exportBtnDataName.isVisible().catch(() => false);
+    const exportTestIdVisible = await exportBtnTestId.isVisible().catch(() => false);
+
+    if (!exportDataNameVisible && !exportTestIdVisible) {
+        const sessionActionBtn = page.getByTestId('session-action-btn');
+        const actionBtnVisible = await sessionActionBtn.isVisible().catch(() => false);
+        if (actionBtnVisible) {
+            await sessionActionBtn.click().catch(() => {});
+            await page.waitForTimeout(400);
+        }
     }
-    
-    await page.waitForTimeout(700);
-    if (!await exportBtn.isVisible()) {
-        await page.getByTestId('session-action-btn').click();
+
+    // Prefer current selector; fallback to legacy.
+    const exportBtn = (await exportBtnDataName.isVisible().catch(() => false))
+        ? exportBtnDataName
+        : exportBtnTestId;
+
+    await exportBtn.scrollIntoViewIfNeeded().catch(() => {});
+    await expect(exportBtn).toBeVisible({ timeout: 10_000 });
+
+    // Click export button and wait for export modal to appear.
+    await exportBtn.click();
+
+    // Export modal selectors have also varied:
+    // - `data-testid="export-pdf-modal"` (current)
+    // - `[role="dialog"]` containing "Export" (legacy)
+    const exportModalByTestId = page.getByTestId('export-pdf-modal');
+    const exportModalByRole = page.locator('[role="dialog"]').filter({ hasText: /Export/i });
+
+    const testIdModalVisible = await exportModalByTestId.isVisible({ timeout: 5000 }).catch(() => false);
+    if (!testIdModalVisible) {
+        await expect(exportModalByRole).toBeVisible({ timeout: 10_000 });
+    } else {
+        await expect(exportModalByTestId).toBeVisible({ timeout: 10_000 });
     }
-    await page.waitForTimeout(600);
-    
-    // Click export button and wait for modal
-    exportBtn.click();
-    await page.waitForTimeout(1000); // Wait for animation
-    await page.locator('[role="dialog"]').filter({ hasText: 'Export' }).waitFor({ state: 'visible' });
-    
-    // Click the income source delist submit button
-    await page.getByTestId('income-source-delist-submit').click();
+    await page.waitForTimeout(500); // Wait for modal animation
+
+    // Click the submit button to export PDF.
+    // NOTE: The app reuses this button id in the export modal.
+    const exportSubmitBtn = page.getByTestId('income-source-delist-submit');
+    await expect(exportSubmitBtn).toBeVisible({ timeout: 10_000 });
 
     const [ pdfResponse, popupPage ] = await Promise.all([
         page.waitForResponse(resp => {
@@ -300,7 +323,8 @@ const checkExportPdf = async (page, context, sessionId) => {
                 && resp.headers()['content-type'] === 'application/pdf'
                 && resp.ok();
         }),
-        page.waitForEvent('popup')
+        page.waitForEvent('popup'),
+        exportSubmitBtn.click()
     ]);
 
     const pdfResponseContentType = pdfResponse.headers()['content-type'];
