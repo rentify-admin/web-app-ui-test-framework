@@ -1,3 +1,4 @@
+import { customUrlDecode } from './helper';
 import { waitForJsonResponse } from './wait-response';
 import { expect, test } from '@playwright/test';
 
@@ -57,22 +58,47 @@ const gotoPage = async (page, parentMenuTestId, submenuTestId, url, urlRegex = f
  * @param {import('@playwright/test').Locator} selector
  * @param {Array} values
  */
-const fillMultiselect = async (page, selector, values) => {
+const fillMultiselect = async (page, selector, values, {
+    timeout = 500,
+    waitUrl = ''
+} = {}) => {
     await selector.locator('.multiselect__tags').first()
         .click();
     for (let index = 0; index < values.length; index++) {
         const item = values[index];
-        await selector.locator('input').fill(item);
-        
-        // Wait a bit for the dropdown options to appear after typing
+        const optionsPanel = await selector.locator('.multiselect__content-wrapper')
         await page.waitForTimeout(500);
-        
+        if (!await optionsPanel.isVisible({ timeout: 500 })) {
+            await selector.locator('.multiselect__tags').first()
+                .click();
+        }
+
+        let promise = null;
+
+        if (waitUrl) {
+            await page.waitForTimeout(500);
+            promise = page.waitForResponse(resp => resp.url().includes(waitUrl)
+                && resp.ok()
+                && resp.request().method() === "GET"
+                && customUrlDecode(resp.url()).includes(item)
+            )
+            await Promise.all([
+                promise,
+                selector.locator('input').fill(item)
+            ])
+        } else {
+            await selector.locator('input').fill(item)
+        }
+
+        // Wait a bit for the dropdown options to appear after typing
+        await page.waitForTimeout(timeout);
+
         // Use substring match (case-insensitive) since applicant names may have prefixes like "Autotest - "
         // This allows matching "Merge Coapp" in "Autotest - Merge Coapp"
         const trimmedItem = item.trim();
         const options = selector.locator('ul>li');
         const matchedOption = options.filter({ hasText: new RegExp(escapeRegExp(trimmedItem), 'i') });
-        
+
         // If no match, log available options for debugging
         if (await matchedOption.count() === 0) {
             const optionCount = await options.count();
@@ -84,7 +110,7 @@ const fillMultiselect = async (page, selector, values) => {
             }
             throw new Error(`Option not found: "${trimmedItem}". Available options: ${await options.first().textContent().catch(() => 'none')}`);
         }
-        
+
         await matchedOption.first().click();
     }
 

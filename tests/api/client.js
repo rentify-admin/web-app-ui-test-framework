@@ -79,7 +79,7 @@ class ApiClient {
                 errorMessage += `\nStatus: ${error.response.status}`;
                 errorMessage += `\nData: ${JSON.stringify(error.response.data, null, 2)}`;
             }
-            throw new Error(errorMessage);
+            throw error;
         }
     }
 
