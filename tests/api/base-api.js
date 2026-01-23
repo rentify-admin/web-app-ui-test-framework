@@ -1,3 +1,5 @@
+import { expect } from "@playwright/test";
+
 class BaseApi {
     constructor(client, baseUrl = '') {
         this.client = client;
@@ -24,6 +26,24 @@ class BaseApi {
 
     async delete(id) {
         return await this.client.delete(`${this.baseUrl}/${id}`)
+    }
+
+    async getByName(searchName) {
+        if (!searchName || typeof searchName !== 'string') {
+            console.error(`search name : ${searchName}`)
+            throw new Error('search name is invalid')
+        }
+        const itemResponse = await this.get({
+            filters: JSON.stringify({
+                "name": searchName.trim()
+            })
+        })
+
+        const items = itemResponse?.data;
+        await expect(items).toBeDefined()
+        const item = items.find(itemItem => itemItem.name === searchName)
+
+        return item
     }
 }
 
