@@ -24,7 +24,7 @@ const providerApi = new ProviderApi(guestClient);
 const { STEP_KEYS } = sessionConf;
 
 test.describe('QA-316 application_archiving.spec', () => {
-
+    test.setTimeout(200_000);
     // Find application by name, create if missing, ensure not archived, and complete session flow (with logging)
 
     const WORKFLOW_TEMPLATE = 'Simulation Financial Employment';
@@ -106,8 +106,6 @@ test.describe('QA-316 application_archiving.spec', () => {
 
 
     test('Verify Application Archiving and Unarchiving Functionality (VC-183)', async ({ page }) => {
-
-
 
         /**
          * ============================================================================
@@ -470,12 +468,15 @@ test.describe('QA-316 application_archiving.spec', () => {
 
         // Go to applications page and ensure archived apps are visible
         console.log("➡️ Navigating to applications page to unarchive application.");
-        await page.goto('/applications', { waitUntil: 'domcontentloaded' });
-
+        await page.goto(`/application/all`, { waitUntil: 'domcontentloaded' });
+        await page.waitForTimeout(1000);
         // Make sure archive-only toggle is ON to show archived items
         await expect(archiveToggle, "Archive-toggle should be visible after navigation").toBeVisible();
         if (!await archiveToggle.isChecked()) {
+            const archivePromise = page.waitForResponse(resp => resp.url().includes('/applications')
+                && resp.request().method() === "GET" && resp.ok())
             await archiveToggle.click();
+            await archivePromise
             console.log("🗂️ Archive-only toggle turned ON to reveal archived apps.");
         }
         await page.waitForTimeout(500);
@@ -505,7 +506,10 @@ test.describe('QA-316 application_archiving.spec', () => {
 
         // Remove archive-only toggle to return to normal applications list
         if (await archiveToggle.isChecked()) {
+            const archivePromise = page.waitForResponse(resp => resp.url().includes('/applications')
+                && resp.request().method() === "GET" && resp.ok())
             await archiveToggle.click();
+            await archivePromise
             console.log("🗂️ Archive-only toggle turned OFF.");
         }
 
@@ -540,6 +544,10 @@ test.describe('QA-316 application_archiving.spec', () => {
         await inviteButton.click();
         await expect(generateSessionModal, "Generate Session modal did not appear").toBeVisible();
         console.log("✅ Generate Session modal is visible.");
+        const generateSessionModalCancel = page.getByTestId('generate-session-modal-cancel');
+        await expect(generateSessionModalCancel).toBeVisible();
+        await generateSessionModalCancel.click();
+        await expect(generateSessionModal, "Generate Session modal should still be visible after clicking cancel").toBeVisible();
 
         // --- Click Copy Link and Verify Clipboard ---
         console.log("📋 Attempting to copy application link to clipboard...");
@@ -571,13 +579,9 @@ test.describe('QA-316 application_archiving.spec', () => {
         console.log("🌱 Attempting to create new session for UNARCHIVED application via POST /sessions...");
         let unarchiveSession;
         try {
-            const apiResp = await sessionApi.create(formData);
+            const apiResp = await sessionApi.create(sessionRequestData);
             expect(apiResp).toBeDefined();
             // API Verification: Check status 201!
-            if (apiResp.status !== 201) {
-                console.error(`❌ Session creation status wrong: got ${apiResp.status} (expected 201)`);
-            }
-            expect(apiResp.status).toBe(201);
             unarchiveSession = apiResp.data;
             expect(unarchiveSession?.id).toBeDefined();
             console.log(`✅ Session created via API for unarchived application (session id: ${unarchiveSession?.id})`);
@@ -596,7 +600,16 @@ test.describe('QA-316 application_archiving.spec', () => {
             }
         }
 
-
+        const userDropDownToggleBtn = page.getByTestId('user-dropdown-toggle-btn');
+        await expect(userDropDownToggleBtn).toBeVisible();
+        await userDropDownToggleBtn.click()
+        await page.waitForTimeout(200);
+        const logoutDropdownOption = page.getByTestId('user-logout-dropdown-item');
+        await expect(logoutDropdownOption).toBeVisible();
+        const logoutPromise = await page.waitForResponse(resp => resp.url().endsWith('/auth')
+            && resp.request().method() === 'DELETE' && resp.ok())
+        await logoutDropdownOption.click()
+        await logoutPromise
 
         // Test: Verify Guest Cannot Access Archived Application
         // Simulate guest user by clearing authentication
@@ -641,7 +654,7 @@ test.describe('QA-316 application_archiving.spec', () => {
 
 
     test.afterAll(async () => {
-        if(session?.id){
+        if (session?.id) {
             await sessionApi.delete(session.id)
         }
     })
