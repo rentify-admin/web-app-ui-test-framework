@@ -10,9 +10,15 @@ import { pollForFlag } from './polling-helper';
  */
 const checkSessionApproveReject = async (page, sessionId = null) => {
 
+    // There are multiple "session-action-btn" instances on the report page (e.g. report header + household status bar).
+    // Playwright strict mode requires a unique locator, so always scope to the session details container.
+    const detailsActionBtn = page.getByTestId('household-status-alert').getByTestId('session-action-btn');
+
     // Step 1: Approve Session
     // Step 1.1: Locate and click approve button with retry logic
-    const approveBtn = page.getByTestId('approve-session-btn');
+    // We intentionally approve from the *session details* dropdown (household-status-alert),
+    // not any other report/header action menus.
+    const approveBtn = page.getByTestId('household-status-alert').getByTestId('approve-session-btn');
     await page.waitForTimeout(700);
 
     // Retry mechanism: Try up to 5 times to make approve button visible
@@ -20,8 +26,13 @@ const checkSessionApproveReject = async (page, sessionId = null) => {
     let attempt = 0;
     while (!await approveBtn.isVisible() && attempt < maxAttempts) {
         attempt++;
-        console.log(`⚠️ Approve button not visible, clicking session-action-btn (attempt ${attempt}/${maxAttempts})...`);
-        await page.getByTestId('session-action-btn').click();
+        console.log(`⚠️ Approve button not visible, ensuring report view is active (attempt ${attempt}/${maxAttempts})...`);
+
+        // Open the details action dropdown so approve/reject items are visible.
+        if (await detailsActionBtn.isVisible().catch(() => false)) {
+            await detailsActionBtn.click().catch(() => {});
+            await page.waitForTimeout(500);
+        }
         await page.waitForTimeout(1000);
     }
 
@@ -85,13 +96,16 @@ const checkSessionApproveReject = async (page, sessionId = null) => {
 
     // Step 2: Reject Session
     // Step 2.1: Locate and click reject button
-    const actionBtn = await page.getByTestId('session-action-btn');
+    const rejectBtn = page.getByTestId('household-status-alert').getByTestId('reject-session-btn');
 
-    await actionBtn.scrollIntoViewIfNeeded();
-
-    await page.waitForTimeout(1000);
-
-    await page.getByTestId('reject-session-btn').click();
+    await detailsActionBtn.scrollIntoViewIfNeeded().catch(() => {});
+    // Only click the dropdown button if the dropdown item isn't already visible
+    const rejectVisible = await rejectBtn.isVisible().catch(() => false);
+    if (!rejectVisible) {
+        await detailsActionBtn.click();
+        await page.waitForTimeout(300);
+    }
+    await rejectBtn.click();
 
     // Step 2.2: Confirm rejection and wait for response
     const confirmBtn2 = page.getByTestId('confirm-btn');
@@ -276,7 +290,10 @@ const checkExportPdf = async (page, context, sessionId) => {
     const exportTestIdVisible = await exportBtnTestId.isVisible().catch(() => false);
 
     if (!exportDataNameVisible && !exportTestIdVisible) {
-        const sessionActionBtn = page.getByTestId('session-action-btn');
+        const sessionActionBtn = page
+            .getByTestId('household-status-alert')
+            .getByTestId('session-action-btn')
+            .or(page.getByTestId('session-action-btn').first());
         const actionBtnVisible = await sessionActionBtn.isVisible().catch(() => false);
         if (actionBtnVisible) {
             await sessionActionBtn.click().catch(() => {});
@@ -355,7 +372,11 @@ const canRequestAdditionalDocuments = async (page, availableChecks = []) => {
     const btn = await page.getByTestId('request-additional-btn');
     await page.waitForTimeout(700);
     if (!await btn.isVisible()) {
-        await page.getByTestId('session-action-btn').click();
+        await page
+            .getByTestId('household-status-alert')
+            .getByTestId('session-action-btn')
+            .or(page.getByTestId('session-action-btn').first())
+            .click();
     }
     await page.waitForTimeout(600);
     await btn.click();
@@ -380,7 +401,10 @@ const canInviteApplicant = async page => {
     const btn = await page.getByTestId('invite-applicant');
     await page.waitForTimeout(1300); //wait for animation
     if (!await btn.isVisible()) {
-        const actionBtn = await page.getByTestId('session-action-btn');
+        const actionBtn = page
+            .getByTestId('household-status-alert')
+            .getByTestId('session-action-btn')
+            .or(page.getByTestId('session-action-btn').first());
         await actionBtn.click();
     }
     await page.waitForTimeout(700);
@@ -407,7 +431,11 @@ const canUploadListOfDocuments = async (page, documents = []) => {
     const btn = await page.getByTestId('upload-document-btn');
     await page.waitForTimeout(2000);
     if (!await btn.isVisible()) {
-        await page.getByTestId('session-action-btn').click();
+        await page
+            .getByTestId('household-status-alert')
+            .getByTestId('session-action-btn')
+            .or(page.getByTestId('session-action-btn').first())
+            .click();
     }
     await btn.click();
     await page.waitForTimeout(1000);

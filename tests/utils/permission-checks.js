@@ -66,7 +66,11 @@ const checkRentBudgetEdit = async page => {
 const checkSessionApproveReject = async page => {
     console.log('🚀 Should Allow user to approve/reject session');
 
-    const approveBtn = page.getByTestId('approve-session-btn');
+    // Approve button exists in two places:
+    // 1) Standalone button on the session report page (session-report-section)
+    // 2) Dropdown item inside the Alert/View Details modal (household-status-alert)
+    // Scope to the report section to avoid strict-mode violations.
+    const approveBtn = page.getByTestId('session-report-section').getByTestId('approve-session-btn');
     await page.waitForTimeout(700);
     
     // Retry mechanism: Try up to 5 times to make approve button visible
@@ -74,8 +78,21 @@ const checkSessionApproveReject = async page => {
     let attempt = 0;
     while (!await approveBtn.isVisible() && attempt < maxAttempts) {
         attempt++;
-        console.log(`⚠️ Approve button not visible, clicking session-action-btn (attempt ${attempt}/${maxAttempts})...`);
-        await page.getByTestId('session-action-btn').click();
+        console.log(`⚠️ Approve button not visible, ensuring report view is active (attempt ${attempt}/${maxAttempts})...`);
+        
+        // If Alert/View Details modal is open, close it (it can overlay/interfere).
+        const closeModalBtn = page.getByTestId('close-event-history-modal');
+        if (await closeModalBtn.isVisible().catch(() => false)) {
+            await closeModalBtn.click().catch(() => {});
+            await page.waitForTimeout(500);
+        }
+        
+        // Some UIs require toggling the action dropdown to stabilize the header row.
+        const actionBtn = page.getByTestId('session-action-btn');
+        if (await actionBtn.isVisible().catch(() => false)) {
+            await actionBtn.click().catch(() => {});
+            await page.waitForTimeout(500);
+        }
         await page.waitForTimeout(1000);
     }
 
@@ -133,9 +150,11 @@ const checkSessionApproveReject = async page => {
 
     await waitForJsonResponse(confirmApproveResponse);
 
-    const rejectBtn = await page.getByTestId('reject-session-btn');
+    // Reject button also exists as a dropdown item in the modal; scope it to the report section.
+    const rejectBtn = page.getByTestId('session-report-section').getByTestId('reject-session-btn');
     if (!await rejectBtn.isVisible()) {
         await page.getByTestId('session-action-btn').click();
+        await page.waitForTimeout(500);
     }
     await rejectBtn.click();
 

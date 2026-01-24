@@ -7,7 +7,7 @@ import { completePaystubConnection, fillhouseholdForm, setupInviteLinkSession, u
 import { getRandomEmail, joinUrl } from '~/tests/utils/helper';
 import { searchSessionWithText } from '~/tests/utils/report-page';
 import { waitForJsonResponse } from './utils/wait-response';
-import { cleanupSession } from './utils/cleanup-helper';
+import { cleanupTrackedSessions } from './utils/cleanup-helper';
 
 /**
  * Handle new "Upload Bank Statements" intro modal that appears
@@ -33,16 +33,13 @@ const handleBankConnectInfoModal = async page => {
 };
 
 test.describe('frontend-session-heartbeat', () => {
-    // Global state for cleanup
-    let createdSessionId = null;
-    let allTestsPassed = true;
+    // Per-attempt state for cleanup (retry-safe)
+    let createdSessionIds = [];
 
     // Test includes improved state modal handling and uses utility function
     // for intelligent button interaction (handles manual clicks and auto-advance)
     test('Verify Frontend session heartbeat', { tag: ['@regression', '@staging-ready', '@rc-ready'] }, async ({ page }) => {
         test.setTimeout(250_000);
-
-        try {
             const user = {
                 email: getRandomEmail(),
                 first_name: 'Playwright',
@@ -68,7 +65,9 @@ test.describe('frontend-session-heartbeat', () => {
 
             console.log('🚀 Invite Applicant')
             const { sessionId, sessionUrl, link } = await generateSessionForm.generateSessionAndExtractLink(page, user);
-            createdSessionId = sessionId;  // Store for cleanup
+            if (sessionId) {
+                createdSessionIds.push(sessionId);  // Store for cleanup (retry-safe)
+            }
             console.log('✅ Done Invite Applicant')
 
             await page.getByTestId('user-dropdown-toggle-btn').click();
@@ -281,16 +280,11 @@ test.describe('frontend-session-heartbeat', () => {
             console.log('✅ Income Source visible')
 
             console.log('✅ Frontend session heartbeat test completed successfully');
-        } catch (error) {
-            console.error('❌ Test failed:', error.message);
-            allTestsPassed = false;
-            throw error;
-        }
         // Note: Page is managed by Playwright fixture, cleanup happens in afterAll
     });
     
-    // ✅ Centralized cleanup
-    test.afterAll(async ({ request }) => {
-        await cleanupSession(request, createdSessionId, allTestsPassed);
+    // Always cleanup by default; keep artifacts only when KEEP_FAILED_ARTIFACTS=true and test failed
+    test.afterEach(async ({ request }, testInfo) => {
+        await cleanupTrackedSessions({ request, sessionIds: createdSessionIds, testInfo });
     });
 });

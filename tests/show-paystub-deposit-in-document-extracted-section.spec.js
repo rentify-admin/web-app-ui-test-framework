@@ -2,7 +2,7 @@ import { test, expect } from "./fixtures/api-data-fixture";
 import { createPaystubData } from "./mock-data/paystub-payload";
 import { admin, app } from "./test_config";
 import { findAndInviteApplication } from "./utils/applications-page";
-import { cleanupSession } from "./utils/cleanup-helper";
+import { cleanupTrackedSessions } from "./utils/cleanup-helper";
 import generateSessionForm from "./utils/generate-session-form";
 import { getAmount, joinUrl } from "./utils/helper";
 import { findSessionLocator, searchSessionWithText } from "./utils/report-page";
@@ -11,18 +11,24 @@ import { adminLoginAndNavigateToApplications } from "./utils/session-utils";
 import { waitForJsonResponse } from "./utils/wait-response";
 import { pollForVerificationStatus } from "./utils/polling-helper";
 
-let createdSessionId = null;
-let allTestsPassed = true;
+let createdSessionIds = [];
 let guestAuthToken = null;  // ✅ Store guest token for API polling
+let applicantContext = null;
 
 test.describe('QA-213 show-paystub-deposit-in-document-extracted-section.spec', () => {
 
     const appName = 'Autotest - Heartbeat Test - Employment';
 
+    test.beforeEach(() => {
+        // Reset per-attempt tracking (important with Playwright retries)
+        createdSessionIds = [];
+        guestAuthToken = null;
+        applicantContext = null;
+    });
+
     test('Verify Display Paystub Deposits in Document → Extracted Section', { 
         tag: ['@regression', '@try-test-rail-names', '@staging-ready', '@rc-ready']
     }, async ({ page, browser }) => {
-        try {
             const user = {
             firstName: "Test",
             lastName: "User",
@@ -41,12 +47,14 @@ test.describe('QA-213 show-paystub-deposit-in-document-extracted-section.spec', 
 
         console.log('🚀 Invite Applicant')
         const { sessionId, sessionUrl, link } = await generateSessionForm.generateSessionAndExtractLink(page, user);
-        createdSessionId = sessionId;  // Store for cleanup
+        if (sessionId) {
+            createdSessionIds.push(sessionId); // Store for cleanup (retry-safe)
+        }
         console.log('✅ Done Invite Applicant')
 
-        const context = await browser.newContext()
+        applicantContext = await browser.newContext()
 
-        const applicationPage = await context.newPage()
+        const applicationPage = await applicantContext.newPage()
 
         console.log('🚀 Navigating to applicant link and capturing auth token');
         
@@ -89,17 +97,16 @@ test.describe('QA-213 show-paystub-deposit-in-document-extracted-section.spec', 
         await expect(preScreeningStep).toBeVisible({ timeout: 20_000 });
         console.log('✅ Pre-screening step visible');
 
-        console.log('🚀 Skipping pre-screening questions');
-        await Promise.all([
-            applicationPage.waitForResponse(resp => {
-                const regex = new RegExp(joinUrl(app.urls.api, `/sessions/${sessionId}/steps/.{36}`))
-                return regex.test(resp.url())
-                    && resp.request().method() === 'PATCH'
-                    && resp.ok()
-            }),
-            preScreeningStep.getByTestId('pre-screening-skip-btn').click()
-        ])
+        // Skip opens a "Skip reason" modal; the step PATCH runs only after the modal is submitted.
+        // Pattern: register listener → click skip → handle modal → await response.
+        const stepPatchRegex = new RegExp(joinUrl(app.urls.api, `/sessions/${sessionId}/steps/.{36}`));
+        const stepPatchResp = applicationPage.waitForResponse(
+            resp => stepPatchRegex.test(resp.url()) && resp.request().method() === 'PATCH' && resp.ok(),
+            { timeout: 30_000 }
+        );
+        await preScreeningStep.getByTestId('pre-screening-skip-btn').click();
         await handleSkipReasonModal(applicationPage, "Skipping pre-screening step for test purposes");
+        await stepPatchResp;
         console.log('✅ Pre-screening skipped');
 
         console.log('🚀 Waiting for employment verification step to be visible');
@@ -195,19 +202,19 @@ test.describe('QA-213 show-paystub-deposit-in-document-extracted-section.spec', 
         await checkDeposits(page, secondFile, paystubData);
         console.log('✅ Deposits verified for second file');
 
-            allTestsPassed = true;
-        } catch (error) {
-            allTestsPassed = false;
-            console.error('❌ Test failed:', error.message);
-            throw error;
-        }
     })
 
-    // ✅ Cleanup session after test
-    test.afterAll(async ({ request }) => {
-        console.log('🚀 Cleaning up session...');
-        await cleanupSession(request, createdSessionId, allTestsPassed);
-        console.log('✅ Cleanup complete');
+    // Always cleanup by default; keep artifacts only when KEEP_FAILED_ARTIFACTS=true and test failed
+    test.afterEach(async ({ request }, testInfo) => {
+        await cleanupTrackedSessions({ request, sessionIds: createdSessionIds, testInfo });
+
+        if (applicantContext) {
+            try {
+                await applicantContext.close();
+            } catch {
+                // ignore
+            }
+        }
     });
 
 })

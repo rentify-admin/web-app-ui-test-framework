@@ -4,7 +4,7 @@ import { personaConnectData } from "./mock-data/identity-payload";
 import { admin, app } from "./test_config";
 import ApplicationBuilder from "./utils/application-builder";
 import { findAndInviteApplication } from "./utils/applications-page";
-import { authenticateAdmin, cleanupSession } from "./utils/cleanup-helper";
+import { authenticateAdmin, cleanupTrackedSession } from "./utils/cleanup-helper";
 import { gotoPage } from "./utils/common";
 import generateSessionForm from "./utils/generate-session-form";
 import { pollForFlag, pollUntil } from "./utils/polling-helper";
@@ -18,7 +18,6 @@ import { NAME_PREFIX, removePrefix } from "./utils/naming-helper";
 // 🗑️ For cleanup after test
 let application = null;
 let createdSessionId = null;
-let allTestsPassed = true;
 let flagUpdated = false;
 
 // Ref: To always get the latest sessionFlags from network listener inside checkFlagChanges
@@ -91,12 +90,14 @@ test.describe('QA-227 identity_flag_reevaluation_on_guest_update.spec', () => {
         console.log("✅ [Setup] Workflow & Application ready!\n");
     });
 
-    // 🧹 After all: clean up test application and session
-    test.afterAll(async ({ request }, testInfo) => {
-        if(testInfo.status === 'passed'){
-            await cleanupSession(request, createdSessionId, allTestsPassed);
-            console.log(`✅ [Cleanup] Session #${createdSessionId} cleaned up.`);
-        }
+    test.beforeEach(() => {
+        // Reset per-attempt tracking (important with Playwright retries)
+        createdSessionId = null;
+    });
+
+    // Always cleanup by default; keep artifacts only when KEEP_FAILED_ARTIFACTS=true and test failed
+    test.afterEach(async ({ request }, testInfo) => {
+        await cleanupTrackedSession(request, createdSessionId, testInfo);
     });
 
     // ✅ MAIN TEST
@@ -336,6 +337,8 @@ test.describe('QA-227 identity_flag_reevaluation_on_guest_update.spec', () => {
         console.log('🔍 2️⃣0️⃣ [Flag Polling] Waiting for flag to change from CRITICAL to WARNING...');
         
         // Open details modal first
+        const viewDetailBtn = page.getByRole('button', { name: /alert/i }).first();
+        await expect(viewDetailBtn).toBeVisible({ timeout: 10_000 });
         await viewDetailBtn.click();
         await page.waitForTimeout(1000);
         
@@ -433,7 +436,9 @@ test.describe('QA-227 identity_flag_reevaluation_on_guest_update.spec', () => {
         console.log('🔍 2️⃣3️⃣ [Flag Polling] Waiting for WARNING flag to be removed after complete match...');
         
         // Open details modal first
-        await viewDetailBtn.click();
+        const viewDetailBtn2 = page.getByRole('button', { name: /alert/i }).first();
+        await expect(viewDetailBtn2).toBeVisible({ timeout: 10_000 });
+        await viewDetailBtn2.click();
         await page.waitForTimeout(1000);
         
         // Poll for WARNING flag to disappear using FE polling with modal refresh

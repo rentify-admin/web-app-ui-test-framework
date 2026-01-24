@@ -9,6 +9,7 @@ import generateSessionForm from '~/tests/utils/generate-session-form';
 import loginForm from '~/tests/utils/login-form';
 import { waitForJsonResponse } from '~/tests/utils/wait-response';
 import { fillMultiselect, gotoPage } from '~/tests/utils/common';
+import { cleanupTrackedSessions } from './utils/cleanup-helper';
 import {
     completePaystubConnection,
     completePlaidFinancialStepBetterment,
@@ -44,6 +45,12 @@ const coapplicant = {
 };
 
 test.describe('co_applicant_effect_on_session_test', () => {
+    const createdSessionIds = [];
+
+    test.afterEach(async ({ request }, testInfo) => {
+        await cleanupTrackedSessions({ request, sessionIds: createdSessionIds, testInfo });
+    });
+
     test('Should complete applicant flow with co-applicant effect on session', {
         tag: ['@regify', '@external-integration', '@regression', '@staging-ready', '@rc-ready'],
     }, async ({ page, browser }) => {
@@ -59,6 +66,7 @@ test.describe('co_applicant_effect_on_session_test', () => {
         // Step 3: Generate Session and Extract Link
         const { sessionId, sessionUrl, link }
             = await generateSessionForm.generateSessionAndExtractLink(page, user);
+        if (sessionId) createdSessionIds.push(sessionId);
         
         const linkUrl = new URL(link);
         
@@ -230,6 +238,7 @@ test.describe('co_applicant_effect_on_session_test', () => {
         ]);
     
         const coAppSession = await waitForJsonResponse(coSessionResp);
+        if (coAppSession?.data?.id) createdSessionIds.push(coAppSession.data.id);
     
 		// CO-APP: Setup session flow (terms → applicant type → state)
 		await setupInviteLinkSession(coAppPage, {

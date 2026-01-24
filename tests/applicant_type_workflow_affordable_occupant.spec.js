@@ -5,18 +5,21 @@ import app from '~/tests/test_config/app';
 import { findAndInviteApplication, gotoApplicationsPage } from '~/tests/utils/applications-page';
 import generateSessionForm from '~/tests/utils/generate-session-form';
 import { setupInviteLinkSession, completeApplicantForm, identityStep, handleSkipReasonModal } from '~/tests/utils/session-flow';
-import { cleanupSession } from './utils/cleanup-helper';
+import { cleanupTrackedSessions } from './utils/cleanup-helper';
 
-let createdSessionId = null;
-let allTestsPassed = true;
+let createdSessionIds = [];
 
 test.describe('applicant_type_workflow_affordable_occupant', () => {
+    test.beforeEach(() => {
+        // Reset per-attempt tracking (important with Playwright retries)
+        createdSessionIds = [];
+    });
+
     test('Should complete applicant flow with affordable occupant applicant type', { 
         tag: ['@core', '@regression', '@staging-ready', '@rc-ready', '@affordable_occupant'],
     }, async ({ page }) => {
         test.setTimeout(450000);
         
-        try {
         // Step 1: Login as admin
         await page.goto(app.urls.app);
         await loginForm.fill(page, admin);
@@ -46,7 +49,10 @@ test.describe('applicant_type_workflow_affordable_occupant', () => {
 
         await generateSessionForm.fill(page, userData);
         const sessionData = await generateSessionForm.submit(page);
-        createdSessionId = sessionData.data?.id;  // Store for cleanup
+        const createdSessionId = sessionData.data?.id;
+        if (createdSessionId) {
+            createdSessionIds.push(createdSessionId); // Store for cleanup (retry-safe)
+        }
 
         // Step 4: Get session link and navigate to applicant view
         const linkSection = page.getByTestId('session-invite-link');
@@ -86,14 +92,10 @@ test.describe('applicant_type_workflow_affordable_occupant', () => {
         await identityStep(page);
 
         console.log('✅ Applicant Type Workflow Affordable Occupant test completed successfully');
-        } catch (error) {
-            allTestsPassed = false;
-            throw error;
-        }
     });
     
-    // ✅ Cleanup session after test
-    test.afterAll(async ({ request }) => {
-        await cleanupSession(request, createdSessionId, allTestsPassed);
+    // Always cleanup by default; keep artifacts only when KEEP_FAILED_ARTIFACTS=true and test failed
+    test.afterEach(async ({ request }, testInfo) => {
+        await cleanupTrackedSessions({ request, sessionIds: createdSessionIds, testInfo });
     });
 }); 

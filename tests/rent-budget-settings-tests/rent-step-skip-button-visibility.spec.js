@@ -9,7 +9,7 @@ import { getRandomEmail } from "../utils/helper";
 import { waitForJsonResponse } from "../utils/wait-response";
 import { findAndInviteApplication } from "../utils/applications-page";
 import { handleSkipReasonModal, setupInviteLinkSession } from "../utils/session-flow";
-import { cleanupSession } from "../utils/cleanup-helper";
+import { cleanupTrackedSession } from "../utils/cleanup-helper";
 
 
 test.describe('VC-262 rent-step-skip-button-visibility', () => {
@@ -203,16 +203,16 @@ test.describe('VC-262 rent-step-skip-button-visibility', () => {
     })
 
 
-    test.afterAll(async ({ request }) => {
+    test.afterAll(async ({ request }, testInfo) => {
         console.log('[CleanUp] Test suite cleanup (delete any remaining test sessions if needed)');
         const results = Object.entries(testResults);
         for (let index = 0; index < results.length; index++) {
             const [key, element] = results[index];
-            if (element.passed && element.sessionId) {
+            if (element.sessionId) {
                 try {
                     console.log(`[Cleanup] Attempting to clean up session for test '${key}' (sessionId: ${element.sessionId})`);
-                    await cleanupSession(request, element.sessionId);
-                    console.log(`[Cleanup] Successfully cleaned up session for test '${key}'`);
+                    await cleanupTrackedSession(request, element.sessionId, testInfo);
+                    console.log(`[Cleanup] Cleanup handled for test '${key}'`);
                 } catch (error) {
                     console.error(`[Cleanup] Failed to clean up session for test '${key}' (sessionId: ${element.sessionId}): ${error}`);
                 }

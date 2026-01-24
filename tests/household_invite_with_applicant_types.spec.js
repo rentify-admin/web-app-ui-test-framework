@@ -9,7 +9,7 @@ import { findSessionLocator, searchSessionWithText } from './utils/report-page';
 import { getRandomEmail, wait } from './utils/helper';
 import { waitForJsonResponse } from './utils/wait-response';
 import { fillMultiselect } from './utils/common';
-import { cleanupSession } from './utils/cleanup-helper';
+import { cleanupTrackedSession } from './utils/cleanup-helper';
 
 
 let createdSession = null;
@@ -86,16 +86,19 @@ test.describe('QA-252 household-invite-with-applicant-types.spec', () => {
         await expect(applicantRoleDd).toBeVisible();
         console.log('🔽 Step 11: Applicant role dropdown is visible.');
 
-        await applicantRoleDd.click()
+        // Applicant role dropdown is a multiselect; click tags area to open options.
+        await applicantRoleDd.locator('.multiselect__tags').first().click();
         await page.waitForTimeout(500); // Wait for dropdown options to appear
         console.log('⏬ Step 12: Applicant role dropdown clicked.');
 
-        const coAppRoleOpt = applicantRoleDd.getByTestId('applicant-role-co-app');
-        await expect(coAppRoleOpt).toBeVisible();
+        // UI changed: options are now indexed (e.g. applicant-role-0 / applicant-role-1) inside #listbox-applicant-role.
+        // Assert by visible text to avoid relying on numeric ids.
+        const coAppRoleOpt = applicantRoleDd.locator('#listbox-applicant-role li').filter({ hasText: 'Co-App' }).first();
+        await expect(coAppRoleOpt).toBeVisible({ timeout: 10_000 });
         console.log('👩‍🤝‍👨 Step 13: Co-applicant role option visible.');
 
-        const guarantorRoleDd = applicantRoleDd.getByTestId('applicant-role-guarantor');
-        await expect(guarantorRoleDd).toBeVisible();
+        const guarantorRoleOpt = applicantRoleDd.locator('#listbox-applicant-role li').filter({ hasText: 'Guarantor' }).first();
+        await expect(guarantorRoleOpt).toBeVisible({ timeout: 10_000 });
         console.log('🤝 Step 14: Guarantor role option visible.');
 
         const coApp = {
@@ -119,30 +122,43 @@ test.describe('QA-252 household-invite-with-applicant-types.spec', () => {
         await addApplicant(page, inviteModal, guarantor, session);
         await page.waitForTimeout(2000); // Wait for modal to update after guarantor invitation
 
-        // Re-fetch locators after modal updates to avoid stale element references
+        // Step 17: After inviting applicants, reload and verify Guarantor disappears (async backend/UI update).
+        // Close invite modal first to avoid stale overlays.
+        await inviteModal.getByTestId('invite-modal-cancel').click().catch(() => {});
+        await page.waitForTimeout(500);
+
+        console.log('🔄 Step 17: Reloading page to verify Guarantor role disappears...');
+        await page.reload({ waitUntil: 'domcontentloaded' });
+        await expect(page.getByRole('button', { name: 'Alert' })).toBeVisible({ timeout: 10_000 });
+        await page.waitForTimeout(1000);
+
+        // Re-open invite modal
+        await actionBtn.click();
+        await expect(page.getByTestId('invite-applicant')).toBeVisible({ timeout: 10_000 });
+        await page.getByTestId('invite-applicant').click();
         const inviteModalAfter = page.getByTestId('invite-modal');
+        await expect(inviteModalAfter).toBeVisible({ timeout: 10_000 });
+
         const applicantRoleDdAfter = inviteModalAfter.getByTestId('applicant-role');
-        await applicantRoleDdAfter.click();
-        await page.waitForTimeout(500); // Wait for dropdown to open
-        const coAppRoleOptAfter = applicantRoleDdAfter.getByTestId('applicant-role-co-app');
-        const guarantorRoleDdAfter = applicantRoleDdAfter.getByTestId('applicant-role-guarantor');
-        await expect(coAppRoleOptAfter).toBeVisible();
-        await expect(guarantorRoleDdAfter).not.toBeVisible();
-        console.log('🔄 Step 17: Verified role visibility after inviting applicants.');
+        await applicantRoleDdAfter.locator('.multiselect__tags').first().click();
+        await page.waitForTimeout(500);
+
+        const coAppRoleOptAfter = applicantRoleDdAfter.locator('#listbox-applicant-role li').filter({ hasText: 'Co-App' }).first();
+        const guarantorRoleOptAfter = applicantRoleDdAfter.locator('#listbox-applicant-role li').filter({ hasText: 'Guarantor' }).first();
+
+        await expect(coAppRoleOptAfter).toBeVisible({ timeout: 10_000 });
+
+        // Poll up to 15s for Guarantor option to disappear
+        await expect(guarantorRoleOptAfter).not.toBeVisible({ timeout: 15_000 });
+        console.log('✅ Step 17: Verified Guarantor role option is no longer available after reload.');
     })
 
-    test.afterAll(async ({ request }) => {
+    test.afterAll(async ({ request }, testInfo) => {
         console.log('🧹 [Cleanup] Starting session cleanup...');
-        if (createdSession && createdSession.children && createdSession.children.length > 0) {
-            for (let index = 0; index < createdSession.children.length; index++) {
-                const element = createdSession.children[index];
-                console.log(`❌ [Cleanup] Cleaning up session child: ${element.id} ...`);
-                await cleanupSession(request, element.id)
-            }
-        }
-        if (createdSession && createdSession.id) {
-            console.log(`❌ [Cleanup] Cleaning up main created session: ${createdSession.id} ...`);
-            await cleanupSession(request, createdSession.id)
+        if (createdSession?.id) {
+            console.log(`❌ [Cleanup] Cleaning up created session: ${createdSession.id} ...`);
+            // cleanupTrackedSession will delete children too (via cleanup helper) and respects KEEP_FAILED_ARTIFACTS.
+            await cleanupTrackedSession(request, createdSession.id, testInfo);
         }
         console.log('✅ [Cleanup] Finished session cleanup!');
     })

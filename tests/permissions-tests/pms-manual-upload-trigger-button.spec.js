@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { authenticateAdmin, cleanupSession } from '../utils/cleanup-helper';
+import { authenticateAdmin, cleanupTrackedSession } from '../utils/cleanup-helper';
 import { admin, app } from '../test_config';
 import { ApiClient } from '../api';
 import loginForm from '../utils/login-form';
@@ -247,14 +247,14 @@ test.describe('QA-273 pms-manual-upload-trigger-button', () => {
         }
     });
     
-    test.afterAll(async ({ request }) => {
+    test.afterAll(async ({ request }, testInfo) => {
         console.log('[CLEANUP] Starting cleanup...');
         
         // Cleanup session
         if (createdSessionId) {
             try {
-                await cleanupSession(request, createdSessionId, true);
-                console.log(`[CLEANUP] Session ${createdSessionId} deleted`);
+                await cleanupTrackedSession(request, createdSessionId, testInfo);
+                console.log(`[CLEANUP] Session cleanup handled: ${createdSessionId}`);
             } catch (e) {
                 console.error('[CLEANUP ERROR] Session:', e.message);
             }

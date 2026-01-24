@@ -5,10 +5,9 @@ import { waitForJsonResponse } from "~/tests/utils/wait-response";
 import { updateRentBudget, handleOptionalTermsCheckbox } from './utils/session-flow';
 import { admin, app } from './test_config';
 import { createPermissionTestSession } from './utils/session-generator';
-import { cleanupSession } from './utils/cleanup-helper';
+import { cleanupTrackedSession } from './utils/cleanup-helper';
 
 let sharedSessionId = null;
-let allTestsPassed = true;
 
 test.describe('heartbeat_completed_application_click_check', () => {
     
@@ -43,7 +42,6 @@ test.describe('heartbeat_completed_application_click_check', () => {
         tag: ['@regression', '@staging-ready', '@rc-ready']
     }, async ({ page }) => {
         
-        try {
             if (!sharedSessionId) {
                 throw new Error('Session must be created in beforeAll');
             }
@@ -142,14 +140,10 @@ test.describe('heartbeat_completed_application_click_check', () => {
         
         console.log('✅ All step navigation and popup functionality validated')
         
-        } catch (error) {
-            allTestsPassed = false;
-            throw error;
-        }
     });
     
     // ✅ Cleanup session after all tests
-    test.afterAll(async ({ request }) => {
-        await cleanupSession(request, sharedSessionId, allTestsPassed);
+    test.afterAll(async ({ request }, testInfo) => {
+        await cleanupTrackedSession(request, sharedSessionId, testInfo);
     });
 });

@@ -70,8 +70,8 @@ test.describe('QA-191:create_multiple_remarks.spec', () => {
             await page.getByTestId('applicants-menu').click();
             await page.getByTestId('applicants-submenu').click();
 
-            await expect(page.getByTestId('household-status-alert')).toBeVisible({ timeout: 10_000 });
-
+            // household-status-alert is only visible inside the Alert/View Details modal, not on the list page.
+            // searchSessionWithText already waits for the search input to be ready, which indicates the page is loaded.
             await searchSessionWithText(page, sessionId);
 
             // const sessionTile = await page.locator('.application-card').first();

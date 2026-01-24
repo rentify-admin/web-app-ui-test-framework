@@ -5,19 +5,24 @@ import { findAndInviteApplication } from '~/tests/utils/applications-page';
 import { getRandomEmail } from '~/tests/utils/helper';
 import { completePaystubConnection, fillhouseholdForm, identityStep, setupInviteLinkSession, updateRentBudget, completePlaidFinancialStepBetterment, waitForPlaidConnectionCompletion, handleSkipReasonModal } from '~/tests/utils/session-flow';
 import generateSessionForm from '~/tests/utils/generate-session-form';
-import { cleanupSession } from './utils/cleanup-helper';
+import { cleanupTrackedSessions } from './utils/cleanup-helper';
 
 let createdSessionId = null;
-let allTestsPassed = true;
+let createdSessionIds = [];
 
 test.describe('application_step_should_skip_properly', () => {
+    test.beforeEach(() => {
+        // Reset per-attempt tracking (important with Playwright retries)
+        createdSessionIds = [];
+        createdSessionId = null;
+    });
+
     test('Check Application step skip works propertly', {
         tag: ['@regression', '@staging-ready', '@rc-ready']
     }, async ({ page, browser }) => {
         test.setTimeout(300_000);
         
-        try {
-    
+        
         // Note: first_name will be auto-prefixed with 'AutoT - ' by the helper
         // Note: email will be auto-suffixed with '+autotest' by the helper
         const user = {
@@ -47,7 +52,10 @@ test.describe('application_step_should_skip_properly', () => {
     
         console.log('🚀 Invite Applicant')
         const { sessionId, sessionUrl, link } = await generateSessionForm.generateSessionAndExtractLink(page, user);
-        createdSessionId = sessionId;  // Store for cleanup
+        createdSessionId = sessionId;
+        if (sessionId) {
+            createdSessionIds.push(sessionId); // Store for cleanup (retry-safe)
+        }
         console.log('✅ Done Invite Applicant')
     
         await page.getByTestId('user-dropdown-toggle-btn').click();
@@ -196,16 +204,11 @@ test.describe('application_step_should_skip_properly', () => {
         console.log('✅ On summary page')
     
         await page.close();
-        
-        } catch (error) {
-            allTestsPassed = false;
-            throw error;
-        }
     });
     
-    // ✅ Conditional cleanup: Keep session on failure for debugging
-    test.afterAll(async ({ request }) => {
-        await cleanupSession(request, createdSessionId, allTestsPassed);
+    // Always cleanup by default; keep artifacts only when KEEP_FAILED_ARTIFACTS=true and test failed
+    test.afterEach(async ({ request }, testInfo) => {
+        await cleanupTrackedSessions({ request, sessionIds: createdSessionIds, testInfo });
     });
 });
 

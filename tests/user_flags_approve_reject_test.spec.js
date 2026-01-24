@@ -18,7 +18,7 @@ import {
     validateFlagSections
 } from '~/tests/utils/report-page';
 import { createSessionWithSimulator } from '~/tests/utils/session-flow';
-import { cleanupSession } from './utils/cleanup-helper';
+import { cleanupTrackedSession } from './utils/cleanup-helper';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -32,7 +32,6 @@ test.describe('user_flags_approve_reject_test', () => {
         
         // Global state for cleanup
         let flagIssueSession = null;
-        let allTestsPassed = true;
         
         // Note: first_name will be auto-prefixed with 'AutoT - ' by the helper
         // Note: email will be auto-suffixed with '+autotest' by the helper
@@ -63,7 +62,6 @@ test.describe('user_flags_approve_reject_test', () => {
                 console.log('✅ Session created for flag issue test');
             } catch (error) {
                 console.error('❌ Test failed:', error.message);
-                allTestsPassed = false;
                 throw error;
             }
         });
@@ -187,14 +185,13 @@ test.describe('user_flags_approve_reject_test', () => {
                 console.log('✅ Session flag test completed successfully');
             } catch (error) {
                 console.error('❌ Test failed:', error.message);
-                allTestsPassed = false;
                 throw error;
             }
         });
         
-        // ✅ Centralized cleanup
-        test.afterAll(async ({ request }) => {
-            await cleanupSession(request, flagIssueSession, allTestsPassed);
+        // Always cleanup by default; keep artifacts only when KEEP_FAILED_ARTIFACTS=true and suite failed
+        test.afterAll(async ({ request }, testInfo) => {
+            await cleanupTrackedSession(request, flagIssueSession, testInfo);
         });
     });
 
@@ -204,7 +201,6 @@ test.describe('user_flags_approve_reject_test', () => {
         
         // Global state for cleanup
         let approveRejectSession = null;
-        let allTestsPassed = true;
         
         // Note: first_name will be auto-prefixed with 'AutoT - ' by the helper
         // Note: email will be auto-suffixed with '+autotest' by the helper
@@ -235,7 +231,6 @@ test.describe('user_flags_approve_reject_test', () => {
                 console.log('✅ Session created for approve/reject test');
             } catch (error) {
                 console.error('❌ Test failed:', error.message);
-                allTestsPassed = false;
                 throw error;
             }
         });
@@ -264,10 +259,15 @@ test.describe('user_flags_approve_reject_test', () => {
         await searchSessionWithText(page, sessionId);
         await navigateToSessionById(page, sessionId);
 
-        // Validate session status
-        expect(await page.getByTestId('household-status-alert')).toContainText(
-            'Unreviewed'
-        );
+        // Validate session status (household-status-alert is inside the Alert/View Details modal)
+        const alertBtnForStatus2 = page.getByRole('button', { name: /alert/i }).first();
+        await expect(alertBtnForStatus2).toBeVisible({ timeout: 10_000 });
+        await alertBtnForStatus2.click();
+
+        await expect(page.getByTestId('household-status-alert')).toContainText('Unreviewed', { timeout: 10_000 });
+
+        // Close View Details modal so it doesn't block the rest of the flow
+        await page.getByTestId('close-event-history-modal').click();
 
         // Wait for session data to fully load (especially files section)
         console.log('⏳ Waiting for session data to load...');
@@ -340,7 +340,7 @@ test.describe('user_flags_approve_reject_test', () => {
         // Step 5: Click Alert button to access flags
         console.log('🚀 Clicking Alert button...');
         await page.waitForTimeout(2000); // Wait for modal to close
-        const alertBtn = page.getByRole('button', { name: 'Alert' });
+        const alertBtn = page.getByRole('button', { name: /alert/i }).first();
         await expect(alertBtn).toBeVisible({ timeout: 10_000 });
         await alertBtn.click();
         console.log('✅ View Details clicked');
@@ -409,8 +409,13 @@ test.describe('user_flags_approve_reject_test', () => {
 
         // Step 10: Wait for household status to NOT contain "Requires Review"
         console.log('⏳ Waiting for session to finish processing...');
+        // household-status-alert is shown inside the Alert/View Details modal
+        const alertBtnForStatus = page.getByRole('button', { name: /alert/i }).first();
+        await expect(alertBtnForStatus).toBeVisible({ timeout: 10_000 });
+        await alertBtnForStatus.click();
+
         const householdStatusAlert = page.getByTestId('household-status-alert');
-        await expect(householdStatusAlert).toBeVisible( { timeout: 10_000 });
+        await expect(householdStatusAlert).toBeVisible({ timeout: 10_000 });
         
         // Poll for status to NOT contain "Requires Review" (max 60 seconds)
         console.log('   ⏳ Polling for status to change from "Requires Review"...');
@@ -436,6 +441,9 @@ test.describe('user_flags_approve_reject_test', () => {
                     console.log('   🔄 Reloading page to refresh session state...');
                     await page.reload();
                     await page.waitForTimeout(2000);
+                    // After reload, re-open the modal so household-status-alert is present again
+                    await expect(alertBtnForStatus2).toBeVisible({ timeout: 10_000 });
+                    await alertBtnForStatus2.click();
                 }
             }
         }
@@ -455,14 +463,13 @@ test.describe('user_flags_approve_reject_test', () => {
                 console.log('✅ Session approve/reject test completed successfully');
             } catch (error) {
                 console.error('❌ Test failed:', error.message);
-                allTestsPassed = false;
                 throw error;
             }
         });
         
-        // ✅ Centralized cleanup
-        test.afterAll(async ({ request }) => {
-            await cleanupSession(request, approveRejectSession, allTestsPassed);
+        // Always cleanup by default; keep artifacts only when KEEP_FAILED_ARTIFACTS=true and suite failed
+        test.afterAll(async ({ request }, testInfo) => {
+            await cleanupTrackedSession(request, approveRejectSession, testInfo);
         });
     });
 });

@@ -5,7 +5,7 @@ import { findAndCopyApplication } from './utils/applications-page';
 import { completeApplicantForm, completeApplicantRegistrationForm, connectBankOAuthFlow, setupInviteLinkSession, waitForElementVisible, waitForElementText, verifyAndClickSkipButton, handleSkipReasonModal } from './utils/session-flow';
 import { waitForJsonResponse } from './utils/wait-response';
 import { joinUrl } from './utils/helper';
-import { cleanupSession } from './utils/cleanup-helper';
+import { cleanupTrackedSession } from './utils/cleanup-helper';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
@@ -373,7 +373,7 @@ test.describe('QA-228 skip_button_availability_non_complete_steps.spec', () => {
      */
     test.afterAll(async ({ request }, testInfo) => {
         console.log('🧹 Cleaning up test session data...');
-        await cleanupSession(request, createdSessionId, testInfo.status === 'passed');
+        await cleanupTrackedSession(request, createdSessionId, testInfo);
         console.log('✅ Clean up complete.');
     });
 });

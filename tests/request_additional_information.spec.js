@@ -11,14 +11,13 @@ import {
     completeEmploymentStepViaAPI,
     handleSkipReasonModal
 } from '~/tests/utils/session-flow';
-import { cleanupSession } from './utils/cleanup-helper';
+import { cleanupTrackedSessions } from './utils/cleanup-helper';
 
 // Test configuration
 const applicationName = 'AutoTest - Request Doc UI test';
 
-let createdSessionId = null;
 let applicantContext = null;
-let allTestsPassed = true;
+let createdSessionIds = [];
 
 /**
  * Utility: Authenticate a guest using an invitation link and return a bearer token
@@ -74,13 +73,18 @@ async function openAndSubmitRequestDialog(page) {
 
 test.describe('request_additional_information', () => {
     test.setTimeout(360000); // Set timeout for the suite
+
+    test.beforeEach(() => {
+        // Reset per-attempt tracking (important with Playwright retries)
+        createdSessionIds = [];
+        applicantContext = null;
+    });
     
     test('Document Request: Complete validation (happy path + negative tests) @request-docs @integration @permissions @state-safetys @negative @validation @network-error @regression @staging-ready @rc-ready', async ({ page, context }) => {
         
-        try {
-            // Error collection for comprehensive validation
-            const errors = [];
-            let sessionId, link, primaryAuthToken, applicantCtx, adminToken;
+        // Error collection for comprehensive validation
+        const errors = [];
+        let sessionId, link, primaryAuthToken, applicantCtx, adminToken;
         
         // =================================================================
         // PART 1: HAPPY PATH - Document Request Flow
@@ -106,7 +110,9 @@ test.describe('request_additional_information', () => {
         });
             sessionId = sessionData.sessionId;
             link = sessionData.link;
-            createdSessionId = sessionId;  // Store for cleanup
+            if (sessionId) {
+                createdSessionIds.push(sessionId);  // Store for cleanup (retry-safe)
+            }
             
             console.log(`✅ Session created: ${sessionId}`);
 
@@ -530,20 +536,15 @@ test.describe('request_additional_information', () => {
         
         console.log('\n✅ ALL VALIDATIONS PASSED (Happy Path + Negative Tests)');
         
-        } catch (error) {
-            allTestsPassed = false;
-            throw error;
-        }
     });
     
-    // ✅ Conditional cleanup: Keep session on failure for debugging
-    test.afterAll(async ({ request }) => {
+    // Always cleanup by default; keep artifacts only when KEEP_FAILED_ARTIFACTS=true and test failed
+    test.afterEach(async ({ request }, testInfo) => {
         console.log('🧹 Starting cleanup...');
-        console.log(`   Session ID: ${createdSessionId || 'none'}`);
-        console.log(`   All tests passed: ${allTestsPassed}`);
-        
-        // Clean up session (conditional - only if tests passed)
-        await cleanupSession(request, createdSessionId, allTestsPassed);
+        console.log(`   Sessions: ${createdSessionIds.length ? createdSessionIds.join(', ') : 'none'}`);
+        console.log(`   KEEP_FAILED_ARTIFACTS: ${process.env.KEEP_FAILED_ARTIFACTS === 'true'}`);
+        console.log(`   Status: ${testInfo.status}`);
+        await cleanupTrackedSessions({ request, sessionIds: createdSessionIds, testInfo });
         
         // Close context (always)
         if (applicantContext) {

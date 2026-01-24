@@ -8,7 +8,7 @@ import { createSession, getSession } from './endpoint-utils/session-helpers'
 import { customVeriDocsBankStatementData } from './mock-data/bank-statement-veridocs-payload'
 import { loginWith } from './utils/session-utils'
 import { findSessionLocator, openReportSection } from './utils/report-page'
-import { cleanupSession } from './utils/cleanup-helper'
+import { cleanupTrackedSession } from './utils/cleanup-helper'
 
 test.describe('QA-258 n8n-income-source-automation-button.spec', () => {
 
@@ -182,10 +182,8 @@ test.describe('QA-258 n8n-income-source-automation-button.spec', () => {
     })
 
     test.afterAll(async ({ request }, testInfo) => {
-        if (testInfo.status === 'passed') {
-            console.log('🧹 [Cleanup] Deleting test session ID:', session?.id);
-            await cleanupSession(request, session.id)
-        }
+        console.log('🧹 [Cleanup] Deleting test session ID:', session?.id);
+        await cleanupTrackedSession(request, session?.id, testInfo)
     })
 
 })

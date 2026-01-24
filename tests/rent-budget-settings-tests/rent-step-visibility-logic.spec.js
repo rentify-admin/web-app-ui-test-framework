@@ -7,7 +7,7 @@ import { createSession } from '../endpoint-utils/session-helpers';
 import { waitForJsonResponse } from '../utils/wait-response';
 import { getApplicationByName } from '../endpoint-utils/application-helper';
 import { handleOptionalStateModal, handleOptionalTermsCheckbox } from '../utils/session-flow';
-import { cleanupSession } from '../utils/cleanup-helper';
+import { cleanupSession, cleanupTrackedSession } from '../utils/cleanup-helper';
 
 test.describe('QA-261 rent-step-visibility-logic.spec.js', () => {
 
@@ -170,16 +170,18 @@ test.describe('QA-261 rent-step-visibility-logic.spec.js', () => {
         testResults.test3.passed = true;
     });
 
-    test.afterAll(async ({ request }) => {
+    test.afterAll(async ({ request }, testInfo) => {
         console.log('[CleanUp] Test suite cleanup (delete any remaining test sessions if needed)');
         const results = Object.entries(testResults);
         for (let index = 0; index < results.length; index++) {
             const [key, element] = results[index];
-            if (element.passed && element.sessionId) {
+            // Always cleanup by default; keep only when KEEP_FAILED_ARTIFACTS=true and suite failed.
+            if (element.sessionId) {
                 try {
                     console.log(`[Cleanup] Attempting to clean up session for test '${key}' (sessionId: ${element.sessionId})`);
-                    await cleanupSession(request, element.sessionId);
-                    console.log(`[Cleanup] Successfully cleaned up session for test '${key}'`);
+                    const sessionId = element.sessionId?.id || element.sessionId;
+                    await cleanupTrackedSession(request, sessionId, testInfo);
+                    console.log(`[Cleanup] Cleanup handled for test '${key}'`);
                 } catch (error) {
                     console.error(`[Cleanup] Failed to clean up session for test '${key}' (sessionId: ${element.sessionId}): ${error}`);
                 }

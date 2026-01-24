@@ -28,33 +28,53 @@ test.describe('heartbeat-applicant-inbox-menus.spec', () => {
         const isAllmenuActive = await allMenu.evaluate(item => item.classList.contains('sidebar-active'))
 
         let sessions = [];
-        if (!isAllmenuActive) {
-            const [response] = await Promise.all([
-                page.waitForResponse(resp => {
-                    const link = new URL(customUrlDecode(resp.url()))
-                    const params = new URLSearchParams(link.search)
-                    return resp.url().includes('/sessions?')
-                        && !params.get('filters').includes('approval_status')
-                        && resp.request().method() === 'GET'
-                        && resp.ok()
-                }),
-                allMenu.click()
-            ])
-            sessions = await waitForJsonResponse(response)
-        } else {
-            const [response] = await Promise.all([
-                page.waitForResponse(resp => {
-                    const link = new URL(customUrlDecode(resp.url()))
-                    const params = new URLSearchParams(link.search)
-                    return resp.url().includes('/sessions?')
-                        && !params.get('filters').includes('approval_status')
-                        && resp.request().method() === 'GET'
-                        && resp.ok()
-                }),
-                page.reload()
-            ])
-            sessions = await waitForJsonResponse(response)
+        // Helper predicate: matches /sessions GET requests that don't filter by approval_status
+        const matchesAllSessionsRequest = (resp) => {
+            if (!resp.url().includes('/sessions?') || resp.request().method() !== 'GET' || !resp.ok()) {
+                return false;
+            }
+            try {
+                const decodedUrl = customUrlDecode(resp.url());
+                const link = new URL(decodedUrl);
+                const params = new URLSearchParams(link.search);
+                const filtersParam = params.get('filters');
+                
+                // If no filters param, it's the "all" sessions request (no approval_status filter)
+                if (!filtersParam) {
+                    return true;
+                }
+                
+                // Decode URL-encoded filters JSON and check it doesn't filter by approval_status
+                const filtersStr = decodeURIComponent(filtersParam);
+                return !filtersStr.includes('approval_status');
+            } catch (e) {
+                // If parsing fails, be conservative and don't match
+                return false;
+            }
+        };
+
+        // If "All" menu is already active, deselect it first by clicking another submenu
+        // Then click "All" again to trigger a fresh API call
+        if (isAllmenuActive) {
+            const requireReviewMenu = await page.getByTestId('approval-status-submenu');
+            // If "Requires Review" menu is visible, click it to deselect "All"
+            if (await requireReviewMenu.isVisible({ timeout: 2000 }).catch(() => false)) {
+                await requireReviewMenu.click();
+                await page.waitForTimeout(500); // Brief wait for UI to update
+            } else {
+                // If "Requires Review" is not available, try clicking "All" to toggle it off
+                // This might work if the menu supports toggle behavior
+                await allMenu.click();
+                await page.waitForTimeout(500);
+            }
         }
+
+        // Now click "All" menu to trigger a fresh API call
+        const [response] = await Promise.all([
+            page.waitForResponse(matchesAllSessionsRequest, { timeout: 30_000 }),
+            allMenu.click()
+        ])
+        sessions = await waitForJsonResponse(response)
 
         for (let index = 0; index < sessions.data.length; index++) {
             const session = sessions.data[index];

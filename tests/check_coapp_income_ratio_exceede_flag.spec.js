@@ -8,14 +8,14 @@ import { completePaystubConnection, fillhouseholdForm, setupInviteLinkSession, u
 import { gotoPage } from '~/tests/utils/common';
 import { findSessionLocator, searchSessionWithText } from '~/tests/utils/report-page';
 import { waitForJsonResponse } from '~/tests/utils/wait-response';
-import { cleanupSession } from './utils/cleanup-helper';
+import { cleanupTrackedSessions } from './utils/cleanup-helper';
 
 const applicationName = 'AutoTest Suite - Full Test';
 
 let createdSessionId = null;
 let primaryContext = null;
 let coAppContext = null;
-let allTestsPassed = true;
+let createdSessionIds = [];
 
 // Note: first_name will be auto-prefixed with 'AutoT - ' by the helper
 // Note: email will be auto-suffixed with '+autotest' by the helper
@@ -108,13 +108,20 @@ const pollForIncomeSources = async (page, sessionId, maxAttempts = 20, intervalM
 };
 
 test.describe('check_coapp_income_ratio_exceede_flag', () => {
+    test.beforeEach(() => {
+        // Reset per-attempt tracking (important with Playwright retries)
+        createdSessionIds = [];
+        primaryContext = null;
+        coAppContext = null;
+        createdSessionId = null;
+    });
+
     test('Should confirm co-applicant income is considered when generating/removing Gross Income Ratio Exceeded flag', { 
         tag: ['@smoke', '@external-integration', '@regression', '@staging-ready', '@rc-ready', '@try-test-rail-names'],
     }, async ({ page, browser }) => {
         test.setTimeout(550000);
         
-        try {
-            // Step 1: Admin Login and Navigate to Applications
+        // Step 1: Admin Login and Navigate to Applications
         await loginForm.adminLoginAndNavigate(page, admin);
 
         // Step 2: Navigate to Applications Page
@@ -125,7 +132,10 @@ test.describe('check_coapp_income_ratio_exceede_flag', () => {
         
         // Step 4: Generate Session and Extract Link
         const { sessionId, sessionUrl, link } = await generateSessionForm.generateSessionAndExtractLink(page, user);
-        createdSessionId = sessionId;  // Store for cleanup
+        createdSessionId = sessionId;
+        if (sessionId) {
+            createdSessionIds.push(sessionId);  // Store for cleanup (retry-safe)
+        }
         
         const linkUrl = new URL(link);
         
@@ -427,21 +437,15 @@ test.describe('check_coapp_income_ratio_exceede_flag', () => {
         await page.getByTestId('close-event-history-modal').click({ timeout: 5_000 });
         page.off('response', responseSession);
         await page.waitForTimeout(1000);
-        
-        } catch (error) {
-            allTestsPassed = false;
-            throw error;
-        }
     });
     
-    // ✅ Conditional cleanup: Keep session on failure for debugging
-    test.afterAll(async ({ request }) => {
+    // Always cleanup by default; keep artifacts only when KEEP_FAILED_ARTIFACTS=true and test failed
+    test.afterEach(async ({ request }, testInfo) => {
         console.log('🧹 Starting cleanup...');
-        console.log(`   Session ID: ${createdSessionId || 'none'}`);
-        console.log(`   All tests passed: ${allTestsPassed}`);
-        
-        // Clean up session (conditional - only if tests passed)
-        await cleanupSession(request, createdSessionId, allTestsPassed);
+        console.log(`   Sessions: ${createdSessionIds.length ? createdSessionIds.join(', ') : 'none'}`);
+        console.log(`   KEEP_FAILED_ARTIFACTS: ${process.env.KEEP_FAILED_ARTIFACTS === 'true'}`);
+        console.log(`   Status: ${testInfo.status}`);
+        await cleanupTrackedSessions({ request, sessionIds: createdSessionIds, testInfo });
         
         // Close contexts (always)
         if (primaryContext) {

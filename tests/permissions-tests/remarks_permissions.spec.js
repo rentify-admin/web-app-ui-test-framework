@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { loginWith } from '../utils/session-utils';
 import { findSessionLocator, searchSessionWithText } from '../utils/report-page';
-import { authenticateAdmin, cleanupSession } from '../utils/cleanup-helper';
+import { authenticateAdmin, cleanupTrackedSession } from '../utils/cleanup-helper';
 import { ApiClient } from '../api';
 import { app } from '../test_config';
 import loginForm from '../utils/login-form';
@@ -258,7 +258,7 @@ test.describe('QA-250 remarks_permissions.spec', () => {
     test.afterAll(async ({ request }, testInfo) => {
         if (createdSession) {
             try {
-                await cleanupSession(request, createdSession.id);
+                await cleanupTrackedSession(request, createdSession.id, testInfo);
                 console.log('[CLEANUP] Session cleaned up:', createdSession.id);
             } catch (err) { console.error('[CLEANUP ERR] session:', err); }
         }

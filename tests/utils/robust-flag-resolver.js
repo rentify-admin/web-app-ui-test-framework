@@ -278,7 +278,8 @@ export async function resolveAllFlagsUntilApproveClickable(
  * @returns {Promise<boolean>} True if approve button is clickable
  */
 async function checkApproveButtonClickable(page, maxAttempts = 5, pollInterval = 2000) {
-    const approveBtn = page.getByTestId('approve-session-btn');
+    // Approve button exists in two places; scope to the report section to avoid strict-mode violations.
+    const approveBtn = page.getByTestId('session-report-section').getByTestId('approve-session-btn');
 
     // First, ensure button is visible
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {

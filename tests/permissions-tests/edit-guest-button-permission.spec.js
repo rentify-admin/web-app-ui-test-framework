@@ -1,5 +1,5 @@
 import { request, test, expect } from "@playwright/test";
-import { authenticateAdmin, cleanupSession } from "../utils/cleanup-helper";
+import { authenticateAdmin, cleanupTrackedSession } from "../utils/cleanup-helper";
 import { admin, app } from "../test_config";
 import { ApiClient } from "../api";
 import { adminLoginAndNavigateToApplications, loginWith } from "../utils/session-utils";
@@ -394,14 +394,10 @@ test.describe('QA-245 edit-guest-button-permission.spec', () => {
                     }
                 }
 
-            // Delete session (only if test passed, keep for debugging if failed)
+            // Delete session (policy-controlled via cleanupTrackedSession)
             if (createdSessionId) {
-                if (testInfo.status === 'passed') {
-                    await cleanupSession(request, createdSessionId);
-                    console.log('[CLEANUP] Session cleaned up:', createdSessionId);
-                } else {
-                    console.log(`[CLEANUP] Keeping session for debugging: ${createdSessionId}`);
-                }
+                await cleanupTrackedSession(request, createdSessionId, testInfo);
+                console.log('[CLEANUP] Session cleanup handled:', createdSessionId);
             }
         } catch (cleanupError) {
                 console.error('[CLEANUP ERROR] Test cleanup failed:', cleanupError.message);

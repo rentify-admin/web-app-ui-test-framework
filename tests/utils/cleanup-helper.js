@@ -20,6 +20,16 @@ import { randomUUID } from 'crypto';
 import { admin, app } from '~/tests/test_config';
 
 /**
+ * Decide whether to keep artifacts for debugging.
+ * Policy: keep only when KEEP_FAILED_ARTIFACTS=true and the test did not pass.
+ * @param {import('@playwright/test').TestInfo} testInfo
+ * @returns {boolean}
+ */
+export function shouldKeepFailedArtifacts(testInfo) {
+    return process.env.KEEP_FAILED_ARTIFACTS === 'true' && testInfo?.status !== 'passed';
+}
+
+/**
  * Authenticate as admin and get auth token
  * @param {APIRequestContext} request - Playwright request context
  * @returns {Promise<string|null>} Auth token or null if failed
@@ -253,6 +263,40 @@ export async function cleanupSession(request, sessionId, allTestsPassed = true) 
     } catch (error) {
         console.error('❌ Cleanup error:', error.message);
         console.log(`⚠️ Manual cleanup required - Session: ${sessionId}`);
+    }
+}
+
+/**
+ * Cleanup a single session following the KEEP_FAILED_ARTIFACTS policy.
+ * @param {APIRequestContext} request
+ * @param {string|null} sessionId
+ * @param {import('@playwright/test').TestInfo} testInfo
+ */
+export async function cleanupTrackedSession(request, sessionId, testInfo) {
+    const shouldKeep = shouldKeepFailedArtifacts(testInfo);
+    await cleanupSession(request, sessionId, !shouldKeep);
+}
+
+/**
+ * Cleanup a list of tracked sessions following the KEEP_FAILED_ARTIFACTS policy.
+ * Drains the array for retry-safety (so retries don't double-delete).
+ *
+ * @param {Object} params
+ * @param {APIRequestContext} params.request
+ * @param {string[]} params.sessionIds - mutable array that will be drained
+ * @param {import('@playwright/test').TestInfo} params.testInfo
+ */
+export async function cleanupTrackedSessions({ request, sessionIds, testInfo }) {
+    const shouldKeep = shouldKeepFailedArtifacts(testInfo);
+    const uniqueIds = Array.from(new Set((sessionIds || []).filter(Boolean)));
+
+    // Drain the caller-owned array to avoid double cleanup on retries.
+    if (Array.isArray(sessionIds)) {
+        sessionIds.splice(0, sessionIds.length);
+    }
+
+    for (const sessionId of uniqueIds) {
+        await cleanupSession(request, sessionId, !shouldKeep);
     }
 }
 

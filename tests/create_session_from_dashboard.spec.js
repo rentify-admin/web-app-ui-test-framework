@@ -5,22 +5,14 @@ import { fillMultiselect } from "./utils/common";
 import { joinUrl } from "./utils/helper";
 import { waitForJsonResponse } from "./utils/wait-response";
 import { findSessionLocator, searchSessionWithText } from "./utils/report-page";
-import { cleanupSession } from "./utils/cleanup-helper";
+import { cleanupTrackedSession } from "./utils/cleanup-helper";
 
 let createdSessionId = null;
 
 test.describe('QA-223 create_session_from_dashboard.spec', () => {
 
     test.afterAll(async ({ request }, testInfo) => {
-        if (createdSessionId) {
-            if (testInfo.status === 'passed') {
-                console.log(`🧹 Test passed. Cleaning up session ${createdSessionId}...`);
-                await cleanupSession(request, createdSessionId, true);
-                console.log('✅ Cleanup complete');
-            } else {
-                console.log(`⚠️  Test ${testInfo.status}. Skipping cleanup for session ${createdSessionId} (left for debugging)`);
-            }
-        }
+        await cleanupTrackedSession(request, createdSessionId, testInfo);
     });
 
     test('Create New Session from Dashboard',
