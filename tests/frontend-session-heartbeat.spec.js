@@ -283,8 +283,8 @@ test.describe('frontend-session-heartbeat', () => {
         // Note: Page is managed by Playwright fixture, cleanup happens in afterAll
     });
     
-    // Always cleanup by default; keep artifacts only when KEEP_FAILED_ARTIFACTS=true and test failed
-    test.afterEach(async ({ request }, testInfo) => {
-        await cleanupTrackedSessions({ request, sessionIds: createdSessionIds, testInfo });
-    });
+    // Cleanup disabled - sessions will not be automatically cleaned up
+    // test.afterEach(async ({ request }, testInfo) => {
+    //     await cleanupTrackedSessions({ request, sessionIds: createdSessionIds, testInfo });
+    // });
 });

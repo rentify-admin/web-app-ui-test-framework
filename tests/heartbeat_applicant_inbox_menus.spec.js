@@ -34,8 +34,17 @@ test.describe('heartbeat-applicant-inbox-menus.spec', () => {
                 return false;
             }
             try {
-                const decodedUrl = customUrlDecode(resp.url());
-                const link = new URL(decodedUrl);
+                // Handle both encoded and decoded URLs
+                let urlToParse = resp.url();
+                
+                // Try to decode if needed
+                try {
+                    urlToParse = customUrlDecode(urlToParse);
+                } catch {
+                    // If decoding fails, use original URL
+                }
+                
+                const link = new URL(urlToParse);
                 const params = new URLSearchParams(link.search);
                 const filtersParam = params.get('filters');
                 
@@ -45,10 +54,21 @@ test.describe('heartbeat-applicant-inbox-menus.spec', () => {
                 }
                 
                 // Decode URL-encoded filters JSON and check it doesn't filter by approval_status
-                const filtersStr = decodeURIComponent(filtersParam);
+                let filtersStr;
+                try {
+                    filtersStr = decodeURIComponent(filtersParam);
+                } catch {
+                    // If decoding fails, use the param as-is
+                    filtersStr = filtersParam;
+                }
+                
+                // Check that filters don't include approval_status
+                // The "All" menu should have filters like: {"$and":[{"$hasnt":"parent"}]}
+                // which doesn't include approval_status
                 return !filtersStr.includes('approval_status');
             } catch (e) {
                 // If parsing fails, be conservative and don't match
+                console.log('⚠️ Error parsing URL in matchesAllSessionsRequest:', e.message, resp.url());
                 return false;
             }
         };
@@ -59,32 +79,89 @@ test.describe('heartbeat-applicant-inbox-menus.spec', () => {
             const requireReviewMenu = await page.getByTestId('approval-status-submenu');
             // If "Requires Review" menu is visible, click it to deselect "All"
             if (await requireReviewMenu.isVisible({ timeout: 2000 }).catch(() => false)) {
-                await requireReviewMenu.click();
-                await page.waitForTimeout(500); // Brief wait for UI to update
+                // Wait for response when clicking "Requires Review" to ensure state change
+                await Promise.all([
+                    page.waitForResponse(resp => 
+                        resp.url().includes('/sessions?') && 
+                        resp.request().method() === 'GET' && 
+                        resp.ok(),
+                        { timeout: 10_000 }
+                    ).catch(() => {}), // Ignore if no response (might already be loaded)
+                    requireReviewMenu.click()
+                ]);
+                await page.waitForTimeout(1000); // Wait for UI to update
             } else {
                 // If "Requires Review" is not available, try clicking "All" to toggle it off
                 // This might work if the menu supports toggle behavior
                 await allMenu.click();
-                await page.waitForTimeout(500);
+                await page.waitForTimeout(1000);
             }
         }
 
-        // Now click "All" menu to trigger a fresh API call
-        const [response] = await Promise.all([
-            page.waitForResponse(matchesAllSessionsRequest, { timeout: 30_000 }),
-            allMenu.click()
-        ])
+        // Verify "All" menu is not active before clicking (to ensure click triggers a request)
+        const isAllActiveBeforeClick = await allMenu.evaluate(item => item.classList.contains('sidebar-active'));
+        if (isAllActiveBeforeClick && isAllmenuActive) {
+            // If still active after deselecting, wait a bit more for UI to update
+            await page.waitForTimeout(500);
+        }
+        
+        // Wait for network to be idle to ensure no pending requests interfere
+        await page.waitForLoadState('networkidle', { timeout: 5_000 }).catch(() => {
+            // Ignore if network doesn't become idle (some requests might be pending)
+            console.log('⚠️ Network did not become idle, proceeding anyway...');
+        });
+        
+        // Set up response listener BEFORE clicking to ensure we catch the request
+        console.log('🔍 Setting up response listener for "All" sessions request...');
+        const responsePromise = page.waitForResponse(matchesAllSessionsRequest, { timeout: 30_000 });
+        
+        // Small delay to ensure response listener is set up
+        await page.waitForTimeout(100);
+        
+        // Click "All" menu to trigger a fresh API call
+        console.log('🖱️ Clicking "All" menu...');
+        await allMenu.click();
+        
+        // Wait for the response
+        console.log('⏳ Waiting for sessions API response...');
+        let response;
+        try {
+            response = await responsePromise;
+            console.log('✅ Received sessions API response:', response.url());
+        } catch (error) {
+            console.error('❌ Timeout waiting for sessions API response');
+            console.error('   Error:', error.message);
+            // Log all recent responses to help debug
+            console.log('   Checking if response was already completed...');
+            throw error;
+        }
+        
         sessions = await waitForJsonResponse(response)
 
-        for (let index = 0; index < sessions.data.length; index++) {
-            const session = sessions.data[index];
-            await expect(page.locator(`.application-card[data-session="${session.id}"]`)).toBeVisible({ timeout: 10_000 });
+        // ✅ FIX: UI uses cursor pagination with default limit of 12 sessions per page
+        // Only verify sessions that are actually rendered in the UI (first page)
+        // Extract limit from API response URL or use default of 12
+        const responseUrl = response.url();
+        const urlParams = new URLSearchParams(new URL(responseUrl).search);
+        const limit = parseInt(urlParams.get('limit')) || 12;
+        const sessionsToVerify = sessions.data.slice(0, limit);
+
+        console.log(`📊 Verifying ${sessionsToVerify.length} sessions (limit: ${limit}, total in response: ${sessions.data.length})`);
+
+        for (let index = 0; index < sessionsToVerify.length; index++) {
+            const session = sessionsToVerify[index];
+            // Use a more robust locator that can find sessions even in collapsed date groups
+            const sessionCard = page.locator(`.application-card[data-session="${session.id}"]`);
+            
+            // Wait for the card to be visible, with scrolling if needed
+            await sessionCard.scrollIntoViewIfNeeded();
+            await expect(sessionCard).toBeVisible({ timeout: 10_000 });
         }
 
         const requireReviewMenu = await page.getByTestId('approval-status-submenu');
 
         if (await requireReviewMenu.isVisible()) {
-            const [response] = await Promise.all([
+            const [requireReviewResponse] = await Promise.all([
                 page.waitForResponse(resp => {
                     const link = new URL(resp.url())
                     const params = new URLSearchParams(link.search)
@@ -105,19 +182,28 @@ test.describe('heartbeat-applicant-inbox-menus.spec', () => {
                 }),
                 requireReviewMenu.click()
             ])
-            sessions = await waitForJsonResponse(response)
+            sessions = await waitForJsonResponse(requireReviewResponse)
         }
 
+        if (sessions && sessions.data && sessions.data.length > 0) {
+            // ✅ FIX: Only verify sessions that are actually rendered (first page, limit 12)
+            const limit2 = 12; // Default limit from useSessions.js
+            const sessionsToVerify2 = sessions.data.slice(0, limit2);
 
-        for (let index = 0; index < sessions.data.length; index++) {
-            const session = sessions.data[index];
-            await expect(page.locator(`.application-card[data-session="${session.id}"]`)).toBeVisible({ timeout: 10_000 });
+            console.log(`📊 Verifying ${sessionsToVerify2.length} sessions from "Requires Review" (limit: ${limit2}, total: ${sessions.data.length})`);
+
+            for (let index = 0; index < sessionsToVerify2.length; index++) {
+                const session = sessionsToVerify2[index];
+                const sessionCard = page.locator(`.application-card[data-session="${session.id}"]`);
+                await sessionCard.scrollIntoViewIfNeeded();
+                await expect(sessionCard).toBeVisible({ timeout: 10_000 });
+            }
         }
 
         const meetCriteriaMenu = await page.getByTestId('reviewed-submenu');
 
         if (await meetCriteriaMenu.isVisible()) {
-            const [response] = await Promise.all([
+            const [meetCriteriaResponse] = await Promise.all([
                 page.waitForResponse(resp => {
                     const link = new URL(resp.url())
                     const params = new URLSearchParams(link.search)
@@ -129,20 +215,28 @@ test.describe('heartbeat-applicant-inbox-menus.spec', () => {
                 }),
                 meetCriteriaMenu.click()
             ])
-            sessions = await waitForJsonResponse(response)
+            sessions = await waitForJsonResponse(meetCriteriaResponse)
         }
 
+        if (sessions && sessions.data && sessions.data.length > 0) {
+            // ✅ FIX: Only verify sessions that are actually rendered (first page, limit 12)
+            const limit3 = 12; // Default limit from useSessions.js
+            const sessionsToVerify3 = sessions.data.slice(0, limit3);
 
-        for (let index = 0; index < sessions.data.length; index++) {
-            const session = sessions.data[index];
-            await expect(page.locator(`.application-card[data-session="${session.id}"]`)).toBeVisible({ timeout: 10_000 });
+            console.log(`📊 Verifying ${sessionsToVerify3.length} sessions from "Meet Criteria" (limit: ${limit3}, total: ${sessions.data.length})`);
+
+            for (let index = 0; index < sessionsToVerify3.length; index++) {
+                const session = sessionsToVerify3[index];
+                const sessionCard = page.locator(`.application-card[data-session="${session.id}"]`);
+                await sessionCard.scrollIntoViewIfNeeded();
+                await expect(sessionCard).toBeVisible({ timeout: 10_000 });
+            }
         }
-
 
         const rejectedMenu = await page.getByTestId('rejected-submenu');
 
         if (await rejectedMenu.isVisible()) {
-            const [response] = await Promise.all([
+            const [rejectedResponse] = await Promise.all([
                 page.waitForResponse(resp => {
                     const link = new URL(resp.url())
                     const params = new URLSearchParams(link.search)
@@ -153,13 +247,22 @@ test.describe('heartbeat-applicant-inbox-menus.spec', () => {
                 }),
                 rejectedMenu.click()
             ])
-            sessions = await waitForJsonResponse(response)
+            sessions = await waitForJsonResponse(rejectedResponse)
         }
 
+        if (sessions && sessions.data && sessions.data.length > 0) {
+            // ✅ FIX: Only verify sessions that are actually rendered (first page, limit 12)
+            const limit4 = 12; // Default limit from useSessions.js
+            const sessionsToVerify4 = sessions.data.slice(0, limit4);
 
-        for (let index = 0; index < sessions.data.length; index++) {
-            const session = sessions.data[index];
-            await expect(page.locator(`.application-card[data-session="${session.id}"]`)).toBeVisible({ timeout: 10_000 });
+            console.log(`📊 Verifying ${sessionsToVerify4.length} sessions from "Rejected" (limit: ${limit4}, total: ${sessions.data.length})`);
+
+            for (let index = 0; index < sessionsToVerify4.length; index++) {
+                const session = sessionsToVerify4[index];
+                const sessionCard = page.locator(`.application-card[data-session="${session.id}"]`);
+                await sessionCard.scrollIntoViewIfNeeded();
+                await expect(sessionCard).toBeVisible({ timeout: 10_000 });
+            }
         }
 
     })

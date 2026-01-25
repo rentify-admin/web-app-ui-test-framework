@@ -10,6 +10,38 @@ import { pollForFlag } from './polling-helper';
  */
 const checkSessionApproveReject = async (page, sessionId = null) => {
 
+    // ✅ CRITICAL: household-status-alert is INSIDE the Alert modal (EventHistory), not on the main page
+    // We must open the Alert modal FIRST before accessing household-status-alert
+    console.log('🔍 Opening Alert modal to access household-status-alert...');
+    
+    // Check if Alert modal is already open by checking if household-status-alert is visible
+    const householdStatusAlert = page.getByTestId('household-status-alert');
+    const isModalOpen = await householdStatusAlert.isVisible({ timeout: 2000 }).catch(() => false);
+    
+    if (!isModalOpen) {
+        // Open Alert modal by clicking Alert button
+        const alertBtn = page.getByRole('button', { name: /alert/i }).first();
+        await expect(alertBtn).toBeVisible({ timeout: 10_000 });
+        await alertBtn.click();
+        
+        // ✅ FIX: Wait for modal to be visible first (using close button as indicator)
+        // This is faster than waiting for household-status-alert directly
+        const closeModalBtn = page.getByTestId('close-event-history-modal');
+        const modalOpened = await closeModalBtn.isVisible({ timeout: 3_000 }).catch(() => false);
+        
+        if (modalOpened) {
+            // Modal is confirmed open, now wait for household-status-alert with short timeout
+            await expect(householdStatusAlert).toBeVisible({ timeout: 2_000 });
+        } else {
+            // Fallback: If close button not found, wait for household-status-alert directly
+            // (but with shorter timeout since we just clicked)
+            await expect(householdStatusAlert).toBeVisible({ timeout: 3_000 });
+        }
+    } else {
+        // Modal was already open, just verify household-status-alert is still visible
+        await expect(householdStatusAlert).toBeVisible({ timeout: 2_000 });
+    }
+    
     // There are multiple "session-action-btn" instances on the report page (e.g. report header + household status bar).
     // Playwright strict mode requires a unique locator, so always scope to the session details container.
     const detailsActionBtn = page.getByTestId('household-status-alert').getByTestId('session-action-btn');
@@ -21,23 +53,30 @@ const checkSessionApproveReject = async (page, sessionId = null) => {
     const approveBtn = page.getByTestId('household-status-alert').getByTestId('approve-session-btn');
     await page.waitForTimeout(700);
 
+    // ✅ FIX: The approve button is inside a dropdown, so we must open the dropdown FIRST
+    // before checking if the button is visible. The old logic checked visibility before opening.
+    console.log('🔍 Opening session action dropdown to access approve button...');
+    
+    // Open the dropdown by clicking the action button
+    await expect(detailsActionBtn).toBeVisible({ timeout: 10_000 });
+    await detailsActionBtn.click();
+    await page.waitForTimeout(500); // Wait for dropdown animation
+    
+    // Now check if approve button is visible inside the opened dropdown
     // Retry mechanism: Try up to 5 times to make approve button visible
     let maxAttempts = 5;
     let attempt = 0;
-    while (!await approveBtn.isVisible() && attempt < maxAttempts) {
+    while (!await approveBtn.isVisible().catch(() => false) && attempt < maxAttempts) {
         attempt++;
-        console.log(`⚠️ Approve button not visible, ensuring report view is active (attempt ${attempt}/${maxAttempts})...`);
-
-        // Open the details action dropdown so approve/reject items are visible.
-        if (await detailsActionBtn.isVisible().catch(() => false)) {
-            await detailsActionBtn.click().catch(() => {});
-            await page.waitForTimeout(500);
-        }
-        await page.waitForTimeout(1000);
+        console.log(`⚠️ Approve button not visible in dropdown, retrying (attempt ${attempt}/${maxAttempts})...`);
+        
+        // Re-click the dropdown button to ensure it's open
+        await detailsActionBtn.click().catch(() => {});
+        await page.waitForTimeout(500);
     }
 
-    if (!await approveBtn.isVisible()) {
-        throw new Error(`❌ Approve button not visible after ${maxAttempts} attempts`);
+    if (!await approveBtn.isVisible().catch(() => false)) {
+        throw new Error(`❌ Approve button not visible after ${maxAttempts} attempts. Ensure Alert modal is open, dropdown is open, and session is in approvable state.`);
     }
 
     // ✅ Poll until approve button is ENABLED (async flag processing may take time)
@@ -96,15 +135,21 @@ const checkSessionApproveReject = async (page, sessionId = null) => {
 
     // Step 2: Reject Session
     // Step 2.1: Locate and click reject button
+    // ✅ FIX: Ensure dropdown is open before accessing reject button (same pattern as approve)
     const rejectBtn = page.getByTestId('household-status-alert').getByTestId('reject-session-btn');
 
     await detailsActionBtn.scrollIntoViewIfNeeded().catch(() => {});
-    // Only click the dropdown button if the dropdown item isn't already visible
+    
+    // Open dropdown if not already open (approve button click may have closed it)
     const rejectVisible = await rejectBtn.isVisible().catch(() => false);
     if (!rejectVisible) {
+        console.log('🔍 Opening dropdown to access reject button...');
         await detailsActionBtn.click();
-        await page.waitForTimeout(300);
+        await page.waitForTimeout(500); // Wait for dropdown animation
     }
+    
+    // Ensure reject button is visible before clicking
+    await expect(rejectBtn).toBeVisible({ timeout: 10_000 });
     await rejectBtn.click();
 
     // Step 2.2: Confirm rejection and wait for response
@@ -279,33 +324,27 @@ const checkRentBudgetEdit = async page => {
 const checkExportPdf = async (page, context, sessionId) => {
     console.log('🚀 Should Allow User to Export Report');
 
-    // Export button has had multiple UI implementations over time:
-    // - standalone `button[data-name="Export"]` (current)
-    // - dropdown `data-testid="export-session-btn"` (legacy)
-    const exportBtnDataName = page.locator('button[data-name="Export"]').first();
-    const exportBtnTestId = page.getByTestId('export-session-btn').first();
-
-    // If neither is immediately visible, try opening the session action dropdown (legacy UI).
-    const exportDataNameVisible = await exportBtnDataName.isVisible().catch(() => false);
-    const exportTestIdVisible = await exportBtnTestId.isVisible().catch(() => false);
-
-    if (!exportDataNameVisible && !exportTestIdVisible) {
-        const sessionActionBtn = page
-            .getByTestId('household-status-alert')
-            .getByTestId('session-action-btn')
-            .or(page.getByTestId('session-action-btn').first());
-        const actionBtnVisible = await sessionActionBtn.isVisible().catch(() => false);
-        if (actionBtnVisible) {
-            await sessionActionBtn.click().catch(() => {});
-            await page.waitForTimeout(400);
-        }
+    // ✅ CURRENT IMPLEMENTATION (web-app):
+    // - Desktop: Standalone button `button[data-name="Export"]` in Report.vue (line 158)
+    //   Class: "hidden md:flex" means visible on md breakpoint and up (desktop)
+    //   This button is on the MAIN PAGE header, NOT inside the Alert modal (EventHistory)
+    //   It directly calls reportActionRef?.openExportModal() to open the export modal
+    // - Tests run on desktop, so we only need the standalone button
+    
+    // ✅ CRITICAL: Export button is on MAIN PAGE, not in Alert modal
+    // If Alert modal (EventHistory) is open, close it first so we can access the export button
+    const closeModalBtn = page.getByTestId('close-event-history-modal');
+    const isModalOpen = await closeModalBtn.isVisible({ timeout: 2_000 }).catch(() => false);
+    
+    if (isModalOpen) {
+        console.log('🔍 Alert modal is open, closing it to access export button on main page...');
+        await closeModalBtn.click();
+        await page.waitForTimeout(500); // Wait for modal to close
     }
-
-    // Prefer current selector; fallback to legacy.
-    const exportBtn = (await exportBtnDataName.isVisible().catch(() => false))
-        ? exportBtnDataName
-        : exportBtnTestId;
-
+    
+    // Now look for export button on the main page
+    const exportBtn = page.locator('button[data-name="Export"]').first();
+    
     await exportBtn.scrollIntoViewIfNeeded().catch(() => {});
     await expect(exportBtn).toBeVisible({ timeout: 10_000 });
 
