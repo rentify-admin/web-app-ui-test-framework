@@ -152,12 +152,18 @@ test.describe('QA-250 remarks_permissions.spec', () => {
         
         // Without VIEW_SESSION_COMMENTS, the API will return empty/error, so notes list should be empty
         // Check for empty state or permission error message
+        // Check for permission denied message or empty state
+        const permissionDenied = remarksModal1.getByTestId('notes-permission-denied');
         const emptyState = remarksModal1.locator('.text-center.py-12.text-slate-500');
+        const hasPermissionDenied = await permissionDenied.isVisible().catch(() => false);
         const hasEmptyState = await emptyState.isVisible().catch(() => false);
         const hasNotes = await remarksModal1.locator('[data-testid^="note-card-"]').count();
         
-        // Either empty state message or no notes should be visible
-        if (hasEmptyState) {
+        // Either permission denied message, empty state message, or no notes should be visible
+        if (hasPermissionDenied) {
+            await expect(permissionDenied).toContainText(/don't have permission to view notes/i);
+            console.log('Step 1: Permission denied message shown (no permission to view notes).');
+        } else if (hasEmptyState) {
             await expect(emptyState).toContainText(/no notes|no_notes_yet/i);
             console.log('Step 1: Empty state message shown (no permission to view notes).');
         } else if (hasNotes === 0) {
