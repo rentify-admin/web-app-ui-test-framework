@@ -1,10 +1,10 @@
 import { expect, test } from "@playwright/test";
-import { adminLoginAndNavigateToApplications, loginWith } from "./utils/session-utils";
+import { adminLoginAndNavigateToApplications, loginWith, prepareSessionForFreshSelection } from "./utils/session-utils";
 import { admin, app } from "./test_config";
 import { findAndInviteApplication } from "./utils/applications-page";
 import generateSessionForm from "./utils/generate-session-form";
 import { getRandomEmail } from "./utils/helper";
-import { fillhouseholdForm, setupInviteLinkSession, updateRentBudget } from "./utils/session-flow";
+import { fillhouseholdForm, setupInviteLinkSession, updateRentBudget, handleSkipReasonModal } from "./utils/session-flow";
 import { waitForJsonResponse } from "./utils/wait-response";
 import { gotoPage } from "./utils/common";
 import { findSessionLocator, searchSessionWithText } from "./utils/report-page";
@@ -129,6 +129,10 @@ test.describe('QA-272 reinvite-applicant-button-permissions.spec', () => {
         const preScreeningSkip = preScreening.getByTestId('pre-screening-skip-btn');
         await expect(preScreeningSkip).toBeVisible();
         await preScreeningSkip.click();
+        
+        // Handle skip reason modal if it appears
+        await handleSkipReasonModal(applicantPage, "Skipping pre-screening step for test purposes");
+        await applicantPage.waitForTimeout(1000);
 
         console.log('Wait for applicant invite step to be visible');
         const applicantStep = applicantPage.getByTestId('applicant-invite-step');
@@ -162,17 +166,17 @@ test.describe('QA-272 reinvite-applicant-button-permissions.spec', () => {
         console.log('🔏 [VC-1891] [Permission Test] Login as test user with only "Invite Applicant" permission...');
         await loginForm.fill(page, testUserData);
         await loginForm.submitAndSetLocale(page, {
-            waitForHousehold: false
+            waitForHousehold: false,
+            skipSidePanel: true // Test user has limited permissions, can't see side-panel
         });
 
         console.log('🛰️  [VC-1891] Navigating to Applicants page...');
         await gotoPage(page, 'applicants-menu', 'applicants-submenu', '/sessions?fields[session]');
         await page.waitForTimeout(1000);
 
-        console.log(`🔎 [VC-1891] Searching for session id: ${sessionId}`);
-        await searchSessionWithText(page, sessionId);
-
-        const sessionLocator = await findSessionLocator(page, `.application-card[data-session="${sessionId}"]`);
+        // ✅ Use prepareSessionForFreshSelection to handle already-selected sessions
+        console.log(`🔎 [VC-1891] Preparing session for fresh selection: ${sessionId}`);
+        const { locator: sessionLocator } = await prepareSessionForFreshSelection(page, sessionId);
 
         const [sessionResponse] = await Promise.all([
             page.waitForResponse(resp => resp.url().includes(`/sessions/${sessionId}?fields[session]`)
@@ -219,8 +223,40 @@ test.describe('QA-272 reinvite-applicant-button-permissions.spec', () => {
         console.log('🕵️ [VC-1891] Verifying re-invite button is visible for GUARANTOR (permission) ...');
         await expect(guarantorItem.getByTestId(`reinvite-${guarantorSession.applicant.id}`)).toBeVisible();
 
-        // Close modal
+        // Close modal - try Escape first, then check if still open and use cancel button
+        console.log('🚪 [VC-1891] Closing invite modal...');
         await page.keyboard.press('Escape');
+        await page.waitForTimeout(1200);
+        
+        // Check if modal is still visible
+        const inviteModalAfterEscape = page.getByTestId('invite-modal');
+        const isModalStillVisible = await inviteModalAfterEscape.isVisible().catch(() => false);
+        
+        if (isModalStillVisible) {
+            console.log('⚠️ [VC-1891] Modal still open after Escape, clicking cancel button...');
+            // Try to find and click cancel button
+            const cancelBtn = page.getByTestId('invite-modal-cancel');
+            if (await cancelBtn.isVisible().catch(() => false)) {
+                await cancelBtn.click();
+                await page.waitForTimeout(500);
+            } else {
+                // Fallback: try to find any close button in the modal
+                const closeBtn = inviteModalAfterEscape.locator('[data-testid*="cancel"], [data-testid*="close"], button[aria-label*="close" i]').first();
+                if (await closeBtn.isVisible().catch(() => false)) {
+                    await closeBtn.click();
+                    await page.waitForTimeout(500);
+                }
+            }
+        }
+        
+        // Wait for modal to be hidden before proceeding
+        try {
+            await inviteModalAfterEscape.waitFor({ state: 'hidden', timeout: 5000 });
+            console.log('✅ [VC-1891] Invite modal closed');
+        } catch (error) {
+            console.log('⚠️ [VC-1891] Modal might have closed quickly or still closing');
+        }
+        await page.waitForTimeout(500); // Additional wait for modal to fully close
 
         // Logout as testUser
         if (await page.getByTestId('user-dropdown-toggle-btn').isVisible()) {
@@ -240,8 +276,9 @@ test.describe('QA-272 reinvite-applicant-button-permissions.spec', () => {
         await gotoPage(page, 'applicants-menu', 'applicants-submenu', '/sessions?fields[session]');
         await page.waitForTimeout(1000);
 
-        await searchSessionWithText(page, sessionId);
-        const adminSessionLocator = await findSessionLocator(page, `.application-card[data-session="${sessionId}"]`);
+        // ✅ Use prepareSessionForFreshSelection to handle already-selected sessions
+        console.log(`🔎 [VC-1891] Preparing session for fresh selection (admin): ${sessionId}`);
+        const { locator: adminSessionLocator } = await prepareSessionForFreshSelection(page, sessionId);
 
         const [adminSessionResponse] = await Promise.all([
             page.waitForResponse(resp => resp.url().includes(`/sessions/${sessionId}?fields[session]`)
@@ -272,11 +309,17 @@ test.describe('QA-272 reinvite-applicant-button-permissions.spec', () => {
 
         // -------------- Step 2: Open Invite Modal Verification -----------------
         console.log('📥 [Modal] Checking modal UI and invited applicant list...');
-        // Confirm modal title contains Applicant Invite text (loose match for coverage)
-        await expect(adminInviteModal.locator('h5, [data-testid="modal-title"], .modal-title')).toContainText(/invite/i);
+        // Confirm modal title contains Applicant Invite text
+        // The modal has h3 with "Applicant Invite" as the main title
+        await expect(adminInviteModal.locator('h3')).toContainText(/invite/i);
 
         // Confirm applicants list visible
-        await expect(adminInviteModal.locator('[data-testid^="invited-applicant-"]')).toBeVisible();
+        // Use the container first, then check for at least one applicant item
+        // The selector matches both parent divs and child elements, so we check the container
+        const invitedApplicantsContainer = adminInviteModal.getByTestId('invited-applicants');
+        await expect(invitedApplicantsContainer).toBeVisible();
+        // Check that at least one applicant item exists (parent div with full session ID)
+        await expect(invitedApplicantsContainer.locator('div[data-testid^="invited-applicant-"]').first()).toBeVisible();
 
         // ------------ Step 3: CO-APPLICANT Initial State -------------
         console.log('👀 [Co-Applicant] Verifying initial state in invited list...');
