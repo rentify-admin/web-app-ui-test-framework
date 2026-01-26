@@ -498,10 +498,10 @@ test.describe('co_app_household_with_flag_errors', () => {
         const idNameMismatchFlag = page.getByTestId('IDENTITY_NAME_MISMATCH_CRITICAL');
         const rawFlagText = await idNameMismatchFlag.textContent();
         const flagText = rawFlagText ? rawFlagText.replace(/\s+/g, ' ').trim() : '';
-        expect(flagText).toContain('Identity Name Mismatch (High)');
+        expect(flagText).toContain('ID Name Discrepancy (High)');
         // Note: Name now includes 'AutoT - ' prefix (UI may show as 'Autot - ' due to text transformation)
         expect(flagText).toContain('Coapplicant Household'); // Partial match to work with prefix
-        console.log('✅ FLAG TEXT VERIFIED: Contains "Identity Name Mismatch (High)" and co-applicant name');
+        console.log('✅ FLAG TEXT VERIFIED: Contains "ID Name Discrepancy (High)" and co-applicant name');
         
         // ASSERTION 3b-VC616: Verify IDENTITY_NAME_MISMATCH_CRITICAL flag DOES show applicant name with label (VC-616)
         console.log('🔍 ASSERTION 3b-VC616: Verifying IDENTITY_NAME_MISMATCH_CRITICAL flag shows applicant name...');
@@ -509,7 +509,7 @@ test.describe('co_app_household_with_flag_errors', () => {
         // Verify flag text contains applicant label (co-applicant)
         expect(flagText).toMatch(/Co-applicant:/i);
         // Verify flag description is present (already verified at line 474, but re-verify for clarity)
-        expect(flagText).toContain('Identity Name Mismatch');
+        expect(flagText).toContain('ID Name Discrepancy');
         // Verify applicant name is present (already verified at line 476, but re-verify for clarity)
         expect(flagText).toContain('Coapplicant Household');
         console.log('✅ ASSERTION 3b-VC616 PASSED: IDENTITY_NAME_MISMATCH_CRITICAL flag correctly shows applicant name with label');

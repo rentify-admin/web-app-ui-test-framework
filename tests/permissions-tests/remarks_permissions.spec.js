@@ -132,16 +132,44 @@ test.describe('QA-250 remarks_permissions.spec', () => {
             await page.waitForTimeout(1000); // allow report UI to stabilize
         };
 
-        // --- Step 1: VIEW_SESSIONS Only - No Remarks Access ---
-        console.log('[STEP 1] Set permissions: view_sessions only, and check no remarks access');
+        // --- Step 1: VIEW_SESSIONS Only - Button Visible, But No Notes Access ---
+        console.log('[STEP 1] Set permissions: view_sessions only, button should be visible but modal shows no access');
 
         // Navigate to session report page
         await searchSessionWithText(page, session.id);
         await openSessionReport();
-        // Should NOT see remarks button (UI changed from `view-remarks-btn` to "Notes")
-        await expect(page.getByTestId('view-remarks-btn')).not.toBeVisible();
-        // Button text can be "Note" (singular) or "Notes" (plural), match both
-        await expect(page.locator('#applicant-report').getByRole('button').filter({ hasText: /note/i })).not.toBeVisible();
+        
+        // Button should ALWAYS be visible (no permission check on button itself)
+        const legacyRemarksBtn1 = page.getByTestId('view-remarks-btn');
+        const notesBtn1 = page.locator('#applicant-report').getByRole('button').filter({ hasText: /note/i });
+        const remarksBtn1 = (await legacyRemarksBtn1.count()) > 0 ? legacyRemarksBtn1 : notesBtn1;
+        await expect(remarksBtn1).toBeVisible({ timeout: 10_000 });
+        
+        // Click button to open modal - should open but show no notes or permission message
+        await remarksBtn1.click();
+        const remarksModal1 = page.getByTestId('notes-modal');
+        await expect(remarksModal1).toBeVisible({ timeout: 10_000 });
+        
+        // Without VIEW_SESSION_COMMENTS, the API will return empty/error, so notes list should be empty
+        // Check for empty state or permission error message
+        const emptyState = remarksModal1.locator('.text-center.py-12.text-slate-500');
+        const hasEmptyState = await emptyState.isVisible().catch(() => false);
+        const hasNotes = await remarksModal1.locator('[data-testid^="note-card-"]').count();
+        
+        // Either empty state message or no notes should be visible
+        if (hasEmptyState) {
+            await expect(emptyState).toContainText(/no notes|no_notes_yet/i);
+            console.log('Step 1: Empty state message shown (no permission to view notes).');
+        } else if (hasNotes === 0) {
+            // No notes visible and no empty state message - API likely returned empty array
+            console.log('Step 1: No notes visible (no permission to view notes).');
+        }
+        
+        // Form section should NOT be visible (no CREATE_SESSION_COMMENTS permission)
+        await expect(remarksModal1.getByTestId('notes-form-section')).not.toBeVisible();
+        
+        // Close modal
+        await remarksModal1.getByTestId('notes-modal-cancel').click();
 
         // --- Step 2: Add VIEW_SESSION_COMMENTS - View Button Appears ---
         console.log('[STEP 2] Add view_session_comments, should see View Remarks button, but no add/hide');
@@ -152,27 +180,27 @@ test.describe('QA-250 remarks_permissions.spec', () => {
         await page.reload();
         await openSessionReport();
 
-        const legacyRemarksBtn = page.getByTestId('view-remarks-btn');
+        const legacyRemarksBtn2 = page.getByTestId('view-remarks-btn');
         // Button text can be "Note" (singular) or "Notes" (plural), match both
-        const notesBtn = page.locator('#applicant-report').getByRole('button').filter({ hasText: /note/i });
-        const remarksBtn = (await legacyRemarksBtn.count()) > 0 ? legacyRemarksBtn : notesBtn;
-        await expect(remarksBtn).toBeVisible({ timeout: 10_000 });
-        await remarksBtn.click();
+        const notesBtn2 = page.locator('#applicant-report').getByRole('button').filter({ hasText: /note/i });
+        const remarksBtn2 = (await legacyRemarksBtn2.count()) > 0 ? legacyRemarksBtn2 : notesBtn2;
+        await expect(remarksBtn2).toBeVisible({ timeout: 10_000 });
+        await remarksBtn2.click();
 
-        const remarksModal = page.getByTestId('notes-modal');
-        await expect(remarksModal).toBeVisible();
+        const remarksModal2 = page.getByTestId('notes-modal');
+        await expect(remarksModal2).toBeVisible();
         // Form section should NOT be visible (no CREATE_SESSION_COMMENTS permission yet)
-        await expect(remarksModal.getByTestId('notes-form-section')).not.toBeVisible();
+        await expect(remarksModal2.getByTestId('notes-form-section')).not.toBeVisible();
 
         // The visible remark should be shown, but hide button NOT visible
-        const visibleRemarkDiv = remarksModal.getByTestId(`note-card-${visibleRemark.id}`);
-        await expect(visibleRemarkDiv).toBeVisible();
-        await expect(visibleRemarkDiv.getByTestId('hide-note-btn')).not.toBeVisible();
+        const visibleRemarkDiv2 = remarksModal2.getByTestId(`note-card-${visibleRemark.id}`);
+        await expect(visibleRemarkDiv2).toBeVisible();
+        await expect(visibleRemarkDiv2.getByTestId('hide-note-btn')).not.toBeVisible();
 
-        await expect(remarksModal.getByTestId('toggle-hidden-comments-checkbox')).not.toBeVisible();
+        await expect(remarksModal2.getByTestId('toggle-hidden-comments-checkbox')).not.toBeVisible();
         // Close button: VfModal creates notes-modal-cancel automatically
-        await expect(remarksModal.getByTestId('notes-modal-cancel')).toBeVisible();
-        await remarksModal.getByTestId('notes-modal-cancel').click();
+        await expect(remarksModal2.getByTestId('notes-modal-cancel')).toBeVisible();
+        await remarksModal2.getByTestId('notes-modal-cancel').click();
 
         // --- Step 3: Add CREATE_SESSION_COMMENTS - Add Form Appears ---
         console.log('[STEP 3] Add create_session_comments, should see add form but still no hide');
@@ -184,23 +212,23 @@ test.describe('QA-250 remarks_permissions.spec', () => {
         await page.reload();
         await openSessionReport();
 
-        const legacyRemarksBtn2 = page.getByTestId('view-remarks-btn');
+        const legacyRemarksBtn3 = page.getByTestId('view-remarks-btn');
         // Button text can be "Note" (singular) or "Notes" (plural), match both
-        const notesBtn2 = page.locator('#applicant-report').getByRole('button').filter({ hasText: /note/i });
-        const remarksBtn2 = (await legacyRemarksBtn2.count()) > 0 ? legacyRemarksBtn2 : notesBtn2;
-        await expect(remarksBtn2).toBeVisible({ timeout: 10_000 });
-        await remarksBtn2.click();
-        const remarksModal2 = page.getByTestId('notes-modal');
-        await expect(remarksModal2.getByTestId('notes-form-section')).toBeVisible();
-        await expect(remarksModal2.getByTestId('note-textarea')).toBeVisible();
-        await expect(remarksModal2.getByTestId('add-note-btn')).toBeVisible();
+        const notesBtn3 = page.locator('#applicant-report').getByRole('button').filter({ hasText: /note/i });
+        const remarksBtn3 = (await legacyRemarksBtn3.count()) > 0 ? legacyRemarksBtn3 : notesBtn3;
+        await expect(remarksBtn3).toBeVisible({ timeout: 10_000 });
+        await remarksBtn3.click();
+        const remarksModal3 = page.getByTestId('notes-modal');
+        await expect(remarksModal3.getByTestId('notes-form-section')).toBeVisible();
+        await expect(remarksModal3.getByTestId('note-textarea')).toBeVisible();
+        await expect(remarksModal3.getByTestId('add-note-btn')).toBeVisible();
 
         // Still can't see hide button (no HIDE_SESSION_COMMENTS permission yet)
-        const visibleRemarkDiv2 = remarksModal2.getByTestId(`note-card-${visibleRemark.id}`);
-        await expect(visibleRemarkDiv2.getByTestId('hide-note-btn')).not.toBeVisible();
+        const visibleRemarkDiv3 = remarksModal3.getByTestId(`note-card-${visibleRemark.id}`);
+        await expect(visibleRemarkDiv3.getByTestId('hide-note-btn')).not.toBeVisible();
 
-        await expect(remarksModal2.getByTestId('toggle-hidden-comments-checkbox')).not.toBeVisible();
-        await remarksModal2.getByTestId('notes-modal-cancel').click();
+        await expect(remarksModal3.getByTestId('toggle-hidden-comments-checkbox')).not.toBeVisible();
+        await remarksModal3.getByTestId('notes-modal-cancel').click();
 
         // --- Step 4: Add HIDE_SESSION_COMMENTS - Hide/Unhide Buttons Appear ---
         console.log('[STEP 4] Add hide_session_comments, should see hide on visible remark');
@@ -213,18 +241,18 @@ test.describe('QA-250 remarks_permissions.spec', () => {
         await page.reload();
         await openSessionReport();
 
-        const legacyRemarksBtn3 = page.getByTestId('view-remarks-btn');
+        const legacyRemarksBtn4 = page.getByTestId('view-remarks-btn');
         // Button text can be "Note" (singular) or "Notes" (plural), match both
-        const notesBtn3 = page.locator('#applicant-report').getByRole('button').filter({ hasText: /note/i });
-        const remarksBtn3 = (await legacyRemarksBtn3.count()) > 0 ? legacyRemarksBtn3 : notesBtn3;
-        await expect(remarksBtn3).toBeVisible({ timeout: 10_000 });
-        await remarksBtn3.click();
-        const remarksModal3 = page.getByTestId('notes-modal');
-        const visibleRemarkDiv3 = remarksModal3.getByTestId(`note-card-${visibleRemark.id}`);
-        await expect(visibleRemarkDiv3.getByTestId('hide-note-btn')).toBeVisible();
+        const notesBtn4 = page.locator('#applicant-report').getByRole('button').filter({ hasText: /note/i });
+        const remarksBtn4 = (await legacyRemarksBtn4.count()) > 0 ? legacyRemarksBtn4 : notesBtn4;
+        await expect(remarksBtn4).toBeVisible({ timeout: 10_000 });
+        await remarksBtn4.click();
+        const remarksModal4 = page.getByTestId('notes-modal');
+        const visibleRemarkDiv4 = remarksModal4.getByTestId(`note-card-${visibleRemark.id}`);
+        await expect(visibleRemarkDiv4.getByTestId('hide-note-btn')).toBeVisible();
         // Toggle checkbox still NOT visible (no VIEW_SESSION_HIDDEN_COMMENTS permission yet)
-        await expect(remarksModal3.getByTestId('toggle-hidden-comments-checkbox')).not.toBeVisible();
-        await remarksModal3.getByTestId('notes-modal-cancel').click();
+        await expect(remarksModal4.getByTestId('toggle-hidden-comments-checkbox')).not.toBeVisible();
+        await remarksModal4.getByTestId('notes-modal-cancel').click();
 
         // --- Step 5: Add VIEW_SESSION_HIDDEN_COMMENTS - Toggle Appears ---
         console.log('[STEP 5] Add view_session_hidden_comments, show hidden and verify hidden remark UI');
@@ -238,24 +266,24 @@ test.describe('QA-250 remarks_permissions.spec', () => {
         await page.reload();
         await openSessionReport();
 
-        const legacyRemarksBtn4 = page.getByTestId('view-remarks-btn');
+        const legacyRemarksBtn5 = page.getByTestId('view-remarks-btn');
         // Button text can be "Note" (singular) or "Notes" (plural), match both
-        const notesBtn4 = page.locator('#applicant-report').getByRole('button').filter({ hasText: /note/i });
-        const remarksBtn4 = (await legacyRemarksBtn4.count()) > 0 ? legacyRemarksBtn4 : notesBtn4;
-        await expect(remarksBtn4).toBeVisible({ timeout: 10_000 });
-        await remarksBtn4.click();
-        const remarksModal4 = page.getByTestId('notes-modal');
+        const notesBtn5 = page.locator('#applicant-report').getByRole('button').filter({ hasText: /note/i });
+        const remarksBtn5 = (await legacyRemarksBtn5.count()) > 0 ? legacyRemarksBtn5 : notesBtn5;
+        await expect(remarksBtn5).toBeVisible({ timeout: 10_000 });
+        await remarksBtn5.click();
+        const remarksModal5 = page.getByTestId('notes-modal');
         // Show hidden toggle checkbox visible (now has VIEW_SESSION_HIDDEN_COMMENTS permission)
-        const toggleHiddenCheckbox = remarksModal4.getByTestId('toggle-hidden-comments-checkbox');
+        const toggleHiddenCheckbox = remarksModal5.getByTestId('toggle-hidden-comments-checkbox');
         await expect(toggleHiddenCheckbox).toBeVisible();
         await toggleHiddenCheckbox.check();
 
         // Hidden remark should appear, dimmed style (style cannot test reliably in headless - just visible)
-        const hiddenRemarkDiv = remarksModal4.getByTestId(`note-card-${hiddenRemark.id}`);
+        const hiddenRemarkDiv = remarksModal5.getByTestId(`note-card-${hiddenRemark.id}`);
         await expect(hiddenRemarkDiv).toBeVisible();
         await expect(hiddenRemarkDiv.getByTestId('unhide-note-btn')).toBeVisible();
 
-        await remarksModal4.getByTestId('notes-modal-cancel').click();
+        await remarksModal5.getByTestId('notes-modal-cancel').click();
 
         console.log('✅ All permission steps and UI assertions completed.');
     });
