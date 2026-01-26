@@ -244,6 +244,66 @@ const checkAllFlagsSection = async (
 };
 
 /**
+ * Click a session card and wait for the session API response
+ * Handles the case where the session is already selected (won't trigger new API call)
+ * 
+ * @param {import('@playwright/test').Page} page
+ * @param {string} sessionId - Session ID to click
+ * @param {import('@playwright/test').Locator} sessionLocator - Locator for the session card
+ * @returns {Promise<Response>} - The session API response
+ */
+const clickSessionAndWaitForResponse = async (page, sessionId, sessionLocator) => {
+    // Check if session is already selected by checking URL
+    const currentUrl = page.url();
+    const isAlreadySelected = currentUrl.includes(`/sessions/${sessionId}`) || 
+                              currentUrl.includes(`/applicants/all/${sessionId}`) ||
+                              currentUrl.includes(`/applicants/in-review/${sessionId}`) ||
+                              currentUrl.includes(`/applicants/reviewed/${sessionId}`) ||
+                              currentUrl.includes(`/applicants/rejected/${sessionId}`);
+    
+    if (isAlreadySelected) {
+        console.log(`⚠️ Session ${sessionId.substring(0, 25)}... is already selected. Deselecting first...`);
+        
+        // Click a different session first to deselect
+        const allSessionCards = page.locator('.application-card');
+        const sessionCount = await allSessionCards.count();
+        
+        let differentSessionClicked = false;
+        if (sessionCount > 1) {
+            // Find and click a session that is NOT our target
+            for (let i = 0; i < Math.min(sessionCount, 5); i++) {
+                const card = allSessionCards.nth(i);
+                const cardSessionId = await card.getAttribute('data-session');
+                
+                if (cardSessionId && cardSessionId !== sessionId) {
+                    console.log(`   🖱️ Clicking different session to deselect: ${cardSessionId.substring(0, 25)}...`);
+                    await card.click();
+                    await page.waitForTimeout(2000); // Wait for page to load
+                    differentSessionClicked = true;
+                    console.log('   ✅ Different session opened - target session is now deselected');
+                    break;
+                }
+            }
+        }
+        
+        if (!differentSessionClicked) {
+            console.log('   ⚠️ No other session found - will try to click target session anyway');
+        }
+    }
+    
+    // Now click the target session and wait for response
+    const responsePromise = page.waitForResponse(resp => 
+        resp.url().includes(`/sessions/${sessionId}?fields[session]`)
+        && resp.ok()
+        && resp.request().method() === 'GET'
+    , { timeout: 30000 });
+    
+    await sessionLocator.click();
+    
+    return await responsePromise;
+};
+
+/**
  * Search sessions with text
  *
  * @param {import('@playwright/test').Page} page
