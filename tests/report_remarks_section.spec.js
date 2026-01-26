@@ -184,9 +184,10 @@ test.describe('QA-221 report_remarks_section.spec', () => {
             ]);
             const session = await waitForJsonResponse(sessionResponse);
 
-            // Notes button: VC-2093+ uses header "Notes" (e.g. "0 Notes"). Support legacy view-remarks-btn.
+            // Notes button: VC-2093+ uses header "Notes" (e.g. "0 Notes" or "1 Note"). Support legacy view-remarks-btn.
+            // Button text can be "Note" (singular) or "Notes" (plural), match both
             const legacyBtn = page.getByTestId('view-remarks-btn');
-            const notesBtn = page.getByRole('button', { name: /notes/i }).first();
+            const notesBtn = page.locator('#applicant-report').getByRole('button').filter({ hasText: /note/i });
             const viewNotesBtn = (await legacyBtn.count()) > 0 ? legacyBtn : notesBtn;
             await expect(viewNotesBtn).toBeVisible({ timeout: 10_000 });
             await viewNotesBtn.click();
@@ -200,6 +201,18 @@ test.describe('QA-221 report_remarks_section.spec', () => {
             await expect(textarea).toBeVisible();
 
             notesContainer = notesModal; // note cards live inside modal
+
+            // --- Step 0: Test empty state message (before creating any notes) ---
+            // Check if empty state is shown when there are no notes
+            const emptyStateMessage = notesModal.locator('.text-center.py-12.text-slate-500');
+            const hasNotes = await notesModal.locator('[data-testid^="note-card-"]').count();
+            if (hasNotes === 0) {
+                await expect(emptyStateMessage).toBeVisible();
+                await expect(emptyStateMessage).toContainText(/no notes|no_notes_yet/i);
+                console.log('Step 0: Empty state message verified.');
+            } else {
+                console.log('Step 0: Skipped (notes already exist).');
+            }
 
             const firstComment = 'Internal remark without notifications';
             const secondComment = 'Remark with single applicant notification';
@@ -227,6 +240,21 @@ test.describe('QA-221 report_remarks_section.spec', () => {
                 const card2 = notesContainer.getByTestId(`note-card-${comment2.id}`);
                 await expect(card2).toBeVisible();
                 await expect(card2).toContainText(secondComment);
+                
+                // Verify session role display (Primary, Co-Applicant, or Guarantor)
+                // The role appears after the applicant name with a bullet separator
+                const roleText = card2.locator('.text-xs').filter({ hasText: /primary|co-applicant|guarantor/i });
+                const hasRoleDisplay = await roleText.count();
+                if (hasRoleDisplay > 0) {
+                    // Role is displayed (could be Primary, Co-Applicant, or Guarantor)
+                    await expect(roleText.first()).toBeVisible();
+                    console.log('Step 2a: Session role display verified.');
+                } else {
+                    // Primary applicant might not show role explicitly, but should show applicant name
+                    await expect(card2).toContainText(userData.full_name);
+                    console.log('Step 2a: Applicant name displayed (Primary role may be implicit).');
+                }
+                
                 // Send to applicant via paperplane dropdown (trigger: send-note-{id}-btn)
                 const sendDropdown = card2.getByTestId(`send-note-${comment2.id}-btn`);
                 await expect(sendDropdown).toBeVisible();
@@ -253,6 +281,40 @@ test.describe('QA-221 report_remarks_section.spec', () => {
                 await page.waitForTimeout(1000);
                 await expect(card3).toContainText(/sent to|applicant/i);
                 console.log('Step 3: Household note and Send to all applicants.');
+            }
+
+            // --- Step 3b: Test Send to organization ---
+            // Create a new note to test "Send to organization"
+            const orgCommentText = 'Note to test sending to organization';
+            await fillMultiselect(page, notesForm.getByTestId('note-link-to-dropdown'), ['Household']);
+            await textarea.fill(orgCommentText);
+            let { comment: orgComment } = await submitNoteAndWaitForComments({ page, sessionId });
+
+            if (orgComment) {
+                const orgCard = notesContainer.getByTestId(`note-card-${orgComment.id}`);
+                await expect(orgCard).toBeVisible();
+                await expect(orgCard).toContainText(orgCommentText);
+                
+                // Test Send to organization dropdown option
+                const sendOrgDropdown = orgCard.getByTestId(`send-note-${orgComment.id}-btn`);
+                await expect(sendOrgDropdown).toBeVisible();
+                
+                // Set up response listener for PATCH request
+                const orgPatchPromise = page.waitForResponse(resp =>
+                    resp.url().includes(`/sessions/${sessionId}/comments/${orgComment.id}`) &&
+                    resp.ok() &&
+                    resp.request().method() === 'PATCH',
+                    { timeout: 10_000 }
+                );
+                
+                // Click dropdown and select "Send to organization"
+                await clickDropdownItem(page, sendOrgDropdown, /send to org/i);
+                await orgPatchPromise;
+                await page.waitForTimeout(1000);
+                
+                // Verify "sent to org" text appears in the note card
+                await expect(orgCard).toContainText(/sent to org|sent to organization/i);
+                console.log('Step 3b: Send to organization verified.');
             }
 
             // --- Step 4: Form clears after submit (VC-2093 has no explicit Clear button) ---
@@ -355,8 +417,9 @@ test.describe('QA-221 report_remarks_section.spec', () => {
                 console.log('Step 6.1b: Pinned note banner verified on report page.');
 
                 // Reopen Notes modal to continue testing
+                // Button text can be "Note" (singular) or "Notes" (plural), match both
                 const legacyBtn2 = page.getByTestId('view-remarks-btn');
-                const notesBtn2 = page.getByRole('button', { name: /notes/i }).first();
+                const notesBtn2 = page.locator('#applicant-report').getByRole('button').filter({ hasText: /note/i });
                 const viewNotesBtn2 = (await legacyBtn2.count()) > 0 ? legacyBtn2 : notesBtn2;
                 await expect(viewNotesBtn2).toBeVisible({ timeout: 10_000 });
                 await viewNotesBtn2.click();
@@ -367,6 +430,8 @@ test.describe('QA-221 report_remarks_section.spec', () => {
             }
 
             // Step 6.2: Pin an existing note (comment2) using pin-note-btn
+            // NOTE: Since pinnedComment exists from Step 6.1, pinning comment2 will trigger confirmation dialog
+            // The dialog only appears when trying to replace an existing pinned note
             if (comment2) {
                 const card2 = notesContainer.getByTestId(`note-card-${comment2.id}`);
                 const pinBtn = card2.getByTestId('pin-note-btn');
@@ -387,15 +452,35 @@ test.describe('QA-221 report_remarks_section.spec', () => {
                     { timeout: 20_000 }
                 );
                 
-                // Click pin button - PATCH fires directly (no dialog in dev)
-                await Promise.all([pinPatchPromise, pinGetPromise, pinBtn.click()]);
+                // Click pin button - confirmation dialog MUST appear because pinnedComment exists
+                await pinBtn.click();
+                
+                // Wait for confirmation dialog to appear (it should always appear when replacing pinned note)
+                const confirmBtn = page.getByTestId('confirm-btn');
+                await expect(confirmBtn).toBeVisible({ timeout: 5_000 });
+                
+                // Verify dialog message mentions replacing pinned note
+                const confirmDialog = page.locator('.text-center, .text-left').filter({ hasText: /replace.*pinned|pinning.*replace/i });
+                const dialogMessage = page.locator('p.font-semibold, .text-lg').filter({ hasText: /pinning|replace/i });
+                const hasReplaceMessage = await Promise.race([
+                    confirmDialog.isVisible().then(() => true),
+                    dialogMessage.isVisible().then(() => true),
+                    Promise.resolve(false)
+                ]).catch(() => false);
+                
+                if (hasReplaceMessage) {
+                    console.log('Step 6.2a: Confirmation dialog with replace message verified.');
+                }
+                
+                // Click confirm to proceed with pinning (replacing the existing pinned note)
+                await Promise.all([pinPatchPromise, pinGetPromise, confirmBtn.click()]);
                 await page.waitForTimeout(500);
                 
                 // Verify pinned styling
                 await expect(card2.locator('.bg-warning-lighter')).toBeVisible();
                 // Verify hide button is now disabled
                 await expect(card2.getByTestId('hide-note-btn')).toBeDisabled();
-                console.log('Step 6.2: Existing note pinned successfully.');
+                console.log('Step 6.2: Existing note pinned successfully (replaced previous pinned note).');
             }
 
             // Step 6.3: Unpin the note
@@ -421,8 +506,9 @@ test.describe('QA-221 report_remarks_section.spec', () => {
                 console.log('Step 6.3: Note unpinned successfully.');
             }
 
-            // Step 6.4: Test pinning another note (comment3) - API may auto-unpin previous pinned note
-            // Note: In dev, pinning happens directly without dialog; API handles unpinning previous pinned note
+            // Step 6.4: Test pinning another note (comment3) - NO confirmation dialog expected
+            // NOTE: Since comment2 was unpinned in Step 6.3, there's no pinned note to replace
+            // The confirmation dialog should ONLY appear when trying to replace an existing pinned note
             if (comment3) {
                 const card3 = notesContainer.getByTestId(`note-card-${comment3.id}`);
                 const pinBtn3 = card3.getByTestId('pin-note-btn');
@@ -443,21 +529,24 @@ test.describe('QA-221 report_remarks_section.spec', () => {
                     { timeout: 20_000 }
                 );
                 
-                // Click pin - PATCH fires directly
-                await Promise.all([pin3PatchPromise, pin3GetPromise, pinBtn3.click()]);
+                // Click pin button - NO confirmation dialog should appear (no pinned note to replace)
+                await pinBtn3.click();
+                
+                // Verify confirmation dialog does NOT appear (since there's no pinned note to replace)
+                const confirmBtn3 = page.getByTestId('confirm-btn');
+                const dialogAppeared = await confirmBtn3.isVisible({ timeout: 2_000 }).catch(() => false);
+                
+                if (dialogAppeared) {
+                    throw new Error('Confirmation dialog appeared unexpectedly - there should be no pinned note to replace');
+                }
+                
+                // Wait for PATCH to complete (no confirmation needed)
+                await Promise.all([pin3PatchPromise, pin3GetPromise]);
                 await page.waitForTimeout(1000);
                 
                 // Verify comment3 is now pinned
                 await expect(card3.locator('.bg-warning-lighter')).toBeVisible();
-                // Verify previous pinned note (pinnedComment) is no longer pinned (only 1 pinned note allowed)
-                if (pinnedComment) {
-                    const pinnedCardAfterConflict = notesContainer.getByTestId(`note-card-${pinnedComment.id}`);
-                    const stillPinned = await pinnedCardAfterConflict.locator('.bg-warning-lighter').isVisible().catch(() => false);
-                    if (!stillPinned) {
-                        console.log('Step 6.4: Previous pinned note was automatically unpinned (only 1 pinned note allowed).');
-                    }
-                }
-                console.log('Step 6.4: Note pinned successfully.');
+                console.log('Step 6.4: Note pinned successfully (no confirmation dialog - no pinned note to replace).');
             }
 
             console.log('Step 6: Pin/unpin functionality tested successfully.');

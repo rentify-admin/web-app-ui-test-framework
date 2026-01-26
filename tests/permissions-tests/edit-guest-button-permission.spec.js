@@ -69,10 +69,6 @@ test.describe('QA-245 edit-guest-button-permission.spec', () => {
     test.beforeAll(async ({ request }) => {
         console.log('[SETUP] Authenticating as admin...');
         const token = await authenticateAdmin(request);
-        if (!token) {
-            console.log(`⚠️ Skipping workflow creation: no admin token found`);
-            throw new Error("Admin token required");
-        }
         adminClient.setAuthToken(token);
 
         // Get or create internal role (VIEW_SESSIONS only)

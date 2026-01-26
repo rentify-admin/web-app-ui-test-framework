@@ -30,41 +30,116 @@ export function shouldKeepFailedArtifacts(testInfo) {
 }
 
 /**
- * Authenticate as admin and get auth token
+ * Authenticate as admin and get auth token with retry logic for rate limiting
  * @param {APIRequestContext} request - Playwright request context
- * @returns {Promise<string|null>} Auth token or null if failed
+ * @param {Object} options - Retry options
+ * @param {number} options.maxAttempts - Maximum retry attempts (default: 5)
+ * @param {number} options.maxDelay - Maximum delay in milliseconds (default: 30000)
+ * @param {number} options.timeout - Request timeout in milliseconds (default: 30000)
+ * @returns {Promise<string>} Auth token (throws error on failure)
+ * @throws {Error} If authentication fails after all retry attempts
  */
-export async function authenticateAdmin(request) {
-    try {
-        const authResponse = await request.post(`${app.urls.api}/auth`, {
-            data: {
-                email: admin.email,
-                password: admin.password,
-                uuid: randomUUID(),  // ✅ Generate valid random UUID
-                os: 'web'            // ✅ API only accepts 'web' for /auth endpoint
+export async function authenticateAdmin(request, options = {}) {
+    const maxAttempts = options.maxAttempts || 5;
+    const maxDelay = options.maxDelay || 30000;
+    const timeout = options.timeout || 30000;
+    
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        try {
+            const authResponse = await request.post(`${app.urls.api}/auth`, {
+                data: {
+                    email: admin.email,
+                    password: admin.password,
+                    uuid: randomUUID(),  // ✅ Generate valid random UUID
+                    os: 'web'            // ✅ API only accepts 'web' for /auth endpoint
+                },
+                timeout: timeout  // ✅ Explicit timeout configuration
+            });
+            
+            // ✅ Handle 429 (Rate Limit) specifically
+            if (authResponse.status() === 429) {
+                if (attempt === maxAttempts) {
+                    throw new Error(
+                        `Admin authentication failed after ${maxAttempts} attempts. ` +
+                        `Rate limited (429). Last status: ${authResponse.status()}`
+                    );
+                }
+                
+                // ✅ Respect Retry-After header if present
+                const headers = authResponse.headers();
+                const retryAfterHeader = headers['retry-after'] || headers['Retry-After'];
+                const retryAfterSec = retryAfterHeader ? parseInt(retryAfterHeader, 10) : undefined;
+                
+                // Calculate delay: use Retry-After if available, otherwise exponential backoff
+                const baseDelay = retryAfterSec 
+                    ? retryAfterSec * 1000 
+                    : Math.min(maxDelay, Math.pow(2, attempt) * 250);
+                
+                // Add jitter (0-250ms) to prevent thundering herd
+                const jitter = Math.floor(Math.random() * 250);
+                const delayMs = baseDelay + jitter;
+                
+                console.log(
+                    `⏳ 429 rate limit during admin authentication, ` +
+                    `retrying in ${delayMs}ms (attempt ${attempt}/${maxAttempts})...`
+                );
+                
+                await new Promise(resolve => setTimeout(resolve, delayMs));
+                continue;  // ✅ Retry on 429
             }
-        });
-        
-        // ✅ Check if auth succeeded
-        if (!authResponse.ok()) {
-            const errorText = await authResponse.text();
-            console.error('❌ Cleanup auth failed:', authResponse.status(), errorText);
-            return null;
+            
+            // ✅ Handle other non-200 statuses
+            if (!authResponse.ok()) {
+                const errorText = await authResponse.text().catch(() => 'Unable to read error response');
+                throw new Error(
+                    `Admin authentication failed: HTTP ${authResponse.status()} - ${errorText}`
+                );
+            }
+            
+            // ✅ Parse response and validate token
+            const auth = await authResponse.json();
+            if (!auth?.data?.token) {
+                throw new Error('Admin authentication response missing token');
+            }
+            
+            console.log('✅ Admin authentication successful');
+            return auth.data.token;  // ✅ Success
+        } catch (error) {
+            // ✅ Check if it's a retryable error (429 or network error)
+            const isRateLimit = error.message?.includes('429') || 
+                               error.message?.includes('rate limit') ||
+                               error.message?.includes('Rate limited');
+            const isNetworkError = error.message?.includes('timeout') || 
+                                 error.message?.includes('ECONNRESET') ||
+                                 error.message?.includes('ETIMEDOUT') ||
+                                 error.message?.includes('ENOTFOUND') ||
+                                 error.message?.includes('ECONNREFUSED');
+            
+            // ✅ Retry on rate limit or network errors (except on last attempt)
+            if ((isRateLimit || isNetworkError) && attempt < maxAttempts) {
+                const delayMs = Math.min(maxDelay, Math.pow(2, attempt) * 250);
+                console.log(
+                    `⏳ Retrying admin authentication after error: ${error.message} ` +
+                    `(attempt ${attempt}/${maxAttempts}, delay ${delayMs}ms)...`
+                );
+                await new Promise(resolve => setTimeout(resolve, delayMs));
+                continue;  // ✅ Retry
+            }
+            
+            // ✅ Throw on non-retryable errors or max attempts reached
+            if (attempt === maxAttempts) {
+                throw new Error(
+                    `Admin authentication failed after ${maxAttempts} attempts: ${error.message}`
+                );
+            }
+            
+            // ✅ For other errors, throw immediately (don't retry)
+            throw error;
         }
-        
-        const auth = await authResponse.json();
-        
-        // ✅ Check if token exists
-        if (!auth?.data?.token) {
-            console.error('❌ Cleanup auth missing token');
-            return null;
-        }
-        
-        return auth.data.token;
-    } catch (error) {
-        console.error('❌ Cleanup auth error:', error.message);
-        return null;
     }
+    
+    // This should never be reached, but satisfies static analysis
+    throw new Error('Admin authentication failed: Unexpected error in retry loop');
 }
 
 /**
@@ -251,11 +326,6 @@ export async function cleanupSession(request, sessionId, allTestsPassed = true) 
     
     try {
         const token = await authenticateAdmin(request);
-        if (!token) {
-            console.log(`⚠️ Manual cleanup required - Session: ${sessionId}`);
-            return;
-        }
-        
         const deleted = await deleteSession(request, sessionId, token);
         if (!deleted) {
             console.log(`⚠️ Manual cleanup required - Session: ${sessionId}`);
@@ -320,11 +390,6 @@ export async function cleanupApplication(request, applicationId, allTestsPassed 
     
     try {
         const token = await authenticateAdmin(request);
-        if (!token) {
-            console.log(`⚠️ Manual cleanup required - Application: ${applicationId}`);
-            return;
-        }
-        
         const deleted = await deleteApplication(request, applicationId, token);
         if (!deleted) {
             console.log(`⚠️ Manual cleanup required - Application: ${applicationId}`);
@@ -472,10 +537,6 @@ export async function cleanupOrganizationMembers(request, organizationId, member
     try {
         console.log(`🧹 Starting cleanup of ${memberIds.length} archived member(s) from organization ${organizationId}...`);
         const token = await authenticateAdmin(request);
-        if (!token) {
-            console.log(`⚠️ Manual cleanup required - ${memberIds.length} archived member(s) (IDs: ${memberIds.join(', ')})`);
-            return;
-        }
         
         // First, get member details to log emails
         const memberDetails = [];
@@ -564,12 +625,8 @@ export async function cleanupPermissionTest(
         try {
             console.log('🧹 Deleting test user...');
             const token = await authenticateAdmin(request);
-            if (token) {
-                const deleted = await deleteUser(request, user.id, token);
-                if (!deleted) {
-                    console.log(`⚠️ Manual cleanup required - User: ${user.email} (ID: ${user.id})`);
-                }
-            } else {
+            const deleted = await deleteUser(request, user.id, token);
+            if (!deleted) {
                 console.log(`⚠️ Manual cleanup required - User: ${user.email} (ID: ${user.id})`);
             }
         } catch (cleanupError) {

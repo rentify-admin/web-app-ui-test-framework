@@ -837,12 +837,14 @@ test.describe('QA-296 sessions-core-permissions', () => {
         }
         
         // Re-authenticate for cleanup
-        const token = await authenticateAdmin(request);
-        if (!token) {
-            console.log('⚠️ Cannot cleanup - admin token unavailable');
+        let token;
+        try {
+            token = await authenticateAdmin(request);
+            adminClient.setAuthToken(token);
+        } catch (error) {
+            console.log('⚠️ Cannot cleanup - admin token unavailable:', error.message);
             return;
         }
-        adminClient.setAuthToken(token);
         
         // Delete test sessions
         for (const [key, session] of Object.entries(testSessions)) {

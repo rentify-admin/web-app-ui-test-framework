@@ -78,7 +78,6 @@ test.describe('QA-264 document-delete-internal-only', () => {
         
         // 1) Admin auth (Pattern A): API token independent from UI session/logout
         const adminApiToken = await authenticateAdmin(request);
-        if (!adminApiToken) throw new Error('Admin token required');
         adminClient.setAuthToken(adminApiToken);
 
         // 2) Admin UI login (for UI navigation only)
@@ -419,9 +418,11 @@ test.describe('QA-264 document-delete-internal-only', () => {
 
     test.afterAll(async ({ request }) => {
         console.log('[CLEANUP] Starting cleanup...');
-        const adminApiToken = await authenticateAdmin(request);
-        if (!adminApiToken) {
-            console.log('[CLEANUP] ⚠️  Admin token not available, skipping cleanup');
+        let adminApiToken;
+        try {
+            adminApiToken = await authenticateAdmin(request);
+        } catch (error) {
+            console.log('[CLEANUP] ⚠️  Admin token not available, skipping cleanup:', error.message);
             return;
         }
 

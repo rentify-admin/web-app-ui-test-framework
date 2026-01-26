@@ -57,9 +57,11 @@ test.describe('QA-227 identity_flag_reevaluation_on_guest_update.spec', () => {
     // ⚙️ Setup the suite: Ensure workflow & application exist
     test.beforeAll(async ({ request }) => {
         console.log("🛠️ [Setup] Checking prerequisites for workflow & application...");
-        const token = await authenticateAdmin(request);
-        if (!token) {
-            console.log(`⚠️ [Setup] Manual workflow creation not triggered (token missing)`);
+        let token;
+        try {
+            token = await authenticateAdmin(request);
+        } catch (error) {
+            console.log(`⚠️ [Setup] Manual workflow creation not triggered (token missing): ${error.message}`);
             return;
         }
         const workflowBuilder = new WorkflowBuilder(request, workflowTemplate, token);

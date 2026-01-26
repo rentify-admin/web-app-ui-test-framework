@@ -22,9 +22,11 @@ test.describe('QA-226 document_policy_auto_selection_validation.spec', () => {
 
     // Setup workflow if not present
     test.beforeAll(async ({ request }) => {
-        const token = await authenticateAdmin(request);
-        if (!token) {
-            console.log(`⚠️ Skipping workflow creation as no admin token found`);
+        let token;
+        try {
+            token = await authenticateAdmin(request);
+        } catch (error) {
+            console.log(`⚠️ Skipping workflow creation as no admin token found: ${error.message}`);
             return;
         }
         const workflowBuilder = new WorkflowBuilder(request, workflowTemplate, token)
