@@ -145,7 +145,11 @@ test.describe('QA-277 reference-number-display-report.spec.js', () => {
         // 🎉 Test passed! QA-277/VC-1675 reference number display with reference no is valid.
     })
 
-    test('While creating from session report page, WITHOUT reference no, Verify Reference Number Display in Session Report (VC-1675)', async ({ page }) => {
+    test('While creating from session report page, WITHOUT reference no, Verify Reference Number Display in Session Report (VC-1675)',
+        {
+            tag: ['@regression', '@smoke']
+        },
+        async ({ page }) => {
 
         console.log('🚩 [Test Start] Creating session WITHOUT reference number from session report page');
 
