@@ -20,6 +20,8 @@ env:
   APP_ENV: ${{ github.event.inputs.environment || 'development' }}
   NODE_ENV: test
   CI: true
+  # Test Data Management defaults
+  TEST_DATA_MODE: ${{ vars.TEST_DATA_MODE || 'AUTO' }}
 
 jobs:
   regression-tests:
@@ -29,7 +31,21 @@ jobs:
       fail-fast: false
       matrix:
         shard: [1, 2, 3, 4]
-    
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          MYSQL_DATABASE: ${{ secrets.DB_DATABASE }}
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -46,7 +62,17 @@ jobs:
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
 
-
+      - name: Wait for MySQL to be ready
+        run: |
+          echo "⏳ Waiting for MySQL service..."
+          for i in {1..30}; do
+            if mysqladmin ping -h 127.0.0.1 -P 3306 -u root -p"${{ secrets.DB_PASSWORD }}" --silent 2>/dev/null; then
+              echo "✅ MySQL is ready!"
+              break
+            fi
+            echo "Waiting... ($i/30)"
+            sleep 2
+          done
 
       - name: Run regression tests
         run: |
@@ -78,6 +104,16 @@ jobs:
           APP_ENV: ${{ github.event.inputs.environment || 'development' }}
           APP_URL: ${{ (github.event.inputs.environment == 'staging' && 'https://staging.verifast.app') || (github.event.inputs.environment == 'rc' && 'https://rc.verifast.app') || vars.APP_URL || 'https://dev.verifast.app' }}
           API_URL: ${{ (github.event.inputs.environment == 'staging' && 'https://api-staging.verifast.app') || (github.event.inputs.environment == 'rc' && 'https://api-rc.verifast.app') || vars.API_URL || 'https://api-dev.verifast.app' }}
+          # Test Data Management
+          TEST_DATA_MODE: ${{ vars.TEST_DATA_MODE || 'AUTO' }}
+          DB_HOST: 127.0.0.1
+          DB_PORT: 3306
+          DB_DATABASE: ${{ secrets.DB_DATABASE }}
+          DB_USERNAME: root
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          CAPTURE_SNAPSHOT: false
+          CAPTURE_SNAPSHOT_ON_SUCCESS: false
+          # TestRail & Slack
           TESTRAIL_HOST: ${{ secrets.TESTRAIL_HOST }}
           TESTRAIL_PROJECT_ID: ${{ secrets.TESTRAIL_PROJECT_ID }}
           TESTRAIL_SUITE_ID: ${{ secrets.TESTRAIL_SUITE_ID }}

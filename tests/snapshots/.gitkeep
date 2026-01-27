@@ -1,0 +1,7 @@
+# This directory stores database snapshots for test data management
+# Snapshot files (*.sql) are gitignored but this directory is kept
+#
+# Usage:
+#   TEST_DATA_MODE=DYNAMIC CAPTURE_SNAPSHOT=true npm test
+#
+# See docs/test-data-management/ for full documentation

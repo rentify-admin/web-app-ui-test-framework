@@ -31,6 +31,10 @@ const isCI = !!process.env.CI;
 export default defineConfig({
     testDir: './tests',
 
+    /* Global setup and teardown for test data management */
+    globalSetup: './tests/global-setup.js',
+    globalTeardown: './tests/global-teardown.js',
+
     /* Run tests in files in parallel */
     fullyParallel: true,
 
