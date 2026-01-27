@@ -313,8 +313,8 @@ test.describe('QA-273 pms-manual-upload-trigger-button', () => {
             ]);
             
             if (authResp.ok()) {
-                // Wait for page to load after login
-                await expect(p.getByTestId('household-status-alert')).toBeVisible({ timeout: 20_000 });
+                // Wait for logout-menu (reliable logged-in indicator, not permission-gated)
+                await expect(p.getByTestId('logout-menu')).toBeVisible({ timeout: 20_000 });
                 return { ctx, p };
             }
             
@@ -352,15 +352,19 @@ test.describe('QA-273 pms-manual-upload-trigger-button', () => {
         await expect(applicantsSubmenu).toBeVisible({ timeout: 5000 });
         await applicantsSubmenu.click();
         
-        await p.waitForTimeout(3000);
+        // Wait for side-panel (session list sidebar) to load
+        // NOTE: `household-status-alert` is not a reliable page-load indicator (often only visible inside Alert modal).
+        // Wait for the side-panel instead, which is the session list container.
+        await expect(p.getByTestId('side-panel')).toBeVisible({ timeout: 10_000 });
         
         // Navigate to session report page
         await searchSessionWithText(p, createdSessionId);
         const sessionCard = await findSessionLocator(p, `.application-card[data-session="${createdSessionId}"]`);
         await sessionCard.click();
         
-        // Wait for session page to load
-        await expect(p.getByTestId('household-status-alert')).toBeVisible({ timeout: 10_000 });
+        // Wait for applicant-report (main report container) to load
+        // This is more reliable than household-status-alert which may be modal-only
+        await expect(p.locator('#applicant-report')).toBeVisible({ timeout: 10_000 });
         await p.waitForTimeout(1000); // Wait for session to fully load
     };
     

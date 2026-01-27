@@ -43,7 +43,7 @@ test.describe('QA-267 rent-step-validation-range.spec', () => {
     })
 
     test('Test: Rent input validation enforces min/max range', {
-        tag: ['@core', '@regression']
+        tag: ['@core', '@regression', '@staging-ready', '@rc-ready']
     }, async ({ page }) => {
 
         // Test: Rent input validation enforces min/max range
