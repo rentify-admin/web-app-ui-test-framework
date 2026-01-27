@@ -167,7 +167,7 @@ test.describe('QA-272 reinvite-applicant-button-permissions.spec', () => {
         await loginForm.fill(page, testUserData);
         await loginForm.submitAndSetLocale(page, {
             waitForHousehold: false,
-            skipSidePanel: true // Test user has limited permissions, can't see side-panel
+            waitForLocator: 'applicants-menu' // Test user has limited permissions, wait for applicants-menu instead of side-panel
         });
 
         console.log('🛰️  [VC-1891] Navigating to Applicants page...');

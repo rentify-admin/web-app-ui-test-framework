@@ -41,27 +41,62 @@ const submit = async page => {
  * Submit login and set locale to English
  * Enhanced version of submit() that also captures auth response and sets locale
  * @param {import('@playwright/test').Page} page
+ * @param {Object} options - Configuration options
+ * @param {boolean} [options.waitForHousehold] - Whether to wait for household (default: true)
+ * @param {boolean} [options.skipSidePanel] - If true, wait for banner instead of side-panel (backward compatibility)
+ * @param {import('@playwright/test').Locator|string} [options.waitForLocator] - Custom locator to wait for after login. Can be a Playwright Locator or a testId string (e.g., 'applicants-menu')
  */
-const submitAndSetLocale = async page => {
+const submitAndSetLocale = async (page, options = {}) => {
+    const defaultOptions = {
+        waitForHousehold: true,
+        skipSidePanel: false,
+        waitForLocator: null,
+        ...options
+    };
+
+    // Determine which locator to wait for
+    let successLocator;
+    if (defaultOptions.waitForLocator) {
+        // If a locator is provided, use it directly (if it's already a Locator) or create one from testId string
+        if (typeof defaultOptions.waitForLocator === 'string') {
+            successLocator = page.getByTestId(defaultOptions.waitForLocator);
+        } else {
+            successLocator = defaultOptions.waitForLocator;
+        }
+    } else if (defaultOptions.skipSidePanel) {
+        // Backward compatibility: skipSidePanel uses banner
+        successLocator = page.getByRole('banner');
+    } else {
+        // Default: wait for side-panel
+        successLocator = page.getByTestId('side-panel');
+    }
+
+    // Determine if we should wait for side-panel sessions to load (only if waiting for side-panel)
+    const shouldWaitForSessions = !defaultOptions.skipSidePanel && !defaultOptions.waitForLocator;
+
     // Wait for both auth response and users/self response during submit
     const [authResponse, selfResponse] = await Promise.all([
         page.waitForResponse(LOGIN_API),
         page.waitForResponse(resp => resp.url().includes('/users/self') && resp.request().method() === 'GET'),
         (async () => {
             await page.locator('button[type="submit"]').click();
-            // Wait for page structure to be ready
-            await expect(page.getByTestId('side-panel')).toBeVisible({ timeout: 30_000 });
-            // Wait for sessions to finish loading (skeleton disappears or content appears)
-            await page.waitForFunction(() => {
-                const sidePanel = document.querySelector('[data-testid="side-panel"]');
-                if (!sidePanel) return false;
-                // Check if skeleton loader ul exists (shows when isLoading && !chunkIsLoading)
-                const skeletonUl = sidePanel.querySelector('ul.px-4');
-                // Sessions are loaded when: skeleton is gone OR date-collapse exists OR empty state exists
-                const hasDateCollapse = sidePanel.querySelector('date-collapse, [class*="date-collapse"]');
-                const hasEmptyState = sidePanel.parentElement?.querySelector('[class*="no_applicants"]');
-                return !skeletonUl || hasDateCollapse || hasEmptyState;
-            }, { timeout: 30_000 });
+            // Wait for the specified locator to be visible
+            await expect(successLocator).toBeVisible({ timeout: 30_000 });
+            
+            // Only wait for sessions loading if we're waiting for side-panel
+            if (shouldWaitForSessions) {
+                // Wait for sessions to finish loading (skeleton disappears or content appears)
+                await page.waitForFunction(() => {
+                    const sidePanel = document.querySelector('[data-testid="side-panel"]');
+                    if (!sidePanel) return false;
+                    // Check if skeleton loader ul exists (shows when isLoading && !chunkIsLoading)
+                    const skeletonUl = sidePanel.querySelector('ul.px-4');
+                    // Sessions are loaded when: skeleton is gone OR date-collapse exists OR empty state exists
+                    const hasDateCollapse = sidePanel.querySelector('date-collapse, [class*="date-collapse"]');
+                    const hasEmptyState = sidePanel.parentElement?.querySelector('[class*="no_applicants"]');
+                    return !skeletonUl || hasDateCollapse || hasEmptyState;
+                }, { timeout: 30_000 });
+            }
         })()
     ]);
     
