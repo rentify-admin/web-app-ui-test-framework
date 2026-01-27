@@ -91,19 +91,19 @@ test.describe('QA-191:create_multiple_remarks.spec', () => {
             await page.getByTestId('income-source-section-header').click();
             await page.getByTestId('income-source-detail-btn').first().click();
 
-            await page.getByRole('button', { name: 'Add Remark' }).click();
-            await page.getByTestId('add-comment-modal').getByRole('textbox', { name: 'Enter your remark here...' }).fill(remarks.r1);
-            await page.getByTestId('add-comment-modal').getByRole('button', { name: 'Add Remark' }).click();
+            await page.getByRole('button', { name: 'Add Note' }).click();
+            await page.getByTestId('add-comment-modal').getByRole('textbox', { name: 'Enter your note here...' }).fill(remarks.r1);
+            await page.getByTestId('add-comment-modal').getByRole('button', { name: 'Add Note' }).click();
             await page.waitForTimeout(1000);
 
-            await page.getByRole('button', { name: 'Add Remark' }).click();
-            await page.getByTestId('add-comment-modal').getByRole('textbox', { name: 'Enter your remark here...' }).fill(remarks.r2);
-            await page.getByTestId('add-comment-modal').getByRole('button', { name: 'Add Remark' }).click();
+            await page.getByRole('button', { name: 'Add Note' }).click();
+            await page.getByTestId('add-comment-modal').getByRole('textbox', { name: 'Enter your note here...' }).fill(remarks.r2);
+            await page.getByTestId('add-comment-modal').getByRole('button', { name: 'Add Note' }).click();
             await page.waitForTimeout(1000);
 
-            await page.getByRole('button', { name: 'Add Remark' }).click();
-            await page.getByTestId('add-comment-modal').getByRole('textbox', { name: 'Enter your remark here...' }).fill(remarks.r3);
-            await page.getByTestId('add-comment-modal').getByRole('button', { name: 'Add Remark' }).click();
+            await page.getByRole('button', { name: 'Add Note' }).click();
+            await page.getByTestId('add-comment-modal').getByRole('textbox', { name: 'Enter your note here...' }).fill(remarks.r3);
+            await page.getByTestId('add-comment-modal').getByRole('button', { name: 'Add Note' }).click();
             await page.waitForTimeout(1000);
 
             const [commentResponse] = await Promise.all([
@@ -114,7 +114,7 @@ test.describe('QA-191:create_multiple_remarks.spec', () => {
                     && resp.request().method() === 'GET'
                     && resp.ok()
                 ),
-                page.getByTestId('income-source-details').getByRole('button', { name: 'View Remarks' }).click()
+                page.getByTestId('income-source-details').getByRole('button', { name: 'View Notes' }).click()
             ])
 
             let comments = await waitForJsonResponse(commentResponse)

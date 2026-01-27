@@ -410,7 +410,7 @@ test.describe('QA-221 report_remarks_section.spec', () => {
                 const pinnedBanner = page.getByTestId('pinned-note-banner');
                 await expect(pinnedBanner).toBeVisible({ timeout: 10_000 });
                 await expect(pinnedBanner).toContainText(pinnedCommentText);
-                await expect(pinnedBanner).toContainText(/pinned remark/i);
+                await expect(pinnedBanner).toContainText(/pinned note/i);
                 // Verify unpin button exists in banner
                 const unpinBannerBtn = pinnedBanner.getByTestId('unpin-banner-btn');
                 await expect(unpinBannerBtn).toBeVisible();
@@ -476,10 +476,14 @@ test.describe('QA-221 report_remarks_section.spec', () => {
                 await Promise.all([pinPatchPromise, pinGetPromise, confirmBtn.click()]);
                 await page.waitForTimeout(500);
                 
+                // Re-query the card after pinning (notes list reorders, pinned note moves to top)
+                const pinnedCard2 = notesContainer.getByTestId(`note-card-${comment2.id}`);
+                await expect(pinnedCard2).toBeVisible({ timeout: 5_000 });
+                
                 // Verify pinned styling
-                await expect(card2.locator('.bg-warning-lighter')).toBeVisible();
+                await expect(pinnedCard2.locator('.bg-warning-lighter')).toBeVisible();
                 // Verify hide button is now disabled
-                await expect(card2.getByTestId('hide-note-btn')).toBeDisabled();
+                await expect(pinnedCard2.getByTestId('hide-note-btn')).toBeDisabled();
                 console.log('Step 6.2: Existing note pinned successfully (replaced previous pinned note).');
             }
 
@@ -499,10 +503,14 @@ test.describe('QA-221 report_remarks_section.spec', () => {
                 await Promise.all([unpinPatchPromise, unpinBtn.click()]);
                 await page.waitForTimeout(500);
                 
+                // Re-query the card after unpinning (notes list may reorder)
+                const unpinnedCard2 = notesContainer.getByTestId(`note-card-${comment2.id}`);
+                await expect(unpinnedCard2).toBeVisible({ timeout: 5_000 });
+                
                 // Verify unpinned styling (no bg-warning-lighter, has bg-slate-100)
-                await expect(card2.locator('.bg-warning-lighter')).not.toBeVisible();
+                await expect(unpinnedCard2.locator('.bg-warning-lighter')).not.toBeVisible();
                 // Verify hide button is now enabled again
-                await expect(card2.getByTestId('hide-note-btn')).toBeEnabled();
+                await expect(unpinnedCard2.getByTestId('hide-note-btn')).toBeEnabled();
                 console.log('Step 6.3: Note unpinned successfully.');
             }
 
@@ -544,8 +552,12 @@ test.describe('QA-221 report_remarks_section.spec', () => {
                 await Promise.all([pin3PatchPromise, pin3GetPromise]);
                 await page.waitForTimeout(1000);
                 
+                // Re-query the card after pinning (notes list reorders, pinned note moves to top)
+                const pinnedCard3 = notesContainer.getByTestId(`note-card-${comment3.id}`);
+                await expect(pinnedCard3).toBeVisible({ timeout: 5_000 });
+                
                 // Verify comment3 is now pinned
-                await expect(card3.locator('.bg-warning-lighter')).toBeVisible();
+                await expect(pinnedCard3.locator('.bg-warning-lighter')).toBeVisible();
                 console.log('Step 6.4: Note pinned successfully (no confirmation dialog - no pinned note to replace).');
             }
 
