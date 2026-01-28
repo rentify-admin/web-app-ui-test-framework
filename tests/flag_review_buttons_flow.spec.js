@@ -207,19 +207,58 @@ test.describe('QA-202 flag_review_buttons_flow', () => {
 
             await loginForm.adminLoginAndNavigate(page, admin)
 
+            // ✅ SMART FIX: Deselect session first to ensure fresh API calls
+            // Navigate to applicants inbox
+            const applicantsMenu = page.getByTestId('applicants-menu');
+            const isMenuOpen = await applicantsMenu.evaluate(el => el.classList.contains('sidebar-item-open'));
+            if (!isMenuOpen) {
+                await page.waitForTimeout(1000);
+                await applicantsMenu.click({ force: true });
+                await page.waitForTimeout(1000);
+            }
+            
+            // Click applicants submenu (use .first() to handle duplicate elements)
+            await page.getByTestId('applicants-submenu').first().click();
+            
+            // Wait for sessions to be loaded in the UI
+            await page.waitForTimeout(2000);
+
+            // Click a different session card first to deselect if target session is already selected
+            // This ensures that clicking the target session will trigger the API call
+            const allSessionCards = page.locator('.application-card');
+            const sessionCount = await allSessionCards.count();
+            
+            if (sessionCount > 1) {
+                // Find and click a session that is NOT our target session
+                for (let i = 0; i < Math.min(sessionCount, 5); i++) {
+                    const card = allSessionCards.nth(i);
+                    const sessionId = await card.getAttribute('data-session');
+                    
+                    if (sessionId && sessionId !== session.id) {
+                        console.log(`🔄 Clicking different session first to deselect: ${sessionId.substring(0, 25)}...`);
+                        await card.click();
+                        await page.waitForTimeout(2000); // Wait for page to load
+                        console.log('✅ Different session opened - target session is now deselected');
+                        break;
+                    }
+                }
+            }
+
             // Navigate to session and capture flags response from page load
             // This function will try to get flags automatically, or click View Details if needed
             let flags = await navigateToSessionByIdAndGetFlags(page, session.id, buildFlagsFetchPredicate);
 
-            await expect(page.getByTestId('household-status-alert').first()).toBeVisible({ timeout: 10_000 });
+            // Wait for Alert button to be visible (indicates report page is loaded)
+            // Note: household-status-alert is only visible inside the Alert modal, so we wait for the button instead
+            await expect(page.getByRole('button', { name: 'Alert' })).toBeVisible({ timeout: 10_000 });
 
             // Ensure View Details section is open (might already be open from navigateToSessionByIdAndGetFlags)
             const flagSectionVisible = await page.getByTestId('report-view-details-flags-section').isVisible().catch(() => false);
             
             if (!flagSectionVisible) {
                 console.log('🔍 Opening View Details section...');
-                const viewDetailsBtn = await page.getByTestId('view-details-btn');
-                await viewDetailsBtn.click();
+                const alertBtn = await page.getByRole('button', { name: 'Alert' });
+                await alertBtn.click();
             } else {
                 console.log('✅ View Details section already open');
             }

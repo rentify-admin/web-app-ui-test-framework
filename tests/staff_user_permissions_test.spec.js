@@ -270,7 +270,7 @@ test.describe('staff_user_permissions_test', () => {
                         && resp.ok()
                         && resp.request().method() === 'GET'
                 ),
-                page.getByTestId('view-details-btn').click()
+                page.getByRole('button', { name: 'Alert' }).click()
             ]);
 
             // Click on the View Details button

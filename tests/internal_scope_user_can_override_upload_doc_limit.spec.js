@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test'
 import { adminLoginAndNavigateToApplications } from './utils/session-utils'
 import { admin, app } from './test_config'
 import { findAndInviteApplication } from './utils/applications-page';
-import { setupInviteLinkSession, startSessionFlow, updateRentBudget } from './utils/session-flow';
+import { setupInviteLinkSession, startSessionFlow, updateRentBudget, handleSkipReasonModal } from './utils/session-flow';
 import { fillMultiselect } from './utils/common';
 import generateSessionForm from './utils/generate-session-form';
 
@@ -10,7 +10,7 @@ import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { waitForJsonResponse } from './utils/wait-response';
 import { navigateToSessionById, searchSessionWithText } from './utils/report-page';
-import { cleanupSession } from './utils/cleanup-helper';
+import { cleanupTrackedSession } from './utils/cleanup-helper';
 import { pollForVerificationStatus } from './utils/polling-helper';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -53,15 +53,7 @@ const handleUploadPaystubsIntroModal = async page => {
 test.describe('QA-212 internal_scope_user_can_override_upload_doc_limit.spec', () => {
 
     test.afterEach(async ({ request }, testInfo) => {
-        if (createdSessionId) {
-            if (testInfo.status === 'passed') {
-                console.log(`🧹 Test passed. Cleaning up session ${createdSessionId}...`);
-                await cleanupSession(request, createdSessionId, true);
-                console.log('✅ Cleanup complete');
-            } else {
-                console.log(`⚠️  Test ${testInfo.status}. Skipping cleanup for session ${createdSessionId} (left for debugging)`);
-            }
-        }
+        await cleanupTrackedSession(request, createdSessionId, testInfo);
         // Reset for next test
         createdSessionId = null;
         guestAuthToken = null;
@@ -124,6 +116,7 @@ test.describe('QA-212 internal_scope_user_can_override_upload_doc_limit.spec', (
 
         console.log('⏩ Skipping pre-screening step');
         await applicantPage.getByTestId('pre-screening-skip-btn').click();
+        await handleSkipReasonModal(applicantPage, "Skipping pre-screening step for test purposes");
 
         console.log('📄 Making sure employment verification step is visible');
         await expect(applicantPage.getByTestId('employment-verification-step')).toBeVisible({ timeout: 20_000 });

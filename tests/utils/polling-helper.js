@@ -75,7 +75,8 @@ const pollForFlag = async (page, options) => {
                     // If refreshModal was enabled, reopen the modal after reload
                     if (refreshModal) {
                         try {
-                            await page.getByTestId('view-details-btn').click({ timeout: 10000 });
+                            // "Alert" button label can include a count (e.g. "5 Alerts"), so use a case-insensitive regex.
+                            await page.getByRole('button', { name: /alert/i }).first().click({ timeout: 10000 });
                             await page.waitForTimeout(1000);
                             
                             // If flag is applicant-scoped, click Applicant tab after modal opens
@@ -108,7 +109,7 @@ const pollForFlag = async (page, options) => {
                 try {
                     await page.getByTestId('close-event-history-modal').click({ timeout: 5000 });
                     await page.waitForTimeout(500);
-                    await page.getByTestId('view-details-btn').click({ timeout: 10000 });
+                    await page.getByRole('button', { name: /alert/i }).first().click({ timeout: 10000 });
                     await page.waitForTimeout(1000);
                     
                     // If flag is applicant-scoped, click Applicant tab after modal refresh
@@ -248,6 +249,25 @@ const pollForUIText = async (page, options) => {
 
     console.log(`🔍 Polling for UI text "${expectedText}" in [data-testid="${testId}"] (max ${maxPolls} polls)...`);
 
+    // For household-status-alert, we need to click Alert button first to open the modal
+    // The household-status-alert is only visible inside the Alert/View Details modal
+    if (testId === 'household-status-alert') {
+        try {
+            // Check if Alert button is visible and click it to open the modal
+            // "Alert" button label can include a count (e.g. "5 Alerts"), so use a case-insensitive regex.
+            const alertBtn = page.getByRole('button', { name: /alert/i }).first();
+            const isAlertBtnVisible = await alertBtn.isVisible({ timeout: 2000 }).catch(() => false);
+            
+            if (isAlertBtnVisible) {
+                console.log('🔔 Clicking Alert button to open modal with household-status-alert...');
+                await alertBtn.click();
+                await page.waitForTimeout(1000); // Wait for modal to open
+            }
+        } catch (e) {
+            console.log('⚠️ Alert button not found or already clicked, continuing...');
+        }
+    }
+
     for (let i = 0; i < maxPolls; i++) {
         try {
             const element = page.getByTestId(testId);
@@ -269,6 +289,20 @@ const pollForUIText = async (page, options) => {
                 // Just reload and wait for load state - simpler and more reliable
                 await page.reload({ waitUntil: 'domcontentloaded' });
                 await page.waitForTimeout(5000); // Wait for content to load
+                
+                // After reload, if checking household-status-alert, click Alert button again
+                if (testId === 'household-status-alert') {
+                    try {
+                        const alertBtn = page.getByRole('button', { name: /alert/i }).first();
+                        const isAlertBtnVisible = await alertBtn.isVisible({ timeout: 2000 }).catch(() => false);
+                        if (isAlertBtnVisible) {
+                            await alertBtn.click();
+                            await page.waitForTimeout(1000);
+                        }
+                    } catch (e) {
+                        // Ignore if button not found
+                    }
+                }
             } else {
                 await page.waitForTimeout(pollInterval);
             }

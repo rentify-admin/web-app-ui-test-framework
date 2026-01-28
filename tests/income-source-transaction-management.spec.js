@@ -10,7 +10,7 @@ import { setupInviteLinkSession, simulatorFinancialStepWithVeridocs, updateRentB
 import { customVeriDocsBankStatementData } from "./mock-data/bank-statement-veridocs-payload";
 import { findSessionLocator, openReportSection, searchSessionWithText } from "./utils/report-page";
 import { waitForJsonResponse } from "./utils/wait-response";
-import { cleanupSession } from "./utils/cleanup-helper";
+import { cleanupTrackedSession } from "./utils/cleanup-helper";
 /**
  * Find a resource by name or throw if not found.
  */
@@ -619,13 +619,9 @@ test.describe("QA-128 income-source-transaction-management.spec", () => {
     });
 
     test.afterAll(async ({ request }, testInfo) => {
-        if (testInfo.status === 'passed') {
-            console.log(`🧹 Cleaning up created session: ${createdSessionId}`);
-            await cleanupSession(request, createdSessionId);
-            console.log(`✅ Session cleanup complete`);
-        } else {
-            console.log(`⚠️ Test failed - keeping session ${createdSessionId} for debugging.`);
-        }
+        console.log(`🧹 Cleaning up created session: ${createdSessionId}`);
+        await cleanupTrackedSession(request, createdSessionId, testInfo);
+        console.log(`✅ Session cleanup handled`);
     });
 });
 

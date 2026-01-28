@@ -66,7 +66,11 @@ const checkRentBudgetEdit = async page => {
 const checkSessionApproveReject = async page => {
     console.log('🚀 Should Allow user to approve/reject session');
 
-    const approveBtn = page.getByTestId('approve-session-btn');
+    // Approve button exists in two places:
+    // 1) Standalone button on the session report page (session-report-section)
+    // 2) Dropdown item inside the Alert/View Details modal (household-status-alert)
+    // Scope to the report section to avoid strict-mode violations.
+    const approveBtn = page.getByTestId('session-report-section').getByTestId('approve-session-btn');
     await page.waitForTimeout(700);
     
     // Retry mechanism: Try up to 5 times to make approve button visible
@@ -74,8 +78,21 @@ const checkSessionApproveReject = async page => {
     let attempt = 0;
     while (!await approveBtn.isVisible() && attempt < maxAttempts) {
         attempt++;
-        console.log(`⚠️ Approve button not visible, clicking session-action-btn (attempt ${attempt}/${maxAttempts})...`);
-        await page.getByTestId('session-action-btn').click();
+        console.log(`⚠️ Approve button not visible, ensuring report view is active (attempt ${attempt}/${maxAttempts})...`);
+        
+        // If Alert/View Details modal is open, close it (it can overlay/interfere).
+        const closeModalBtn = page.getByTestId('close-event-history-modal');
+        if (await closeModalBtn.isVisible().catch(() => false)) {
+            await closeModalBtn.click().catch(() => {});
+            await page.waitForTimeout(500);
+        }
+        
+        // Some UIs require toggling the action dropdown to stabilize the header row.
+        const actionBtn = page.getByTestId('session-action-btn');
+        if (await actionBtn.isVisible().catch(() => false)) {
+            await actionBtn.click().catch(() => {});
+            await page.waitForTimeout(500);
+        }
         await page.waitForTimeout(1000);
     }
 
@@ -133,9 +150,11 @@ const checkSessionApproveReject = async page => {
 
     await waitForJsonResponse(confirmApproveResponse);
 
-    const rejectBtn = await page.getByTestId('reject-session-btn');
+    // Reject button also exists as a dropdown item in the modal; scope it to the report section.
+    const rejectBtn = page.getByTestId('session-report-section').getByTestId('reject-session-btn');
     if (!await rejectBtn.isVisible()) {
         await page.getByTestId('session-action-btn').click();
+        await page.waitForTimeout(500);
     }
     await rejectBtn.click();
 
@@ -173,12 +192,52 @@ const checkSessionApproveReject = async page => {
 const canRequestAdditionalDocuments = async page => {
     console.log('🚀 Should Allow User to Add Additional Documents');
 
-    const btn = await page.getByTestId('request-additional-btn');
-    await page.waitForTimeout(700);
-    if (!await btn.isVisible()) {
-        await page.getByTestId('session-action-btn').click();
+    // Wait a bit for the page to fully render
+    await page.waitForTimeout(1000);
+
+    // First, check if session-action-btn exists and is visible
+    const actionBtn = page.getByTestId('session-action-btn');
+    const actionBtnVisible = await actionBtn.isVisible({ timeout: 10000 }).catch(() => false);
+    
+    if (!actionBtnVisible) {
+        console.log('⚠️ session-action-btn is not visible - checking if dropdown should render...');
+        // Check if request-additional-btn exists at all (might be in DOM but hidden)
+        const requestBtnCount = await page.getByTestId('request-additional-btn').count();
+        if (requestBtnCount === 0) {
+            // Check if the session has the required step by looking at the page
+            const hasFinancialSection = await page.getByTestId('financial-section').count() > 0;
+            console.log(`📊 Debug info: hasFinancialSection=${hasFinancialSection}, requestBtnCount=${requestBtnCount}`);
+            throw new Error(`session-action-btn is not visible. User may lack required permissions or session may not have financial/employment/identity steps. Financial section exists: ${hasFinancialSection}`);
+        }
     }
-    await btn.click();
+
+    // Try to get request-additional-btn
+    let btn = page.getByTestId('request-additional-btn');
+    await page.waitForTimeout(700);
+    
+    // Check if button is visible
+    const isVisible = await btn.isVisible({ timeout: 2000 }).catch(() => false);
+    
+    if (!isVisible) {
+        console.log('⚠️ request-additional-btn not visible, clicking session-action-btn to open dropdown...');
+        // Click the dropdown button to open it
+        await actionBtn.click({ timeout: 10000 });
+        // Wait a bit for dropdown to open
+        await page.waitForTimeout(500);
+        // Check again if button is now visible
+        const isVisibleAfterClick = await btn.isVisible({ timeout: 2000 }).catch(() => false);
+        if (!isVisibleAfterClick) {
+            // Check if button exists in DOM at all
+            const btnCount = await btn.count();
+            if (btnCount === 0) {
+                throw new Error('request-additional-btn does not exist. Session may not have financial/employment/identity steps, or user lacks REQUEST_SESSION_FINANCIAL_CONNECTION permission.');
+            } else {
+                throw new Error('request-additional-btn exists but is not visible after opening dropdown. It may be hidden by other conditions.');
+            }
+        }
+    }
+    
+    await btn.click({ timeout: 5000 });
 
     const availableChecks = [
         'financial_connection',

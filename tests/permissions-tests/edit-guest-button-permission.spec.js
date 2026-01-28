@@ -1,5 +1,5 @@
 import { request, test, expect } from "@playwright/test";
-import { authenticateAdmin, cleanupSession } from "../utils/cleanup-helper";
+import { authenticateAdmin, cleanupTrackedSession } from "../utils/cleanup-helper";
 import { admin, app } from "../test_config";
 import { ApiClient } from "../api";
 import { adminLoginAndNavigateToApplications, loginWith } from "../utils/session-utils";
@@ -69,10 +69,6 @@ test.describe('QA-245 edit-guest-button-permission.spec', () => {
     test.beforeAll(async ({ request }) => {
         console.log('[SETUP] Authenticating as admin...');
         const token = await authenticateAdmin(request);
-        if (!token) {
-            console.log(`⚠️ Skipping workflow creation: no admin token found`);
-            throw new Error("Admin token required");
-        }
         adminClient.setAuthToken(token);
 
         // Get or create internal role (VIEW_SESSIONS only)
@@ -147,7 +143,9 @@ test.describe('QA-245 edit-guest-button-permission.spec', () => {
         }
     });
 
-    test('Verify Edit Guest Button permission gating and UI/edit/cancel flows', async ({ page, browser }) => {
+    test('Verify Edit Guest Button permission gating and UI/edit/cancel flows', {
+        tag: ['@qa-245', '@permissions', '@identity', '@ui', '@core', '@regression', '@rc-ready', '@staging-ready']
+    }, async ({ page, browser }) => {
         const timestamp = Date.now();
         const guestUser = {
             first_name: "Autot - Permtest",
@@ -191,12 +189,15 @@ test.describe('QA-245 edit-guest-button-permission.spec', () => {
         await expect(applicantsSubmenu).toBeVisible({ timeout: 5000 });
         await applicantsSubmenu.click();
         await expect(memberPage).toHaveTitle(/Applicants/, { timeout: 10_000 });
-        await expect(memberPage.getByTestId('household-status-alert')).toBeVisible();
+        // `household-status-alert` is not a reliable page-load indicator (often only visible inside Alert modal).
+        // Wait for the report container instead once a session is selected.
+        await expect(memberPage.getByTestId('side-panel')).toBeVisible({ timeout: 10_000 });
 
         console.log('[STEP 1] Loading session details as test user');
         const sessionLocator =  await findSessionLocator(memberPage, `.application-card[data-session="${sessionId}"]`);
-        // Wait for report session GET to load
-        sessionLocator.click()
+        // Click session and wait for report to render
+        await sessionLocator.click();
+        await expect(memberPage.locator('#applicant-report')).toBeVisible({ timeout: 10_000 });
         
         // Open identity section, verify Edit Guest button is NOT visible ("step 1" of functional test)
         console.log('[STEP 1] Expanding Identity section and checking no Edit Guest button (NO manage_guests)');
@@ -223,12 +224,13 @@ test.describe('QA-245 edit-guest-button-permission.spec', () => {
         // --- Step 3: Reload and check that Edit Guest button IS present ---
         console.log('[STEP 3] Reloading page to check Edit Guest button now visible');
         await memberPage.reload();
-        // Wait for page to load and navigate to session report
-        await expect(memberPage.getByTestId('household-status-alert')).toBeVisible({ timeout: 10_000 });
+        // Wait for page to load and navigate back to session report
+        await expect(memberPage.getByTestId('side-panel')).toBeVisible({ timeout: 10_000 });
         // Navigate back to session if needed
         const sessionLocator2 = await findSessionLocator(memberPage, `.application-card[data-session="${sessionId}"]`);
         await sessionLocator2.click();
-        await memberPage.waitForTimeout(1000); // Wait for session to load
+        await expect(memberPage.locator('#applicant-report')).toBeVisible({ timeout: 10_000 });
+        await memberPage.waitForTimeout(1000); // Wait for session to stabilize
         const identitySection2 = await openReportSection(memberPage, 'identity-section');
         const editGuestBtn2 = identitySection2.getByTestId('identity-edit-guest-btn');
         await expect(editGuestBtn2).toBeVisible();
@@ -358,7 +360,7 @@ test.describe('QA-245 edit-guest-button-permission.spec', () => {
         try {
             // Close browser context if it exists
             if (memberContext) {
-                try {
+            try {
                     await memberContext.close();
                     console.log('[CLEANUP] Member browser context closed');
                 } catch (e) {
@@ -367,38 +369,34 @@ test.describe('QA-245 edit-guest-button-permission.spec', () => {
             }
 
             // Delete member first (remove organization relationship)
-            if (createdMember) {
-                try {
+                if (createdMember) {
+                    try {
                     await adminClient.delete(`/organizations/${organizationId}/members/${createdMember}`);
-                    console.log('[CLEANUP] Test member cleaned up:', createdMember);
-                } catch (e) {
-                    console.log(`[CLEANUP ERROR] Could not cleanup member with id ${createdMember}`);
-                    console.error('[CLEANUP ERROR] Could not cleanup member:', e.message);
+                        console.log('[CLEANUP] Test member cleaned up:', createdMember);
+                    } catch (e) {
+                        console.log(`[CLEANUP ERROR] Could not cleanup member with id ${createdMember}`);
+                        console.error('[CLEANUP ERROR] Could not cleanup member:', e.message);
+                    }
                 }
-            }
 
             // Always delete user (to prevent orphaned users)
-            if (createdUser) {
-                try {
+                if (createdUser) {
+                    try {
                     await adminClient.delete(`/users/${createdUser}`);
-                    console.log('[CLEANUP] Test user cleaned up:', createdUser);
-                } catch (e) {
-                    console.log(`[CLEANUP ERROR] Could not cleanup user with id ${createdUser}`);
-                    console.error('[CLEANUP ERROR] Could not cleanup user:', e.message);
+                        console.log('[CLEANUP] Test user cleaned up:', createdUser);
+                    } catch (e) {
+                        console.log(`[CLEANUP ERROR] Could not cleanup user with id ${createdUser}`);
+                        console.error('[CLEANUP ERROR] Could not cleanup user:', e.message);
+                    }
                 }
-            }
 
-            // Delete session (only if test passed, keep for debugging if failed)
+            // Delete session (policy-controlled via cleanupTrackedSession)
             if (createdSessionId) {
-                if (testInfo.status === 'passed') {
-                    await cleanupSession(request, createdSessionId);
-                    console.log('[CLEANUP] Session cleaned up:', createdSessionId);
-                } else {
-                    console.log(`[CLEANUP] Keeping session for debugging: ${createdSessionId}`);
-                }
+                await cleanupTrackedSession(request, createdSessionId, testInfo);
+                console.log('[CLEANUP] Session cleanup handled:', createdSessionId);
             }
         } catch (cleanupError) {
-            console.error('[CLEANUP ERROR] Test cleanup failed:', cleanupError.message);
+                console.error('[CLEANUP ERROR] Test cleanup failed:', cleanupError.message);
         }
     });
 });

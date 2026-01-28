@@ -3,21 +3,26 @@ import { adminLoginAndNavigateToApplications } from '~/tests/utils/session-utils
 import { admin } from '~/tests/test_config';
 import { findAndInviteApplication } from '~/tests/utils/applications-page';
 import { getRandomEmail } from '~/tests/utils/helper';
-import { completePaystubConnection, fillhouseholdForm, identityStep, setupInviteLinkSession, updateRentBudget, completePlaidFinancialStepBetterment, waitForPlaidConnectionCompletion } from '~/tests/utils/session-flow';
+import { completePaystubConnection, fillhouseholdForm, identityStep, setupInviteLinkSession, updateRentBudget, completePlaidFinancialStepBetterment, waitForPlaidConnectionCompletion, handleSkipReasonModal } from '~/tests/utils/session-flow';
 import generateSessionForm from '~/tests/utils/generate-session-form';
-import { cleanupSession } from './utils/cleanup-helper';
+import { cleanupTrackedSessions } from './utils/cleanup-helper';
 
 let createdSessionId = null;
-let allTestsPassed = true;
+let createdSessionIds = [];
 
 test.describe('application_step_should_skip_properly', () => {
+    test.beforeEach(() => {
+        // Reset per-attempt tracking (important with Playwright retries)
+        createdSessionIds = [];
+        createdSessionId = null;
+    });
+
     test('Check Application step skip works propertly', {
         tag: ['@regression', '@staging-ready', '@rc-ready']
     }, async ({ page, browser }) => {
         test.setTimeout(300_000);
         
-        try {
-    
+        
         // Note: first_name will be auto-prefixed with 'AutoT - ' by the helper
         // Note: email will be auto-suffixed with '+autotest' by the helper
         const user = {
@@ -47,7 +52,10 @@ test.describe('application_step_should_skip_properly', () => {
     
         console.log('🚀 Invite Applicant')
         const { sessionId, sessionUrl, link } = await generateSessionForm.generateSessionAndExtractLink(page, user);
-        createdSessionId = sessionId;  // Store for cleanup
+        createdSessionId = sessionId;
+        if (sessionId) {
+            createdSessionIds.push(sessionId); // Store for cleanup (retry-safe)
+        }
         console.log('✅ Done Invite Applicant')
     
         await page.getByTestId('user-dropdown-toggle-btn').click();
@@ -72,6 +80,7 @@ test.describe('application_step_should_skip_properly', () => {
     
         console.log('🚀 Skip invite page')
         await page.getByTestId('applicant-invite-skip-btn').click();
+        await handleSkipReasonModal(page, "Skipping applicants step for test purposes");
         console.log('✅ Skip invite page')
     
         console.log('🚀 Id verification step')
@@ -87,11 +96,13 @@ test.describe('application_step_should_skip_properly', () => {
     
         console.log('🚀 Skip employment step')
         await page.getByTestId('employment-step-skip-btn').click({ timeout: 10_000 });
+        await handleSkipReasonModal(page, "Skipping employment step for test purposes");
         console.log('✅ Done Skip employment step')
     
         console.log('🚀 Summary page')
         await expect(page.getByTestId('summary-completed-section')).toBeVisible({ timeout: 10_000 });
-    
+        await page.waitForTimeout(3000);
+
         console.log('🚀 Going to Invite Page')
         await page.locator('div[role=button]').filter({
             hasText: 'Applicants',
@@ -105,6 +116,7 @@ test.describe('application_step_should_skip_properly', () => {
     
         console.log('🚀 Skipping Invite Page')
         await page.getByTestId('applicant-invite-skip-btn').click();
+        await handleSkipReasonModal(page, "Skipping applicants step for test purposes");
     
         await expect(page.getByTestId('summary-completed-section')).toBeVisible({ timeout: 10_000 });
         console.log('✅ On Summary Page')
@@ -122,6 +134,7 @@ test.describe('application_step_should_skip_properly', () => {
     
         console.log('🚀 Skipping employment page')
         await page.getByTestId('employment-step-skip-btn').click();
+        await handleSkipReasonModal(page, "Skipping employment step for test purposes");
     
         await expect(page.getByTestId('summary-completed-section')).toBeVisible({ timeout: 10_000 });;
         console.log('✅ On Summary page')
@@ -191,16 +204,11 @@ test.describe('application_step_should_skip_properly', () => {
         console.log('✅ On summary page')
     
         await page.close();
-        
-        } catch (error) {
-            allTestsPassed = false;
-            throw error;
-        }
     });
     
-    // ✅ Conditional cleanup: Keep session on failure for debugging
-    test.afterAll(async ({ request }) => {
-        await cleanupSession(request, createdSessionId, allTestsPassed);
+    // Always cleanup by default; keep artifacts only when KEEP_FAILED_ARTIFACTS=true and test failed
+    test.afterEach(async ({ request }, testInfo) => {
+        await cleanupTrackedSessions({ request, sessionIds: createdSessionIds, testInfo });
     });
 });
 

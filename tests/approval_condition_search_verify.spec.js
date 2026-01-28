@@ -36,9 +36,9 @@ test.describe('QA-211: Approval Conditions — Search by Name, Description, and 
         console.log(`🚀 Step 8: Clicking to view flag collection (id: ${flagCollection.id})`);
         await page.getByTestId(`view-${flagCollection.id}`).click();
 
-        console.log('🔍 Step 9: Search by Name ("Mismatch") in flag-name-col');
-        await searchAndValidateFlags(page, 'Mismatch', 'flag-name-col');
-        console.log('✅ Step 9 completed: "Mismatch" search in flag-name-col validated.');
+        console.log('🔍 Step 9: Search by Name ("Offer Letter: Name Discrepancy") in flag-name-col');
+        await searchAndValidateFlags(page, 'Offer Letter: Name Discrepancy', 'flag-name-col');
+        console.log('✅ Step 9 completed: "Offer Letter: Name Discrepancy" search in flag-name-col validated.');
 
         console.log('🔍 Step 10: Search by Description ("computed cadence") in flag-description-col');
         await searchAndValidateFlags(page, 'computed cadence', 'flag-description-col');

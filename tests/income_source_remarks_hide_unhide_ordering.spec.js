@@ -6,7 +6,7 @@ import { navigateToSessionById, searchSessionWithText } from './utils/report-pag
 import { waitForJsonResponse } from './utils/wait-response';
 import { findAndInviteApplication, gotoApplicationsPage } from './utils/applications-page';
 import generateSessionForm from './utils/generate-session-form';
-import { setupInviteLinkSession, simulatorFinancialStepWithVeridocs, updateRentBudget } from './utils/session-flow';
+import { setupInviteLinkSession, simulatorFinancialStepWithVeridocs, updateRentBudget, handleSkipReasonModal } from './utils/session-flow';
 import { joinUrl } from './utils/helper';
 import { veriDocsBankStatementData } from './mock-data/bank-statement-veridocs-payload';
 import { cleanupSessionAndContexts } from './utils/cleanup-helper';
@@ -61,6 +61,7 @@ test.describe('QA-191:create_multiple_remarks.spec', () => {
             // Skip question step
             await expect(applicantPage.getByTestId('pre-screening-step')).toBeVisible();
             await applicantPage.getByTestId('pre-screening-skip-btn').click();
+            await handleSkipReasonModal(applicantPage, "Skipping pre-screening step for test purposes");
 
             await simulatorFinancialStepWithVeridocs(applicantPage, payload)
 
@@ -69,8 +70,8 @@ test.describe('QA-191:create_multiple_remarks.spec', () => {
             await page.getByTestId('applicants-menu').click();
             await page.getByTestId('applicants-submenu').click();
 
-            await expect(page.getByTestId('household-status-alert')).toBeVisible({ timeout: 10_000 });
-
+            // household-status-alert is only visible inside the Alert/View Details modal, not on the list page.
+            // searchSessionWithText already waits for the search input to be ready, which indicates the page is loaded.
             await searchSessionWithText(page, sessionId);
 
             // const sessionTile = await page.locator('.application-card').first();
@@ -90,19 +91,19 @@ test.describe('QA-191:create_multiple_remarks.spec', () => {
             await page.getByTestId('income-source-section-header').click();
             await page.getByTestId('income-source-detail-btn').first().click();
 
-            await page.getByRole('button', { name: 'Add Remark' }).click();
-            await page.getByTestId('add-comment-modal').getByRole('textbox', { name: 'Enter your remark here...' }).fill(remarks.r1);
-            await page.getByTestId('add-comment-modal').getByRole('button', { name: 'Add Remark' }).click();
+            await page.getByRole('button', { name: 'Add Note' }).click();
+            await page.getByTestId('add-comment-modal').getByRole('textbox', { name: 'Enter your note here...' }).fill(remarks.r1);
+            await page.getByTestId('add-comment-modal').getByRole('button', { name: 'Add Note' }).click();
             await page.waitForTimeout(1000);
 
-            await page.getByRole('button', { name: 'Add Remark' }).click();
-            await page.getByTestId('add-comment-modal').getByRole('textbox', { name: 'Enter your remark here...' }).fill(remarks.r2);
-            await page.getByTestId('add-comment-modal').getByRole('button', { name: 'Add Remark' }).click();
+            await page.getByRole('button', { name: 'Add Note' }).click();
+            await page.getByTestId('add-comment-modal').getByRole('textbox', { name: 'Enter your note here...' }).fill(remarks.r2);
+            await page.getByTestId('add-comment-modal').getByRole('button', { name: 'Add Note' }).click();
             await page.waitForTimeout(1000);
 
-            await page.getByRole('button', { name: 'Add Remark' }).click();
-            await page.getByTestId('add-comment-modal').getByRole('textbox', { name: 'Enter your remark here...' }).fill(remarks.r3);
-            await page.getByTestId('add-comment-modal').getByRole('button', { name: 'Add Remark' }).click();
+            await page.getByRole('button', { name: 'Add Note' }).click();
+            await page.getByTestId('add-comment-modal').getByRole('textbox', { name: 'Enter your note here...' }).fill(remarks.r3);
+            await page.getByTestId('add-comment-modal').getByRole('button', { name: 'Add Note' }).click();
             await page.waitForTimeout(1000);
 
             const [commentResponse] = await Promise.all([
@@ -113,7 +114,7 @@ test.describe('QA-191:create_multiple_remarks.spec', () => {
                     && resp.request().method() === 'GET'
                     && resp.ok()
                 ),
-                page.getByTestId('income-source-details').getByRole('button', { name: 'View Remarks' }).click()
+                page.getByTestId('income-source-details').getByRole('button', { name: 'View Notes' }).click()
             ])
 
             let comments = await waitForJsonResponse(commentResponse)

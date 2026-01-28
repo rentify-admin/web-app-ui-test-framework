@@ -127,7 +127,7 @@ export const verifyIncomeSourcesSection = async (page) => {
  * @param {string[]} expectedFlags - Array of expected flag test IDs
  */
 export const verifyReportFlags = async (page, expectedFlags) => {
-    await page.getByTestId('view-details-btn').click();
+    await page.getByRole('button', { name: 'Alert' }).click();
     
     const detailsSection = page.getByTestId('report-view-details-flags-section');
     

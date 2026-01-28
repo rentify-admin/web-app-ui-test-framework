@@ -10,9 +10,9 @@ import generateSessionForm from './utils/generate-session-form';
 import { getBankData } from './mock-data/high-balance-financial-payload';
 import { searchSessionWithText, navigateToSessionById } from './utils/report-page';
 import { getRandomEmail } from './utils/helper';
-import { setupInviteLinkSession, updateRentBudget, waitForSimulatorConnectionCompletion } from './utils/session-flow';
+import { setupInviteLinkSession, updateRentBudget, waitForSimulatorConnectionCompletion, handleSkipReasonModal } from './utils/session-flow';
 import { fillMultiselect } from './utils/common';
-import { cleanupSession } from './utils/cleanup-helper';
+import { cleanupTrackedSessions } from './utils/cleanup-helper';
 
 /**
  * Handle bank connect info modal that may appear after clicking connect-bank
@@ -67,6 +67,7 @@ async function completeSession(inviteLink, browser, sessionId, customData) {
     const questionStep = applicantPage.getByTestId('pre-screening-step');
     await expect(questionStep).toBeVisible();
     await questionStep.getByTestId('pre-screening-skip-btn').click();
+    await handleSkipReasonModal(applicantPage, "Skipping pre-screening step for test purposes");
 
     // Financial Verification
     const financialStep = applicantPage.getByTestId('financial-verification-step');
@@ -213,16 +214,21 @@ async function splitSession(page, priSessionId, coAppSessionId) {
 
 let cleanpSessionId = null;
 let cleanpCoAppSessionId = null;
-let allTestsPassed = true;
+let createdSessionIds = [];
 
 
 test.describe('QA-210: Check Income Source Regenerate on Split/Merge', () => {
+    test.beforeEach(() => {
+        // Reset per-attempt tracking (important with Playwright retries)
+        createdSessionIds = [];
+        cleanpSessionId = null;
+        cleanpCoAppSessionId = null;
+    });
 
     test('Verify Regenerate Income After Merge/Split', { tag: ['@regression', '@staging-ready', '@rc-ready'] }, async ({ page, browser }) => {
         // --- Setup ---
         test.setTimeout(300_000);
         const appName = 'Autotest - Heartbeat Test - Financial';
-        try {
         const primaryUser = { email: getRandomEmail(), first_name: 'Merge', last_name: 'Primary', password: 'password' };
         const coAppUser = { email: getRandomEmail(), first_name: 'Merge', last_name: 'Coapp' };
 
@@ -236,6 +242,9 @@ test.describe('QA-210: Check Income Source Regenerate on Split/Merge', () => {
         const { sessionId: priSessionId, link: priLink } = await generateSessionForm.generateSessionAndExtractLink(page, primaryUser);
 
         cleanpSessionId = priSessionId;
+        if (priSessionId) {
+            createdSessionIds.push(priSessionId);
+        }
 
         const primaryUserBankData = getBankData(primaryUser);
         await completeSession(priLink, browser, priSessionId, primaryUserBankData);
@@ -246,6 +255,9 @@ test.describe('QA-210: Check Income Source Regenerate on Split/Merge', () => {
         const { sessionId: coAppSessionId, link: coAppLink } = await generateSessionForm.generateSessionAndExtractLink(page, coAppUser);
 
         cleanpCoAppSessionId = coAppSessionId;
+        if (coAppSessionId) {
+            createdSessionIds.push(coAppSessionId);
+        }
 
         const coAppCustomData = getBankData(coAppUser);
         coAppCustomData.institutions[0].accounts[0].account_number = '9123456780';
@@ -368,15 +380,16 @@ test.describe('QA-210: Check Income Source Regenerate on Split/Merge', () => {
         // 7. Split Session
         await splitSession(page, priSessionId, coAppSessionId);
         
-        // Navigate to primary session and wait for household-status-alert (better than fixed wait)
+        // Navigate to primary session and wait for report page to load.
+        // household-status-alert is only visible inside the Alert modal; use Alert button as load indicator.
         const sessionLink = page.locator(`[href="/applicants/all/${priSessionId}"]`);
         await sessionLink.click();
-        await expect(page.getByTestId('household-status-alert')).toBeVisible({ timeout: 10_000 });
+        await expect(page.getByRole('button', { name: /alert/i }).first()).toBeVisible({ timeout: 10_000 });
         
         // Reload and wait for page to be ready
-        await page.reload();
+        await page.reload({ waitUntil: 'domcontentloaded' });
         await page.waitForLoadState('networkidle');
-        await expect(page.getByTestId('household-status-alert')).toBeVisible({ timeout: 10_000 });
+        await expect(page.getByRole('button', { name: /alert/i }).first()).toBeVisible({ timeout: 10_000 });
         
         // Poll for split to complete: verify children array is empty (co-app is now independent)
         console.log('🔍 Polling for split to complete (children should be empty)...');
@@ -420,17 +433,12 @@ test.describe('QA-210: Check Income Source Regenerate on Split/Merge', () => {
         await page.getByTestId('applicants-submenu').click(); // Navigate back to list view
         await navigateToSessionDetail(page, coAppSessionId);
         await checkIncomeSourcesAndAssertVisibility(page, coAppSessionId);
-        } catch (error){
-            console.error('❌ Test failed:', error.message);
-            allTestsPassed = false;
-            throw error;
-        }
     });
 
-    test.afterAll(async ({request}) => {
-        await cleanupSession(request, cleanpSessionId, allTestsPassed);
-        await cleanupSession(request, cleanpCoAppSessionId, allTestsPassed);
-    })
+    // Always cleanup by default; keep artifacts only when KEEP_FAILED_ARTIFACTS=true and test failed
+    test.afterEach(async ({ request }, testInfo) => {
+        await cleanupTrackedSessions({ request, sessionIds: createdSessionIds, testInfo });
+    });
 
 });
 

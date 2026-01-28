@@ -10,23 +10,73 @@ import { pollForFlag } from './polling-helper';
  */
 const checkSessionApproveReject = async (page, sessionId = null) => {
 
+    // ✅ CRITICAL: household-status-alert is INSIDE the Alert modal (EventHistory), not on the main page
+    // We must open the Alert modal FIRST before accessing household-status-alert
+    console.log('🔍 Opening Alert modal to access household-status-alert...');
+    
+    // Check if Alert modal is already open by checking if household-status-alert is visible
+    const householdStatusAlert = page.getByTestId('household-status-alert');
+    const isModalOpen = await householdStatusAlert.isVisible({ timeout: 2000 }).catch(() => false);
+    
+    if (!isModalOpen) {
+        // Open Alert modal by clicking Alert button
+        const alertBtn = page.getByRole('button', { name: /alert/i }).first();
+        await expect(alertBtn).toBeVisible({ timeout: 10_000 });
+        await alertBtn.click();
+        
+        // ✅ FIX: Wait for modal to be visible first (using close button as indicator)
+        // This is faster than waiting for household-status-alert directly
+        const closeModalBtn = page.getByTestId('close-event-history-modal');
+        const modalOpened = await closeModalBtn.isVisible({ timeout: 3_000 }).catch(() => false);
+        
+        if (modalOpened) {
+            // Modal is confirmed open, now wait for household-status-alert with short timeout
+            await expect(householdStatusAlert).toBeVisible({ timeout: 2_000 });
+        } else {
+            // Fallback: If close button not found, wait for household-status-alert directly
+            // (but with shorter timeout since we just clicked)
+            await expect(householdStatusAlert).toBeVisible({ timeout: 3_000 });
+        }
+    } else {
+        // Modal was already open, just verify household-status-alert is still visible
+        await expect(householdStatusAlert).toBeVisible({ timeout: 2_000 });
+    }
+    
+    // There are multiple "session-action-btn" instances on the report page (e.g. report header + household status bar).
+    // Playwright strict mode requires a unique locator, so always scope to the session details container.
+    const detailsActionBtn = page.getByTestId('household-status-alert').getByTestId('session-action-btn');
+
     // Step 1: Approve Session
     // Step 1.1: Locate and click approve button with retry logic
-    const approveBtn = page.getByTestId('approve-session-btn');
+    // We intentionally approve from the *session details* dropdown (household-status-alert),
+    // not any other report/header action menus.
+    const approveBtn = page.getByTestId('household-status-alert').getByTestId('approve-session-btn');
     await page.waitForTimeout(700);
 
+    // ✅ FIX: The approve button is inside a dropdown, so we must open the dropdown FIRST
+    // before checking if the button is visible. The old logic checked visibility before opening.
+    console.log('🔍 Opening session action dropdown to access approve button...');
+    
+    // Open the dropdown by clicking the action button
+    await expect(detailsActionBtn).toBeVisible({ timeout: 10_000 });
+    await detailsActionBtn.click();
+    await page.waitForTimeout(500); // Wait for dropdown animation
+    
+    // Now check if approve button is visible inside the opened dropdown
     // Retry mechanism: Try up to 5 times to make approve button visible
     let maxAttempts = 5;
     let attempt = 0;
-    while (!await approveBtn.isVisible() && attempt < maxAttempts) {
+    while (!await approveBtn.isVisible().catch(() => false) && attempt < maxAttempts) {
         attempt++;
-        console.log(`⚠️ Approve button not visible, clicking session-action-btn (attempt ${attempt}/${maxAttempts})...`);
-        await page.getByTestId('session-action-btn').click();
-        await page.waitForTimeout(1000);
+        console.log(`⚠️ Approve button not visible in dropdown, retrying (attempt ${attempt}/${maxAttempts})...`);
+        
+        // Re-click the dropdown button to ensure it's open
+        await detailsActionBtn.click().catch(() => {});
+        await page.waitForTimeout(500);
     }
 
-    if (!await approveBtn.isVisible()) {
-        throw new Error(`❌ Approve button not visible after ${maxAttempts} attempts`);
+    if (!await approveBtn.isVisible().catch(() => false)) {
+        throw new Error(`❌ Approve button not visible after ${maxAttempts} attempts. Ensure Alert modal is open, dropdown is open, and session is in approvable state.`);
     }
 
     // ✅ Poll until approve button is ENABLED (async flag processing may take time)
@@ -85,13 +135,22 @@ const checkSessionApproveReject = async (page, sessionId = null) => {
 
     // Step 2: Reject Session
     // Step 2.1: Locate and click reject button
-    const actionBtn = await page.getByTestId('session-action-btn');
+    // ✅ FIX: Ensure dropdown is open before accessing reject button (same pattern as approve)
+    const rejectBtn = page.getByTestId('household-status-alert').getByTestId('reject-session-btn');
 
-    await actionBtn.scrollIntoViewIfNeeded();
-
-    await page.waitForTimeout(1000);
-
-    await page.getByTestId('reject-session-btn').click();
+    await detailsActionBtn.scrollIntoViewIfNeeded().catch(() => {});
+    
+    // Open dropdown if not already open (approve button click may have closed it)
+    const rejectVisible = await rejectBtn.isVisible().catch(() => false);
+    if (!rejectVisible) {
+        console.log('🔍 Opening dropdown to access reject button...');
+        await detailsActionBtn.click();
+        await page.waitForTimeout(500); // Wait for dropdown animation
+    }
+    
+    // Ensure reject button is visible before clicking
+    await expect(rejectBtn).toBeVisible({ timeout: 10_000 });
+    await rejectBtn.click();
 
     // Step 2.2: Confirm rejection and wait for response
     const confirmBtn2 = page.getByTestId('confirm-btn');
@@ -185,6 +244,66 @@ const checkAllFlagsSection = async (
 };
 
 /**
+ * Click a session card and wait for the session API response
+ * Handles the case where the session is already selected (won't trigger new API call)
+ * 
+ * @param {import('@playwright/test').Page} page
+ * @param {string} sessionId - Session ID to click
+ * @param {import('@playwright/test').Locator} sessionLocator - Locator for the session card
+ * @returns {Promise<Response>} - The session API response
+ */
+const clickSessionAndWaitForResponse = async (page, sessionId, sessionLocator) => {
+    // Check if session is already selected by checking URL
+    const currentUrl = page.url();
+    const isAlreadySelected = currentUrl.includes(`/sessions/${sessionId}`) || 
+                              currentUrl.includes(`/applicants/all/${sessionId}`) ||
+                              currentUrl.includes(`/applicants/in-review/${sessionId}`) ||
+                              currentUrl.includes(`/applicants/reviewed/${sessionId}`) ||
+                              currentUrl.includes(`/applicants/rejected/${sessionId}`);
+    
+    if (isAlreadySelected) {
+        console.log(`⚠️ Session ${sessionId.substring(0, 25)}... is already selected. Deselecting first...`);
+        
+        // Click a different session first to deselect
+        const allSessionCards = page.locator('.application-card');
+        const sessionCount = await allSessionCards.count();
+        
+        let differentSessionClicked = false;
+        if (sessionCount > 1) {
+            // Find and click a session that is NOT our target
+            for (let i = 0; i < Math.min(sessionCount, 5); i++) {
+                const card = allSessionCards.nth(i);
+                const cardSessionId = await card.getAttribute('data-session');
+                
+                if (cardSessionId && cardSessionId !== sessionId) {
+                    console.log(`   🖱️ Clicking different session to deselect: ${cardSessionId.substring(0, 25)}...`);
+                    await card.click();
+                    await page.waitForTimeout(2000); // Wait for page to load
+                    differentSessionClicked = true;
+                    console.log('   ✅ Different session opened - target session is now deselected');
+                    break;
+                }
+            }
+        }
+        
+        if (!differentSessionClicked) {
+            console.log('   ⚠️ No other session found - will try to click target session anyway');
+        }
+    }
+    
+    // Now click the target session and wait for response
+    const responsePromise = page.waitForResponse(resp => 
+        resp.url().includes(`/sessions/${sessionId}?fields[session]`)
+        && resp.ok()
+        && resp.request().method() === 'GET'
+    , { timeout: 30000 });
+    
+    await sessionLocator.click();
+    
+    return await responsePromise;
+};
+
+/**
  * Search sessions with text
  *
  * @param {import('@playwright/test').Page} page
@@ -194,7 +313,7 @@ const checkAllFlagsSection = async (
 const searchSessionWithText = async (page, searchText) => {
     console.log('🚀 ~ searchSessionWithText called with:', searchText);
 
-    const sessionSearchInput = await page.locator('[id="search_sessions"]');
+    const sessionSearchInput = await page.getByTestId('search-sessions-input');
     
     // Wait for the search input to be ready
     await sessionSearchInput.waitFor({ state: 'visible', timeout: 10_000 });
@@ -265,31 +384,51 @@ const checkRentBudgetEdit = async page => {
 const checkExportPdf = async (page, context, sessionId) => {
     console.log('🚀 Should Allow User to Export Report');
 
-    // ✅ Handle duplicate test-id: If multiple found, use nth(1)
-    let exportBtn = page.getByTestId('export-session-btn');
-    const exportBtnCount = await exportBtn.count();
+    // ✅ CURRENT IMPLEMENTATION (web-app):
+    // - Desktop: Standalone button `button[data-name="Export"]` in Report.vue (line 158)
+    //   Class: "hidden md:flex" means visible on md breakpoint and up (desktop)
+    //   This button is on the MAIN PAGE header, NOT inside the Alert modal (EventHistory)
+    //   It directly calls reportActionRef?.openExportModal() to open the export modal
+    // - Tests run on desktop, so we only need the standalone button
     
-    if (exportBtnCount > 1) {
-        console.log(`   ⚠️ Found ${exportBtnCount} export buttons - using nth(1)`);
-        exportBtn = exportBtn.nth(1);
-    } else if (exportBtnCount === 1) {
-        console.log('   ✅ Found 1 export button');
-        exportBtn = exportBtn.first();
+    // ✅ CRITICAL: Export button is on MAIN PAGE, not in Alert modal
+    // If Alert modal (EventHistory) is open, close it first so we can access the export button
+    const closeModalBtn = page.getByTestId('close-event-history-modal');
+    const isModalOpen = await closeModalBtn.isVisible({ timeout: 2_000 }).catch(() => false);
+    
+    if (isModalOpen) {
+        console.log('🔍 Alert modal is open, closing it to access export button on main page...');
+        await closeModalBtn.click();
+        await page.waitForTimeout(500); // Wait for modal to close
     }
     
-    await page.waitForTimeout(700);
-    if (!await exportBtn.isVisible()) {
-        await page.getByTestId('session-action-btn').click();
+    // Now look for export button on the main page
+    const exportBtn = page.locator('button[data-name="Export"]').first();
+    
+    await exportBtn.scrollIntoViewIfNeeded().catch(() => {});
+    await expect(exportBtn).toBeVisible({ timeout: 10_000 });
+
+    // Click export button and wait for export modal to appear.
+    await exportBtn.click();
+
+    // Export modal selectors have also varied:
+    // - `data-testid="export-pdf-modal"` (current)
+    // - `[role="dialog"]` containing "Export" (legacy)
+    const exportModalByTestId = page.getByTestId('export-pdf-modal');
+    const exportModalByRole = page.locator('[role="dialog"]').filter({ hasText: /Export/i });
+
+    const testIdModalVisible = await exportModalByTestId.isVisible({ timeout: 5000 }).catch(() => false);
+    if (!testIdModalVisible) {
+        await expect(exportModalByRole).toBeVisible({ timeout: 10_000 });
+    } else {
+        await expect(exportModalByTestId).toBeVisible({ timeout: 10_000 });
     }
-    await page.waitForTimeout(600);
-    
-    // Click export button and wait for modal
-    exportBtn.click();
-    await page.waitForTimeout(1000); // Wait for animation
-    await page.locator('[role="dialog"]').filter({ hasText: 'Export' }).waitFor({ state: 'visible' });
-    
-    // Click the income source delist submit button
-    await page.getByTestId('income-source-delist-submit').click();
+    await page.waitForTimeout(500); // Wait for modal animation
+
+    // Click the submit button to export PDF.
+    // NOTE: The app reuses this button id in the export modal.
+    const exportSubmitBtn = page.getByTestId('income-source-delist-submit');
+    await expect(exportSubmitBtn).toBeVisible({ timeout: 10_000 });
 
     const [ pdfResponse, popupPage ] = await Promise.all([
         page.waitForResponse(resp => {
@@ -300,7 +439,8 @@ const checkExportPdf = async (page, context, sessionId) => {
                 && resp.headers()['content-type'] === 'application/pdf'
                 && resp.ok();
         }),
-        page.waitForEvent('popup')
+        page.waitForEvent('popup'),
+        exportSubmitBtn.click()
     ]);
 
     const pdfResponseContentType = pdfResponse.headers()['content-type'];
@@ -331,7 +471,11 @@ const canRequestAdditionalDocuments = async (page, availableChecks = []) => {
     const btn = await page.getByTestId('request-additional-btn');
     await page.waitForTimeout(700);
     if (!await btn.isVisible()) {
-        await page.getByTestId('session-action-btn').click();
+        await page
+            .getByTestId('household-status-alert')
+            .getByTestId('session-action-btn')
+            .or(page.getByTestId('session-action-btn').first())
+            .click();
     }
     await page.waitForTimeout(600);
     await btn.click();
@@ -356,7 +500,10 @@ const canInviteApplicant = async page => {
     const btn = await page.getByTestId('invite-applicant');
     await page.waitForTimeout(1300); //wait for animation
     if (!await btn.isVisible()) {
-        const actionBtn = await page.getByTestId('session-action-btn');
+        const actionBtn = page
+            .getByTestId('household-status-alert')
+            .getByTestId('session-action-btn')
+            .or(page.getByTestId('session-action-btn').first());
         await actionBtn.click();
     }
     await page.waitForTimeout(700);
@@ -383,7 +530,11 @@ const canUploadListOfDocuments = async (page, documents = []) => {
     const btn = await page.getByTestId('upload-document-btn');
     await page.waitForTimeout(2000);
     if (!await btn.isVisible()) {
-        await page.getByTestId('session-action-btn').click();
+        await page
+            .getByTestId('household-status-alert')
+            .getByTestId('session-action-btn')
+            .or(page.getByTestId('session-action-btn').first())
+            .click();
     }
     await btn.click();
     await page.waitForTimeout(1000);
@@ -1099,13 +1250,13 @@ const navigateToSessionByIdAndGetFlags = async (page, sessionId, buildFlagsPredi
     } catch (error) {
         console.log('⚠️  Flags not captured from initial load, trying "View Details" button...');
         
-        // Fallback: Click View Details to trigger flags request
-        const viewDetailsBtn = page.getByTestId('view-details-btn');
-        await expect(viewDetailsBtn).toBeVisible({ timeout: 10000 });
+        // Fallback: Click Alert button to trigger flags request
+        const alertBtn = page.getByRole('button', { name: 'Alert' });
+        await expect(alertBtn).toBeVisible({ timeout: 10000 });
         
         const flagsResponseFallback = await Promise.all([
             page.waitForResponse(buildFlagsPredicate(sessionId), { timeout: 20000 }),
-            viewDetailsBtn.click()
+            alertBtn.click()
         ]);
         
         flags = await waitForJsonResponse(flagsResponseFallback[0]);
@@ -1176,13 +1327,13 @@ const navigateToSessionFlags = async (page, sessionId) => {
         try {
             console.log(`🔄 Attempt ${attempt}/${maxRetries}: Navigating to session flags for session ${sessionId}`);
             
-            // Wait for view-details-btn to be ready first
-            await expect(page.getByTestId('view-details-btn')).toBeVisible({ timeout: 10000 });
+            // Wait for Alert button to be ready first
+            await expect(page.getByRole('button', { name: 'Alert' })).toBeVisible({ timeout: 10000 });
             await page.waitForTimeout(1000); // Allow UI to stabilize
 
-            // Click View Details; flags may already be loaded from a previous request,
+            // Click Alert button; flags may already be loaded from a previous request,
             // so we rely primarily on the UI becoming visible rather than a fresh network call.
-            await page.getByTestId('view-details-btn').click();
+            await page.getByRole('button', { name: 'Alert' }).click();
 
             const flagSection = await page.getByTestId('report-view-details-flags-section');
             await expect(flagSection).toBeVisible({ timeout: 10000 });
@@ -1327,7 +1478,7 @@ async function verifyTransactionErrorAndDeclineFlag(page, randomName) {
     });
     console.log(`📋 Session ID extracted: ${sessionId}`);
 
-    // Verify that "User Error" exists and click it (manual polling up to 45s)
+    // Verify that "Incomplete" exists and click it (manual polling up to 45s)
     const userErrorLink = page.locator('a[href="#"].decoration-error');
     const maxAttempts = 90; // 90 * 500ms = 45s
     let userErrorReady = false;
@@ -1336,7 +1487,7 @@ async function verifyTransactionErrorAndDeclineFlag(page, randomName) {
         try {
             if (await userErrorLink.isVisible()) {
                 const text = (await userErrorLink.textContent())?.trim();
-                if (text === 'User Error') {
+                if (text === 'Incomplete') {
                     userErrorReady = true;
                     break;
                 }
@@ -1348,7 +1499,7 @@ async function verifyTransactionErrorAndDeclineFlag(page, randomName) {
     }
 
     if (!userErrorReady) {
-        throw new Error('User Error link not found with expected text within 45s');
+        throw new Error('Incomplete link not found with expected text within 45s');
     }
 
     await userErrorLink.click();
@@ -1360,8 +1511,8 @@ async function verifyTransactionErrorAndDeclineFlag(page, randomName) {
     // Close the modal, click 'X'
     await page.getByTestId('report-financial-status-modal-cancel').click();
 
-    // Click on 'View Details' button
-    await page.getByTestId('view-details-btn').click();
+    // Click on 'Alert' button
+    await page.getByRole('button', { name: 'Alert' }).click();
 
     // Wait for modal to load
     await page.waitForTimeout(2000);

@@ -66,7 +66,10 @@ test.describe('pdf_download_test', () => {
             // Step 1: Navigate directly to session detail page (no login needed - context has cookies)
             console.log(`📄 Navigating directly to session ${sharedSessionId}...`);
             await page.goto(`/applicants/applicants/${sharedSessionId}`);
-            await expect(page.getByTestId('household-status-alert')).toBeVisible({ timeout: 10_000 });
+            // Wait for Alert button to be visible (indicates report page is loaded)
+            // Note: household-status-alert is only visible inside the Alert modal, so we wait for the button instead
+            // Use flexible text matching since button shows count (e.g., "5 Alerts")
+            await expect(page.getByRole('button', { name: /alert/i })).toBeVisible({ timeout: 10_000 });
             console.log('✅ Session page loaded (using admin authentication from context)');
 
             // Step 2: Export PDF using existing utility function

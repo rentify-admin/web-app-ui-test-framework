@@ -20,41 +20,126 @@ import { randomUUID } from 'crypto';
 import { admin, app } from '~/tests/test_config';
 
 /**
- * Authenticate as admin and get auth token
- * @param {APIRequestContext} request - Playwright request context
- * @returns {Promise<string|null>} Auth token or null if failed
+ * Decide whether to keep artifacts for debugging.
+ * Policy: keep only when KEEP_FAILED_ARTIFACTS=true and the test did not pass.
+ * @param {import('@playwright/test').TestInfo} testInfo
+ * @returns {boolean}
  */
-export async function authenticateAdmin(request) {
-    try {
-        const authResponse = await request.post(`${app.urls.api}/auth`, {
-            data: {
-                email: admin.email,
-                password: admin.password,
-                uuid: randomUUID(),  // ✅ Generate valid random UUID
-                os: 'web'            // ✅ API only accepts 'web' for /auth endpoint
+export function shouldKeepFailedArtifacts(testInfo) {
+    return process.env.KEEP_FAILED_ARTIFACTS === 'true' && testInfo?.status !== 'passed';
+}
+
+/**
+ * Authenticate as admin and get auth token with retry logic for rate limiting
+ * @param {APIRequestContext} request - Playwright request context
+ * @param {Object} options - Retry options
+ * @param {number} options.maxAttempts - Maximum retry attempts (default: 5)
+ * @param {number} options.maxDelay - Maximum delay in milliseconds (default: 30000)
+ * @param {number} options.timeout - Request timeout in milliseconds (default: 30000)
+ * @returns {Promise<string>} Auth token (throws error on failure)
+ * @throws {Error} If authentication fails after all retry attempts
+ */
+export async function authenticateAdmin(request, options = {}) {
+    const maxAttempts = options.maxAttempts || 5;
+    const maxDelay = options.maxDelay || 30000;
+    const timeout = options.timeout || 30000;
+    
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        try {
+            const authResponse = await request.post(`${app.urls.api}/auth`, {
+                data: {
+                    email: admin.email,
+                    password: admin.password,
+                    uuid: randomUUID(),  // ✅ Generate valid random UUID
+                    os: 'web'            // ✅ API only accepts 'web' for /auth endpoint
+                },
+                timeout: timeout  // ✅ Explicit timeout configuration
+            });
+            
+            // ✅ Handle 429 (Rate Limit) specifically
+            if (authResponse.status() === 429) {
+                if (attempt === maxAttempts) {
+                    throw new Error(
+                        `Admin authentication failed after ${maxAttempts} attempts. ` +
+                        `Rate limited (429). Last status: ${authResponse.status()}`
+                    );
+                }
+                
+                // ✅ Respect Retry-After header if present
+                const headers = authResponse.headers();
+                const retryAfterHeader = headers['retry-after'] || headers['Retry-After'];
+                const retryAfterSec = retryAfterHeader ? parseInt(retryAfterHeader, 10) : undefined;
+                
+                // Calculate delay: use Retry-After if available, otherwise exponential backoff
+                const baseDelay = retryAfterSec 
+                    ? retryAfterSec * 1000 
+                    : Math.min(maxDelay, Math.pow(2, attempt) * 250);
+                
+                // Add jitter (0-250ms) to prevent thundering herd
+                const jitter = Math.floor(Math.random() * 250);
+                const delayMs = baseDelay + jitter;
+                
+                console.log(
+                    `⏳ 429 rate limit during admin authentication, ` +
+                    `retrying in ${delayMs}ms (attempt ${attempt}/${maxAttempts})...`
+                );
+                
+                await new Promise(resolve => setTimeout(resolve, delayMs));
+                continue;  // ✅ Retry on 429
             }
-        });
-        
-        // ✅ Check if auth succeeded
-        if (!authResponse.ok()) {
-            const errorText = await authResponse.text();
-            console.error('❌ Cleanup auth failed:', authResponse.status(), errorText);
-            return null;
+            
+            // ✅ Handle other non-200 statuses
+            if (!authResponse.ok()) {
+                const errorText = await authResponse.text().catch(() => 'Unable to read error response');
+                throw new Error(
+                    `Admin authentication failed: HTTP ${authResponse.status()} - ${errorText}`
+                );
+            }
+            
+            // ✅ Parse response and validate token
+            const auth = await authResponse.json();
+            if (!auth?.data?.token) {
+                throw new Error('Admin authentication response missing token');
+            }
+            
+            console.log('✅ Admin authentication successful');
+            return auth.data.token;  // ✅ Success
+        } catch (error) {
+            // ✅ Check if it's a retryable error (429 or network error)
+            const isRateLimit = error.message?.includes('429') || 
+                               error.message?.includes('rate limit') ||
+                               error.message?.includes('Rate limited');
+            const isNetworkError = error.message?.includes('timeout') || 
+                                 error.message?.includes('ECONNRESET') ||
+                                 error.message?.includes('ETIMEDOUT') ||
+                                 error.message?.includes('ENOTFOUND') ||
+                                 error.message?.includes('ECONNREFUSED');
+            
+            // ✅ Retry on rate limit or network errors (except on last attempt)
+            if ((isRateLimit || isNetworkError) && attempt < maxAttempts) {
+                const delayMs = Math.min(maxDelay, Math.pow(2, attempt) * 250);
+                console.log(
+                    `⏳ Retrying admin authentication after error: ${error.message} ` +
+                    `(attempt ${attempt}/${maxAttempts}, delay ${delayMs}ms)...`
+                );
+                await new Promise(resolve => setTimeout(resolve, delayMs));
+                continue;  // ✅ Retry
+            }
+            
+            // ✅ Throw on non-retryable errors or max attempts reached
+            if (attempt === maxAttempts) {
+                throw new Error(
+                    `Admin authentication failed after ${maxAttempts} attempts: ${error.message}`
+                );
+            }
+            
+            // ✅ For other errors, throw immediately (don't retry)
+            throw error;
         }
-        
-        const auth = await authResponse.json();
-        
-        // ✅ Check if token exists
-        if (!auth?.data?.token) {
-            console.error('❌ Cleanup auth missing token');
-            return null;
-        }
-        
-        return auth.data.token;
-    } catch (error) {
-        console.error('❌ Cleanup auth error:', error.message);
-        return null;
     }
+    
+    // This should never be reached, but satisfies static analysis
+    throw new Error('Admin authentication failed: Unexpected error in retry loop');
 }
 
 /**
@@ -241,11 +326,6 @@ export async function cleanupSession(request, sessionId, allTestsPassed = true) 
     
     try {
         const token = await authenticateAdmin(request);
-        if (!token) {
-            console.log(`⚠️ Manual cleanup required - Session: ${sessionId}`);
-            return;
-        }
-        
         const deleted = await deleteSession(request, sessionId, token);
         if (!deleted) {
             console.log(`⚠️ Manual cleanup required - Session: ${sessionId}`);
@@ -253,6 +333,40 @@ export async function cleanupSession(request, sessionId, allTestsPassed = true) 
     } catch (error) {
         console.error('❌ Cleanup error:', error.message);
         console.log(`⚠️ Manual cleanup required - Session: ${sessionId}`);
+    }
+}
+
+/**
+ * Cleanup a single session following the KEEP_FAILED_ARTIFACTS policy.
+ * @param {APIRequestContext} request
+ * @param {string|null} sessionId
+ * @param {import('@playwright/test').TestInfo} testInfo
+ */
+export async function cleanupTrackedSession(request, sessionId, testInfo) {
+    const shouldKeep = shouldKeepFailedArtifacts(testInfo);
+    await cleanupSession(request, sessionId, !shouldKeep);
+}
+
+/**
+ * Cleanup a list of tracked sessions following the KEEP_FAILED_ARTIFACTS policy.
+ * Drains the array for retry-safety (so retries don't double-delete).
+ *
+ * @param {Object} params
+ * @param {APIRequestContext} params.request
+ * @param {string[]} params.sessionIds - mutable array that will be drained
+ * @param {import('@playwright/test').TestInfo} params.testInfo
+ */
+export async function cleanupTrackedSessions({ request, sessionIds, testInfo }) {
+    const shouldKeep = shouldKeepFailedArtifacts(testInfo);
+    const uniqueIds = Array.from(new Set((sessionIds || []).filter(Boolean)));
+
+    // Drain the caller-owned array to avoid double cleanup on retries.
+    if (Array.isArray(sessionIds)) {
+        sessionIds.splice(0, sessionIds.length);
+    }
+
+    for (const sessionId of uniqueIds) {
+        await cleanupSession(request, sessionId, !shouldKeep);
     }
 }
 
@@ -276,11 +390,6 @@ export async function cleanupApplication(request, applicationId, allTestsPassed 
     
     try {
         const token = await authenticateAdmin(request);
-        if (!token) {
-            console.log(`⚠️ Manual cleanup required - Application: ${applicationId}`);
-            return;
-        }
-        
         const deleted = await deleteApplication(request, applicationId, token);
         if (!deleted) {
             console.log(`⚠️ Manual cleanup required - Application: ${applicationId}`);
@@ -354,6 +463,137 @@ export async function cleanupUser(dataManager, user, allTestsPassed = true) {
 }
 
 /**
+ * Delete an organization member via API
+ * @param {APIRequestContext} request - Playwright request context
+ * @param {string} organizationId - Organization ID
+ * @param {string} memberId - Member ID to delete
+ * @param {string} token - Auth token
+ * @returns {Promise<boolean>} True if deletion succeeded
+ */
+async function deleteOrganizationMember(request, organizationId, memberId, token) {
+    try {
+        // First, try to get member details to log email (optional, for better logging)
+        let memberEmail = memberId;
+        try {
+            const getResponse = await request.get(
+                `${app.urls.api}/organizations/${organizationId}/members/${memberId}?fields[member]=id,user`,
+                {
+                    headers: { Authorization: `Bearer ${token}` }
+                }
+            );
+            if (getResponse.ok()) {
+                const memberData = await getResponse.json();
+                memberEmail = memberData?.data?.user?.email || memberId;
+            }
+        } catch {
+            // If we can't get member details, just use ID
+        }
+        
+        const deleteResponse = await request.delete(
+            `${app.urls.api}/organizations/${organizationId}/members/${memberId}`,
+            {
+                headers: { Authorization: `Bearer ${token}` }
+            }
+        );
+        
+        if (deleteResponse.ok() || deleteResponse.status() === 204) {
+            console.log(`✅ Member deleted successfully: ${memberEmail} (ID: ${memberId})`);
+            return true;
+        } else {
+            const errorText = await deleteResponse.text().catch(() => '');
+            console.log(`⚠️ Failed to delete member ${memberEmail} (ID: ${memberId}): ${deleteResponse.status()} - ${errorText}`);
+            return false;
+        }
+    } catch (error) {
+        console.error(`❌ Member deletion error for ${memberId}:`, error.message);
+        return false;
+    }
+}
+
+/**
+ * Clean up organization members (delete archived members via API)
+ * @param {APIRequestContext} request - Playwright request context
+ * @param {string} organizationId - Organization ID
+ * @param {Array} memberIds - Array of member IDs to delete
+ * @param {boolean} allTestsPassed - Whether all tests passed (default: true)
+ * @returns {Promise<void>}
+ */
+export async function cleanupOrganizationMembers(request, organizationId, memberIds = [], allTestsPassed = true) {
+    if (!memberIds || memberIds.length === 0) {
+        console.log('ℹ️  No members to clean up');
+        return;
+    }
+    
+    if (!organizationId) {
+        console.log(`⚠️  Organization ID missing - cannot clean up ${memberIds.length} member(s)`);
+        return;
+    }
+    
+    if (!allTestsPassed) {
+        console.log(`⚠️ Keeping ${memberIds.length} archived member(s) for debugging (IDs: ${memberIds.join(', ')})`);
+        return;
+    }
+    
+    try {
+        console.log(`🧹 Starting cleanup of ${memberIds.length} archived member(s) from organization ${organizationId}...`);
+        const token = await authenticateAdmin(request);
+        
+        // First, get member details to log emails
+        const memberDetails = [];
+        for (const memberId of memberIds) {
+            try {
+                const getResponse = await request.get(
+                    `${app.urls.api}/organizations/${organizationId}/members/${memberId}?fields[member]=id,user`,
+                    {
+                        headers: { Authorization: `Bearer ${token}` }
+                    }
+                );
+                if (getResponse.ok()) {
+                    const memberData = await getResponse.json();
+                    memberDetails.push({
+                        id: memberId,
+                        email: memberData?.data?.user?.email || 'unknown'
+                    });
+                } else {
+                    memberDetails.push({ id: memberId, email: 'unknown (not found)' });
+                }
+            } catch {
+                memberDetails.push({ id: memberId, email: 'unknown (error fetching)' });
+            }
+        }
+        
+        console.log(`📋 Members to delete: ${memberDetails.map(m => `${m.email} (${m.id})`).join(', ')}`);
+        
+        let successCount = 0;
+        let failCount = 0;
+        
+        for (const memberDetail of memberDetails) {
+            const deleted = await deleteOrganizationMember(request, organizationId, memberDetail.id, token);
+            if (deleted) {
+                successCount++;
+            } else {
+                failCount++;
+            }
+        }
+        
+        console.log(`🧹 Member cleanup complete: ${successCount} deleted, ${failCount} failed`);
+        
+        if (failCount > 0) {
+            const failedMembers = memberDetails.filter((_, idx) => {
+                // This is a simplified check - in real scenario, track which ones failed
+                return idx >= successCount;
+            });
+            console.log(`⚠️ Manual cleanup may be required for: ${failedMembers.map(m => m.email).join(', ')}`);
+        } else {
+            console.log(`✅ All members successfully deleted: ${memberDetails.map(m => m.email).join(', ')}`);
+        }
+    } catch (error) {
+        console.error('❌ Member cleanup error:', error.message);
+        console.log(`⚠️ Manual cleanup required - ${memberIds.length} archived member(s) (IDs: ${memberIds.join(', ')})`);
+    }
+}
+
+/**
  * Complete cleanup for permission tests (session + contexts + user)
  * ✅ Centralized cleanup - handles everything in one place
  * 
@@ -385,12 +625,8 @@ export async function cleanupPermissionTest(
         try {
             console.log('🧹 Deleting test user...');
             const token = await authenticateAdmin(request);
-            if (token) {
-                const deleted = await deleteUser(request, user.id, token);
-                if (!deleted) {
-                    console.log(`⚠️ Manual cleanup required - User: ${user.email} (ID: ${user.id})`);
-                }
-            } else {
+            const deleted = await deleteUser(request, user.id, token);
+            if (!deleted) {
                 console.log(`⚠️ Manual cleanup required - User: ${user.email} (ID: ${user.id})`);
             }
         } catch (cleanupError) {

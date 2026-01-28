@@ -2,7 +2,7 @@ import { expect, test } from "./fixtures/api-data-fixture";
 import { getBankConnectionData } from "./mock-data/high-balance-financial-payload";
 import { admin, app } from "./test_config";
 import { findAndInviteApplication } from "./utils/applications-page";
-import { cleanupSession } from "./utils/cleanup-helper";
+import { cleanupTrackedSessions } from "./utils/cleanup-helper";
 import generateSessionForm from "./utils/generate-session-form";
 import { getAmount, joinUrl } from "./utils/helper";
 import { findSessionLocator, searchSessionWithText } from "./utils/report-page";
@@ -11,15 +11,19 @@ import { adminLoginAndNavigateToApplications, gotoIncomeSourceAndCheckVisibility
 import { waitForJsonResponse } from "./utils/wait-response";
 
 
-let createdSessionId = null;
-let allTestsPassed = true;
+let createdSessionIds = [];
 
 const appName = 'AutoTest - Simulation financial employment';
 test.describe('QA-219: merged_transactions_ui_display.spec', () => {
 
-    // ✅ Cleanup session after test
-    test.afterAll(async ({ request }) => {
-        await cleanupSession(request, createdSessionId, allTestsPassed);
+    test.beforeEach(() => {
+        // Reset per-attempt tracking (important with Playwright retries)
+        createdSessionIds = [];
+    });
+
+    // Always cleanup by default; keep artifacts only when KEEP_FAILED_ARTIFACTS=true and test failed
+    test.afterEach(async ({ request }, testInfo) => {
+        await cleanupTrackedSessions({ request, sessionIds: createdSessionIds, testInfo });
     });
 
     /**
@@ -64,32 +68,33 @@ test.describe('QA-219: merged_transactions_ui_display.spec', () => {
         tag: ['@regression', '@staging-ready', '@rc-ready'],
         timeout: 180_000
     }, async ({ page, browser }) => {
-        try {
-            console.log("➡️ Logging in as admin and navigating to applications page...");
-            await adminLoginAndNavigateToApplications(page, admin);
+        console.log("➡️ Logging in as admin and navigating to applications page...");
+        await adminLoginAndNavigateToApplications(page, admin);
 
-            console.log(`➡️ Finding and inviting application: "${appName}"`);
-            await findAndInviteApplication(page, appName);
+        console.log(`➡️ Finding and inviting application: "${appName}"`);
+        await findAndInviteApplication(page, appName);
 
-            const user = {
-                first_name: 'Transaction',
-                last_name: 'Merge',
-                email: 'playwright+mergetransaction@verifast.com'
-            };
+        const user = {
+            first_name: 'Transaction',
+            last_name: 'Merge',
+            email: 'playwright+mergetransaction@verifast.com'
+        };
 
-            console.log("➡️ Generating session form and invite link for user:", user);
-            const { sessionId, sessionUrl, link } = await generateSessionForm.generateSessionAndExtractLink(page, user);
+        console.log("➡️ Generating session form and invite link for user:", user);
+        const { sessionId, sessionUrl, link } = await generateSessionForm.generateSessionAndExtractLink(page, user);
 
-            createdSessionId = sessionId;
+        if (sessionId) {
+            createdSessionIds.push(sessionId);
+        }
 
-            console.log("➡️ Starting applicant session flow...");
-            const applicantPage = await startSessionFlow(link, browser);
+        console.log("➡️ Starting applicant session flow...");
+        const applicantPage = await startSessionFlow(link, browser);
 
-            console.log("➡️ Setting up applicant (invite link session)...");
-            await setupInviteLinkSession(applicantPage);
+        console.log("➡️ Setting up applicant (invite link session)...");
+        await setupInviteLinkSession(applicantPage);
 
-            console.log("➡️ Updating rent budget for applicant...");
-            await updateRentBudget(applicantPage, sessionId, '500');
+        console.log("➡️ Updating rent budget for applicant...");
+        await updateRentBudget(applicantPage, sessionId, '500');
 
             // Financial Step
             const financialStep = applicantPage.getByTestId('financial-verification-step');
@@ -231,12 +236,7 @@ test.describe('QA-219: merged_transactions_ui_display.spec', () => {
                 }
             }
 
-            console.log("✅ All main UI validations for merged transactions display complete!");
-        } catch (err) {
-            console.error('❌ Test failed:', err.message);
-            allTestsPassed = false;
-            throw err;
-        }
+        console.log("✅ All main UI validations for merged transactions display complete!");
     });
 
 })

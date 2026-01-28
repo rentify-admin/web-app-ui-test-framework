@@ -8,16 +8,16 @@ import {
     setupInviteLinkSession,
     updateRentBudget,
     completeIdentityStepViaAPI,
-    completeEmploymentStepViaAPI
+    completeEmploymentStepViaAPI,
+    handleSkipReasonModal
 } from '~/tests/utils/session-flow';
-import { cleanupSession } from './utils/cleanup-helper';
+import { cleanupTrackedSessions } from './utils/cleanup-helper';
 
 // Test configuration
 const applicationName = 'AutoTest - Request Doc UI test';
 
-let createdSessionId = null;
 let applicantContext = null;
-let allTestsPassed = true;
+let createdSessionIds = [];
 
 /**
  * Utility: Authenticate a guest using an invitation link and return a bearer token
@@ -73,13 +73,18 @@ async function openAndSubmitRequestDialog(page) {
 
 test.describe('request_additional_information', () => {
     test.setTimeout(360000); // Set timeout for the suite
+
+    test.beforeEach(() => {
+        // Reset per-attempt tracking (important with Playwright retries)
+        createdSessionIds = [];
+        applicantContext = null;
+    });
     
     test('Document Request: Complete validation (happy path + negative tests) @request-docs @integration @permissions @state-safetys @negative @validation @network-error @regression @staging-ready @rc-ready', async ({ page, context }) => {
         
-        try {
-            // Error collection for comprehensive validation
-            const errors = [];
-            let sessionId, link, primaryAuthToken, applicantCtx, adminToken;
+        // Error collection for comprehensive validation
+        const errors = [];
+        let sessionId, link, primaryAuthToken, applicantCtx, adminToken;
         
         // =================================================================
         // PART 1: HAPPY PATH - Document Request Flow
@@ -105,7 +110,9 @@ test.describe('request_additional_information', () => {
         });
             sessionId = sessionData.sessionId;
             link = sessionData.link;
-            createdSessionId = sessionId;  // Store for cleanup
+            if (sessionId) {
+                createdSessionIds.push(sessionId);  // Store for cleanup (retry-safe)
+            }
             
             console.log(`✅ Session created: ${sessionId}`);
 
@@ -125,6 +132,8 @@ test.describe('request_additional_information', () => {
             // Skip Applicants step (stay on flow)
             try {
                 await applicantPage.getByTestId('applicant-invite-skip-btn').click({ timeout: 10_000 });
+                // Handle skip reason modal if it appears
+                await handleSkipReasonModal(applicantPage, "Skipping applicants step for test purposes");
                 await applicantPage.waitForTimeout(1000);
             } catch (_) { /* if not present, continue */ }
 
@@ -142,6 +151,8 @@ test.describe('request_additional_information', () => {
             console.log('⏳ Waiting for skip-financials-btn to appear...');
             await applicantPage.getByTestId('skip-financials-btn').waitFor({ state: 'visible', timeout: 30000 });
             await applicantPage.getByTestId('skip-financials-btn').click();
+            // Handle skip reason modal if it appears
+            await handleSkipReasonModal(applicantPage, "Skipping financial step for test purposes");
             console.log('✅ Financial step skipped');
 
             // Wait for Employment step to load - document-pay_stub should appear
@@ -283,7 +294,7 @@ test.describe('request_additional_information', () => {
             await page.goto(joinUrl(app.urls.app, `applicants/all/${sessionId}`));
             
             // Click view details button to open the events panel
-            await page.getByTestId('view-details-btn').click();
+            await page.getByRole('button', { name: 'Alert' }).click();
             await page.waitForTimeout(1000);
             console.log('✅ View details panel opened');
             
@@ -525,20 +536,15 @@ test.describe('request_additional_information', () => {
         
         console.log('\n✅ ALL VALIDATIONS PASSED (Happy Path + Negative Tests)');
         
-        } catch (error) {
-            allTestsPassed = false;
-            throw error;
-        }
     });
     
-    // ✅ Conditional cleanup: Keep session on failure for debugging
-    test.afterAll(async ({ request }) => {
+    // Always cleanup by default; keep artifacts only when KEEP_FAILED_ARTIFACTS=true and test failed
+    test.afterEach(async ({ request }, testInfo) => {
         console.log('🧹 Starting cleanup...');
-        console.log(`   Session ID: ${createdSessionId || 'none'}`);
-        console.log(`   All tests passed: ${allTestsPassed}`);
-        
-        // Clean up session (conditional - only if tests passed)
-        await cleanupSession(request, createdSessionId, allTestsPassed);
+        console.log(`   Sessions: ${createdSessionIds.length ? createdSessionIds.join(', ') : 'none'}`);
+        console.log(`   KEEP_FAILED_ARTIFACTS: ${process.env.KEEP_FAILED_ARTIFACTS === 'true'}`);
+        console.log(`   Status: ${testInfo.status}`);
+        await cleanupTrackedSessions({ request, sessionIds: createdSessionIds, testInfo });
         
         // Close context (always)
         if (applicantContext) {

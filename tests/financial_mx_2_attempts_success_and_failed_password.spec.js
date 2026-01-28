@@ -10,6 +10,7 @@ import { waitForJsonResponse } from '~/tests/utils/wait-response';
 import { gotoApplicationsPage, searchApplication } from '~/tests/utils/applications-page';
 import { setupInviteLinkSession, handleOptionalTermsCheckbox, handleOptionalStateModal } from '~/tests/utils/session-flow';
 import { cleanupSessionAndContexts } from './utils/cleanup-helper';
+import { pollForApprovalStatus } from './utils/polling-helper';
 
 const API_URL = config.app.urls.api;
 const APP_URL = config.app.urls.app;
@@ -136,9 +137,8 @@ test.describe('financial_mx_2_attempts_success_and_failed_password', () => {
         
         try { 
         // Step 1: Admin Login and Navigate
-        await loginForm.fill(page, admin);
-        await loginForm.submitAndSetLocale(page);
-        await expect(page).toHaveTitle(/Applicants/, { timeout: 10_000 });
+        const adminAuthToken = await loginForm.adminLoginAndNavigate(page, admin);
+        expect(adminAuthToken).toBeTruthy();
 
         await gotoApplicationsPage(page);
 
@@ -601,51 +601,21 @@ test.describe('financial_mx_2_attempts_success_and_failed_password', () => {
         await page.goto(sessionUrlAdmin);
         await page.bringToFront();
         
+        // Wait for page to load - Alert button indicates report page is ready
+        // Use flexible text matching since button shows count (e.g., "5 Alerts")
+        await expect(page.getByRole('button', { name: /alert/i })).toBeVisible({ timeout: 10_000 });
+        
         // Wait for income sources to be generated from MX connection
         console.log('   Waiting for income source generation from MX data...');
         await page.waitForTimeout(5000);
         
-        const householdStatusAlert = page.getByTestId('household-status-alert');
-        await expect(householdStatusAlert).toBeVisible();
-        
-        // Step 7: Assert initial status - MX income should be sufficient for $500 rent
-        console.log('Step 7: Asserting initial status - Meets Criteria');
-        
-        // Poll for "Meets Criteria" status (max 120 seconds)
-        console.log('   ⏳ Polling for "Meets Criteria" status...');
-        let initialStatusFound = false;
-        const initialStatusMaxAttempts = 60; // 60 attempts * 2 seconds = 120 seconds max
-        const initialStatusPollInterval = 2000;
-        
-        for (let attempt = 0; attempt < initialStatusMaxAttempts; attempt++) {
-            const statusText = await householdStatusAlert.textContent();
-            
-            if (statusText.includes('Meets Criteria')) {
-                console.log(`   ✅ Status: Meets Criteria (found after ${attempt + 1} attempts)`);
-                initialStatusFound = true;
-                break;
-            }
-            
-            if (attempt < initialStatusMaxAttempts - 1) {
-                console.log(`   Attempt ${attempt + 1}/${initialStatusMaxAttempts}: Current status "${statusText}", waiting...`);
-                await page.waitForTimeout(initialStatusPollInterval);
-                
-                // Reload every 3 attempts to refresh state
-                if (attempt > 0 && attempt % 3 === 0) {
-                    console.log('   🔄 Reloading page to refresh session state...');
-                    await page.reload();
-                    await handleModalsAfterReloadAdmin(page);
-                    await page.waitForTimeout(2000);
-                }
-            }
-        }
-        
-        if (!initialStatusFound) {
-            const finalStatus = await householdStatusAlert.textContent();
-            throw new Error(`Expected "Meets Criteria" but got: "${finalStatus}" after 120 seconds`);
-        }
-        
-        console.log('   ✅ Status: Meets Criteria (MX income sufficient for $500 rent)');
+        // Step 7: Assert initial status (API) - avoids depending on household UI
+        console.log('Step 7: Asserting initial status (API) - APPROVED (MX income sufficient for $500 rent)');
+        await pollForApprovalStatus(page, sessionId, adminAuthToken, {
+            expectedStatus: 'APPROVED',
+            apiUrl: API_URL,
+            maxPollTime: 120_000
+        });
         
         // Step 8: Increase rent to $3000 - Income should become insufficient
         console.log('Step 8: Increasing rent to $3000 (should fail criteria)');
@@ -660,40 +630,16 @@ test.describe('financial_mx_2_attempts_success_and_failed_password', () => {
         await page.waitForTimeout(2000);
         await page.reload();
         await handleModalsAfterReloadAdmin(page);
+        // Wait for page to load - Alert button indicates report page is ready
+        await expect(page.getByRole('button', { name: /alert/i })).toBeVisible({ timeout: 10_000 });
         
-        // Poll for "Criteria Not Met" status (max 60 seconds)
-        console.log('   ⏳ Polling for "Criteria Not Met" status...');
-        let statusFound = false;
-        const statusMaxAttempts = 30; // 30 attempts * 2 seconds = 60 seconds max
-        const statusPollInterval = 2000;
-        
-        for (let attempt = 0; attempt < statusMaxAttempts; attempt++) {
-            const statusText = await householdStatusAlert.textContent();
-            
-            if (statusText.includes('Criteria Not Met')) {
-                console.log(`   ✅ Status: Criteria Not Met (found after ${attempt + 1} attempts)`);
-                statusFound = true;
-                break;
-            }
-            
-            if (attempt < statusMaxAttempts - 1) {
-                console.log(`   Attempt ${attempt + 1}/${statusMaxAttempts}: Current status "${statusText}", waiting...`);
-                await page.waitForTimeout(statusPollInterval);
-                
-                // Reload every 3 attempts to refresh state
-                if (attempt > 0 && attempt % 3 === 0) {
-                    console.log('   🔄 Reloading page to refresh session state...');
-                    await page.reload();
-                    await handleModalsAfterReloadAdmin(page);
-                    await page.waitForTimeout(2000);
-                }
-            }
-        }
-        
-        if (!statusFound) {
-            const finalStatus = await householdStatusAlert.textContent();
-            throw new Error(`Expected "Criteria Not Met" but got: "${finalStatus}" after 60 seconds`);
-        }
+        // Poll for status (API): rent increased, should be rejected
+        console.log('   ⏳ Polling for approval_status = REJECTED (API) after rent increased...');
+        await pollForApprovalStatus(page, sessionId, adminAuthToken, {
+            expectedStatus: 'REJECTED',
+            apiUrl: API_URL,
+            maxPollTime: 60_000
+        });
         
         // Step 9: Add manual income source of $3000 - Should meet criteria again
         console.log('Step 9: Adding manual income source $3000 (should meet criteria)');
@@ -736,38 +682,19 @@ test.describe('financial_mx_2_attempts_success_and_failed_password', () => {
         const incomeSource = page.getByTestId(`income-source-${incomeSourceId}`);
         await expect(incomeSource).toBeVisible();
         
-        // Step 10: Verify status changed back to Meets Criteria
-        console.log('Step 10: Verifying status returns to "Meets Criteria"...');
+        // Step 10: Verify status changed back to APPROVED (API)
+        console.log('Step 10: Verifying status returns to APPROVED (API) after adding manual income...');
         await page.reload();
         await handleModalsAfterReloadAdmin(page);
+        // Wait for page to load - Alert button indicates report page is ready
+        await expect(page.getByRole('button', { name: /alert/i })).toBeVisible({ timeout: 10_000 });
 
-        const statusBackToCriteriaMaxPolls = 20;
-        const statusBackToCriteriaInterval = 2000;
-        let statusBackToCriteriaMatched = false;
-
-        for (let i = 0; i < statusBackToCriteriaMaxPolls; i++) {
-            const bannerText = await householdStatusAlert.innerText();
-            console.log(`📊 UI status banner after manual income (poll ${i + 1}/${statusBackToCriteriaMaxPolls}): ${bannerText}`);
-            if (bannerText.includes('Meets Criteria')) {
-                statusBackToCriteriaMatched = true;
-                break;
-            }
-
-            if (i % 5 === 4) {
-                console.log('   🔄 Reloading page to refresh UI state...');
-                await page.reload();
-                await handleModalsAfterReloadAdmin(page);
-            }
-
-            await page.waitForTimeout(statusBackToCriteriaInterval);
-        }
-
-        if (!statusBackToCriteriaMatched) {
-            throw new Error('Expected UI status to contain "Meets Criteria" but it never updated after adding manual income.');
-        }
-
-        await expect(householdStatusAlert).toContainText('Meets Criteria', { timeout: 5_000 });
-        console.log('   ✅ Status: Meets Criteria (total income now sufficient for $3000 rent)');
+        await pollForApprovalStatus(page, sessionId, adminAuthToken, {
+            expectedStatus: 'APPROVED',
+            apiUrl: API_URL,
+            maxPollTime: 120_000
+        });
+        console.log('   ✅ Status: APPROVED (API) after adding manual income');
         
         console.log('\n✅ Part 2 Complete: Eligibility status transitions validated');
         console.log('🎉 Full test passed: MX connections + Additional connect modal + Eligibility logic');

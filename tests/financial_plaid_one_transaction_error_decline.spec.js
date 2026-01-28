@@ -4,12 +4,19 @@ import { admin } from '~/tests/test_config';
 import { generateSessionForApplication, completeApplicantInitialSetup, navigateToApplicants, navigateToDashboard } from './utils/applications-page';
 import { verifyTransactionErrorAndDeclineFlag } from './utils/report-page';
 import { plaidFinancialConnect } from './utils/session-flow';
+import { cleanupTrackedSessions } from './utils/cleanup-helper';
 
 // Test: Financial - plaid - one or less transaction error, no income with complete verification has decline flag
 
 test.describe('financial_plaid_one_transaction_error_decline', () => {
     test.describe.configure({ 
         timeout: 300000 // 5 minutes - increased for external Plaid integration and flag polling
+    });
+
+    const createdSessionIds = [];
+
+    test.afterEach(async ({ request }, testInfo) => {
+        await cleanupTrackedSessions({ request, sessionIds: createdSessionIds, testInfo });
     });
 
     test('Should handle Plaid Fin verification with insufficient transactions and decline flag', { 
@@ -37,6 +44,8 @@ test.describe('financial_plaid_one_transaction_error_decline', () => {
         };
 
         const { sessionData, link } = await generateSessionForApplication(page, appName, userData);
+        const sessionId = sessionData?.data?.id;
+        if (sessionId) createdSessionIds.push(sessionId);
 
         // Step 5: Complete applicant initial setup
         await completeApplicantInitialSetup(page, link, '555');

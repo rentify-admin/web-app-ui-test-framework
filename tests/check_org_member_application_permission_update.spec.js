@@ -13,11 +13,9 @@ test('Admin should be able to update an organization member\'s application permi
 
         console.log('🚀 Login with the admin credentials...');
         await loginForm.fill(page, admin);
+        // submitAndSetLocale already waits for side-panel and session loading
         await loginForm.submitAndSetLocale(page);
-
-        console.log('🚀 Wait for session page to load...');
-        await expect(page.getByTestId('household-status-alert')).toBeVisible({ timeout: 10_000 });
-        console.log('✅ Session page loaded successfully.');
+        console.log('✅ Login completed and applicants page loaded.');
 
         console.log('🚀 Go to organization page...');
         console.log('🚀 Click on organization main menu');

@@ -15,13 +15,12 @@ import {
 } from '~/tests/utils/session-flow';
 import { findAndCopyApplication, gotoApplicationsPage } from '~/tests/utils/applications-page';
 import { navigateToSessionById, searchSessionWithText } from './utils/report-page';
-import { cleanupSession } from '~/tests/utils/cleanup-helper';
+import { cleanupTrackedSessions } from '~/tests/utils/cleanup-helper';
 
 const applicationName = 'AutoTest Suite Hshld-ID-Emp-Fin with skips';
 
-// Global state for conditional cleanup
-let sessionId = null;
-let allTestsPassed = true;
+// Per-attempt cleanup tracking (retry-safe)
+let createdSessionIds = [];
 
 // Generate random phone number for testing
 const generateRandomPhone = () => {
@@ -31,11 +30,14 @@ const generateRandomPhone = () => {
 
 test.describe('hosted_app_copy_verify_flow_plaid_id_emp_skip', () => {
     test.setTimeout(200_000);
+    test.beforeEach(() => {
+        createdSessionIds = [];
+    });
+
     test('Should complete hosted application flow with id emp skips and Plaid integration', {
         tag: ['@smoke', '@regression', '@needs-review', '@external-integration'],
         
     }, async ({ page, browser }) => {
-        try {
             // Step 1: Admin login and navigate to applications
             await loginForm.adminLoginAndNavigate(page, admin);
 
@@ -84,7 +86,10 @@ test.describe('hosted_app_copy_verify_flow_plaid_id_emp_skip', () => {
             ]);
 
             const { data: session } = await waitForJsonResponse(sessionResp);
-            sessionId = session?.id;
+            const sessionId = session?.id;
+            if (sessionId) {
+                createdSessionIds.push(sessionId);
+            }
             console.log(`✅ Session created: ${sessionId}`);
             await handleOptionalTermsCheckbox(page);
 
@@ -196,14 +201,10 @@ test.describe('hosted_app_copy_verify_flow_plaid_id_emp_skip', () => {
             await page.waitForTimeout(3000);
 
             console.log('✅ All test assertions passed');
-        } catch (error) {
-            allTestsPassed = false;
-            throw error;
-        }
     });
 
-    // ✅ Conditional cleanup (from master - keeps cleanup functionality)
-    test.afterAll(async ({ request }) => {
-        await cleanupSession(request, sessionId, allTestsPassed);
+    // Always cleanup by default; keep artifacts only when KEEP_FAILED_ARTIFACTS=true and test failed
+    test.afterEach(async ({ request }, testInfo) => {
+        await cleanupTrackedSessions({ request, sessionIds: createdSessionIds, testInfo });
     });
 });

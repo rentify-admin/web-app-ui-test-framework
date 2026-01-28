@@ -27,9 +27,11 @@ test.describe('QA-215 default_applicant_type_override_in_application_workflow_st
 
     test.beforeAll(async ({ request }) => {
         // if Workflow not found then create workflow with required configuration
-        const token = await authenticateAdmin(request);
-        if (!token) {
-            console.log(`⚠️ Manual workflow creation not triggered`);
+        let token;
+        try {
+            token = await authenticateAdmin(request);
+        } catch (error) {
+            console.log(`⚠️ Manual workflow creation not triggered: ${error.message}`);
             return;
         }
         // Constants for workflow creation

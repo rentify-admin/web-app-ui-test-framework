@@ -13,8 +13,8 @@ const loginWith = async (page, data) => {
     // Step 1: Admin Login and Navigate
     await loginForm.fill(page, data);
     await loginForm.submitAndSetLocale(page);
+    // submitAndSetLocale() already waits for side-panel and sessions to load
     await expect(page).toHaveTitle(/Applicants/, { timeout: 10_000 });
-    await expect(page.getByTestId('household-status-alert')).toBeVisible();
 };
 
 /**
@@ -27,6 +27,7 @@ const adminLoginAndNavigateToApplications = async (page, data) => {
     await loginWith(page, data);
     await page.getByTestId('applications-menu').click();
     await page.getByTestId('applications-submenu').click();
+    await page.waitForTimeout(1500); // Wait after navigation to allow menu state to settle
 };
 
 /**
