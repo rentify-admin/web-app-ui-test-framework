@@ -24,6 +24,38 @@ const gotoPage = async (page, parentMenuTestId, submenuTestId, url, urlRegex = f
         await page.getByTestId(parentMenuTestId).click();
     }
 
+    // Check if submenu is already selected/active
+    const submenuLocator = page.getByTestId(submenuTestId);
+    const isActive = await submenuLocator.evaluate(el => {
+        return el.classList.contains('sidebar-active');
+    }).catch(() => false);
+
+    if (isActive) {
+        console.log(`🔄 ~ Submenu ${submenuTestId} is already active, clicking a different submenu first...`);
+        
+        // Strategy: Click a DIFFERENT submenu first to deselect the target
+        // This ensures a fresh click will trigger API calls (similar to prepareSessionForFreshSelection)
+        // Find all submenus within the navItem using data-testid (no class selectors)
+        const allSubmenuTestIds = await navItem.locator('[data-testid]').evaluateAll(elements => {
+            return elements
+                .map(el => el.getAttribute('data-testid'))
+                .filter(testId => testId && testId.includes('submenu') && testId !== null);
+        }).catch(() => []);
+        
+        // Find a different submenu to click
+        const differentSubmenuTestId = allSubmenuTestIds.find(testId => testId !== submenuTestId);
+        
+        if (differentSubmenuTestId) {
+            console.log(`   🖱️ Clicking different submenu: ${differentSubmenuTestId}`);
+            const differentSubmenu = page.getByTestId(differentSubmenuTestId);
+            await differentSubmenu.click();
+            await page.waitForTimeout(2000); // Wait for navigation to complete
+            console.log(`   ✅ Different submenu clicked - target is now deselected`);
+        } else {
+            console.log(`   ⚠️ No other submenu found - proceeding anyway`);
+        }
+    }
+
     console.log(`🚀 ~ Waiting for response to ${url}`);
     const [listResponse] = await Promise.all([
         page.waitForResponse(resp => {
