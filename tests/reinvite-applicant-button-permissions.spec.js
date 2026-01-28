@@ -15,12 +15,13 @@ import loginForm from "./utils/login-form";
 
 test.describe('QA-272 reinvite-applicant-button-permissions.spec', () => {
     test.setTimeout(120_000)
-    const APPLICATION_NAME = 'Autotest - Heartbeat Test - Applicants';
+    const APPLICATION_NAME = 'AutoTest - Applicants only';
 
     const testResults = {
-        test1: { passed: false, sessionId: null, userId: null }
+        test1: { passed: false, sessionId: null, userId: null, memberId: null }
     }
     let adminClient;
+    let organizationId = null;
 
     const testUserData = {
         first_name: 'Reinvite',
@@ -35,35 +36,89 @@ test.describe('QA-272 reinvite-applicant-button-permissions.spec', () => {
         await loginWithAdmin(adminClient)
         console.log('🔑 [Admin] Logged in as admin via API.');
 
-        // Fetch organizationId for user creation
-        const userResponse = await adminClient.get('/users/self', { params: { fields: { 'user': ':all' } } })
-        const user = userResponse.data.data;
-        const organizationId = user.memberships[0].organization.id
+        // Get Permissions Test Org
+        const organizationName = 'Permissions Test Org';
+        console.log(`🔍 [Setup] Fetching organization: ${organizationName}...`);
+        const orgResponse = await adminClient.get('/organizations', {
+            params: {
+                filters: JSON.stringify({
+                    name: organizationName
+                })
+            }
+        });
+        const orgs = orgResponse.data.data;
+        const org = orgs.find(o => o.name === organizationName);
+        if (!org) {
+            throw new Error(`Organization "${organizationName}" not found`);
+        }
+        organizationId = org.id;
+        console.log(`✅ [Setup] Using organization: ${organizationName} (id: ${organizationId})`);
 
-        const roleName = 'Autotest - Applicant Role'
-        console.log('🔍 [Setup] Fetching specific test role from API...');
+        // Fetch existing role (don't create)
+        const roleName = 'Autotest - Empty role';
+        console.log(`🔍 [Setup] Fetching existing role: ${roleName}...`);
         const roleResponse = await adminClient.get('/roles', {
             params: {
                 filters: JSON.stringify({
                     name: { $like: roleName }
                 })
             }
-        })
+        });
 
-        const roles = roleResponse.data.data
-        const role = roles.find(item => item.name === roleName)
-        console.log(`🎭 [Setup] Using test user role: ${roleName}`);
+        const roles = roleResponse.data.data;
+        const role = roles.find(item => item.name === roleName);
+        if (!role) {
+            throw new Error(`Role "${roleName}" not found`);
+        }
+        console.log(`🎭 [Setup] Using existing role: ${roleName} (id: ${role.id})`);
 
-        // Create test user (invite permission only)
-        console.log('🙋 [Setup] Creating test user with "Invite Applicant" permission only...');
-        const testUserResponse = await adminClient.post('/users', {
-            ...testUserData,
+        // Create member in Permissions Test Org via POST /organizations/{id}/members
+        console.log('🙋 [Setup] Creating member in Permissions Test Org...');
+        const memberResp = await adminClient.post(`/organizations/${organizationId}/members`, {
+            role: role.id,
+            email: testUserData.email,
+            first_name: testUserData.first_name,
+            last_name: testUserData.last_name
+        });
+        const member = memberResp.data.data;
+        const inviteToken = memberResp.headers['token'];
+        testResults.test1.memberId = member.id;
+        testResults.test1.userId = member.user?.id; // May be null until user completes registration
+        console.log(`✅ [Setup] Member created: ${testUserData.email} (memberId: ${testResults.test1.memberId})`);
+        
+        if (!inviteToken) {
+            throw new Error('Invite token missing from member creation response');
+        }
+        console.log(`📧 [Setup] Got invite token for user registration`);
+
+        // Bind permissions to member (VIEW_SESSIONS + Invite Applicant permission)
+        // VIEW_SESSIONS is required to see applicants-menu in the sidebar
+        console.log('🔐 [Setup] Binding permissions to member...');
+        await adminClient.patch(`/organizations/${organizationId}/members/${member.id}`, {
+            permissions: [
+                { name: 'view_sessions', bindings: [] },
+                { name: 'invite_applicant_to_session', bindings: [] }
+            ]
+        });
+        console.log('✅ [Setup] Permissions bound: view_sessions, invite_applicant_to_session');
+
+        // Complete user registration using invite token
+        console.log('👤 [Setup] Completing user registration with invite token...');
+        const guestClient = new ApiClient(app.urls.api, null, 20000);
+        const userResp = await guestClient.post('/users', {
+            first_name: testUserData.first_name,
+            last_name: testUserData.last_name,
+            state: 'AK',
+            terms: true,
+            password: testUserData.password,
             password_confirmation: testUserData.password,
-            organization: organizationId,
-            role: role.id
-        })
-        testResults.test1.userId = testUserResponse.data.data.id;
-        console.log(`✅ [Setup] Test user created: ${testUserData.email} (id: ${testResults.test1.userId})`);
+            token: inviteToken
+        });
+        if (userResp.status !== 201 && userResp.status !== 200) {
+            throw new Error(`Unexpected status ${userResp.status} from /users registration`);
+        }
+        testResults.test1.userId = userResp.data.data.id;
+        console.log(`✅ [Setup] User registration completed: userId=${testResults.test1.userId}`);
     })
 
     console.log(`TEST: Re-invite Button Functionality and Permissions (VC-1907 & VC-1891)`)
@@ -121,18 +176,21 @@ test.describe('QA-272 reinvite-applicant-button-permissions.spec', () => {
         console.log('Update rent budget for applicant');
         await updateRentBudget(applicantPage, sessionId, '500');
 
-        console.log('Wait for pre-screening step to be visible');
-        const preScreening = applicantPage.getByTestId('pre-screening-step');
-        await expect(preScreening).toBeVisible({ timeout: 10_000 });
-
-        console.log('Find and skip pre-screening step');
-        const preScreeningSkip = preScreening.getByTestId('pre-screening-skip-btn');
-        await expect(preScreeningSkip).toBeVisible();
-        await preScreeningSkip.click();
-        
-        // Handle skip reason modal if it appears
-        await handleSkipReasonModal(applicantPage, "Skipping pre-screening step for test purposes");
-        await applicantPage.waitForTimeout(1000);
+        // Skip pre-screening step if present (application may only have applicants step)
+        try {
+            const preScreening = applicantPage.getByTestId('pre-screening-step');
+            await expect(preScreening).toBeVisible({ timeout: 5000 });
+            console.log('Pre-screening step found, skipping...');
+            const preScreeningSkip = preScreening.getByTestId('pre-screening-skip-btn');
+            await expect(preScreeningSkip).toBeVisible();
+            await preScreeningSkip.click();
+            // Handle skip reason modal if it appears
+            await handleSkipReasonModal(applicantPage, "Skipping pre-screening step for test purposes");
+            await applicantPage.waitForTimeout(1000);
+            console.log('✅ Pre-screening step skipped');
+        } catch (e) {
+            console.log('ℹ️ No pre-screening step found (application only has applicants step), continuing...');
+        }
 
         console.log('Wait for applicant invite step to be visible');
         const applicantStep = applicantPage.getByTestId('applicant-invite-step');
@@ -218,10 +276,43 @@ test.describe('QA-272 reinvite-applicant-button-permissions.spec', () => {
         const guarantorItem = page.getByTestId(`invited-applicant-${guarantorSession.id}`);
 
         console.log('🕵️ [VC-1891] Verifying re-invite button is visible for CO-APPLICANT (permission) ...');
-        await expect(coAppItem.getByTestId(`reinvite-${coAppSession.applicant.id}`)).toBeVisible();
+        const coAppReinviteBtn = coAppItem.getByTestId(`reinvite-${coAppSession.applicant.id}`);
+        await expect(coAppReinviteBtn).toBeVisible();
 
         console.log('🕵️ [VC-1891] Verifying re-invite button is visible for GUARANTOR (permission) ...');
-        await expect(guarantorItem.getByTestId(`reinvite-${guarantorSession.applicant.id}`)).toBeVisible();
+        const guarantorReinviteBtn = guarantorItem.getByTestId(`reinvite-${guarantorSession.applicant.id}`);
+        await expect(guarantorReinviteBtn).toBeVisible();
+
+        // Verify test user can actually click and use re-invite button (not just see it)
+        console.log('🔁 [VC-1891] Testing re-invite button click functionality for CO-APPLICANT...');
+        const [testUserPatchResponse] = await Promise.all([
+            page.waitForResponse(async resp => {
+                if (
+                    resp.url().includes(`/applicants/${coAppSession.applicant.id}`) &&
+                    resp.request().method() === 'PATCH'
+                ) {
+                    const requestPostData = JSON.parse(resp.request().postData() || '{}');
+                    return requestPostData.invite === 1;
+                }
+                return false;
+            }),
+            coAppReinviteBtn.click()
+        ]);
+
+        // Validate PATCH sent and OK
+        const testUserRequestPostData = JSON.parse(testUserPatchResponse.request().postData() || '{}');
+        await expect(testUserRequestPostData).toHaveProperty('invite', 1);
+        await expect(testUserPatchResponse.ok()).toBe(true);
+        console.log('✅ [VC-1891] Test user successfully clicked re-invite button and PATCH request succeeded.');
+
+        // Wait for UI update
+        await page.waitForTimeout(500);
+
+        // Verify state changes after reinvite
+        await expect(coAppItem.getByTestId(`reinvite-${coAppSession.applicant.id}`)).not.toBeVisible();
+        await expect(coAppItem.getByTestId(`invited-applicant-reinvite`)).toBeVisible();
+        await expect(coAppItem.getByTestId(`invited-applicant-reinvite`)).toContainText('Invited');
+        console.log('✅ [VC-1891] UI state updated correctly after test user reinvite.');
 
         // Close modal - try Escape first, then check if still open and use cancel button
         console.log('🚪 [VC-1891] Closing invite modal...');
@@ -459,11 +550,27 @@ test.describe('QA-272 reinvite-applicant-button-permissions.spec', () => {
                 try {
                     console.log(`🧻 [Cleanup] Deleting session for test '${key}' (sessionId: ${element.sessionId})...`);
                     await cleanupSession(request, element.sessionId);
-                    if (element.userId) {
-                        await adminClient.delete(`/users/${element.userId}`);
-                        console.log(`🗑️  [Cleanup] Deleted test user id: ${element.userId}`);
+                    
+                    // Delete member first (removes organization relationship)
+                    if (element.memberId && organizationId) {
+                        try {
+                            await adminClient.delete(`/organizations/${organizationId}/members/${element.memberId}`);
+                            console.log(`🗑️  [Cleanup] Deleted test member id: ${element.memberId}`);
+                        } catch (error) {
+                            console.error(`⚠️  [Cleanup] Failed to delete member ${element.memberId}: ${error.message}`);
+                        }
                     }
-                    console.log(`✅ [Cleanup] Session & users cleaned for test '${key}'.`);
+                    
+                    // Delete user
+                    if (element.userId) {
+                        try {
+                            await adminClient.delete(`/users/${element.userId}`);
+                            console.log(`🗑️  [Cleanup] Deleted test user id: ${element.userId}`);
+                        } catch (error) {
+                            console.error(`⚠️  [Cleanup] Failed to delete user ${element.userId}: ${error.message}`);
+                        }
+                    }
+                    console.log(`✅ [Cleanup] Session, member & user cleaned for test '${key}'.`);
                 } catch (error) {
                     console.error(`❌ [Cleanup] Failed cleanup for test '${key}' (sessionId: ${element.sessionId}): ${error}`);
                 }
