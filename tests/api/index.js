@@ -4,6 +4,7 @@ import ApiClient from "./client"
 import ProviderApi from "./provider-api"
 import FinancialVerificationApi from "./financial-verification-api"
 import ApplicantApi from "./applicant-api"
+import ApplicationApi from "./application-api"
 
 
 export {
@@ -12,5 +13,6 @@ export {
     ApiClient,
     ProviderApi,
     FinancialVerificationApi,
-    ApplicantApi
+    ApplicantApi,
+    ApplicationApi
 }
