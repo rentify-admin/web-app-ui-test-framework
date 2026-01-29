@@ -206,7 +206,7 @@ test.describe('QA-264 document-delete-internal-only', () => {
     });
 
     test('Test 1: Delete icon hidden for external user', {
-        tag: ['@qa-264', '@permissions', '@files', '@ui', '@core', '@regression']
+        tag: ['@qa-264', '@permissions', '@files', '@ui', '@core', '@regression', '@rc-ready', '@staging-ready']
     }, async ({ page }) => {
         // 1. Login as external user
         console.log('[TEST 1] Logging in as external user...');
@@ -313,7 +313,7 @@ test.describe('QA-264 document-delete-internal-only', () => {
     });
 
     test('Test 3: Complete delete flow (internal user)', {
-        tag: ['@qa-264', '@permissions', '@files', '@ui', '@api', '@core', '@regression']
+        tag: ['@qa-264', '@permissions', '@files', '@ui', '@api', '@core', '@regression', '@rc-ready', '@staging-ready']
     }, async ({ page }) => {
         // 1. Login as admin (internal)
         console.log('[TEST 3] Logging in as admin (internal user)...');

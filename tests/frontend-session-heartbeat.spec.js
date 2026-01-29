@@ -53,7 +53,7 @@ test.describe('frontend-session-heartbeat', () => {
                 last_name: 'Heartbeat'
             };
 
-            const appName = 'Autotest - Application Heartbeat (Frontend)';
+            const appName = 'Autotest - Application Heartbeat (Frontend) (No default income)';
 
             console.log('🚀 Login and go to application page')
             await adminLoginAndNavigateToApplications(page, admin);

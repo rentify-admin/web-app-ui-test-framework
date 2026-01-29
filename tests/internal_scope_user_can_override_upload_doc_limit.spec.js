@@ -5,6 +5,7 @@ import { findAndInviteApplication } from './utils/applications-page';
 import { setupInviteLinkSession, startSessionFlow, updateRentBudget, handleSkipReasonModal } from './utils/session-flow';
 import { fillMultiselect } from './utils/common';
 import generateSessionForm from './utils/generate-session-form';
+import { joinUrl } from './utils/helper';
 
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
@@ -82,10 +83,13 @@ test.describe('QA-212 internal_scope_user_can_override_upload_doc_limit.spec', (
         createdSessionId = sessionId;  // Store for cleanup
 
         console.log('🆕 STEP 4: Opening applicant session in new browser context');
-        const applicantPage = await startSessionFlow(link, browser);
-
-        console.log('🔑 STEP 4.5: Capturing guest authentication token for API polling');
-        // ✅ Intercept the auth response to capture guest token (same pattern as show-paystub-deposit test)
+        // ✅ Create page and set up token capture BEFORE navigation (fix: listener must be active before goto)
+        const linkUrl = new URL(link);
+        const applicantContext = await browser.newContext();
+        const applicantPage = await applicantContext.newPage();
+        
+        console.log('🔑 STEP 4.5: Setting up guest authentication token capture (BEFORE navigation)');
+        // ✅ Intercept the auth response to capture guest token - MUST be set up BEFORE navigation
         const tokenPromise = applicantPage.waitForResponse(
             resp => resp.url().includes('/auth/guest') && resp.ok(),
             { timeout: 30000 }
@@ -98,6 +102,11 @@ test.describe('QA-212 internal_scope_user_can_override_upload_doc_limit.spec', (
             console.log('⚠️ Failed to capture auth token:', error.message);
             return null;
         });
+        
+        // ✅ Navigate AFTER setting up the listener
+        const gotoUrl = joinUrl(app.urls.app, `${linkUrl.pathname}${linkUrl.search}`);
+        console.log('➡️ Navigating applicant page to:', gotoUrl);
+        await applicantPage.goto(gotoUrl);
 
         console.log('📋 STEP 5: Applicant: Accepting terms, choosing type & state');
         await setupInviteLinkSession(applicantPage);

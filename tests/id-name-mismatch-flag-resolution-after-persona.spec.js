@@ -19,7 +19,7 @@ test.describe('QA-268 id-name-mismatch-flag-resolution-after-persona.spec', () =
     };
 
     test('Verify correct flag behavior when applicant name matches Persona ID verification result', {
-        tag: ['@regression']
+        tag: ['@regression', '@rc-ready', '@staging-ready']
     }, async ({ page, browser }) => {
         await test.setTimeout(180_000);
 

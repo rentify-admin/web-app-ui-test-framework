@@ -123,7 +123,7 @@ test.describe('QA-272 reinvite-applicant-button-permissions.spec', () => {
 
     console.log(`TEST: Re-invite Button Functionality and Permissions (VC-1907 & VC-1891)`)
     test('Re-invite button UI interactions, state changes, copy link functionality, and permission-based visibility', {
-        tag: ['@core', '@regression']
+        tag: ['@core', '@regression', '@rc-ready', '@staging-ready']
     }, async ({ page, browser }) => {
         // ----- Setup -----
         console.log('🚀 [Setup] Navigating to admin Applications page...');
