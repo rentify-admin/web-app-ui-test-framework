@@ -167,12 +167,11 @@ test.describe('QA-323 background-screening-validation-errors.spec', () => {
         });
 
         console.log('Continuing first name field error validations');
-        await validateFieldError(page, backgroundScreeningStep, session, steps, 'first-name-input', 'first_name', 'A', { validateApiError: true, checkInitialErrorPresent: false }); // string less than 2 characters
+        await validateFieldError(page, backgroundScreeningStep, session, steps, 'first-name-input', 'first_name', 'A', { validateApiError: true, checkInitialErrorPresent: false, hidesError: false }); // string less than 2 characters
 
         // string more than 64 characters
         console.log('Validating first name field with more than 64 characters');
-        await validateFieldError(page, backgroundScreeningStep, session, steps, 'first-name-input', 'first_name', 'AbcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', { validateApiError: true, checkInitialErrorPresent: false });
-
+        await validateFieldError(page, backgroundScreeningStep, session, steps, 'first-name-input', 'first_name', 'AbcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', { validateApiError: true, checkInitialErrorPresent: false, hidesError: false });
         console.log('Filling valid first name to proceed with other field validations');
         await fillBackgroundScreeningForm(page, backgroundScreeningStep, {
             first_name: user.first_name
@@ -297,6 +296,8 @@ async function validateFieldError(page, backgroundScreeningStep, session, steps,
     }
     if (hidesError) {
         await expect(fieldError).toBeHidden();
+    }else{
+        await expect(fieldError).toBeVisible();
     }
 
     await expect(errorToast).toBeHidden({ timeout: 10000 });
