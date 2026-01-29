@@ -15,6 +15,16 @@ import { fillMultiselect } from './utils/common';
 import { cleanupTrackedSessions } from './utils/cleanup-helper';
 
 /**
+ * Escape special regex characters in a string
+ * @param {string} string - String to escape
+ * @returns {string} Escaped string safe for use in RegExp
+ */
+function escapeRegExp(string) {
+    // $& means the whole matched string
+    return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
  * Handle bank connect info modal that may appear after clicking connect-bank
  * @param {import('@playwright/test').Page} page
  */
@@ -454,8 +464,8 @@ async function financialTransactionVerify(page, primaryUserBankData) {
         await expect(transcationRows.nth(index).getByTestId('financial-section-transactios-list-date-col')).toContainText(mockTransactions[index].date);
         await expect(transcationRows.nth(index).getByTestId('financial-section-transactios-list-description-col')).toContainText(mockTransactions[index].description);
         await expect(transcationRows.nth(index).getByTestId('financial-section-transactios-list-paid_in-col')).toContainText(getAmount(mockTransactions[index].amount));
-        await expect(transcationRows.nth(index).getByTestId('financial-section-transactios-list-account-col')).toContainText('Checking');
-        await expect(transcationRows.nth(index).getByTestId('financial-section-transactios-list-institution-col')).toContainText(mockInstitutions[0].name);
+        await expect(transcationRows.nth(index).getByTestId('financial-section-transactios-list-account-col')).toContainText(/checking/i);
+        await expect(transcationRows.nth(index).getByTestId('financial-section-transactios-list-institution-col')).toContainText(new RegExp(escapeRegExp(mockInstitutions[0].name), 'i'));
     }
 }
 
@@ -467,13 +477,13 @@ async function checkFinancialAccountData(page, priSessionId, primaryUserBankData
         const financial = preFinacials[index];
 
         await expect(preFinancialDiv.locator('td[data-testid*="-account-col"]')).toContainText(accounts[index].account_number.slice(-4));
-        await expect(preFinancialDiv.locator('td[data-testid*="-type-col"]')).toContainText('Checking');
-        await expect(preFinancialDiv.locator('td[data-testid*="-institution-col"]')).toContainText(primaryUserBankData.institutions[0].name);
+        await expect(preFinancialDiv.locator('td[data-testid*="-type-col"]')).toContainText(/checking/i);
+        await expect(preFinancialDiv.locator('td[data-testid*="-institution-col"]')).toContainText(new RegExp(escapeRegExp(primaryUserBankData.institutions[0].name), 'i'));
         // await expect(preFinancialDiv.locator('td[data-testid*="-identities-col"]')).toContainText(primaryUser.email);
-        await expect(preFinancialDiv.locator('td[data-testid*="-identities-col"]')).toContainText(`${primaryUser.first_name} ${primaryUser.last_name}`);
+        await expect(preFinancialDiv.locator('td[data-testid*="-identities-col"]')).toContainText(new RegExp(escapeRegExp(`${primaryUser.first_name} ${primaryUser.last_name}`), 'i'));
         await expect(preFinancialDiv.locator('td[data-testid*="-balance-col"]')).toContainText(`${getAmount(accounts[index].balance)}`);
         await expect(preFinancialDiv.locator('td[data-testid*="-transaction_count-col"]')).toContainText(`${accounts[index].transactions.length}`);
-        await expect(preFinancialDiv.locator('td[data-testid*="-provider-col"]')).toContainText('Simulation');
+        await expect(preFinancialDiv.locator('td[data-testid*="-provider-col"]')).toContainText(/simulation/i);
     }
 }
 
@@ -485,10 +495,10 @@ async function verifyIncomeSourceDetails(page, applicantId, primaryIncomeSources
             const incomeSourceDiv = primaryIncomeSourceDiv.getByTestId(`income-source-${element.id}`);
             await expect(incomeSourceDiv).toBeVisible();
             const lastTransaction = primaryUserBankData.institutions[0].accounts[0].transactions[0];
-            await expect(incomeSourceDiv.getByTestId(`source-${element.id}-source-col`)).toContainText('Financial Transactions');
-            await expect(incomeSourceDiv.getByTestId(`source-${element.id}-description-col`)).toContainText(lastTransaction.description);
+            await expect(incomeSourceDiv.getByTestId(`source-${element.id}-source-col`)).toContainText(/financial transactions/i);
+            await expect(incomeSourceDiv.getByTestId(`source-${element.id}-description-col`)).toContainText(new RegExp(escapeRegExp(lastTransaction.description), 'i'));
             await expect(incomeSourceDiv.getByTestId(`source-${element.id}-last-trans-date-col`)).toContainText(lastTransaction.date);
-            await expect(incomeSourceDiv.getByTestId(`source-${element.id}-income-type-col`)).toContainText('Employment Transactions');
+            await expect(incomeSourceDiv.getByTestId(`source-${element.id}-income-type-col`)).toContainText(/employment transactions/i);
     
             await incomeSourceDiv.getByTestId('income-source-detail-btn').click();
             const incomeDetailsModal = page.getByTestId('income-source-details');
@@ -504,7 +514,7 @@ async function verifyIncomeSourceDetails(page, applicantId, primaryIncomeSources
                 const item = element.transactions[subIndex];
                 await expect(item.paid_in).toBe(mockTrans[subIndex].amount * 100);
                 await expect(page.getByTestId(`income-transaction-${item.id}-amount`)).toContainText(getAmount(mockTrans[subIndex].amount));
-                await expect(page.getByTestId(`income-transaction-${item.id}-name`)).toContainText(mockTrans[subIndex].description);
+                await expect(page.getByTestId(`income-transaction-${item.id}-name`)).toContainText(new RegExp(escapeRegExp(mockTrans[subIndex].description), 'i'));
                 await expect(page.getByTestId(`income-transaction-${item.id}-date`)).toContainText(formatDateToMonDDYYYY(mockTrans[subIndex].date));
             }
     

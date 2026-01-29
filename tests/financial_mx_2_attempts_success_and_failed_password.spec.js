@@ -622,7 +622,7 @@ test.describe('financial_mx_2_attempts_success_and_failed_password', () => {
         const editRentIcon = page.getByTestId('rent-budget-edit-btn');
         await expect(editRentIcon).toBeVisible();
         await editRentIcon.click();
-        const adminRentBudgetInput = page.locator('#rent-budget-input');
+        const adminRentBudgetInput = page.getByTestId('rent-budget-default');
         await adminRentBudgetInput.fill('3000');
         const submitRentBudgetBtn = page.getByTestId('submit-rent-budget');
         await submitRentBudgetBtn.click();

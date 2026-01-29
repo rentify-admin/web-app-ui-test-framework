@@ -64,7 +64,7 @@ test.describe('QA-202 flag_review_buttons_flow', () => {
                 "first_name": "Playwright",
                 "last_name": "guarantor",
                 "role": "Applicant",
-                "email": "guarantor@playwright.com",
+                "email": "guarantor.playwright@verifast.com",
                 "invite": true
             }
 

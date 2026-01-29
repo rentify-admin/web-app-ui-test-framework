@@ -24,7 +24,7 @@ import { cleanupSessionAndContexts } from './utils/cleanup-helper';
 // Note: first_name will be auto-prefixed with 'AutoT - ' by the helper
 // Note: email will be auto-suffixed with '+autotest' by the helper
 const user = {
-    email: 'playwright+skipbutton@verifications.com',
+    email: 'playwright+skipbutton@verifast.com',
     first_name: 'SkipButton',
     last_name: 'Test',
     password: 'password'

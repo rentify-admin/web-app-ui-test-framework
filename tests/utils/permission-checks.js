@@ -42,9 +42,17 @@ const checkRentBudgetEdit = async page => {
 
     await page.getByTestId('rent-budget-edit-btn').click();
 
-    await page.locator('#rent-budget-input').fill('500');
+    // Wait for the input field to be visible and enabled before filling
+    const rentBudgetInput = page.getByTestId('rent-budget-default');
+    await expect(rentBudgetInput).toBeVisible({ timeout: 10000 });
+    await expect(rentBudgetInput).toBeEnabled({ timeout: 10000 });
+    
+    await rentBudgetInput.fill('500');
 
     const rentBudgetSubmitBtn = page.getByTestId('submit-rent-budget');
+    // Wait for submit button to be visible and enabled before clicking
+    await expect(rentBudgetSubmitBtn).toBeVisible({ timeout: 10000 });
+    await expect(rentBudgetSubmitBtn).toBeEnabled({ timeout: 10000 });
 
     // Set up response listener and immediately trigger the action
     const [ rentUpdateResponse ] = await Promise.all([

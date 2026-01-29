@@ -132,7 +132,7 @@ test.describe('QA-264 document-delete-internal-only', () => {
         const applicant = {
             first_name: 'QA',
             last_name: '264',
-            email: `qa264-applicant+${timestamp}@example.com`,
+            email: `qa264-applicant+${timestamp}@verifast.com`,
         };
 
         const sessionData = await generateSessionForm.generateSessionAndExtractLink(adminPage, applicant);

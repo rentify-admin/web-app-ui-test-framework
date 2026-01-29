@@ -121,9 +121,11 @@ export const updateApplicationFinancialSettings = async (page, settings = {}) =>
     await Promise.all([
         // Wait for PATCH that auto-publishes
         page.waitForResponse(resp => appUrlReg.test(resp.url()) && resp.request().method() === 'PATCH' && resp.ok()),
-        // Also wait for GET that refreshes applications list after auto-publish
+        // Also wait for GET that refreshes application after auto-publish
+        // Pattern matches: /applications/{id}?fields[application]=:all or /applications/{id}?fields[application]=...
         page.waitForResponse(resp => 
-            resp.url().includes('/applications?fields[application]') &&
+            resp.url().includes('/applications/') &&
+            resp.url().includes('fields[application]') &&
             resp.request().method() === 'GET' &&
             resp.ok()
         , { timeout: 30000 }),

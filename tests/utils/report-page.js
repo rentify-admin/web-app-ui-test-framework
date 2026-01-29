@@ -357,7 +357,7 @@ const checkRentBudgetEdit = async page => {
 
     await page.getByTestId('rent-budget-edit-btn').click();
 
-    await page.locator('#rent-budget-input').fill('500');
+    await page.getByTestId('rent-budget-default').fill('500');
 
     const rentBudgetSubmitBtn = page.getByTestId('submit-rent-budget');
 
