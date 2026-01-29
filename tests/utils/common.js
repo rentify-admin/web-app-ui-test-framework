@@ -109,6 +109,17 @@ const fillMultiselect = async (page, selector, values, {
         const trimmedItem = item.trim();
         const options = selector.locator('ul>li');
         const noResultsMessage = selector.locator('li').filter({ hasText: /no elements found|no results/i });
+        const inputLocator = selector.locator('input');
+
+        // CRITICAL: Wait for input to be visible before filling
+        // Input is hidden (width: 0) when multiselect is closed, becomes visible when opened
+        await inputLocator.waitFor({ state: 'visible', timeout: 5000 }).catch(async () => {
+            // If input still not visible, click again and wait
+            console.log(`[fillMultiselect] Input not visible, clicking multiselect again for "${trimmedItem}"...`);
+            await selector.locator('.multiselect__tags').first().click();
+            await page.waitForTimeout(300);
+            await inputLocator.waitFor({ state: 'visible', timeout: 5000 });
+        });
 
         if (waitUrl) {
             await page.waitForTimeout(500);
@@ -119,7 +130,7 @@ const fillMultiselect = async (page, selector, values, {
                 && customUrlDecode(resp.url()).includes(item)
             , { timeout: 15000 });
             
-            await selector.locator('input').fill(item);
+            await inputLocator.fill(item);
             
             // Wait for API response to complete
             await responsePromise;
@@ -137,7 +148,7 @@ const fillMultiselect = async (page, selector, values, {
                 console.warn(`⚠️ Options did not appear within 10s for "${trimmedItem}" after API response`);
             }
         } else {
-            await selector.locator('input').fill(item);
+            await inputLocator.fill(item);
             
             // Wait for options to appear (polling) - no API call expected
             try {
