@@ -200,7 +200,7 @@ test.describe('QA-323 background-screening-validation-errors.spec', () => {
         // Finally, fill all fields correctly and submit
         console.log('Filling all fields correctly to complete background screening step');
 
-
+        testResults.test1.passed = true;
 
     })
 
@@ -209,7 +209,7 @@ test.describe('QA-323 background-screening-validation-errors.spec', () => {
         /** delete session when test case is passed */
         for (const testKey in testResults) {
             const result = testResults[testKey];
-            if (result.sessionId) {
+            if (result.passed && result.sessionId) {
                 console.log(`Deleting session ${result.sessionId} for ${testKey}`);
                 await sessionApi.delete(result.sessionId);
                 console.log(`Session ${result.sessionId} deleted`);
