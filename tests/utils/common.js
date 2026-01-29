@@ -106,34 +106,80 @@ const fillMultiselect = async (page, selector, values, {
                 .click();
         }
 
-        let promise = null;
+        const trimmedItem = item.trim();
+        const options = selector.locator('ul>li');
+        const noResultsMessage = selector.locator('li').filter({ hasText: /no elements found|no results/i });
 
         if (waitUrl) {
             await page.waitForTimeout(500);
-            promise = page.waitForResponse(resp => resp.url().includes(waitUrl) 
+            // Wait for API response AND fill input simultaneously
+            const responsePromise = page.waitForResponse(resp => resp.url().includes(waitUrl) 
                 && resp.ok()
                 && resp.request().method() === "GET"
                 && customUrlDecode(resp.url()).includes(item)
-            )
-            await Promise.all([
-                promise,
-                selector.locator('input').fill(item)
-            ])
+            , { timeout: 15000 });
+            
+            await selector.locator('input').fill(item);
+            
+            // Wait for API response to complete
+            await responsePromise;
+            
+            // After API response, wait for options to appear (polling)
+            // Options might be delayed due to rendering or debouncing
+            try {
+                await Promise.race([
+                    // Wait for at least one option to appear
+                    options.first().waitFor({ state: 'visible', timeout: 10000 }).catch(() => null),
+                    // OR wait for "no results" message
+                    noResultsMessage.waitFor({ state: 'visible', timeout: 10000 }).catch(() => null)
+                ]);
+            } catch (error) {
+                console.warn(`⚠️ Options did not appear within 10s for "${trimmedItem}" after API response`);
+            }
         } else {
-            await selector.locator('input').fill(item)
+            await selector.locator('input').fill(item);
+            
+            // Wait for options to appear (polling) - no API call expected
+            try {
+                await Promise.race([
+                    options.first().waitFor({ state: 'visible', timeout: 10000 }).catch(() => null),
+                    noResultsMessage.waitFor({ state: 'visible', timeout: 10000 }).catch(() => null)
+                ]);
+            } catch (error) {
+                console.warn(`⚠️ Options did not appear within 10s for "${trimmedItem}"`);
+            }
         }
 
-        // Wait a bit for the dropdown options to appear after typing
+        // Additional wait for options to stabilize
         await page.waitForTimeout(timeout);
 
-        // Use substring match (case-insensitive) since applicant names may have prefixes like "Autotest - "
-        // This allows matching "Merge Coapp" in "Autotest - Merge Coapp"
-        const trimmedItem = item.trim();
-        const options = selector.locator('ul>li');
-        const matchedOption = options.filter({ hasText: new RegExp(escapeRegExp(trimmedItem), 'i') });
+        // Polling logic: Wait for options to be available and match the item
+        let matchedOption;
+        const maxPollAttempts = 10;
+        const pollInterval = 500;
+        
+        for (let pollAttempt = 0; pollAttempt < maxPollAttempts; pollAttempt++) {
+            const optionCount = await options.count();
+            
+            if (optionCount > 0) {
+                // Use substring match (case-insensitive) since applicant names may have prefixes like "Autotest - "
+                // This allows matching "Merge Coapp" in "Autotest - Merge Coapp"
+                matchedOption = options.filter({ hasText: new RegExp(escapeRegExp(trimmedItem), 'i') });
+                
+                if (await matchedOption.count() > 0) {
+                    console.log(`✅ Found option "${trimmedItem}" after ${pollAttempt + 1} attempt(s)`);
+                    break;
+                }
+            }
+            
+            if (pollAttempt < maxPollAttempts - 1) {
+                console.log(`⏳ Polling for options (attempt ${pollAttempt + 1}/${maxPollAttempts})...`);
+                await page.waitForTimeout(pollInterval);
+            }
+        }
 
         // If no match, log available options for debugging
-        if (await matchedOption.count() === 0) {
+        if (!matchedOption || await matchedOption.count() === 0) {
             const optionCount = await options.count();
             console.error(`❌ Could not find option containing "${trimmedItem}"`);
             console.error(`Available options (${optionCount}):`);
