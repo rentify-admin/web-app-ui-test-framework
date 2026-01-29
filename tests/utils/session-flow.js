@@ -3721,9 +3721,8 @@ const handleSkipReasonModal = async (page, reason = 'Test skip reason', options 
     
     console.log('🔍 Waiting for skip reason modal to appear...');
     
-    // TODO: Change to data-testid="skip-reason-modal" when available
     // Currently using text-based selector as fallback (modal title)
-    const modalTitle = page.locator('h3:has-text("Skip:")');
+    const modalTitle = page.getByTestId('skip-step-modal-title');
     
     try {
         // Wait for modal to appear (checking for title)
@@ -3736,12 +3735,11 @@ const handleSkipReasonModal = async (page, reason = 'Test skip reason', options 
     }
     
     // Get dialog reference for scoped selectors
-    const dialog = page.getByRole('dialog');
+    const dialog = page.getByTestId('skip-step-modal');
     
     if (cancel) {
-        // TODO: Change to data-testid="skip-reason-cancel-btn" when available
         // Currently using button text "Cancel" scoped to dialog as fallback
-        const cancelButton = dialog.getByRole('button', { name: 'Cancel' });
+        const cancelButton = dialog.getByTestId('cancel-skip-step-btn');
         
         console.log('🚫 Clicking Cancel button in reason modal...');
         await cancelButton.waitFor({ state: 'visible', timeout: 5000 });
@@ -3759,9 +3757,8 @@ const handleSkipReasonModal = async (page, reason = 'Test skip reason', options 
         return;
     }
     
-    // TODO: Change to data-testid="skip-reason-textarea" when available
     // Currently using id="skip-reason" as fallback
-    const reasonTextarea = page.locator('textarea#skip-reason');
+    const reasonTextarea = page.getByTestId('skip-step-reason-input');
     
     // Fill in the reason
     console.log(`📝 Filling skip reason: "${reason}"`);
@@ -3769,9 +3766,8 @@ const handleSkipReasonModal = async (page, reason = 'Test skip reason', options 
     await reasonTextarea.fill(reason);
     await page.waitForTimeout(500); // Small wait for input to register
     
-    // TODO: Change to data-testid="skip-reason-skip-btn" when available
     // Currently using button text "Skip" scoped to dialog as fallback
-    const skipButton = dialog.getByRole('button', { name: 'Skip' });
+    const skipButton = dialog.getByTestId('confirm-skip-step-btn');
     
     // Click Skip button
     console.log('🚀 Clicking Skip button in reason modal...');
