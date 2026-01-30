@@ -203,7 +203,7 @@ test.describe('QA-351 application-flow-member-permission-sync.spec', () => {
             ],
             export_session: []
         }
-
+        await page.waitForTimeout(2000); // wait for 2 sec to ensure UI is updated
         console.log('🔐 Setting permission checkboxes for the member...');
         for (const [mainPermission, subPermissions] of Object.entries(permissions)) {
 
