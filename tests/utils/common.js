@@ -96,6 +96,7 @@ const fillMultiselect = async (page, selector, values, {
 } = {}) => {
     await selector.locator('.multiselect__tags').first()
         .click();
+    
     for (let index = 0; index < values.length; index++) {
         const item = values[index];
 
@@ -121,13 +122,25 @@ const fillMultiselect = async (page, selector, values, {
             await inputLocator.waitFor({ state: 'visible', timeout: 5000 });
         });
 
+        // For cached data (like organizations), wait for options to appear after opening
+        // before filling/searching
+        if (!waitUrl) {
+            // Wait for at least one option to appear (data is cached, should appear immediately)
+            try {
+                await options.first().waitFor({ state: 'visible', timeout: 5000 });
+                console.log(`✅ [fillMultiselect] Options appeared for "${trimmedItem}"`);
+            } catch (error) {
+                console.warn(`⚠️ [fillMultiselect] Options did not appear immediately for "${trimmedItem}", continuing...`);
+            }
+        }
+
         if (waitUrl) {
             await page.waitForTimeout(500);
             // Wait for API response AND fill input simultaneously
+            // Note: We don't check if URL includes item because it might be in filters/search params
             const responsePromise = page.waitForResponse(resp => resp.url().includes(waitUrl) 
                 && resp.ok()
                 && resp.request().method() === "GET"
-                && customUrlDecode(resp.url()).includes(item)
             , { timeout: 15000 });
             
             await inputLocator.fill(item);
@@ -148,6 +161,7 @@ const fillMultiselect = async (page, selector, values, {
                 console.warn(`⚠️ Options did not appear within 10s for "${trimmedItem}" after API response`);
             }
         } else {
+            // For cached data, fill after options are visible
             await inputLocator.fill(item);
             
             // Wait for options to appear (polling) - no API call expected
@@ -189,9 +203,35 @@ const fillMultiselect = async (page, selector, values, {
             }
         }
 
-        // If no match, log available options for debugging
+        // If no match, check if value is already selected (options might be empty because already selected)
         if (!matchedOption || await matchedOption.count() === 0) {
             const optionCount = await options.count();
+            
+            // Before throwing error, check if the value is already selected
+            // This can happen when opening a multiselect that already has a value selected
+            try {
+                // Try to find single-value element (pattern: {field-testid}-single-value)
+                const fieldTestId = await selector.getAttribute('data-testid');
+                if (fieldTestId) {
+                    const singleValueTestId = fieldTestId.replace('-field', '-field-single-value');
+                    const singleValue = selector.getByTestId(singleValueTestId);
+                    const isSelected = await singleValue.isVisible({ timeout: 1000 }).catch(() => false);
+                    if (isSelected) {
+                        const currentValue = (await singleValue.textContent()).trim();
+                        // Check if current value matches what we're trying to select
+                        if (currentValue === trimmedItem || 
+                            currentValue.toLowerCase().includes(trimmedItem.toLowerCase()) || 
+                            trimmedItem.toLowerCase().includes(currentValue.toLowerCase())) {
+                            console.log(`✅ [fillMultiselect] Value "${trimmedItem}" already selected (current: "${currentValue}"), skipping`);
+                            continue; // Skip to next value in loop
+                        }
+                    }
+                }
+            } catch (checkError) {
+                // If check fails, continue with normal error handling
+                console.log(`⚠️ [fillMultiselect] Could not verify if value already selected: ${checkError.message}`);
+            }
+            
             console.error(`❌ Could not find option containing "${trimmedItem}"`);
             console.error(`Available options (${optionCount}):`);
             for (let i = 0; i < Math.min(optionCount, 10); i++) {

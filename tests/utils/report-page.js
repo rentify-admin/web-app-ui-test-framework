@@ -1,7 +1,7 @@
 import { expect } from '@playwright/test';
 import { waitForJsonResponse } from '~/tests/utils/wait-response';
 import { customUrlDecode } from './helper';
-import { dragAndDrop, gotoPage } from './common';
+import { dragAndDrop, gotoPage, fillMultiselect } from './common';
 import { pollForFlag } from './polling-helper';
 
 /**
@@ -1635,10 +1635,19 @@ async function expectAndFillGuestForm(page, expectData = {}, guestFormData = {})
 
 
 async function openModalWithButton(page, btnKey, modalKey) {
-    const button = page.getByTestId(btnKey);
-    await expect(button).toBeVisible();
+    let button;
+    
+    // Special case: view-details-btn no longer exists, use Alert button instead
+    if (btnKey === 'view-details-btn') {
+        console.log('🔔 [openModalWithButton] Using Alert button to open View Details section');
+        button = page.getByRole('button', { name: /alert/i }).first();
+        await expect(button).toBeVisible({ timeout: 10_000 });
+    } else {
+        button = page.getByTestId(btnKey);
+        await expect(button).toBeVisible();
+    }
 
-    await button.click()
+    await button.click();
 
     const modal = page.getByTestId(modalKey);
     await expect(modal).toBeVisible();
@@ -1657,24 +1666,11 @@ async function fillCreateSessionForm(page, sessionForm) {
     await expect(createSessionModal).toBeVisible();
     console.log('🪟 [fillCreateSessionForm] Create session modal is visible.');
 
-    // Organization select
+    // Organization select - call fillMultiselect directly (matches original inline code)
     const orgSelect = createSessionModal.getByTestId('crt-session-organization-field');
     await expect(orgSelect).toBeVisible();
-    console.log('🏢 [fillCreateSessionForm] Organization select is visible.');
-
-    const inputValue = orgSelect.getByTestId('crt-session-organization-field-single-value');
-    const isInputValueVisible = await inputValue.isVisible();
-    console.log('🔍 [fillCreateSessionForm] Organization input visible:', isInputValueVisible);
-    const currentOrgValue = (await inputValue.textContent()).trim();
-    const valueIsNotSame = currentOrgValue !== sessionForm.organization;
-    console.log(`🔁 [fillCreateSessionForm] Current org value: "${currentOrgValue}" | Desired: "${sessionForm.organization}" | Need update: ${valueIsNotSame}`);
-
-    if (isInputValueVisible && valueIsNotSame) {
-        console.log(`✏️ [fillCreateSessionForm] Selecting organization: "${sessionForm.organization}"`);
-        await fillMultiselect(page, orgSelect, [sessionForm.organization]);
-    } else {
-        console.log('✅ [fillCreateSessionForm] Organization already selected correctly.');
-    }
+    console.log(`🏢 [fillCreateSessionForm] Selecting organization: "${sessionForm.organization}"`);
+    await fillMultiselect(page, orgSelect, [sessionForm.organization]);
 
     // Application select
     const applicationInput = createSessionModal.getByTestId('crt-session-application-field');
@@ -1728,6 +1724,122 @@ async function fillCreateSessionForm(page, sessionForm) {
     console.log('🎉 [fillCreateSessionForm] Finished filling the session form.');
 }
 
+/**
+ * Submit create session form and wait for session creation
+ * @param {import('@playwright/test').Page} page
+ * @returns {Promise<{session: Object, sessionId: string}>}
+ */
+async function submitCreateSessionForm(page) {
+    console.log('🚀 [submitCreateSessionForm] Submitting session creation form...');
+    
+    const createSessionBtn = page.getByTestId('submit-create-session');
+    await expect(createSessionBtn).toBeVisible();
+    
+    // Listen for POST /sessions response
+    const sessionPromise = page.waitForResponse(
+        resp => resp.url().includes('/sessions') 
+            && resp.request().method() === 'POST' 
+            && resp.ok()
+    );
+    
+    await createSessionBtn.click();
+    console.log('✅ [submitCreateSessionForm] Clicked submit button');
+    
+    const sessionResponse = await sessionPromise;
+    const { data: session } = await waitForJsonResponse(sessionResponse);
+    
+    console.log(`✅ [submitCreateSessionForm] Session created: ${session.id}`);
+    
+    // Wait for navigation to session report page
+    await expect(page).toHaveURL(`/applicants/all/${session.id}`, { timeout: 10_000 });
+    console.log(`✅ [submitCreateSessionForm] Navigated to session report: ${session.id}`);
+    
+    return { session, sessionId: session.id };
+}
+
+/**
+ * Verify reference number display in UI
+ * @param {import('@playwright/test').Locator} flagSection
+ * @param {string} expectedValue
+ * @param {Object} options
+ * @param {boolean} options.shouldExist - Whether reference number should exist (default: true)
+ * @param {boolean} options.verifyPositioning - Whether to verify positioning relative to approval section (default: true)
+ */
+async function verifyReferenceNumberDisplay(flagSection, expectedValue, options = {}) {
+    const { shouldExist = true, verifyPositioning = true } = options;
+    
+    const codeEle = flagSection.getByTestId('application-code');
+    
+    if (shouldExist) {
+        console.log(`🔍 [verifyReferenceNumberDisplay] Verifying reference number exists: ${expectedValue}`);
+        await expect(codeEle).toBeVisible();
+        await expect(codeEle).toHaveText(expectedValue);
+        console.log('✅ [verifyReferenceNumberDisplay] Reference number text matches');
+        
+        // Verify CODE tag
+        await expect(codeEle).toHaveJSProperty('tagName', 'CODE');
+        console.log('✅ [verifyReferenceNumberDisplay] Element is CODE tag');
+        
+        // Verify CSS classes
+        const codeClasses = await codeEle.getAttribute('class');
+        expect(codeClasses).toBeTruthy();
+        expect(codeClasses.split(' ')).toEqual(
+            expect.arrayContaining(['bg-slate-200', 'rounded-md'])
+        );
+        console.log('✅ [verifyReferenceNumberDisplay] CSS classes verified');
+        
+        // Verify positioning if requested
+        if (verifyPositioning) {
+            const page = flagSection.page();
+            const approvalCondHeader = page.getByTestId('approval-condition-section-header');
+            const codeEleBox = await codeEle.boundingBox();
+            const approvalCondHeaderBox = await approvalCondHeader.boundingBox();
+            
+            expect(codeEleBox).toBeTruthy();
+            expect(approvalCondHeaderBox).toBeTruthy();
+            
+            const codeEleBottom = codeEleBox.y + codeEleBox.height;
+            const approvalCondHeaderTop = approvalCondHeaderBox.y;
+            const gap = Math.abs(approvalCondHeaderTop - codeEleBottom);
+            
+            console.log(`📐 [verifyReferenceNumberDisplay] Vertical gap: ${gap}px`);
+            expect(gap).toBeLessThanOrEqual(300);
+            console.log('✅ [verifyReferenceNumberDisplay] Positioning verified');
+        }
+    } else {
+        console.log('🔍 [verifyReferenceNumberDisplay] Verifying reference number does NOT exist');
+        await expect(codeEle).not.toBeVisible();
+        console.log('✅ [verifyReferenceNumberDisplay] Reference number correctly hidden');
+    }
+}
+
+/**
+ * Verify session reference number via API
+ * @param {Object} adminClient - API client instance
+ * @param {string} sessionId - Session ID to verify
+ * @param {string|null} expectedValue - Expected reference number value (null if should not exist)
+ */
+async function verifySessionReferenceNo(adminClient, sessionId, expectedValue) {
+    console.log(`🔍 [verifySessionReferenceNo] Verifying reference_no for session: ${sessionId}`);
+    
+    const sessionData = await adminClient.get(`/sessions/${sessionId}`, {
+        params: {
+            'fields[session]': 'applicant',
+            'fields[applicant]': 'reference_no'
+        }
+    });
+    
+    const apiSession = sessionData?.data?.data;
+    expect(apiSession).toBeDefined();
+    
+    if (expectedValue === null) {
+        expect(apiSession.applicant?.reference_no).toBe(null);
+        console.log('✅ [verifySessionReferenceNo] Reference number is null as expected');
+    } else {
+        expect(apiSession.applicant?.reference_no).toBe(expectedValue);
+        console.log(`✅ [verifySessionReferenceNo] Reference number matches: ${expectedValue}`);
+    }
+}
 
 export {
     checkSessionApproveReject,
@@ -1758,6 +1870,9 @@ export {
     openReportSection,
     expectAndFillGuestForm,
     openModalWithButton,
-    fillCreateSessionForm
+    fillCreateSessionForm,
+    submitCreateSessionForm,
+    verifyReferenceNumberDisplay,
+    verifySessionReferenceNo
 };
 
