@@ -9,6 +9,7 @@ import { gotoPage } from '~/tests/utils/common';
 import {
     fillhouseholdForm,
     setupInviteLinkSession,
+    updateRentBudget,
     completeIdentityStepViaAPI,
     completeFinancialStepViaAPI,
     completeEmploymentStepViaAPI,
@@ -61,17 +62,6 @@ const coapplicant = {
     email: 'coapplicant.household@verifast.com'
 };
 
-const updateRentBudget = async (applicantPage, sessionId) => {
-    await applicantPage.locator('input#rent_budget').fill('500');
-
-    await Promise.all([
-        applicantPage.waitForResponse(resp => resp.url() === joinUrl(app.urls.api, `sessions/${sessionId}`)
-            && resp.request().method() === 'PATCH'
-            && resp.ok()),
-        applicantPage.locator('button[type="submit"]').click()
-    ]);
-};
-
 test.describe('co_app_household_with_flag_errors', () => {
     test('Should verify co-applicant flag attribution and household status transitions', {
         tag: ['@regression', '@household', '@flag-attribution'],
@@ -105,8 +95,8 @@ test.describe('co_app_household_with_flag_errors', () => {
             applicantTypeSelector: '#affordable_primary'
         });
 
-        // Step 7: Complete rent budget step
-        await updateRentBudget(applicantPage, sessionId);
+        // Step 7: Complete rent budget step (app has eligibility_template → handle prerequisite if visible)
+        await updateRentBudget(applicantPage, sessionId, '2500', { handlePrerequisite: true });
 
         // Step 8: Skip applicants step (we'll add co-app later from admin)
         console.log('🔍 Skipping applicants step...');
@@ -580,14 +570,14 @@ test.describe('co_app_household_with_flag_errors', () => {
         }
     });
     
-    // ✅ Centralized cleanup
+    // Cleanup disabled (sessions/contexts preserved for debugging)
     test.afterAll(async ({ request }) => {
-        await cleanupSessionAndContexts(
-            request,
-            createdSessionId,
-            primaryContext,
-            coAppContext,
-            allTestsPassed
-        );
+        // await cleanupSessionAndContexts(
+        //     request,
+        //     createdSessionId,
+        //     primaryContext,
+        //     coAppContext,
+        //     allTestsPassed
+        // );
     });
 });

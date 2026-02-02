@@ -2570,7 +2570,65 @@ const completePlaidFinancialStepBetterment = async (applicantPage, username = 'c
     console.log('✅ Plaid iframe closed successfully in Betterment flow');
 };
 
-const updateRentBudget = async (applicantPage, sessionId, amount = '2500') => {
+/**
+ * Complete prerequisite (household count) step if visible.
+ * Shown when application has eligibility_template and session has no stakeholder_count.
+ * Locators: input#stakeholder_count, data-testid="rent-budget-step-continue".
+ * API: PATCH /sessions/:id with body { stakeholder_count } (min 1).
+ * @param {import('@playwright/test').Page} page
+ * @param {string} sessionId
+ * @param {string} count - household count (default '2')
+ * @returns {Promise<boolean>} true if step was completed, false if not visible
+ */
+const completePrerequisiteStepIfVisible = async (page, sessionId, count = '2') => {
+    const sessionUrl = joinUrl(app.urls.api, `sessions/${sessionId}`);
+    const prerequisiteInput = page.locator('input#stakeholder_count');
+    try {
+        await prerequisiteInput.waitFor({ state: 'visible', timeout: 5000 });
+    } catch {
+        return false;
+    }
+    await prerequisiteInput.fill(count);
+    const num = parseInt(count, 10) || 2;
+    const [response] = await Promise.all([
+        page.waitForResponse(
+            resp => {
+                if (!resp.url().includes(`sessions/${sessionId}`) || resp.request().method() !== 'PATCH' || !resp.ok()) return false;
+                const body = resp.request().postData();
+                if (!body) return false;
+                try {
+                    const data = JSON.parse(body);
+                    const sent = data.stakeholder_count;
+                    return sent !== undefined && sent !== null && Number(sent) === num;
+                } catch {
+                    return false;
+                }
+            },
+            { timeout: 15000 }
+        ),
+        page.getByTestId('rent-budget-step-continue').click()
+    ]);
+    expect(response.ok()).toBe(true);
+    await page.waitForTimeout(500);
+    return true;
+};
+
+/**
+ * Update session rent budget. Optionally complete prerequisite (household count) step first.
+ * @param {import('@playwright/test').Page} applicantPage
+ * @param {string} sessionId
+ * @param {string} amount - rent budget amount (default '2500')
+ * @param {Object} [options]
+ * @param {boolean} [options.handlePrerequisite=false] - if true, complete prerequisite step when visible (use when app has eligibility_template)
+ */
+const updateRentBudget = async (applicantPage, sessionId, amount = '2500', options = {}) => {
+    const { handlePrerequisite = false } = options;
+
+    if (handlePrerequisite) {
+        await completePrerequisiteStepIfVisible(applicantPage, sessionId, '2');
+    }
+
+    await applicantPage.locator('input#rent_budget').waitFor({ state: 'visible', timeout: 10000 });
     await applicantPage.locator('input#rent_budget').fill(amount);
 
     await Promise.all([
@@ -3763,6 +3821,7 @@ export {
     selectApplicantType,
     completePaystubConnection,
     completePlaidFinancialStep,
+    completePrerequisiteStepIfVisible,
     updateRentBudget,
     connectBankOAuthFlow,
     identityStep,

@@ -4,7 +4,7 @@ import { admin } from '~/tests/test_config';
 import app from '~/tests/test_config/app';
 import { findAndInviteApplication, gotoApplicationsPage } from '~/tests/utils/applications-page';
 import generateSessionForm from '~/tests/utils/generate-session-form';
-import { setupInviteLinkSession, completeApplicantForm, identityStep, handleSkipReasonModal } from '~/tests/utils/session-flow';
+import { setupInviteLinkSession, updateRentBudget, identityStep, handleSkipReasonModal } from '~/tests/utils/session-flow';
 import { cleanupTrackedSessions } from './utils/cleanup-helper';
 
 let createdSessionIds = [];
@@ -72,8 +72,8 @@ test.describe('applicant_type_workflow_affordable_occupant', () => {
             applicantTypeSelector: '#affordable_occupant'
         });
 
-        // Step 8: Complete applicant form with rent budget
-        await completeApplicantForm(page, '555', sessionData.data?.id);
+        // Step 8: Complete applicant form with rent budget (app has eligibility_template → handle prerequisite if visible)
+        await updateRentBudget(page, sessionData.data?.id, '555', { handlePrerequisite: true });
 
         await page.waitForTimeout(4000);
         

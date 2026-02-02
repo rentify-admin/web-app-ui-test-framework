@@ -75,7 +75,7 @@ test.describe('application_step_should_skip_properly', () => {
         });
     
         console.log('🚀 Filing rent budget')
-        await updateRentBudget(page, sessionId, '500');
+        await updateRentBudget(page, sessionId, '500', { handlePrerequisite: true });
         console.log('✅ Filing rent budget')
     
         console.log('🚀 Skip invite page')
@@ -152,7 +152,7 @@ test.describe('application_step_should_skip_properly', () => {
         console.log('✅ On rent budget')
     
         console.log('🚀 Updating rent budget')
-        await updateRentBudget(page, sessionId, '1000');
+        await updateRentBudget(page, sessionId, '1000', { handlePrerequisite: true });
     
         await expect(page.getByTestId('summary-completed-section')).toBeVisible({ timeout: 10_000 });
         console.log('✅ On Summary page')
