@@ -8,7 +8,7 @@ test.describe('QA-352 inbox_refresh_repeated_load_test_endpoints.spec', () => {
 
     test('should load inbox refresh endpoints repeatedly without errors',
         {
-            tag: ['@regression', '@core']
+            tag: ['@regression', '@core', '@staging-ready', '@rc-ready']
         }, async ({ page }) => {
             test.setTimeout(120000);
             await loginForm.adminLoginAndNavigate(page, admin);

@@ -1515,12 +1515,47 @@ async function selectDateRangeInPicker(filterModal, startDate, endDate) {
 
     const endDateElement = datePicker.locator(`[id="${formattedEndDate}"]`)
     const startDateElement = datePicker.locator(`[id="${formattedStartDate}"]`)
-    if (!await endDateElement.isVisible()) {
-        await datePicker.locator('[aria-label="Previous month"]').click();
-    }
+
+    const monthNameToIndex = (monthName) => {
+        // Assumes English locale (loginWith sets locale to English in tests/utils/session-utils.js)
+        const d = new Date(`${monthName} 1, 2000`);
+        return Number.isNaN(d.getTime()) ? null : d.getMonth();
+    };
+
+    const navigateUntilVisible = async (targetDate, targetElement) => {
+        // The datepicker day cells use id="yyyy-MM-dd" (see web-app datepicker DpCalendar.vue getId()).
+        // However, the picker may open on the last navigated month, so we must navigate
+        // either Previous or Next month until the target day becomes visible.
+        for (let i = 0; i < 24; i++) { // max 2 years of navigation protection
+            const visible = await targetElement.isVisible().catch(() => false);
+            if (visible) return;
+
+            // Read currently displayed month/year from header buttons
+            const monthText = (await datePicker.locator('.dp__month_year_select').nth(0).textContent().catch(() => ''))?.trim();
+            const yearText = (await datePicker.locator('.dp__month_year_select').nth(1).textContent().catch(() => ''))?.trim();
+
+            const currentMonth = monthNameToIndex(monthText);
+            const currentYear = yearText ? parseInt(yearText, 10) : NaN;
+
+            const targetYear = targetDate.getFullYear();
+            const targetMonth = targetDate.getMonth();
+
+            // Default to next-month if parsing fails (safe for "today" scenario),
+            // but prefer directional navigation when header parsing succeeds.
+            const shouldGoNext = Number.isNaN(currentYear) || currentMonth === null
+                ? true
+                : (targetYear > currentYear || (targetYear === currentYear && targetMonth > currentMonth));
+
+            await datePicker.locator(`[aria-label="${shouldGoNext ? 'Next month' : 'Previous month'}"]`).click();
+            await filterModal.page().waitForTimeout(200);
+        }
+
+        throw new Error(`Date cell not visible in datepicker after navigation attempts. Target date: ${targetDate.toISOString().slice(0, 10)}`);
+    };
+
+    await navigateUntilVisible(endDate, endDateElement);
     await endDateElement.click()
-    if (!await startDateElement.isVisible()) {
-        await datePicker.locator('[aria-label="Previous month"]').click();
-    }
+
+    await navigateUntilVisible(startDate, startDateElement);
     await startDateElement.click()
 }

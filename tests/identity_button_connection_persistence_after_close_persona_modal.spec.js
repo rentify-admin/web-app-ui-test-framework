@@ -40,7 +40,7 @@ test.describe('QA-254 identity_button_connection_persistence_after_close_persona
 
     test('Verify Identity Modal State Persistence After Close/Reopen (VC-730)', {
         timeout: 200_000,
-        tag: ['@need-review']
+        tag: ['@regression', '@staging-ready', '@rc-ready']
     }, async ({ page }) => {
         test.setTimeout(200_000)
 
