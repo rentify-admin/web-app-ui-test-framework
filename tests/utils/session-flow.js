@@ -2633,7 +2633,7 @@ const updateRentBudget = async (applicantPage, sessionId, amount = '2500', optio
 
     await Promise.all([
         applicantPage.waitForResponse(
-            resp => resp.url() === joinUrl(app.urls.api, `sessions/${sessionId}`)
+            resp => resp.url().includes(`sessions/${sessionId}`)
                 && resp.request().method() === 'PATCH'
                 && resp.ok()
         ),

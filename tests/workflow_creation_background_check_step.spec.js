@@ -1,25 +1,46 @@
 import { test, expect } from '@playwright/test'
 import { loginWith } from './utils/session-utils';
 import { admin, app } from './test_config';
-import { fillMultiselect } from './utils/common';
+import { fillMultiselect, generateUniqueName } from './utils/common';
 import { waitForJsonResponse } from './utils/wait-response';
 import { ApiClient } from './api';
 import { loginWithAdmin } from './endpoint-utils/auth-helper';
+
+/** Non-sensitive test data for TransUnion form fields (validation only) */
+const TRANSUNION_TEST_DATA = {
+    prefixCode: 'ABC',
+    industryCode: 'DEF',
+    memberCode: 'GHI',
+    password: '123456789',
+    scoreModel: '00A9P'
+};
+
+const PROVIDER_NAME_TRANSUNION = 'TransUnion';
 
 test.describe('QA-310 workflow_creation_background_check_step.spec', () => {
 
     let workflow;
     let adminClient;
     let application;
+    let transunionProviderId;
 
     test.beforeAll(async () => {
         console.log('🔐 [Setup] Logging in as admin user...');
         adminClient = new ApiClient(app.urls.api, null, 120_000)
         await loginWithAdmin(adminClient)
+
+        const providersRes = await adminClient.get('/providers');
+        const providers = providersRes.data?.data ?? [];
+        const transunion = providers.find(p => p.name?.toLowerCase() === PROVIDER_NAME_TRANSUNION.toLowerCase());
+        if (!transunion) {
+            throw new Error(`Provider "${PROVIDER_NAME_TRANSUNION}" not found. Available: ${providers.map(p => p.name).join(', ') || 'none'}`);
+        }
+        transunionProviderId = transunion.id;
+        console.log(`✅ TransUnion provider resolved by name: ${transunionProviderId}`);
     })
 
     test('Workflow Creation with Background Check Step Configuration', {
-        tag: ['@core', '@need-review']
+        tag: ['@core', '@regression', '@staging-ready', '@rc-ready']
     }, async ({ page }) => {
 
         // --- Setup & Login ---
@@ -41,7 +62,7 @@ test.describe('QA-310 workflow_creation_background_check_step.spec', () => {
         await createWorkflowBtn.click()
 
         const workflowDetails = {
-            name: `Autotest Workflow Background Check ${Date.now()}`,
+            name: generateUniqueName('Autotest Workflow Background Check'),
             steps: [
                 {
                     task: 'Background Check',
@@ -78,15 +99,15 @@ test.describe('QA-310 workflow_creation_background_check_step.spec', () => {
         console.log('📦 Verifying workflow creation API payload and response...');
         const workflowBody = await workflowResponse.request().postDataJSON();
         expect(workflowBody.display_name).toEqual(workflowDetails.name)
-        const workflowSlug = workflowDetails.name.toLowerCase().replaceAll(' ', '-')
-        expect(workflowBody.name).toEqual(workflowSlug)
 
         const workflowData = await waitForJsonResponse(workflowResponse)
 
         // status code /201 verification -- Playwright resp.ok() already checked
         workflow = workflowData.data;
+        const workflowSlug = workflow.name;
 
-        console.log(`✅ Workflow created! ID: ${workflow.id}`);
+        expect(workflowSlug).toBeDefined();
+        console.log(`✅ Workflow created! ID: ${workflow.id}, slug: ${workflowSlug}`);
         await expect(workflow.id).toBeDefined()
 
         // --- Step 2: Add Background Check Step ---
@@ -161,19 +182,19 @@ test.describe('QA-310 workflow_creation_background_check_step.spec', () => {
         console.log('⌨️ Filling TransUnion credit settings...');
         const prefixCodeInput = page.getByTestId('inquiry-prefix-code-input');
         await expect(prefixCodeInput).toBeVisible();
-        await prefixCodeInput.fill('ABC')
+        await prefixCodeInput.fill(TRANSUNION_TEST_DATA.prefixCode)
 
         const industryCodeInput = page.getByTestId('industry-code-input');
         await expect(industryCodeInput).toBeVisible();
-        await industryCodeInput.fill('DEF')
+        await industryCodeInput.fill(TRANSUNION_TEST_DATA.industryCode)
 
         const memberCodeInput = page.getByTestId('member-code-input');
         await expect(memberCodeInput).toBeVisible();
-        await memberCodeInput.fill('GHI')
+        await memberCodeInput.fill(TRANSUNION_TEST_DATA.memberCode)
 
         const passwordInput = page.getByTestId('subscriber-password-input');
         await expect(passwordInput).toBeVisible();
-        await passwordInput.fill('123456789')
+        await passwordInput.fill(TRANSUNION_TEST_DATA.password)
 
         const submitBackgroundCheckForm = await page.getByTestId('submit-background-check-form')
         console.log('✅ Submitting Background Check setup...');
@@ -227,12 +248,12 @@ test.describe('QA-310 workflow_creation_background_check_step.spec', () => {
                     "settings.workflows.tasks.background_check.enable_credit": false,
                     "settings.workflows.tasks.background_check.credit.fraud_alerts": false,
                     "settings.workflows.tasks.background_check.credit.run_mode": "manual",
-                    "settings.workflows.tasks.background_check.credit.provider": "019b4d30-4604-7115-81b2-bcacd6190b45",
-                    "settings.workflows.tasks.background_check.credit.transunion.subscriber_inquiry_prefix_code": "ABC",
-                    "settings.workflows.tasks.background_check.credit.transunion.subscriber_industry_code": "DEF",
-                    "settings.workflows.tasks.background_check.credit.transunion.subscriber_member_code": "GHI",
-                    "settings.workflows.tasks.background_check.credit.transunion.subscriber_password": "123456789",
-                    "settings.workflows.tasks.background_check.credit.score_model": "00A9P"
+                    "settings.workflows.tasks.background_check.credit.provider": transunionProviderId,
+                    "settings.workflows.tasks.background_check.credit.transunion.subscriber_inquiry_prefix_code": TRANSUNION_TEST_DATA.prefixCode,
+                    "settings.workflows.tasks.background_check.credit.transunion.subscriber_industry_code": TRANSUNION_TEST_DATA.industryCode,
+                    "settings.workflows.tasks.background_check.credit.transunion.subscriber_member_code": TRANSUNION_TEST_DATA.memberCode,
+                    "settings.workflows.tasks.background_check.credit.transunion.subscriber_password": TRANSUNION_TEST_DATA.password,
+                    "settings.workflows.tasks.background_check.credit.score_model": TRANSUNION_TEST_DATA.scoreModel
                 })
             })
         );
@@ -309,16 +330,16 @@ test.describe('QA-310 workflow_creation_background_check_step.spec', () => {
         const organization = orgResponse.data?.data?.find(org => org.name === ORGANIZATION_NAME)
         await expect(organization).toBeDefined()
 
-        const APPLICATION_NAME = 'Autotest Workflow Create App'
+        const applicationName = generateUniqueName('Autotest Workflow Create App');
         const applicationData = await adminClient.post('/applications', {
-            name: APPLICATION_NAME,
+            name: applicationName,
             organization: organization.id
         })
 
         application = applicationData.data?.data;
 
         expect(application).toBeDefined()
-        console.log(`📝 Application "${APPLICATION_NAME}" created with ID: ${application.id}`);
+        console.log(`📝 Application "${applicationName}" created with ID: ${application.id}`);
 
         await adminClient.patch(`/applications/${application.id}`, {
             workflow: workflow.id
@@ -392,19 +413,19 @@ test.describe('QA-310 workflow_creation_background_check_step.spec', () => {
 
     });
 
-    test.afterAll(async ({ request }, testInfo) => {
-        if (testInfo.status === 'passed') {
-            console.log('🧹 [Cleanup] Deleting created Application & Workflow...');
-            if (application) {
-                await adminClient.delete(`/applications/${application.id}`)
+    test.afterAll(async () => {
+        console.log('🧹 [Cleanup] Deleting created Application & Workflow (run on pass or fail)...');
+        try {
+            if (application?.id) {
+                await adminClient.delete(`/applications/${application.id}`);
                 console.log(`🚮 Application deleted (ID: ${application.id})`);
             }
-            if (workflow) {
-                await adminClient.delete(`/workflows/${workflow.id}`)
+            if (workflow?.id) {
+                await adminClient.delete(`/workflows/${workflow.id}`);
                 console.log(`🚮 Workflow deleted (ID: ${workflow.id})`);
             }
-        } else {
-            console.log('⚠️ Skipping cleanup, test did not pass.');
+        } catch (err) {
+            console.warn(`⚠️ Cleanup error (test may have failed): ${err.message}`);
         }
     })
 

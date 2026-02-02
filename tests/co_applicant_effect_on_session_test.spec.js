@@ -85,7 +85,7 @@ test.describe('co_applicant_effect_on_session_test', () => {
         });
         await applicantPage.waitForTimeout(500);
     
-        // Step 7: Complete rent budget step
+        // Step 7: Complete rent budget step (app has eligibility_template → handle prerequisite if visible)
         await updateRentBudget(applicantPage, sessionId, '2500', { handlePrerequisite: true });
     
         // Step 8: Check coapplicant assignable

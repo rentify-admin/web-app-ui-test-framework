@@ -477,9 +477,10 @@ const checkSidebarMenusAndTitles = async page => {
 /**
  * Generate a unique name with browser prefix and random number
  * Useful for creating unique test data across different browser instances
+ * Uses spaces (no underscores) so display_name matches backend/UI expectations
  *
  * @param {string} baseName - The base name to append to
- * @returns {string} Unique name in format: "baseName_Browser_RandomNumber"
+ * @returns {string} Unique name in format: "baseName Browser RandomNumber"
  */
 const generateUniqueName = (baseName) => {
     // Infer browser name from Playwright test info
@@ -487,7 +488,7 @@ const generateUniqueName = (baseName) => {
     const browserName = info?.project?.use?.browserName || info?.project?.name || 'Browser';
     const browserPrefix = browserName.charAt(0).toUpperCase() + browserName.slice(1);
     const randomNumber = Math.floor(Math.random() * 10000);
-    return `${baseName}_${browserPrefix}_${randomNumber}`;
+    return `${baseName} ${browserPrefix} ${randomNumber}`;
 };
 
 export { gotoPage, fillMultiselect, dragAndDrop, checkHeaderAndProfileMenu, checkSidebarMenusAndTitles, generateUniqueName };

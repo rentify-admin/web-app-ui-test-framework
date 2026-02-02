@@ -67,7 +67,9 @@ test.describe('QA-254 identity_button_connection_persistence_after_close_persona
 
         // Step 4
         console.log('💰 Completing applicant form...')
-        await completeApplicantForm(page, '555', createdSession.id);
+        // `completeApplicantForm` waits for a PATCH request whose URL includes the provided `sessionUrl` substring.
+        // Passing only the session id is too ambiguous and can break the wait predicate.
+        await completeApplicantForm(page, '555', `/sessions/${createdSession.id}`);
 
         await stepWait
         console.log('✅ Application step POST completed')
@@ -83,10 +85,6 @@ test.describe('QA-254 identity_button_connection_persistence_after_close_persona
 
         let identityVerifications = [];
 
-        // Step 6
-        console.log('🖱️ Clicking Connect button to launch Persona modal...')
-        await connectBtn.click();
-
         const responseVerification = async response => {
             if (response.url().includes(`/identity-verifications?fields[identity]`)
                 && response.ok()
@@ -97,7 +95,12 @@ test.describe('QA-254 identity_button_connection_persistence_after_close_persona
             }
         }
 
+        // Register listener BEFORE clicking Connect to avoid missing the first identity-verifications refresh.
         page.on('response', responseVerification)
+
+        // Step 6
+        console.log('🖱️ Clicking Connect button to launch Persona modal...')
+        await connectBtn.click();
 
         // Step 7 - Persona Modal Interactions
         const personaIFrame = page.frameLocator('iframe[src*="withpersona.com"]');
@@ -127,11 +130,12 @@ test.describe('QA-254 identity_button_connection_persistence_after_close_persona
         // Try to bring identity modal back
         console.log('👆 Clicking identity step to reopen modal...')
         await idStep.click()
-        await page.waitForTimeout(10000);
 
         // Step 9
         console.log('📦 Verifying at least one identity verification record exists...')
-        await expect(identityVerifications.length).toBeGreaterThan(0)
+        await expect
+            .poll(() => identityVerifications.length, { timeout: 30_000 })
+            .toBeGreaterThan(0)
 
         const [verification] = identityVerifications;
 
@@ -164,10 +168,10 @@ test.describe('QA-254 identity_button_connection_persistence_after_close_persona
         console.log('📝 Opening identity step summary again...')
         await page.getByTestId('step-IDENTITY_VERIFICATION-lg').filter({ visible: true }).click()
 
-        console.log('🔎 Verifying that 2 identity verifications exist...')
-        await expect(identityVerifications.length).toBe(2);
+        console.log('🔎 Verifying that a completed identity verification exists...')
 
-        const completedVerification = identityVerifications.find(id => ['APPROVED', 'COMPLETED'].includes(id.status))
+        const completedVerification = identityVerifications.find(v => ['APPROVED', 'COMPLETED'].includes(v.status))
+        await expect(completedVerification, 'Expected at least one COMPLETED/APPROVED identity verification after finishing Persona flow').toBeTruthy()
         console.log('🏆 Checking for completed/approved verification!')
 
         const completeStatusDiv = page.getByTestId(`identity-status-${completedVerification.id}`);

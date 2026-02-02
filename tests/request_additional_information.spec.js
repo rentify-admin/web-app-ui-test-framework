@@ -430,22 +430,52 @@ test.describe('request_additional_information', () => {
             }
 
             // Setup route to intercept the POST request and return 500 error
-            await page.route('**/sessions/*/invitations', (route, request) => {
+            // Use function matcher to ensure we match the exact URL pattern
+            const routeMatcher = (url) => {
+                const matches = url.pathname.includes('/sessions/') && 
+                               url.pathname.endsWith('/invitations') &&
+                               url.pathname.split('/').length >= 4; // /sessions/{id}/invitations
+                return matches;
+            };
+            
+            let routeIntercepted = false;
+            const routeHandler = (route, request) => {
                 if (request.method() === 'POST') {
-            route.fulfill({ status: 500, contentType: 'application/json', body: '{}' });
+                    console.log('🛑 [Route Interceptor] Intercepted POST request, returning 500 error');
+                    routeIntercepted = true;
+                    route.fulfill({ 
+                        status: 500, 
+                        contentType: 'application/json', 
+                        body: JSON.stringify({ error: 'Internal Server Error' })
+                    });
                 } else {
                     route.continue();
                 }
-        });
-
-        await submitBtn.click();
+            };
             
-            // Remove the route handler after the request
-            await page.unroute('**/sessions/*/invitations');
+            await page.route(routeMatcher, routeHandler);
 
-        // Expect an error toast/snackbar
-        await expect(page.getByRole('alert')).toContainText(/error|failed|unable/i);
+            // Wait for request to be intercepted and error toast to appear
+            const [requestIntercepted] = await Promise.all([
+                page.waitForRequest(req => 
+                    req.method() === 'POST' && 
+                    req.url().includes('/sessions/') && 
+                    req.url().endsWith('/invitations')
+                ).catch(() => null),
+                submitBtn.click()
+            ]);
+
+            // Verify route intercepted the request
+            if (!routeIntercepted && requestIntercepted) {
+                console.log('⚠️ [Route Interceptor] Request was made but route did not intercept');
+            }
+
+            // Wait for error toast to appear (this confirms the 500 error was handled)
+            await expect(page.getByRole('alert')).toContainText(/error|failed|unable/i, { timeout: 10000 });
             console.log('✅ Error toast correctly displayed on 500 error');
+            
+            // Remove the route handler after error toast appears (use same matcher)
+            await page.unroute(routeMatcher, routeHandler);
             
             // Close the dialog before logging out
             await page.getByTestId('cancel-request-additional').click();
