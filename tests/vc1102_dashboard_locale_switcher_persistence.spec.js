@@ -5,9 +5,11 @@ import { waitForJsonResponse } from './utils/wait-response';
 import { findSessionLocator } from './utils/report-page';
 
 
-test.describe('vc1102_dashboard_locale_switcher_persistence.spec', () => {
+test.describe('QA-350 vc1102_dashboard_locale_switcher_persistence.spec', () => {
 
-    test('should persist locale selection across sessions', async ({ page }) => {
+    test('should persist locale selection across sessions', {
+        tag: ['@core', '@regression', '@locale-switcher'],
+    }, async ({ page }) => {
         console.log('[STEP 1] - Log in as admin and set locale to English');
         await page.goto('/');
 
