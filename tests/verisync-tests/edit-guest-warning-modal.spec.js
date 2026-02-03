@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { ApiClient, ApplicationApi } from '../api';
+import { ApiClient } from '../api';
 import { admin, app } from '../test_config';
 import RoleApi from '../api/role-api';
 import { loginWithAdmin } from '../endpoint-utils/auth-helper';
@@ -17,7 +17,7 @@ const adminClient = new ApiClient(app.urls.api, null, 120_000);
 const guestClient = new ApiClient(app.urls.api, null, 120_000);
 const roleApi = new RoleApi(adminClient);
 const organizationApi = new BaseApi(adminClient, '/organizations');
-const applicationApi = new ApplicationApi(adminClient);
+const applicationApi = new BaseApi(adminClient, '/applications');
 const workflowApi = new BaseApi(adminClient, '/workflows');
 const incomeSourceTemplateApi = new BaseApi(adminClient, '/income-source-templates');
 const flagCollectionApi = new BaseApi(adminClient, '/flag-collections');
@@ -25,11 +25,9 @@ const flagCollectionApi = new BaseApi(adminClient, '/flag-collections');
 test.describe('QA-322 edit-guest-warning-modal.spec', () => {
 
     const ROLE = 'Autotest - Internal Role'
-    const FIRST_APPLICATION_NAME = 'Autotest - Verisync Guest Edit' // With verisync enabled
-    const SECOND_APPLICATION_NAME = 'Autotest - Application Heartbeat (FE)' // Without verisync enabled
-
+    const FIRST_APPLICATION_NAME = 'Autotest - Simulator Financial Step' // With verisync enabled (pms_integration_id set)
+    const SECOND_APPLICATION_NAME = 'Autotest - Heartbeat Test - Financial' // Without verisync enabled (pms_integration_id null)
     const WORKFLOW_NAME = 'Autotest Full Id Fin Employ Simulation'
-
     const ORGANIZATION_NAME = 'Verifast'
 
     const internalUser = {
@@ -78,11 +76,55 @@ test.describe('QA-322 edit-guest-warning-modal.spec', () => {
             throw new Error(`Organization ${ORGANIZATION_NAME} not found`);
         }
 
-        const memberResponse = await adminClient.post(`/organizations/${organization.id}/members`, {
-            role: role.id,
-            ssn_enabled: false,
-            ...internalUser
-        });
+        // Create member - handle 409 if it occurs
+        let memberResponse;
+        try {
+            memberResponse = await adminClient.post(`/organizations/${organization.id}/members`, {
+                role: role.id,
+                ssn_enabled: false,
+                ...internalUser
+            });
+        } catch (createErr) {
+            // Fix 1: Handle 409 by fetching existing member and deleting it, then retry
+            if (createErr.response?.status === 409) {
+                console.log(`[SETUP] Member creation failed with 409, fetching existing member to delete`);
+                try {
+                    const membersResponse = await adminClient.get(`/organizations/${organization.id}/members`, {
+                        params: {
+                            filters: JSON.stringify({
+                                $has: {
+                                    user: {
+                                        email: { $eq: internalUser.email }
+                                    }
+                                }
+                            }),
+                            limit: 10
+                        }
+                    });
+                    if (membersResponse.data?.data && membersResponse.data.data.length > 0) {
+                        const existingMember = membersResponse.data.data[0];
+                        await adminClient.delete(`/organizations/${organization.id}/members/${existingMember.id}`);
+                        if (existingMember.user?.id) {
+                            await adminClient.delete(`/users/${existingMember.user.id}`);
+                        }
+                        console.log(`[SETUP] Deleted existing member, retrying creation`);
+                        // Retry creation
+                        memberResponse = await adminClient.post(`/organizations/${organization.id}/members`, {
+                            role: role.id,
+                            ssn_enabled: false,
+                            ...internalUser
+                        });
+                    } else {
+                        throw new Error('409 error but could not find existing member');
+                    }
+                } catch (retryErr) {
+                    console.error('[SETUP] Failed to handle 409 error:', retryErr.message);
+                    throw createErr; // Re-throw original error
+                }
+            } else {
+                throw createErr;
+            }
+        }
 
         console.log(memberResponse.data.data)
 
@@ -130,11 +172,10 @@ test.describe('QA-322 edit-guest-warning-modal.spec', () => {
             throw err;
         }
 
-        // find or create application with Verisync enabled
-        const application = await applicationApi.getByName(FIRST_APPLICATION_NAME);
-        if (!application) {
-            // create application
-
+        // Find or create applications (don't modify if they exist)
+        const firstApp = await applicationApi.getByName(FIRST_APPLICATION_NAME);
+        if (!firstApp) {
+            console.log(`[SETUP] Application "${FIRST_APPLICATION_NAME}" not found, creating...`);
             const workflow = await workflowApi.getByName(WORKFLOW_NAME.split(' ').join('-').toLowerCase());
             if (!workflow) {
                 throw new Error(`Workflow ${WORKFLOW_NAME} not found`);
@@ -143,17 +184,34 @@ test.describe('QA-322 edit-guest-warning-modal.spec', () => {
                 name: FIRST_APPLICATION_NAME,
                 workflowId: workflow.id,
                 organizationId: organization.id,
+                pms_integration_id: '123456', // VeriSync enabled
             });
+        } else {
+            console.log(`[SETUP] Application "${FIRST_APPLICATION_NAME}" already exists, using existing`);
+        }
+
+        const secondApp = await applicationApi.getByName(SECOND_APPLICATION_NAME);
+        if (!secondApp) {
+            console.log(`[SETUP] Application "${SECOND_APPLICATION_NAME}" not found, creating...`);
+            const workflow = await workflowApi.getByName(WORKFLOW_NAME.split(' ').join('-').toLowerCase());
+            if (!workflow) {
+                throw new Error(`Workflow ${WORKFLOW_NAME} not found`);
+            }
             await getOrCreateApplication(applicationApi, {
                 name: SECOND_APPLICATION_NAME,
                 workflowId: workflow.id,
                 organizationId: organization.id,
+                pms_integration_id: null, // VeriSync disabled
             });
+        } else {
+            console.log(`[SETUP] Application "${SECOND_APPLICATION_NAME}" already exists, using existing`);
         }
     });
 
 
-    test('VeriSync enabled → warning modal appears; Cancel prevents update; then Confirm updates (Session S1)', async ({ page }) => {
+    test('VeriSync enabled → warning modal appears; Cancel prevents update; then Confirm updates (Session S1)', {
+        tag: ['@regression', '@staging-ready','@rc-ready']
+    }, async ({ page }) => {
         // Test implementation goes here
 
         const timestamp = Date.now();
@@ -284,7 +342,9 @@ test.describe('QA-322 edit-guest-warning-modal.spec', () => {
         testResults.test1.passed = true;
     });
 
-    test('VeriSync disabled → no warning modal; update proceeds directly (Session S2)', async ({ page }) => {
+    test('VeriSync disabled → no warning modal; update proceeds directly (Session S2)', {
+        tag: ['@regression', '@staging-ready','@rc-ready']
+    }, async ({ page }) => {
         // Test implementation goes here
 
         /**
@@ -402,8 +462,19 @@ test.describe('QA-322 edit-guest-warning-modal.spec', () => {
 
     test.afterAll(async () => {
         // Cleanup: delete created member and user
-        // Delete member first (remove organization relationship)
-        if (createdMember) {
+        // Fix 2: Always attempt cleanup even if IDs not set - find by email pattern
+        
+        // Get organization if not already set
+        if (!organization) {
+            try {
+                organization = await organizationApi.getByName(ORGANIZATION_NAME);
+            } catch (e) {
+                console.error('[CLEANUP] Could not fetch organization for cleanup');
+            }
+        }
+
+        // Delete member by ID if we have it
+        if (createdMember && organization) {
             try {
                 await adminClient.delete(`/organizations/${organization.id}/members/${createdMember}`);
                 console.log('[CLEANUP] Test member cleaned up:', createdMember);
@@ -413,7 +484,46 @@ test.describe('QA-322 edit-guest-warning-modal.spec', () => {
             }
         }
 
-        // Always delete user (to prevent orphaned users)
+        // Fix 2: Also try to find and delete member by email pattern (even if createdMember not set)
+        if (organization && internalUser?.email) {
+            try {
+                const membersResponse = await adminClient.get(`/organizations/${organization.id}/members`, {
+                    params: {
+                        filters: JSON.stringify({
+                            $has: {
+                                user: {
+                                    email: { $like: `autotest+edit-guest-%` }
+                                }
+                            }
+                        }),
+                        limit: 100
+                    }
+                });
+                if (membersResponse.data?.data && membersResponse.data.data.length > 0) {
+                    // Find member matching our email pattern
+                    const matchingMember = membersResponse.data.data.find(m => 
+                        m.user?.email && m.user.email.startsWith('autotest+edit-guest-')
+                    );
+                    if (matchingMember && (!createdMember || matchingMember.id !== createdMember)) {
+                        console.log(`[CLEANUP] Found orphaned member by email pattern: ${matchingMember.user?.email}`);
+                        try {
+                            await adminClient.delete(`/organizations/${organization.id}/members/${matchingMember.id}`);
+                            console.log(`[CLEANUP] Deleted orphaned member: ${matchingMember.id}`);
+                            if (matchingMember.user?.id) {
+                                await adminClient.delete(`/users/${matchingMember.user.id}`);
+                                console.log(`[CLEANUP] Deleted orphaned user: ${matchingMember.user.id}`);
+                            }
+                        } catch (deleteErr) {
+                            console.error(`[CLEANUP ERROR] Could not delete orphaned member: ${deleteErr.message}`);
+                        }
+                    }
+                }
+            } catch (findErr) {
+                console.log(`[CLEANUP] Could not search for orphaned members: ${findErr.message}`);
+            }
+        }
+
+        // Always delete user by ID if we have it
         if (createdUser) {
             try {
                 await adminClient.delete(`/users/${createdUser}`);
@@ -424,10 +534,9 @@ test.describe('QA-322 edit-guest-warning-modal.spec', () => {
             }
         }
 
-        /** delete session when test case passed */
+        /** Always delete sessions regardless of test pass/fail */
         for (const testKey of Object.keys(testResults)) {
             const result = testResults[testKey];
-            // if (result.passed && result.sessionId) {
             if (result.sessionId) {
                 try {
                     await adminClient.delete(`/sessions/${result.sessionId}`);
@@ -444,7 +553,7 @@ test.describe('QA-322 edit-guest-warning-modal.spec', () => {
         name: appName,
         workflowId: workflowId,
         organizationId,
-        pms_integration_id = '123456',
+        pms_integration_id = null, // Default to null (VeriSync disabled) - must be explicitly set for VeriSync enabled
         pms_property_id = '654321',
         income_source_template = 'Default',
         flag_collection = 'Low Risk',
