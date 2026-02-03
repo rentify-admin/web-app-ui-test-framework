@@ -144,21 +144,7 @@ test.describe("QA-319 background_screening_step_applicant.spec", () => {
 
         await backgroundScreeningStep.getByTestId('terms-agreement-checkbox').check();
         await backgroundScreeningStep.getByTestId('fcra-rights-checkbox').check();
-        // Draw signature
-        const signaturePad = backgroundScreeningStep.getByTestId('background-signature-pad');
-        const box = await signaturePad.boundingBox();
-        if (box) {
-            const { x, y, width, height } = box;
-            await page.mouse.move(x + width / 4, y + height / 2);
-            await page.mouse.down();
-            await page.mouse.move(x + (width * 3) / 4, y + (height / 4));
-            await page.mouse.move(x + (width * 3) / 4, y + (height * 3) / 4);
-            await page.mouse.move(x + width / 4, y + (height * 3) / 4);
-            await page.mouse.move(x + width / 4, y + height / 2);
-            await page.mouse.up();
-        } else {
-            throw new Error('Signature pad bounding box not found');
-        }
+        await drawBackgroundSignature(page, backgroundScreeningStep);
         /** 
          * Submit:
          * - Intercept: POST /sessions/{sessionId}/steps/{sessionStepId}/backgrounds
@@ -316,21 +302,7 @@ test.describe("QA-319 background_screening_step_applicant.spec", () => {
         await fillMultiselect(page, backgroundScreeningStep.getByTestId('state-select'), ['ALASKA']);
         await backgroundScreeningStep.getByTestId('terms-agreement-checkbox').check();
         await backgroundScreeningStep.getByTestId('fcra-rights-checkbox').check();
-        // Draw signature
-        const signaturePad = backgroundScreeningStep.getByTestId('background-signature-pad');
-        const box = await signaturePad.boundingBox();
-        if (box) {
-            const { x, y, width, height } = box;
-            await page.mouse.move(x + width / 4, y + height / 2);
-            await page.mouse.down();
-            await page.mouse.move(x + (width * 3) / 4, y + (height / 4));
-            await page.mouse.move(x + (width * 3) / 4, y + (height * 3) / 4);
-            await page.mouse.move(x + width / 4, y + (height * 3) / 4);
-            await page.mouse.move(x + width / 4, y + height / 2);
-            await page.mouse.up();
-        } else {
-            throw new Error('Signature pad bounding box not found');
-        }
+        await drawBackgroundSignature(page, backgroundScreeningStep);
 
         steps = await getStepsFromSession(test2session);
 
@@ -380,7 +352,7 @@ test.describe("QA-319 background_screening_step_applicant.spec", () => {
         testResults.test2.passed = true;
     })
 
-    test('Verify Background Screening Step Form comes prefilled after submission', {
+    test('Verify Background Screening form is prefilled and readonly when returning from Summary after submission', {
         tag: ['@regression', '@core', '@credit-tests']
     }, async ({ page }) => {
 
@@ -388,49 +360,38 @@ test.describe("QA-319 background_screening_step_applicant.spec", () => {
 
         await page.goto(test3session.url.replace('https://dev.verifast.app', app.urls.app));
 
-        // Handle optional terms modal/checkbox (no applicant type in this flow)
         await handleOptionalTermsCheckbox(page);
 
         await expect(page.getByTestId('rent-budget-step')).toBeVisible();
-        console.log('✅ On Rent budget page')
-        console.log('🚀 Filing rent budget')
+        console.log('✅ On Rent budget page');
         await updateRentBudget(page, test3session.id, '600');
-        console.log('✅ Filing rent budget')
+        console.log('✅ Filing rent budget');
+
         const identitystep = page.getByTestId('identify-step');
         await expect(identitystep).toBeVisible({ timeout: 10_000 });
-        console.log('✅ On Identity verification page')
+        console.log('✅ On Identity verification page');
         const skipButton = page.getByTestId('id-simulation-skip-btn');
         await expect(skipButton).toBeVisible();
-        console.log('🚀 Clicking skip button on identity verification page')
-        await skipButton.click()
-        let steps = await getStepsFromSession(test3session)
-        const identityStep = steps.find(step => step.step?.task?.key === 'IDENTITY_VERIFICATION')
-        expect(identityStep).toBeDefined()
+        await skipButton.click();
+
+        let steps = await getStepsFromSession(test3session);
+        const identityStep = steps.find(step => step.step?.task?.key === 'IDENTITY_VERIFICATION');
+        expect(identityStep).toBeDefined();
         const skipModal = page.getByTestId('skip-step-modal');
         await expect(skipModal).toBeVisible();
-        const skipReasonInput = skipModal.getByTestId('skip-step-reason-input');
-        await skipReasonInput.fill('Automation test - skipping step verification');
+        await skipModal.getByTestId('skip-step-reason-input').fill('Automation test - skipping step verification');
         const confirmSkipButton = skipModal.getByTestId('confirm-skip-step-btn');
         await expect(confirmSkipButton).toBeEnabled();
-        console.log('🚀 Confirming skip identity verification')
         await confirmSkipButton.click();
         await expect(skipModal).not.toBeVisible();
+
         const backgroundScreeningStep = page.getByTestId('background-screening-step');
         await expect(backgroundScreeningStep).toBeVisible({ timeout: 10_000 });
-        console.log('✅ On Background Screening page')
-
+        console.log('✅ On Background Screening page');
 
         /**
-         * First Submission:
-         * - Fill all required fields with valid data (same as Test 1)
-         * - Check ToS/FCRA, sign, and submit (data-testid="background-screening-continue-btn")
-         * - Verification:
-         *    - Form submission succeeds (no error displayed)
-         *    - Background record is created successfully
-         * - API Verification: Intercept POST /sessions/{sessionId}/steps/{stepId}/backgrounds
-         *    - Verify request is made with valid payload
-         *    - Verify response status is 201 (Created)
-         *    - Verify background record is created
+         * Fill all required fields, sign, submit. After submit the step redirects to Summary.
+         * Then navigate back to Background Check and verify all fields are prefilled and readonly.
          */
 
         await backgroundScreeningStep.getByTestId('first-name-input').fill(user.first_name);
@@ -450,21 +411,7 @@ test.describe("QA-319 background_screening_step_applicant.spec", () => {
         await fillMultiselect(page, backgroundScreeningStep.getByTestId('state-select'), ['ALASKA']);
         await backgroundScreeningStep.getByTestId('terms-agreement-checkbox').check();
         await backgroundScreeningStep.getByTestId('fcra-rights-checkbox').check();
-        // Draw signature
-        const signaturePad = backgroundScreeningStep.getByTestId('background-signature-pad');
-        const box = await signaturePad.boundingBox();
-        if (box) {
-            const { x, y, width, height } = box;
-            await page.mouse.move(x + width / 4, y + height / 2);
-            await page.mouse.down();
-            await page.mouse.move(x + (width * 3) / 4, y + (height / 4));
-            await page.mouse.move(x + (width * 3) / 4, y + (height * 3) / 4);
-            await page.mouse.move(x + width / 4, y + (height * 3) / 4);
-            await page.mouse.move(x + width / 4, y + height / 2);
-            await page.mouse.up();
-        } else {
-            throw new Error('Signature pad bounding box not found');
-        }
+        await drawBackgroundSignature(page, backgroundScreeningStep);
 
         steps = await getStepsFromSession(test3session);
 
@@ -486,6 +433,7 @@ test.describe("QA-319 background_screening_step_applicant.spec", () => {
             await dialog.dismiss();
         });
         await backgroundScreeningStep.getByTestId('background-screening-continue-btn').click();
+        await page.waitForTimeout(1500);
 
         const backgroundSubmitResponse = await backgroundSubmitResponsePromise;
         await backgroundCompleteResponsePromise;
@@ -494,25 +442,24 @@ test.describe("QA-319 background_screening_step_applicant.spec", () => {
 
         const summaryStep = page.getByTestId('summary-step');
         await expect(summaryStep).toBeVisible({ timeout: 10_000 });
-        console.log('✅ On Summary page after first submission')
+        console.log('✅ On Summary page after first submission');
+        await page.waitForTimeout(1500);
 
         const backgroundStepTile = page.getByTestId('step-BACKGROUND_CHECK-lg').filter({ visible: true });
         await expect(backgroundStepTile).toBeVisible();
-        await page.waitForTimeout(1_000); // wait for animation
-        await backgroundStepTile.click()
+        await backgroundStepTile.click();
 
-        //come back in background check step and check for detail are prefilled and visible and input type is readonly
         await expect(backgroundScreeningStep).toBeVisible({ timeout: 10_000 });
+        console.log('✅ Back on Background Screening page – verifying prefilled readonly fields');
         await expect(backgroundScreeningStep.getByTestId('first-name-input')).toHaveValue(user.first_name);
         await expect(backgroundScreeningStep.getByTestId('last-name-input')).toHaveValue(user.last_name);
         await expect(backgroundScreeningStep.getByTestId('middle-name-input')).toHaveValue('M');
-        await expect(backgroundScreeningStep.getByTestId('date-of-birth-input')).toHaveValue(`${mm}-${dd}-${yyyy}`);
+        await expect(backgroundScreeningStep.getByTestId('date-of-birth-input')).toHaveValue(`${yyyy}-${mm}-${dd}`);
         await expect(backgroundScreeningStep.getByTestId('address-line-1-input')).toHaveValue('123 Main St');
         await expect(backgroundScreeningStep.getByTestId('city-input')).toHaveValue('Anytown');
         await expect(backgroundScreeningStep.getByTestId('postal-code-input')).toHaveValue('12345');
         await expect(backgroundScreeningStep.getByTestId('country-select').getByTestId('country-select-single-value')).toHaveText('US');
         await expect(backgroundScreeningStep.getByTestId('state-select').getByTestId('state-select-single-value')).toHaveText('ALASKA');
-        // check has readonly attribute
         await expect(backgroundScreeningStep.getByTestId('first-name-input')).toHaveAttribute('readonly', '');
         await expect(backgroundScreeningStep.getByTestId('last-name-input')).toHaveAttribute('readonly', '');
         await expect(backgroundScreeningStep.getByTestId('middle-name-input')).toHaveAttribute('readonly', '');
@@ -520,7 +467,6 @@ test.describe("QA-319 background_screening_step_applicant.spec", () => {
         await expect(backgroundScreeningStep.getByTestId('address-line-1-input')).toHaveAttribute('readonly', '');
         await expect(backgroundScreeningStep.getByTestId('city-input')).toHaveAttribute('readonly', '');
         await expect(backgroundScreeningStep.getByTestId('postal-code-input')).toHaveAttribute('readonly', '');
-        // check country and state select has this 2 classes 'multiselect--disabled opacity-40 pointer-events-none'
         await expect(backgroundScreeningStep.getByTestId('country-select')).toHaveClass(/multiselect--disabled/);
         await expect(backgroundScreeningStep.getByTestId('country-select')).toHaveClass(/opacity-40/);
         await expect(backgroundScreeningStep.getByTestId('country-select')).toHaveClass(/pointer-events-none/);
@@ -567,4 +513,39 @@ function getDateYearsAgo(years) {
         dd: String(date.getDate()).padStart(2, '0'),
         yyyy: date.getFullYear()
     };
+}
+
+/**
+ * Draw a valid signature on the background screening signature pad.
+ * Uses the canvas element (not the wrapper) and many intermediate points so the
+ * pad's @end-stroke fires and form.signature is set (avoids "signature is required").
+ * @param {import('@playwright/test').Page} page
+ * @param {import('@playwright/test').Locator} backgroundScreeningStep - step container with data-testid="background-screening-step"
+ */
+async function drawBackgroundSignature(page, backgroundScreeningStep) {
+    const pad = backgroundScreeningStep.getByTestId('background-signature-pad');
+    const canvas = pad.locator('canvas');
+    await expect(canvas).toBeVisible();
+    await pad.scrollIntoViewIfNeeded();
+    await canvas.waitFor({ state: 'visible' });
+    const box = await canvas.boundingBox();
+    if (!box) throw new Error('Signature pad canvas bounding box not found');
+    const { x, y, width, height } = box;
+    const cx = x + width / 2;
+    const cy = y + height / 2;
+    const numSegments = 8;
+    const points = [];
+    for (let i = 0; i <= numSegments; i++) {
+        const t = i / numSegments;
+        points.push({
+            x: cx + (width * 0.35) * Math.cos(t * Math.PI * 2),
+            y: cy + (height * 0.35) * Math.sin(t * Math.PI * 2)
+        });
+    }
+    await page.mouse.move(points[0].x, points[0].y);
+    await page.mouse.down();
+    for (let i = 1; i < points.length; i++) {
+        await page.mouse.move(points[i].x, points[i].y, { steps: 5 });
+    }
+    await page.mouse.up();
 }
