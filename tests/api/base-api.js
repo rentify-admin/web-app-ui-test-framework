@@ -1,4 +1,3 @@
-import { expect } from "@playwright/test";
 
 class BaseApi {
     constructor(client, baseUrl = '') {
@@ -30,20 +29,19 @@ class BaseApi {
 
     async getByName(searchName) {
         if (!searchName || typeof searchName !== 'string') {
-            console.error(`search name : ${searchName}`)
+            console.error(`search name: ${searchName}`)
             throw new Error('search name is invalid')
         }
-        const itemResponse = await this.get({
-            filters: JSON.stringify({
-                "name": searchName.trim()
-            })
+        const response = await this.client.get(`${this.baseUrl}`, {
+            params: {
+                filters: JSON.stringify({ name: searchName.trim() })
+            }
         })
-
-        const items = itemResponse?.data;
-        await expect(items).toBeDefined()
-        const item = items.find(itemItem => itemItem.name === searchName)
-
-        return item
+        const items = response.data?.data
+        if (!Array.isArray(items)) {
+            throw new Error('Unexpected response format: items array missing')
+        }
+        return items.find(item => item.name === searchName.trim()) || null
     }
 }
 
