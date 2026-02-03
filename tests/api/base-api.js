@@ -25,6 +25,23 @@ class BaseApi {
     async delete(id) {
         return await this.client.delete(`${this.baseUrl}/${id}`)
     }
+
+    async getByName(searchName) {
+        if (!searchName || typeof searchName !== 'string') {
+            console.error(`search name: ${searchName}`)
+            throw new Error('search name is invalid')
+        }
+        const response = await this.client.get(`${this.baseUrl}`, {
+            params: {
+                filters: JSON.stringify({ name: searchName.trim() })
+            }
+        })
+        const items = response.data?.data
+        if (!Array.isArray(items)) {
+            throw new Error('Unexpected response format: items array missing')
+        }
+        return items.find(item => item.name === searchName.trim()) || null
+    }
 }
 
 export default BaseApi
