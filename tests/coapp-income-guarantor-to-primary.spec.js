@@ -3,7 +3,7 @@ import { getRandomEmail, joinUrl } from './utils/helper';
 import { adminLoginAndNavigateToApplications } from './utils/session-utils';
 import { admin, app } from './test_config';
 import { generateSessionForApplication } from './utils/applications-page';
-import { handleBankConnectInfoModal, handleSkipReasonModal, setupInviteLinkSession, updateRentBudget, waitForSimulatorConnectionCompletion } from './utils/session-flow';
+import { handleBankConnectInfoModal, handleSkipReasonModal, handleStateAndTermsCheckbox, updateRentBudget, waitForSimulatorConnectionCompletion } from './utils/session-flow';
 import { getBankData } from './mock-data/high-balance-financial-payload';
 import { gotoPage } from './utils/common';
 import { addApplicant, copyInviteLink, navigateToSessionById, reInviteApplicant, searchSessionWithText } from './utils/report-page';
@@ -257,12 +257,22 @@ async function completeSession(inviteLink, browser, sessionId, customData, { noR
     const context = await browser.newContext();
     const applicantPage = await context.newPage();
     console.log(`    > [completeSession] Navigating to invite link: ${joinUrl(app.urls.app, `${linkUrl.pathname}${linkUrl.search}`)}`);
+
+    const sessionPromise = applicantPage.waitForResponse(response =>
+        response.url().includes(`/sessions/${sessionId}`) &&
+        response.url().includes(`fields[session]`) &&
+        response.request().method() === 'GET' &&
+        response.ok(),
+        { timeout: 60000 } // 1 minute timeout
+    );
     await applicantPage.goto(joinUrl(app.urls.app, `${linkUrl.pathname}${linkUrl.search}`));
+    const sessionResponse = await sessionPromise;
+    const { data: session } = await waitForJsonResponse(sessionResponse)
 
     // Setup session flow: handles state modal + terms checkbox in correct order
     // Pattern 2: NO applicant type (financial-only application)
     console.log('    >[completeSession] Setting up invite link session flow...');
-    await setupInviteLinkSession(applicantPage);
+    await handleStateAndTermsCheckbox(applicantPage, session);
 
     if (!noRentBudget) {
         console.log('    > [completeSession] Updating rent budget...');
