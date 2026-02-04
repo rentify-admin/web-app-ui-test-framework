@@ -3832,6 +3832,7 @@ export {
     waitForElementText,
     verifyAndClickSkipButton,
     sessionFlow,
-    handleSkipReasonModal
+    handleSkipReasonModal,
+    handleBankConnectInfoModal
 };
 
