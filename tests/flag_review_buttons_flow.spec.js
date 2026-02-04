@@ -271,25 +271,51 @@ test.describe('QA-202 flag_review_buttons_flow', () => {
 
             await expect(startReviewBtn).toBeVisible({ timeout: 10_000 })
 
-            let flagResponse = await Promise.all([
-                page.waitForResponse(buildFlagsFetchPredicate(session.id)),
-                startReviewBtn.click()
-            ])
+            // When "Start Review" is clicked, it:
+            // 1. PATCH /sessions/{id} (updates review_status to IN_REVIEW)
+            // 2. GET /sessions/{id}/flags (refreshes flags list) - TWO GET requests happen automatically
+            
+            // Wait for session PATCH response and flags GET response
+            const sessionResponsePromise = page.waitForResponse(resp => 
+                resp.url().includes(`/sessions/${session.id}`) 
+                && resp.request().method() === 'PATCH'
+                && resp.ok()
+                && !resp.url().includes('/flags') // Session PATCH, not flag GET
+            );
+            
+            // Wait for flags GET response (the one used by the UI with the specific filter)
+            const flagsGetResponsePromise = page.waitForResponse(buildFlagsFetchPredicate(session.id));
+            
+            await startReviewBtn.click();
+            
+            // Wait for session update
+            const sessionResponse = await sessionResponsePromise;
+            const sessionData = await waitForJsonResponse(sessionResponse);
+            
+            // Verify session review status is IN_REVIEW
+            expect(sessionData.data.review_status).toBe('IN_REVIEW');
+            expect(sessionData.data.reviewed_by).toBeDefined();
+            expect(sessionData.data.reviewed_by.user.full_name).toBe(adminUser.full_name);
+            console.log('✅ Session review_status is IN_REVIEW');
 
-            flags = await waitForJsonResponse(flagResponse[0]);
+            // Wait for flags GET response (with timeout)
+            const flagsGetResponse = await Promise.race([
+                flagsGetResponsePromise,
+                page.waitForTimeout(10000).then(() => {
+                    throw new Error('Timeout waiting for flags GET response after starting review');
+                })
+            ]);
+            flags = await waitForJsonResponse(flagsGetResponse);
+            console.log(`✅ Flags refreshed after starting review (${flags.data.length} flags)`);
 
             const completeReview = page.getByTestId('flags-complete-review-btn')
             await expect(completeReview).toBeVisible();
 
-            for (let index = 0; index < flags.data.length; index++) {
-                const element = flags.data[index];
-                await expect(element.in_review).toBeTruthy();
-            }
-
-            for (let index = 0; index < flags.data.length; index++) {
-                const element = flags.data[index];
-                await expect(page.locator(`li[id=flag-${element.id}]`)).toContainText(`In review by: ${adminUser.full_name}`, { timeout: 20_000 })
-            }
+            // Verify session-level "In review by" text is displayed (not flag-level)
+            // After refactor, review status is session-level, so "In review by" appears at session level
+            // The text appears in Report.vue around line 335-339, inside a span with class "font-medium text-gray-700"
+            await expect(page.locator('span.font-medium.text-gray-700').filter({ hasText: new RegExp(`In review by.*${adminUser.full_name}`, 'i') })).toBeVisible({ timeout: 10_000 });
+            console.log(`✅ Session-level "In review by: ${adminUser.full_name}" is displayed`);
 
             const reviewedFlags = [];
 
@@ -381,77 +407,133 @@ test.describe('QA-202 flag_review_buttons_flow', () => {
 
             await page.waitForTimeout(3000);
             
-            // Click confirm button
-            await confirmModal.getByTestId('review-confirm-ok-btn').click();
-            console.log('✅ Clicked "Confirm" button to complete review');
+            // Wait for session PATCH response when clicking confirm
+            const [completeReviewResponse] = await Promise.all([
+                page.waitForResponse(resp => 
+                    resp.url().includes(`/sessions/${session.id}`) 
+                    && resp.request().method() === 'PATCH'
+                    && resp.ok()
+                ),
+                confirmModal.getByTestId('review-confirm-ok-btn').click()
+            ]);
+            
+            const completeReviewData = await waitForJsonResponse(completeReviewResponse);
+            console.log(`✅ Clicked "Confirm" button - session review_status: ${completeReviewData.data.review_status}`);
 
-            // Poll flags API until all flags have in_review: false (max 15 seconds)
-            console.log('🔄 Polling flags API until all flags are marked as completed (max 15s)...');
+            // Poll session API until review_status is COMPLETED (max 15 seconds)
+            console.log('🔄 Polling session API until review_status is COMPLETED (max 15s)...');
             const maxPollingAttempts = 30; // 30 * 500ms = 15 seconds
-            let allFlagsCompleted = false;
+            let reviewCompleted = false;
             let pollingAttempt = 0;
+            let finalSessionData = null;
 
-            while (pollingAttempt < maxPollingAttempts && !allFlagsCompleted) {
+            while (pollingAttempt < maxPollingAttempts && !reviewCompleted) {
                 pollingAttempt++;
                 
-                // Fetch flags via API
-                const flagsApiResponse = await apiClient.get(`/sessions/${session.id}/flags`, {
+                // Fetch session via API to check review_status
+                const sessionApiResponse = await apiClient.get(`/sessions/${session.id}`, {
                     params: {
-                        filters: JSON.stringify({
-                            session_flag: { flag: { scope: { $neq: 'APPLICANT' } } }
-                        })
+                        'fields[session]': 'review_status,reviewed_by,reviewed_at'
                     }
                 });
                 
-                flags = flagsApiResponse.data;
+                finalSessionData = sessionApiResponse.data.data;
                 
-                // Check if ALL flags have in_review: false
-                const flagsStillInReview = flags.data.filter(f => f.in_review === true);
-                
-                if (flagsStillInReview.length === 0) {
-                    allFlagsCompleted = true;
-                    console.log(`✅ All flags completed after ${pollingAttempt * 500}ms (${pollingAttempt} attempts)`);
+                // Check if session review_status is COMPLETED
+                if (finalSessionData.review_status === 'COMPLETED') {
+                    reviewCompleted = true;
+                    console.log(`✅ Session review completed after ${pollingAttempt * 500}ms (${pollingAttempt} attempts)`);
                 } else {
-                    console.log(`   ⏳ Attempt ${pollingAttempt}/${maxPollingAttempts}: ${flagsStillInReview.length} flag(s) still in_review=true, waiting 500ms...`);
+                    console.log(`   ⏳ Attempt ${pollingAttempt}/${maxPollingAttempts}: review_status="${finalSessionData.review_status}", waiting 500ms...`);
                     await page.waitForTimeout(500);
                 }
             }
 
-            if (!allFlagsCompleted) {
-                throw new Error(`❌ Timeout: Not all flags completed after 15 seconds. ${flags.data.filter(f => f.in_review).length} flag(s) still have in_review=true`);
+            if (!reviewCompleted) {
+                throw new Error(`❌ Timeout: Session review_status did not become COMPLETED after 15 seconds. Current status: "${finalSessionData?.review_status || 'unknown'}"`);
             }
 
-            // Verify ALL flags have in_review: false
-            for (let index = 0; index < flags.data.length; index++) {
-                const element = flags.data[index];
-                await expect(element.in_review).toBeFalsy();
-            }
+            // Verify session review_status is COMPLETED and reviewed_at is set
+            expect(finalSessionData.review_status).toBe('COMPLETED');
+            expect(finalSessionData.reviewed_at).toBeDefined();
+            expect(finalSessionData.reviewed_by).toBeDefined();
+            expect(finalSessionData.reviewed_by.user.full_name).toBe(adminUser.full_name);
+            console.log('✅ Session review_status is COMPLETED');
+
+            // Wait for complete review button to disappear (indicates UI has updated)
+            await expect(page.getByTestId('flags-complete-review-btn')).not.toBeVisible({ timeout: 10_000 });
+            console.log('✅ Complete review button disappeared - UI updated');
 
             for (let index = 0; index < reviewedFlags.length; index++) {
                 const element = reviewedFlags[index];
                 await expect(page.locator(`li[id=flag-${element.id}]`)).toContainText(`Reviewed by: ${adminUser.full_name} ${mmddyy}`, { timeout: 20_000 })
             }
 
+            // Wait a bit for events to be created after completing review
+            await page.waitForTimeout(2000);
 
-            // Checking event history
+            // Checking event history - poll for events to ensure they're created
+            // When flags are reviewed (mark as issue/non-issue), FlagObserver logs FlagEvent::UPDATED
+            // which translates to "Flag updated" event title, not "Flag reviewed"
+            console.log('🔄 Checking event history for "Flag updated" events...');
+            let events = [];
+            let eventResponse = null;
+            const maxEventPolls = 10;
+            const pollInterval = 2000;
+            
+            for (let pollAttempt = 0; pollAttempt < maxEventPolls; pollAttempt++) {
+                eventResponse = await apiClient.get(`/sessions/${session.id}/events`, {
+                    params: {
+                        order: 'created_at:desc',
+                        limit: 50,
+                        page: 1,
+                        all: true,
+                        'fields[user]': "full_name,email,phone"
+                    }
+                });
 
-            const eventResponse = await apiClient.get(`/sessions/${session.id}/events`, {
-                params: {
-                    order: 'created_at:desc',
-                    limit: 50,
-                    page: 1,
-                    all: true,
-                    'fields[user]': "full_name,email,phone"
+                // Filter for "Flag updated" events (not "Flag reviewed") - this is what FlagObserver creates
+                events = eventResponse.data.data.filter(evt => 
+                    !!evt.meta && 
+                    evt.title === 'Flag updated' &&
+                    // Only include events for flags that were actually reviewed (have reviewed_by set)
+                    reviewedFlags.some(flag => evt?.meta?.flag === flag.flag.key)
+                );
+                console.log(`   Poll ${pollAttempt + 1}/${maxEventPolls}: Found ${events.length} "Flag updated" events for reviewed flags`);
+                
+                // Check if we have events for all reviewed flags
+                const foundFlags = reviewedFlags.filter(flag => 
+                    events.some(evt => evt?.meta?.flag === flag.flag.key)
+                );
+                
+                if (foundFlags.length === reviewedFlags.length) {
+                    console.log(`✅ All ${reviewedFlags.length} reviewed flags have events`);
+                    break;
+                } else {
+                    const missingFlags = reviewedFlags
+                        .filter(flag => !events.some(evt => evt?.meta?.flag === flag.flag.key))
+                        .map(flag => flag.flag.key);
+                    console.log(`   ⏳ Found events for ${foundFlags.length}/${reviewedFlags.length} flags`);
+                    console.log(`   ⏳ Missing events for: ${missingFlags.join(', ')}`);
+                    console.log(`   ⏳ Waiting ${pollInterval}ms before next poll...`);
+                    if (pollAttempt < maxEventPolls - 1) {
+                        await page.waitForTimeout(pollInterval);
+                    }
                 }
-            })
+            }
 
-            let events = eventResponse.data.data;
-            events = events.filter(evt => !!evt.meta && evt.title === 'Flag reviewed');
-
+            // Verify events exist for all reviewed flags
             for (let index = 0; index < reviewedFlags.length; index++) {
                 const element = reviewedFlags[index];
-                await expect(events.some(evt => evt?.meta?.flag === element.flag.key)).toBeTruthy()
+                const hasEvent = events.some(evt => evt?.meta?.flag === element.flag.key);
+                if (!hasEvent) {
+                    const availableFlags = events.map(evt => evt?.meta?.flag).filter(Boolean);
+                    console.error(`❌ Missing event for flag: ${element.flag.key}`);
+                    console.error(`   Available flag keys in events: ${availableFlags.join(', ')}`);
+                }
+                expect(hasEvent, `Expected "Flag updated" event for flag ${element.flag.key}`).toBe(true);
             }
+            console.log(`✅ All ${reviewedFlags.length} reviewed flags have "Flag updated" events`);
         } catch (error) {
             console.error('❌ Test failed:', error.message);
             allTestsPassed = false;

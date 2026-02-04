@@ -349,10 +349,15 @@ async function pollBackendFlagsProcessed(page, sessionId, maxAttempts = 5, pollI
 
             if (flagsResponse.ok()) {
                 const flagsData = await flagsResponse.json();
-                const flagsInReview = flagsData.data.filter(f => f.in_review === true);
+                // Check for flags that are not ignored and don't have reviewed_by set (pending review)
+                // Note: in_review field removed - review tracking moved to session level
+                // Flags are considered "processed" if they are ignored OR have reviewed_by set
+                const flagsPendingReview = flagsData.data.filter(f => 
+                    !f.ignored && !f.reviewed_by
+                );
 
-                if (flagsInReview.length === 0) {
-                    return true; // All flags processed
+                if (flagsPendingReview.length === 0) {
+                    return true; // All flags processed (either ignored or reviewed)
                 }
 
                 if (attempt < maxAttempts) {
