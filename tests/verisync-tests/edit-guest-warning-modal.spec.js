@@ -323,8 +323,9 @@ test.describe('QA-322 edit-guest-warning-modal.spec', () => {
         await expect(confirmButton2).toBeVisible();
 
         console.log('[S1][STEP 9] Clicking "Acknowledge & Confirm" to proceed with update');
-        await confirmButton2.click();
+        // Set up response listener BEFORE clicking to avoid race condition
         const patchResponse2Promise = page.waitForResponse(resp => resp.url().includes(`/guests/${session.applicant.guest.id}`) && resp.request().method() === 'PATCH' && resp.ok(), { timeout: 10000 });
+        await confirmButton2.click();
         const patchResponse2 = await patchResponse2Promise;
 
         console.log(`[S1][STEP 10] Received PATCH response for guest ${session.applicant.guest.id} with status ${patchResponse2.status()}`);
@@ -334,10 +335,49 @@ test.describe('QA-322 edit-guest-warning-modal.spec', () => {
         await expect(patchRequest2Body.first_name).toBe(`${guestUser.first_name} Edited`);
         console.log(`[S1][STEP 11] Verified PATCH payload includes updated first_name: ${patchRequest2Body.first_name}`);
 
+        // Wait for edit guest modal to close after update completes
+        console.log('[S1][STEP 11.5] Waiting for edit guest modal to close...');
+        await expect(editForm).not.toBeVisible({ timeout: 10000 });
+        console.log('[S1][STEP 11.5] Edit guest modal closed successfully');
+
         // Verify updated guest details are reflected in Identity section
         await page.reload();
         const identitySection2 = await openReportSection(page, 'identity-section')
-        await expect(identitySection2.getByTestId('identity-guest-full-name')).toContainText(`${guestUser.first_name} Edited`);
+        
+        // Poll for updated guest name (max 6 seconds, every 500ms) to handle cache/race conditions
+        console.log('[S1][STEP 12] Polling for updated guest name in Identity section...');
+        const expectedName = `${guestUser.first_name} Edited`;
+        const maxPollAttempts = 12; // 6 seconds / 500ms = 12 attempts
+        const pollInterval = 500;
+        let pollAttempt = 0;
+        let nameUpdated = false;
+        
+        while (pollAttempt < maxPollAttempts && !nameUpdated) {
+            pollAttempt++;
+            try {
+                const nameElement = identitySection2.getByTestId('identity-guest-full-name');
+                const currentText = await nameElement.textContent();
+                
+                if (currentText && currentText.includes(expectedName)) {
+                    nameUpdated = true;
+                    console.log(`✅ [S1][STEP 12] Guest name updated successfully (attempt ${pollAttempt}/${maxPollAttempts}): "${currentText}"`);
+                } else {
+                    console.log(`   ⏳ [S1][STEP 12] Attempt ${pollAttempt}/${maxPollAttempts}: Current name="${currentText}", expected="${expectedName}", waiting ${pollInterval}ms...`);
+                    await page.waitForTimeout(pollInterval);
+                }
+            } catch (error) {
+                console.log(`   ⚠️ [S1][STEP 12] Attempt ${pollAttempt}/${maxPollAttempts}: Error checking name: ${error.message}, waiting ${pollInterval}ms...`);
+                await page.waitForTimeout(pollInterval);
+            }
+        }
+        
+        if (!nameUpdated) {
+            const finalName = await identitySection2.getByTestId('identity-guest-full-name').textContent();
+            throw new Error(`❌ [S1][STEP 12] Guest name did not update after ${maxPollAttempts} attempts (${maxPollAttempts * pollInterval / 1000}s). Expected: "${expectedName}", Got: "${finalName}"`);
+        }
+        
+        // Final assertion for clarity
+        await expect(identitySection2.getByTestId('identity-guest-full-name')).toContainText(expectedName);
         console.log('[S1][STEP 12] Verified updated guest name is reflected in Identity section');
         testResults.test1.passed = true;
     });
@@ -445,7 +485,10 @@ test.describe('QA-322 edit-guest-warning-modal.spec', () => {
         console.log(`[S2][STEP 6] Received PATCH response for guest ${session.applicant.guest.id} with status ${patchResponse.status()}`);
         await expect(patchResponse.status()).toBe(200);
 
-        await page.waitForTimeout(2000); // wait for UI to update
+        // Wait for edit guest modal to close after update completes
+        console.log('[S2][STEP 6.5] Waiting for edit guest modal to close...');
+        await expect(editForm).not.toBeVisible({ timeout: 10000 });
+        console.log('[S2][STEP 6.5] Edit guest modal closed successfully');
 
         const patchRequestBody = JSON.parse(patchResponse.request().postData() || '{}');
         await expect(patchRequestBody.first_name).toBe(`${guestUser.first_name} Edited`);
@@ -454,7 +497,41 @@ test.describe('QA-322 edit-guest-warning-modal.spec', () => {
         // Verify updated guest details are reflected in Identity section
         await page.reload();
         const identitySection2 = await openReportSection(page, 'identity-section')
-        await expect(identitySection2.getByTestId('identity-guest-full-name')).toContainText(`${guestUser.first_name} Edited`);
+        
+        // Poll for updated guest name (max 6 seconds, every 500ms) to handle cache/race conditions
+        console.log('[S2][STEP 8] Polling for updated guest name in Identity section...');
+        const expectedName = `${guestUser.first_name} Edited`;
+        const maxPollAttempts = 12; // 6 seconds / 500ms = 12 attempts
+        const pollInterval = 500;
+        let pollAttempt = 0;
+        let nameUpdated = false;
+        
+        while (pollAttempt < maxPollAttempts && !nameUpdated) {
+            pollAttempt++;
+            try {
+                const nameElement = identitySection2.getByTestId('identity-guest-full-name');
+                const currentText = await nameElement.textContent();
+                
+                if (currentText && currentText.includes(expectedName)) {
+                    nameUpdated = true;
+                    console.log(`✅ [S2][STEP 8] Guest name updated successfully (attempt ${pollAttempt}/${maxPollAttempts}): "${currentText}"`);
+                } else {
+                    console.log(`   ⏳ [S2][STEP 8] Attempt ${pollAttempt}/${maxPollAttempts}: Current name="${currentText}", expected="${expectedName}", waiting ${pollInterval}ms...`);
+                    await page.waitForTimeout(pollInterval);
+                }
+            } catch (error) {
+                console.log(`   ⚠️ [S2][STEP 8] Attempt ${pollAttempt}/${maxPollAttempts}: Error checking name: ${error.message}, waiting ${pollInterval}ms...`);
+                await page.waitForTimeout(pollInterval);
+            }
+        }
+        
+        if (!nameUpdated) {
+            const finalName = await identitySection2.getByTestId('identity-guest-full-name').textContent();
+            throw new Error(`❌ [S2][STEP 8] Guest name did not update after ${maxPollAttempts} attempts (${maxPollAttempts * pollInterval / 1000}s). Expected: "${expectedName}", Got: "${finalName}"`);
+        }
+        
+        // Final assertion for clarity
+        await expect(identitySection2.getByTestId('identity-guest-full-name')).toContainText(expectedName);
         console.log('[S2][STEP 8] Verified updated guest name is reflected in Identity section');
 
         testResults.test2.passed = true;

@@ -236,7 +236,7 @@ test.describe('staff_user_permissions_test', () => {
                     return url.includes('/sessions/') && 
                         url.includes(sharedSessionId) &&
                         url.includes('/employments') &&
-                        resp.request().method() === 'GET' &&
+                        resp.request().method() === 'HEAD' &&
                         resp.ok();
                 }),
                 page.waitForResponse(resp => {
