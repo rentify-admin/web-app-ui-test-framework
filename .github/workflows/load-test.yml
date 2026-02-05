@@ -42,7 +42,7 @@ env:
 jobs:
   load-test:
     name: Load Test - ${{ github.event.inputs.test_type }} / ${{ github.event.inputs.environment }}
-    runs-on: ubuntu-latest-large
+    runs-on: ubuntu-24.04
     timeout-minutes: 60
 
     env:
