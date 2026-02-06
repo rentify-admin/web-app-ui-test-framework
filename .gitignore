@@ -19,6 +19,13 @@ test-results/
 blob-report/
 playwright/.cache/
 
+# Test Data Snapshots
+# SQL dumps are environment-specific and can be large
+tests/snapshots/*.sql
+tests/snapshots/*.sql.gz
+# Keep metadata for debugging
+!tests/snapshots/.gitkeep
+
 # IDE
 .vscode/
 .idea/
