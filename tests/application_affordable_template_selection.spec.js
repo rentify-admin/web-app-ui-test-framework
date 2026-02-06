@@ -8,7 +8,9 @@ test.describe('QA-344 application_affordable_template_selection.spec', () => {
 
     const APPLICATION_NAME = 'AutoTest Suite - Full Test';
 
-    test('should verify affordable template selection in application approval settings', async ({ page }) => {
+    test('should verify affordable template selection in application approval settings', {
+        tag: [ '@regression', '@staging-ready', '@rc-ready'],
+    }, async ({ page }) => {
         console.log('🔑 Step 0: Logging in and navigating to Applications page');
         const applicationsPromise = page.waitForResponse(response =>
             response.url().includes('/applications')
