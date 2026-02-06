@@ -197,6 +197,100 @@ test.describe('QA-344 application_affordable_template_selection.spec', () => {
         const selectedTagAfterReload = reloadedTemplateSelector.getByTestId('eligibility-template-selector-single-value').getByText(selectedTemplate?.name);
         await expect(selectedTagAfterReload).toBeVisible();
         console.log(`✅ After refresh, template "${selectedTemplate?.name}" remains selected in selector`);
-        console.log('🎉 Test complete: affordable template selection and persistence verified');
+
+        // Step 6: Clear selection and verify empty state persists (Bug regression test)
+        console.log('\n🧪 Step 6: Clear template selection and verify empty state persists');
+        console.log('🔄 Clearing template selection...');
+
+        const clearButton = page.getByTestId('eligibility-template-selector-clear');
+        await expect(clearButton).toBeVisible();
+        await clearButton.click();
+
+        // Verify selector shows placeholder again
+        const placeholder = reloadedTemplateSelector.getByTestId('eligibility-template-selector-placeholder');
+        await expect(placeholder).toBeVisible();
+        console.log('✅ Placeholder visible after clearing selection');
+
+        // Verify no template is selected
+        const selectedTagAfterClear = reloadedTemplateSelector.getByTestId('eligibility-template-selector-single-value');
+        await expect(selectedTagAfterClear).not.toBeVisible();
+        console.log('✅ No template selected after clear');
+
+        // Wait for form to update (ensure model is updated, not just UI)
+        await page.waitForTimeout(500);
+        console.log('⏳ Waited for form model to update');
+
+        // Save application with empty template
+        console.log('💾 Saving application with cleared template...');
+        const submitButtonAfterClear = page.getByTestId('submit-application-setting-modal');
+
+        const patchClearPromise = page.waitForResponse(response =>
+            response.url().includes(`/applications/${applicationId}`)
+            && response.request().method() === 'PATCH'
+        );
+
+        await submitButtonAfterClear.click();
+        const patchClearResponse = await patchClearPromise;
+        const patchClearRequest = patchClearResponse.request();
+        const patchClearData = JSON.parse(patchClearRequest.postData() || '{}');
+
+        // Verify eligibility_template is null or not present
+        if (patchClearData.hasOwnProperty('eligibility_template')) {
+            expect(patchClearData.eligibility_template).toBeNull();
+            console.log('📦 PATCH sent with eligibility_template: null');
+        } else {
+            console.log('📦 PATCH sent without eligibility_template field');
+        }
+
+        expect(patchClearResponse.ok()).toBeTruthy();
+        console.log('✅ Save successful with cleared template');
+
+        // Reload page to verify empty state persists
+        console.log('🔄 Reloading page to verify cleared selection persists...');
+        const reloadAfterClearPromise = page.waitForResponse(response =>
+            response.url().includes(`/applications/${applicationId}`)
+            && response.url().includes('fields[application]')
+            && response.request().method() === 'GET'
+            && response.ok()
+        );
+
+        await page.reload({ waitUntil: 'networkidle' });
+        const reloadAfterClearResponse = await reloadAfterClearPromise;
+
+        // Verify GET response has no template or null template
+        const { data: reloadedAppData } = await waitForJsonResponse(reloadAfterClearResponse);
+        if (reloadedAppData.hasOwnProperty('eligibility_template')) {
+            expect(reloadedAppData.eligibility_template).toBeNull();
+            console.log('📥 GET response shows eligibility_template: null');
+        } else {
+            console.log('📥 GET response does not include eligibility_template field');
+        }
+
+        // Navigate to Approval Settings to verify UI
+        await approvalSettingTab.click();
+
+        const reloadTemplatesAfterClear = page.waitForResponse(response =>
+            response.url().includes('/eligibility-templates')
+            && response.url().includes('fields[eligibility_template]')
+            && response.request().method() === 'GET'
+            && response.ok()
+        );
+        await reloadTemplatesAfterClear;
+
+        // Verify selector is empty
+        const finalTemplateSelector = page.getByTestId('eligibility-template-selector');
+        const finalPlaceholder = finalTemplateSelector.getByTestId('eligibility-template-selector-placeholder');
+        const finalSelectedTag = finalTemplateSelector.getByTestId('eligibility-template-selector-single-value');
+
+        await expect(finalPlaceholder).toBeVisible();
+        await expect(finalSelectedTag).not.toBeVisible();
+        console.log('✅ After reload, template selector is empty (placeholder visible, no selection)');
+
+        // Verify clear button is not visible (nothing to clear)
+        const finalClearButton = page.getByTestId('eligibility-template-selector-clear');
+        await expect(finalClearButton).not.toBeVisible();
+        console.log('✅ Clear button not visible (expected, nothing to clear)');
+
+        console.log('🎉 Test complete: affordable template selection, persistence, and clear-empty-state verified');
     });
 });
