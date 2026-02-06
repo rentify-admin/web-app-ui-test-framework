@@ -2799,9 +2799,12 @@ const waitForButtonOrAutoAdvance = async (
  * Complete financial verification using Simulation provider with VERIDOCS_PAYLOAD via UI
  * @param {import('@playwright/test').Page} page - Playwright page object
  * @param {object} veridocsPayload - The Veridocs payload object
+ * @param {Object} [options] - Optional configuration
+ * @param {boolean} [options.skipConnectionRowValidation=false] - Skip waiting for connection rows (useful when app shows continue button instead)
  * @returns {Promise<void>}
  */
-const simulatorFinancialStepWithVeridocs = async (page, veridocsPayload) => {
+const simulatorFinancialStepWithVeridocs = async (page, veridocsPayload, options = {}) => {
+    const { skipConnectionRowValidation = false } = options;
     console.log('🚀 ~ Starting financial verification with Simulation provider (VERIDOCS_PAYLOAD) via UI...');
 
     // Step 1: Wait for financial verification step to be visible
@@ -2853,28 +2856,35 @@ const simulatorFinancialStepWithVeridocs = async (page, veridocsPayload) => {
     console.log('⏳ Waiting for simulator to process payload...');
     await page.waitForTimeout(5000);
     console.log('✅ Simulator processing completed');
-    // Step 6: Poll up to 60s for any connection row to appear (using Playwright's built-in polling)
-    console.log('🔍 Checking if connection row exists (with polling up to 60s)...');
-    const connectionRows = page.getByTestId('connection-row');
-    
-    // Use expect().toBeVisible() which has built-in polling - more reliable than manual count() checks
-    await expect(connectionRows.first()).toBeVisible({ timeout: 60_000 });
-    
-    const rowCount = await connectionRows.count();
-    console.log(`📊 Found ${rowCount} connection row(s)`);
-    
-    if (rowCount === 0) {
-        console.log('❌ No connection rows found - simulator may not have processed the payload');
-        throw new Error('No connection rows found after simulator dialog');
+
+    // Step 5: Optionally validate connection rows appear (can be skipped for apps that show continue button instead)
+    if (!skipConnectionRowValidation) {
+        // Step 6: Poll up to 60s for any connection row to appear (using Playwright's built-in polling)
+        console.log('🔍 Checking if connection row exists (with polling up to 60s)...');
+        const connectionRows = page.getByTestId('connection-row');
+
+        // Use expect().toBeVisible() which has built-in polling - more reliable than manual count() checks
+        await expect(connectionRows.first()).toBeVisible({ timeout: 60_000 });
+
+        const rowCount = await connectionRows.count();
+        console.log(`📊 Found ${rowCount} connection row(s)`);
+
+        if (rowCount === 0) {
+            console.log('❌ No connection rows found - simulator may not have processed the payload');
+            throw new Error('No connection rows found after simulator dialog');
+        }
+
+        // Step 7: Wait for upload status on connection row
+        console.log('⏳ Waiting for verification row to show "Uploaded"...');
+        await expect(
+            page.getByTestId('connection-row').filter({ hasText: /Uploaded/i })
+        ).toBeVisible({ timeout: 60000 });
+
+        console.log('✅ Verification upload completed successfully via simulator UI');
+    } else {
+        console.log('⏭️  Skipping connection row validation (skipConnectionRowValidation=true)');
+        console.log('✅ Simulator payload submitted - verification will be processed asynchronously');
     }
-    
-    // Step 7: Wait for upload status on connection row
-    console.log('⏳ Waiting for verification row to show "Uploaded"...');
-    await expect(
-        page.getByTestId('connection-row').filter({ hasText: /Uploaded/i })
-    ).toBeVisible({ timeout: 60000 });
-    
-    console.log('✅ Verification upload completed successfully via simulator UI');
 };
 
 /**
