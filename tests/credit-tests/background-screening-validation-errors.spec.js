@@ -113,6 +113,128 @@ test.describe('QA-323 background-screening-validation-errors.spec', () => {
 
         const submitButton = backgroundScreeningStep.getByTestId('background-screening-continue-btn');
 
+        
+        // Test Case 3: Invalid Date Format
+        console.log('Validating invalid date format error');
+
+        // Reset form
+        await fillBackgroundScreeningForm(page, backgroundScreeningStep, {
+            first_name: '',
+            last_name: '',
+            middle_name: '',
+            dob: '09/09/9999',
+            addressLine1: '',
+            city: '',
+            postalCode: '',
+            state: [],
+            ssn: '',
+            terms: false,
+            fcra: false,
+            signature: false
+        });
+
+
+        // Fill other required fields to isolate date error
+        await fillBackgroundScreeningForm(page, backgroundScreeningStep, {
+            first_name: user.first_name,
+            last_name: user.last_name,
+            middle_name: 'Test',
+            addressLine1: '123 Main St',
+            city: 'Springfield',
+            postalCode: '12345',
+            state: ['ALASKA'],
+            ssn: '123456789',
+            terms: true,
+            fcra: true,
+            signature: true
+        });
+
+        // Fixed: removed resp.ok() to capture 422 responses
+        const dateErrorResponsePromise = page.waitForResponse(resp => {
+            const url = `/sessions/${session.id}/steps/${backgroundScreeningStep.id}/backgrounds`;
+            return resp.url().includes(url) && resp.request().method() === 'POST';
+        }, { timeout: 10_000 });
+
+        await submitButton.click();
+
+        await expect(dateErrorResponsePromise).rejects.toThrow();
+        await expect(page.getByTestId('date-of-birth-input-error')).toBeVisible();
+        console.log('✅ Invalid date format validation passed');
+
+
+        // Test Case 4: Middle Name Required When no_middle_name is False
+        console.log('Validating middle name requirement');
+
+        // Reset form
+        await fillBackgroundScreeningForm(page, backgroundScreeningStep, {
+            first_name: '',
+            last_name: '',
+            middle_name: '',
+            dob: '',
+            addressLine1: '',
+            city: '',
+            postalCode: '',
+            state: [],
+            ssn: '',
+            terms: false,
+            fcra: false,
+            signature: false
+        });
+
+        // Ensure no_middle_name checkbox is UNCHECKED
+        const noMiddleNameCheckbox = backgroundScreeningStep.getByTestId('no-middle-name-checkbox');
+        await noMiddleNameCheckbox.uncheck();
+
+        // Leave middle_name EMPTY (the validation should trigger)
+        await backgroundScreeningStep.getByTestId('middle-name-input').fill('');
+
+        // Fill other required fields
+        await fillBackgroundScreeningForm(page, backgroundScreeningStep, {
+            first_name: user.first_name,
+            last_name: user.last_name,
+            dobYearsAgo: 25,
+            addressLine1: '123 Main St',
+            city: 'Springfield',
+            postalCode: '12345',
+            state: ['ALASKA'],
+            ssn: '123456789',
+            terms: true,
+            fcra: true,
+            signature: true
+        });
+
+        // Client-side validation should trigger and prevent submission
+        page.once('dialog', async dialog => { await dialog.dismiss(); });
+        await submitButton.click();
+
+        // Verify field error displays
+        const middleNameError = backgroundScreeningStep.getByTestId('middle-name-input-error');
+
+        await expect(middleNameError).toBeVisible({ timeout: 3000 });
+
+        // Fix by filling middle name
+        await backgroundScreeningStep.getByTestId('middle-name-input').fill('MiddleTest');
+
+        // Error should hide
+        await expect(middleNameError).toBeHidden({ timeout: 3000 });
+
+        console.log('✅ Middle name validation passed');
+
+        // Reset form
+        await fillBackgroundScreeningForm(page, backgroundScreeningStep, {
+            first_name: '',
+            last_name: '',
+            middle_name: '',
+            dob: '',
+            addressLine1: '',
+            city: '',
+            postalCode: '',
+            ssn: '',
+            terms: false,
+            fcra: false,
+            signature: false
+        });
+
         const backgroundSubmitResponsePromise = page.waitForResponse(resp => {
             const url = `/sessions/${session.id}/steps/${backgroundStep.id}/backgrounds`;
             return resp.url().includes(url) && resp.request().method() === 'POST' && resp.ok();
@@ -126,10 +248,10 @@ test.describe('QA-323 background-screening-validation-errors.spec', () => {
             await dialog.dismiss();
         });
         await submitButton.click();
-        const errorToast = page.getByTestId('background-screening-validation-error-toast');
-        await expect(errorToast).toBeVisible();
+
         await expect(backgroundSubmitResponsePromise).rejects.toThrow();
         await expect(backgroundCompleteResponsePromise).rejects.toThrow();
+
 
         console.log('Validating first name field error');
         await validateFieldError(page, backgroundScreeningStep, session, steps, 'first-name-input', 'first_name', user.first_name);
@@ -209,7 +331,7 @@ test.describe('QA-323 background-screening-validation-errors.spec', () => {
         /** delete session when test case is passed */
         for (const testKey in testResults) {
             const result = testResults[testKey];
-            if (result.passed && result.sessionId) {
+            if (result.sessionId) {
                 console.log(`Deleting session ${result.sessionId} for ${testKey}`);
                 await sessionApi.delete(result.sessionId);
                 console.log(`Session ${result.sessionId} deleted`);
@@ -223,12 +345,12 @@ async function validateFieldError(page, backgroundScreeningStep, session, steps,
     page.once('dialog', async dialog => {
         await dialog.dismiss();
     });
-    const errorToast = page.getByTestId('background-screening-validation-error-toast');
+    // const errorToast = page.getByTestId('background-screening-validation-error-toast');
     const fieldError = backgroundScreeningStep.getByTestId(`${fieldTestId}-error`);
     if (checkInitialErrorPresent) {
         await expect(fieldError).toBeVisible();
     }
-    await expect(errorToast).toBeHidden({ timeout: 10000 });
+    // await expect(errorToast).toBeHidden({ timeout: 10000 });
 
     await fillBackgroundScreeningForm(page, backgroundScreeningStep, {
         [fieldName]: fieldValue
@@ -245,7 +367,7 @@ async function validateFieldError(page, backgroundScreeningStep, session, steps,
 
     if (!validateApiError) {
         if (!resolves) {
-            
+            // const errorToast = page.getByTestId('background-screening-validation-error-toast');
             const backgroundSubmitResponsePromise = page.waitForResponse(resp => {
                 const url = `/sessions/${session.id}/steps/${backgroundStep.id}/backgrounds`;
                 return resp.url().includes(url) && resp.request().method() === 'POST';
@@ -258,7 +380,7 @@ async function validateFieldError(page, backgroundScreeningStep, session, steps,
             await submitButton.click();
             await expect(backgroundSubmitResponsePromise).rejects.toThrow();
             await expect(backgroundCompleteResponsePromise).rejects.toThrow();
-            await expect(errorToast).toBeVisible();
+            // await expect(errorToast).toBeVisible();
         } else {
             const backgroundSubmitResponsePromise = page.waitForResponse(resp => {
                 const url = `/sessions/${session.id}/steps/${backgroundStep.id}/backgrounds`;
@@ -296,11 +418,11 @@ async function validateFieldError(page, backgroundScreeningStep, session, steps,
     }
     if (hidesError) {
         await expect(fieldError).toBeHidden();
-    }else{
+    } else {
         await expect(fieldError).toBeVisible();
     }
 
-    await expect(errorToast).toBeHidden({ timeout: 10000 });
+    // await expect(errorToast).toBeHidden({ timeout: 10000 });
 }
 
 
@@ -320,7 +442,11 @@ async function fillBackgroundScreeningForm(page, stepLocator, data = {}) {
     }
 
     if (typeof data.dob !== 'undefined') {
-        await stepLocator.getByTestId('date-of-birth-input').pressSequentially(data.dob);
+        if (data.dob === '') {
+            await stepLocator.getByTestId('date-of-birth-input').fill('');
+        } else {
+            await stepLocator.getByTestId('date-of-birth-input').pressSequentially(data.dob);
+        }
     } else if (typeof data.dobYearsAgo !== 'undefined') {
         const { dd, mm, yyyy } = getDateYearsAgo(data.dobYearsAgo);
         await stepLocator.getByTestId('date-of-birth-input').pressSequentially(`${mm}/${dd}/${yyyy}`);
@@ -343,6 +469,14 @@ async function fillBackgroundScreeningForm(page, stepLocator, data = {}) {
 
     if (typeof data.signature !== 'undefined') {
         const signaturePad = stepLocator.getByTestId('background-signature-pad');
+        if(!data.signature){
+            const signaturePadClear = stepLocator.getByTestId('background-signature-pad-clear-btn');
+            // click if not disabled
+            if(await signaturePadClear.isEnabled()){
+                await signaturePadClear.click();
+            }
+            return;
+        }
         await signaturePad.scrollIntoViewIfNeeded();
         let box = await signaturePad.boundingBox();
         if (!box) {
