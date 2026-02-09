@@ -92,7 +92,7 @@ test.describe('QA-351 application-flow-member-permission-sync.spec', () => {
     })
 
 
-    test('Verify member permission are updating properly from application flow', async ({ page }) => {
+    test('Verify member permission are updating properly from application flow', { tag: ['@regression'] }, async ({ page }) => {
         console.log('▶️ Test start: Verify member permission sync from application flow');
 
         await adminLoginAndNavigateToApplications(page, admin)
