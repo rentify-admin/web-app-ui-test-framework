@@ -112,8 +112,10 @@ async function verifyTransactionRows(page, transactions, { checkSelection = fals
 
     const incomeSourceTable = incomeSourceModal.getByTestId("financial-section-transactios-list");
     const tableRows = incomeSourceTable.locator("tbody>tr");
+
+    // Use auto-waiting assertion to wait for correct row count
+    await expect(tableRows).toHaveCount(transactions.length, { timeout: 2000 });
     const rowsCount = await tableRows.count();
-    await expect(rowsCount).toBe(transactions.length);
 
     for (let index = 0; index < rowsCount; index++) {
         const element = tableRows.nth(index);
@@ -130,7 +132,7 @@ async function verifyTransactionRows(page, transactions, { checkSelection = fals
     }
 }
 
-test.describe("QA-128 income-source-transaction-management.spec", () => {
+test.describe("QA-238 income-source-transaction-management.spec", () => {
 
     test.setTimeout(210_000);
 
@@ -146,7 +148,7 @@ test.describe("QA-128 income-source-transaction-management.spec", () => {
     });
 
     test("Income Source Transaction Management - Add/Remove Validation (VC-1758)", {
-        tags: ['@regression'],
+        tag: ['@regression', '@staging-ready', '@rc-ready'],
         timeout: 180000
     }, async ({ page }) => {
         // Setup
@@ -327,7 +329,6 @@ test.describe("QA-128 income-source-transaction-management.spec", () => {
             ),
             searchInput.fill("PAYROLL DEPOSIT"),
         ]);
-        await page.waitForTimeout(500);
         await verifyTransactionRows(page, mockPayrollTransactionsSorted);
 
         console.log("   > Clearing search filter...");
@@ -340,7 +341,6 @@ test.describe("QA-128 income-source-transaction-management.spec", () => {
             ),
             searchInput.fill(""),
         ]);
-        await page.waitForTimeout(500);
         await verifyTransactionRows(page, mockCreditTransactions);
 
         const uniqueDescription = mockCreditTransactions.find(tr => tr.description !== "PAYROLL DEPOSIT")?.description;
@@ -355,7 +355,6 @@ test.describe("QA-128 income-source-transaction-management.spec", () => {
                 ),
                 searchInput.fill(uniqueDescription),
             ]);
-            await page.waitForTimeout(500);
             const filtered = mockCreditTransactions.filter(tr => tr.description === uniqueDescription);
             await verifyTransactionRows(page, filtered);
             await Promise.all([
@@ -367,7 +366,6 @@ test.describe("QA-128 income-source-transaction-management.spec", () => {
                 ),
                 searchInput.fill(""),
             ]);
-            await page.waitForTimeout(500);
         } else {
             console.log("   > No unique other description found for search filter test!");
         }
@@ -397,7 +395,6 @@ test.describe("QA-128 income-source-transaction-management.spec", () => {
             ),
             showSelected.click(),
         ]);
-        await page.waitForTimeout(500);
         await verifyTransactionRows(page, mockPayrollTransactionsSorted, { checkSelection: true });
 
         await expect(showSelected).toBeChecked();
@@ -411,7 +408,6 @@ test.describe("QA-128 income-source-transaction-management.spec", () => {
             ),
             showSelected.click(),
         ]);
-        await page.waitForTimeout(500);
         await verifyTransactionRows(page, mockCreditTransactions);
 
         await expect(modalX).toBeVisible();
@@ -426,7 +422,14 @@ test.describe("QA-128 income-source-transaction-management.spec", () => {
             remainingTransactions,
             incomeSource
         } = await verifyStepSixAndSeven(page, sessionId, incomeSection, incomeSource, mockPayrollTransactionsSorted));
-        await page.waitForTimeout(1000);
+
+        // Wait for modal to close (indicates refetch completed)
+        await expect(incomeSourceModal).not.toBeVisible({ timeout: 10000 });
+
+        // Wait for AMI value to update in DOM
+        await expect(incomeSection.getByTestId(`source-${incomeSource.id}-monthly-income-col`))
+            .not.toHaveText(avgMonthlyText, { timeout: 5000 });
+
         const avgMonthlyText2 = (await incomeSection.getByTestId(`source-${incomeSource.id}-monthly-income-col`).textContent()).trim();
         console.log(`   > AMI after removing 1: ${incomeSource.average_monthly_income}, should be less than ${apiAvgMonthIncome} (before)`);
         await expect(avgMonthlyText2).not.toBe(avgMonthlyText)
@@ -443,7 +446,14 @@ test.describe("QA-128 income-source-transaction-management.spec", () => {
             remainingTransactions,
             incomeSource
         } = await verifyStepSixAndSeven(page, sessionId, incomeSection, incomeSource, mockPayrollTransactionsSorted));
-        await page.waitForTimeout(3000);
+
+        // Wait for modal to close (indicates refetch completed)
+        await expect(incomeSourceModal).not.toBeVisible({ timeout: 10000 });
+
+        // Wait for AMI value to update in DOM
+        await expect(incomeSection.getByTestId(`source-${incomeSource.id}-monthly-income-col`))
+            .not.toHaveText(avgMonthlyText2, { timeout: 5000 });
+
         const avgMonthlyText3 = (await incomeSection.getByTestId(`source-${incomeSource.id}-monthly-income-col`).textContent()).trim();
         await expect(avgMonthlyText3).not.toBe(avgMonthlyText2)
         expect(incomeSource.average_monthly_income).toBeLessThan(apiAvgMonthIncome);
@@ -528,7 +538,13 @@ test.describe("QA-128 income-source-transaction-management.spec", () => {
             }
         }
 
-        await page.waitForTimeout(1500);
+        // Wait for modal to close (indicates refetch completed)
+        await expect(incomeSourceModal).not.toBeVisible({ timeout: 10000 });
+
+        // Wait for AMI value to update in DOM
+        await expect(incomeSection.getByTestId(`source-${incomeSource.id}-monthly-income-col`))
+            .not.toHaveText(avgMonthlyText3, { timeout: 5000 });
+
         const avgMonthlyText4 = (await incomeSection.getByTestId(`source-${incomeSource.id}-monthly-income-col`).textContent()).trim();
         await expect(avgMonthlyText4).not.toBe(avgMonthlyText3);
         expect(updatedIncomeSource.average_monthly_income).toBeGreaterThan(apiAvgMonthIncome);
@@ -572,8 +588,7 @@ test.describe("QA-128 income-source-transaction-management.spec", () => {
             ),
             showSelected.click(),
         ]);
-        await page.waitForTimeout(1000)
-        await expect(await incomeSourceTable.locator('tbody>tr').count()).toBe(noOfRowToCheck)
+        await expect(incomeSourceTable.locator('tbody>tr')).toHaveCount(noOfRowToCheck)
         await Promise.all([
             page.waitForResponse(
                 (resp) =>
@@ -583,8 +598,7 @@ test.describe("QA-128 income-source-transaction-management.spec", () => {
             ),
             showSelected.click(),
         ]);
-        await page.waitForTimeout(1000)
-        await expect(await incomeSourceTable.locator('tbody>tr').count()).toBe(mockCreditTransactions.length);
+        await expect(incomeSourceTable.locator('tbody>tr')).toHaveCount(mockCreditTransactions.length);
 
         await modalX.click();
 
