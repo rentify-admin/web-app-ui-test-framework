@@ -33,7 +33,7 @@ const gotoPage = async (page, parentMenuTestId, submenuTestId, url, urlRegex = f
 
     if (isActive) {
         console.log(`🔄 ~ Submenu ${submenuTestId} is already active, clicking a different submenu first...`);
-        
+
         // Strategy: Click a DIFFERENT submenu first to deselect the target
         // This ensures a fresh click will trigger API calls (similar to prepareSessionForFreshSelection)
         // Find all submenus within the navItem using data-testid (no class selectors)
@@ -42,15 +42,37 @@ const gotoPage = async (page, parentMenuTestId, submenuTestId, url, urlRegex = f
                 .map(el => el.getAttribute('data-testid'))
                 .filter(testId => testId && testId.includes('submenu') && testId !== null);
         }).catch(() => []);
-        
+
         // Find a different submenu to click
         const differentSubmenuTestId = allSubmenuTestIds.find(testId => testId !== submenuTestId);
-        
+
         if (differentSubmenuTestId) {
             console.log(`   🖱️ Clicking different submenu: ${differentSubmenuTestId}`);
             const differentSubmenu = page.getByTestId(differentSubmenuTestId);
             await differentSubmenu.click();
-            await page.waitForTimeout(2000); // Wait for navigation to complete
+
+            // CRITICAL: Wait for target submenu to lose 'sidebar-active' class before proceeding
+            // This ensures the next click will trigger a fresh API call
+            console.log(`   ⏳ Waiting for ${submenuTestId} to become inactive...`);
+            await submenuLocator.evaluate((el) => {
+                return new Promise((resolve, reject) => {
+                    const startTime = Date.now();
+                    const timeout = 5000; // 5 second timeout
+                    const checkInactive = () => {
+                        if (!el.classList.contains('sidebar-active')) {
+                            resolve();
+                        } else if (Date.now() - startTime > timeout) {
+                            reject(new Error(`Timeout waiting for submenu to become inactive`));
+                        } else {
+                            setTimeout(checkInactive, 100);
+                        }
+                    };
+                    checkInactive();
+                });
+            }).catch((err) => {
+                console.log(`   ⚠️ Warning: ${err.message}, proceeding anyway...`);
+            });
+
             console.log(`   ✅ Different submenu clicked - target is now deselected`);
         } else {
             console.log(`   ⚠️ No other submenu found - proceeding anyway`);

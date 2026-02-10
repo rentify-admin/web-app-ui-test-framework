@@ -17,13 +17,26 @@ test.describe('QA-352 inbox_refresh_repeated_load_test_endpoints.spec', () => {
              * Reload page 20 times and every 3 seconds and keep watch on every network request for errors
              * Do not wait for responses when 3 seconds complete just reload again but if any request fails log the error
              * on the last reload wait for every request to complete and check for errors.
+             * Note: 429 (Too Many Requests) is expected during load testing and should not be counted as an error
              */
             const errors = [];
+            const rateLimitHits = [];
             for (let i = 0; i < RELOAD_COUNT; i++) {
                 const reloadIndex = i + 1;
                 console.log(`🔄 Reloading page ${reloadIndex} of ${RELOAD_COUNT}`);
                 const responseListener = async (response) => {
-                    if (response.status() >= 400) {
+                    const status = response.status();
+
+                    // Track 429 separately as expected rate limiting, not errors
+                    if (status === 429) {
+                        const url = response.url();
+                        const method = response.request().method();
+                        rateLimitHits.push({ url, status, method, reloadIndex });
+                        console.log(`⏱️  [Reload ${reloadIndex}/${RELOAD_COUNT}] ${method} ${url} → 429 (Rate Limited - Expected)`);
+                        return;
+                    }
+
+                    if (status >= 400) {
                         const url = response.url();
                         const status = response.status();
                         const method = response.request().method();
@@ -61,6 +74,13 @@ test.describe('QA-352 inbox_refresh_repeated_load_test_endpoints.spec', () => {
                 await page.goto('/applicants/all');
             }
 
+            // Log rate limiting summary (informational)
+            if (rateLimitHits.length > 0) {
+                const reloadsWithRateLimits = [...new Set(rateLimitHits.map(r => r.reloadIndex))].sort((a, b) => a - b);
+                console.log(`ℹ️  Rate limiting (429) encountered: ${rateLimitHits.length} request(s) across reloads ${reloadsWithRateLimits.join(', ')}`);
+                console.log(`   This is expected behavior during load testing`);
+            }
+
             if (errors.length > 0) {
                 const reloadsWithErrors = [...new Set(errors.map(e => e.reloadIndex))].sort((a, b) => a - b);
                 const toReadableUrl = (urlStr) => {
@@ -79,6 +99,7 @@ test.describe('QA-352 inbox_refresh_repeated_load_test_endpoints.spec', () => {
                     `--- ${errors.length} request(s) failed during ${RELOAD_COUNT} reloads ---`,
                     `  Reloads with failures: ${reloadsWithErrors.join(', ')} (of 1..${RELOAD_COUNT})`,
                     `  Status codes: ${statusSummary}`,
+                    `  Note: 429 (Rate Limit) responses are excluded as expected`,
                     '',
                     'Failures (reload #, method, endpoint, status):',
                     ...errors.map((e, idx) => {
@@ -90,7 +111,7 @@ test.describe('QA-352 inbox_refresh_repeated_load_test_endpoints.spec', () => {
                 ].join('\n');
                 expect(errors, message).toHaveLength(0);
             }
-            console.log('✅ No errors encountered during repeated loads');
+            console.log('✅ No errors encountered during repeated loads (429 rate limits are expected and ignored)');
         });
 
 })

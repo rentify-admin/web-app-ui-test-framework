@@ -2,8 +2,13 @@ import { test } from '@playwright/test';
 
 
 const waitForJsonResponse = async response => {
+    // HEAD requests have no body - return empty data structure
+    if (response.request().method() === 'HEAD') {
+        return { data: [] };
+    }
+
     const responseContentType = response.headers()['content-type'];
-    
+
     // Helper to handle protocol errors when response body is no longer available
     // This can happen due to redirects, timing issues, or if the response was already consumed
     const safeReadBodyAsText = async () => {

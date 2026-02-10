@@ -1,0 +1,131 @@
+name: Load Test
+
+on:
+  workflow_dispatch:
+    inputs:
+      test_type:
+        description: 'Load test type'
+        required: true
+        type: choice
+        options:
+          - session
+          - identity
+          - financial
+      duration:
+        description: 'Duration in minutes'
+        required: true
+        default: '10'
+      interval:
+        description: 'Spawn interval in seconds'
+        required: true
+        default: '15'
+      environment:
+        description: 'Target environment'
+        required: true
+        type: choice
+        options:
+          - development
+          - rc
+        default: 'development'
+      max_workers:
+        description: 'Maximum concurrent workers'
+        required: false
+        default: '30'
+
+permissions:
+  contents: read
+
+env:
+  NODE_ENV: test
+  CI: true
+
+jobs:
+  load-test:
+    name: Load Test - ${{ github.event.inputs.test_type }} / ${{ github.event.inputs.environment }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+
+    env:
+      APP_ENV: ${{ github.event.inputs.environment }}
+      API_URL: ${{ github.event.inputs.environment == 'rc' && 'https://api-rc.verifast.app' || 'https://api-dev.verifast.app' }}
+      APP_URL: ${{ github.event.inputs.environment == 'rc' && 'https://rc.verifast.app' || 'https://dev.verifast.app' }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install chromium --with-deps
+
+      - name: Run Load Test
+        run: |
+          echo "========================================"
+          echo "LOAD TEST CONFIGURATION"
+          echo "========================================"
+          echo "Test Type:    ${{ github.event.inputs.test_type }}"
+          echo "Duration:     ${{ github.event.inputs.duration }} minutes"
+          echo "Interval:     ${{ github.event.inputs.interval }} seconds"
+          echo "Environment:  ${{ github.event.inputs.environment }}"
+          echo "Max Workers:  ${{ github.event.inputs.max_workers }}"
+          echo "API URL:      $API_URL"
+          echo "App URL:      $APP_URL"
+          echo "========================================"
+          echo ""
+
+          node scripts/load-test-runner.js \
+            --type ${{ github.event.inputs.test_type }} \
+            --duration ${{ github.event.inputs.duration }} \
+            --interval ${{ github.event.inputs.interval }} \
+            --env ${{ github.event.inputs.environment }} \
+            --max-workers ${{ github.event.inputs.max_workers }}
+
+      - name: Upload load test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: load-test-results-${{ github.event.inputs.test_type }}-${{ github.event.inputs.environment }}-${{ github.run_number }}
+          path: tests/load-testing/results/
+          retention-days: 14
+
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-${{ github.event.inputs.test_type }}-${{ github.run_number }}
+          path: playwright-report/
+          retention-days: 7
+
+      - name: Generate Summary
+        if: always()
+        run: |
+          echo "## Load Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Configuration" >> $GITHUB_STEP_SUMMARY
+          echo "| Parameter | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|-----------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Test Type | ${{ github.event.inputs.test_type }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Environment | ${{ github.event.inputs.environment }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Duration | ${{ github.event.inputs.duration }} minutes |" >> $GITHUB_STEP_SUMMARY
+          echo "| Interval | ${{ github.event.inputs.interval }} seconds |" >> $GITHUB_STEP_SUMMARY
+          echo "| Max Workers | ${{ github.event.inputs.max_workers }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Try to read summary from results file
+          if [ -f "tests/load-testing/results/load-test-summary.json" ]; then
+            echo "### Results" >> $GITHUB_STEP_SUMMARY
+            echo '```json' >> $GITHUB_STEP_SUMMARY
+            cat tests/load-testing/results/load-test-summary.json >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Status: ${{ job.status }}" >> $GITHUB_STEP_SUMMARY

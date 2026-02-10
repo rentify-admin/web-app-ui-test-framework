@@ -163,7 +163,9 @@ test.describe('QA-264 document-delete-internal-only', () => {
             miscDescriptions: 1,
             extraCreditAmount: 500
         });
-        await simulatorFinancialStepWithVeridocs(adminPage, payload);
+        // Skip connection row validation - this app shows continue button instead
+        // We only need files to be generated, which we verify via API below (line 178)
+        await simulatorFinancialStepWithVeridocs(adminPage, payload, { skipConnectionRowValidation: true });
 
         // Some flows require clicking continue after simulator completes
         const continueBtn = adminPage.getByTestId('financial-verification-continue-btn');
@@ -432,8 +434,8 @@ test.describe('QA-264 document-delete-internal-only', () => {
         // Delete session
         if (sessionId) {
             try {
-                await cleanupClient.delete(`/sessions/${sessionId}`);
-                console.log(`[CLEANUP] ✅ Deleted session: ${sessionId}`);
+                //await cleanupClient.delete(`/sessions/${sessionId}`);
+                //console.log(`[CLEANUP] ✅ Deleted session: ${sessionId}`);
             } catch (e) {
                 console.error(`[CLEANUP] ❌ Failed to delete session ${sessionId}:`, e.message);
             }

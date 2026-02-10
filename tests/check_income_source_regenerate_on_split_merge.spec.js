@@ -208,7 +208,7 @@ async function splitSession(page, priSessionId, coAppSessionId) {
     await expect(splitButton).toBeVisible();
     splitButton.click();
 
-    const confirmBox = page.getByTestId('confirm-box');
+    const confirmBox = page.getByTestId('confirm-detach-applicant');
     await expect(confirmBox).toBeVisible();
 
     // Wait for the DELETE (split) request
