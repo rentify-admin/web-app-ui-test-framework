@@ -21,8 +21,8 @@ const findApplicationRowByName = async (page, applicationName, tableSelector = '
     
     for (let index = 0; index < rowCount; index++) {
         const element = rows.nth(index);
-        const appName = await element.locator('td').nth(1).textContent();
-        
+        const appName = await element.getByTestId('application-table-name-col').textContent();
+
         if (appName === applicationName) {
             return element;
         }
@@ -277,11 +277,11 @@ const findApplicationByNameAndInvite = async (page, organizationName, applicatio
     const rowCount = await rows.count();
     for (let index = 0; index < rowCount; index++) {
         const element = rows.nth(index);
-        const tdElement = await element.locator('td').nth(1);
+        const tdElement = element.getByTestId('application-table-name-col');
         const tdText = await tdElement.innerText();
 
         if (tdText.includes(applicationName)) {
-            const tdInviteElement = await element.locator('td').nth(6);
+            const tdInviteElement = element.getByTestId('application-table-invite-col');
             await expect(tdInviteElement).toHaveText('Invite');
             const inviteBtn = await tdInviteElement.locator('a');
             await inviteBtn.click();
@@ -386,7 +386,7 @@ async function openInviteModal(page, applicationName) {
 
     for (let index = 0; index < await rows.count(); index++) {
         const element = rows.nth(index);
-        const appName = await element.locator('td').nth(1)
+        const appName = await element.getByTestId('application-table-name-col')
             .textContent();
 
         if (appName === applicationName) {
@@ -401,31 +401,6 @@ async function openInviteModal(page, applicationName) {
             break;
         }
     }
-}
-
-// Opens the application edit modal for the first row (or by name if needed)
-export async function openApplicationEditModal(page, rowIndex = 0) {
-    await page.locator('table > tbody > tr > td:nth-child(8) > div > a').nth(rowIndex).click();
-    await page.waitForTimeout(2000);
-}
-
-// Opens the workflow identity setup modal
-export async function openWorkflowIdentitySetup(page) {
-    await page.getByTestId('workflow-identity-verification').locator('svg').click();
-    await expect(page.locator('h3', { hasText: 'Workflow Setup' })).toBeVisible();
-}
-
-// Sets the Persona Template ID and saves
-export async function setPersonaTemplateId(page, value) {
-    const personaInput = page.locator('input[placeholder="Enter Persona Template ID"]');
-    await personaInput.fill(value);
-    await page.getByTestId('submit-identity-setup-form').click();
-}
-
-// Verifies the Persona Template ID value
-export async function expectPersonaTemplateId(page, expectedValue) {
-    const personaInput = page.locator('input[placeholder="Enter Persona Template ID"]');
-    await expect(personaInput).toHaveValue(expectedValue);
 }
 
 // Navigate to applicants section and wait for sessions to load

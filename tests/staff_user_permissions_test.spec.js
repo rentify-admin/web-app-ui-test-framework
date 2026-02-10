@@ -192,7 +192,7 @@ test.describe('staff_user_permissions_test', () => {
             const allTableRaws = tableLocator.locator('tbody tr');
             for (let it = 0;it < applications?.length;it++) {
                 await expect(
-                    allTableRaws.nth(it).locator('td:nth-child(1)')
+                    allTableRaws.nth(it).locator('[data-testid="application-table-name-col"]')
                 ).toHaveText(applications[it].name);
             }
 

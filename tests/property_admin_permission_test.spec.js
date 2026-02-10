@@ -179,7 +179,8 @@ test.describe('property_admin_permission_test', () => {
 
             // Try to generate a session and then cancel
             const applicationDiv = page.getByTestId('application-table');
-            await applicationDiv.locator('tbody>tr:nth-child(1)>td').nth(6)
+            await applicationDiv.locator('tbody>tr:nth-child(1)')
+                .getByTestId('application-table-invite-col')
                 .locator('a')
                 .click();
             await expect(page.locator('#generate-session-form')).toBeVisible();

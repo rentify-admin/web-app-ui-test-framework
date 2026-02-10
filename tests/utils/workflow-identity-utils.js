@@ -22,8 +22,7 @@ export const openApplicationEditModal = async (page, rowIndex = 0) => {
             && resp.request().method() === 'GET', { timeout: 15000 })
     ]);
 
-    await page.locator('table > tbody > tr > td:nth-child(8) > div > button').nth(rowIndex)
-        .click();
+    await page.locator('[data-testid^="edit-"]').nth(rowIndex).click();
 
     return response;
 };
