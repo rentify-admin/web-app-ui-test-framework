@@ -9,8 +9,6 @@ import { gotoPage } from './utils/common';
 import { addApplicant, copyInviteLink, navigateToSessionById, reInviteApplicant, searchSessionWithText } from './utils/report-page';
 import { waitForJsonResponse } from './utils/wait-response';
 import { cleanupSession } from './utils/cleanup-helper';
-import { ApiClient, SessionApi } from './api';
-import { loginWithAdmin } from './endpoint-utils/auth-helper';
 
 
 test.describe('QA-353 coapp-income-guarantor-to-primary.spec', () => {
@@ -43,18 +41,9 @@ test.describe('QA-353 coapp-income-guarantor-to-primary.spec', () => {
     let createdGuarantorSessionId = null;
     let createdCoApplicantSessionId = null;
 
-    const adminClient = new ApiClient(app.urls.api, null, 120_000);
-    const sessionApi = new SessionApi(adminClient);
-
-
-    test.beforeAll(async () => {
-        console.log('[SETUP] Logging in as admin to obtain auth token...');
-        await loginWithAdmin(adminClient)
-    })
-
     // Test: Verify co-applicant income is included in household total when former guarantor becomes primary applicant (VC-1496)
     test('Should include co-applicant income in household total when former guarantor becomes primary applicant', {
-        tag: ['@core', '@regression'],
+        tag: ['@core', '@regression', '@staging-ready', '@rc-ready'],
     }, async ({ page, browser }) => {
         test.setTimeout(420_000);
 
@@ -74,7 +63,9 @@ test.describe('QA-353 coapp-income-guarantor-to-primary.spec', () => {
         createdSessionId = sessionId;
 
 
-        const customData = getBankData(PRIMARY_APPLICANT);
+        const customData = getBankData(PRIMARY_APPLICANT, {
+            accountNumber: '1111111111', institutionName: 'First National Bank', balance: 15000.00, amount: 6000.00
+        });
         console.log('    > Completing primary applicant session with financial verification...');
         await completeSession(link, browser, sessionId, customData);
 
@@ -113,7 +104,9 @@ test.describe('QA-353 coapp-income-guarantor-to-primary.spec', () => {
 
 
         console.log('[STEP 3] Complete Guarantor Session with Financial Verification');
-        await completeSession(guarantorSessionLink, browser, guarantorSession.id, getBankData(GUARANTOR_APPLICANT), { noRentBudget: true, noApplicantStep: true });
+        await completeSession(guarantorSessionLink, browser, guarantorSession.id, getBankData(GUARANTOR_APPLICANT, {
+            accountNumber: '2222222222', institutionName: 'City Credit Union', balance: 18000.00, amount: 5500.00, daysAgoFirst: 12, daysAgoSecond: 26
+        }), { noRentBudget: true, noApplicantStep: true });
 
         console.log('[STEP 4] Split Guarantor from Primary Session');
         await page.reload();
@@ -142,17 +135,14 @@ test.describe('QA-353 coapp-income-guarantor-to-primary.spec', () => {
         console.log('    > Search for guarantor session ID (now independent) to verify it exists...');
         const searchSessions = await searchSessionWithText(page, guarantorSession.id);
 
-        // Verifying that gurantor session is now a individual primary session
-        await expect(searchSessions.length).toBeGreaterThan(0);
+        // Verifying that guarantor session is now an individual primary session
+        expect(searchSessions.length).toBeGreaterThan(0);
 
-
-        console.log('Skipping [STEP 5] Change Guarantor to Primary With API');
-        // await sessionApi.update(guarantorSession.id, { role: 'PRIMARY' });
 
         console.log('    > Navigating to guarantor (now primary) session page...');
         await page.goto(`/applicants/all/${guarantorSession.id}`);
 
-        console.log('[STEP 6] Add Co-Applicant to New Primary Session');
+        console.log('[STEP 5] Add Co-Applicant to New Primary Session');
 
         console.log('    > Adding co-applicant to new primary session...');
         await page.getByTestId('session-action-btn').click()
@@ -173,10 +163,12 @@ test.describe('QA-353 coapp-income-guarantor-to-primary.spec', () => {
         console.log('    > Closing invite modal...');
         await inviteModal2.getByTestId('invite-modal-cancel').click().catch(() => { });
 
-        console.log('[STEP 7] Complete Co-Applicant Session with Financial Verification');
-        await completeSession(coAppSessionLink, browser, coAppSession.id, getBankData(CO_APPLICANT), { noRentBudget: true, noApplicantStep: true });
+        console.log('[STEP 6] Complete Co-Applicant Session with Financial Verification');
+        await completeSession(coAppSessionLink, browser, coAppSession.id, getBankData(CO_APPLICANT, {
+            accountNumber: '3333333333', institutionName: 'Pacific Savings Bank', balance: 21000.00, amount: 7000.00, daysAgoFirst: 10, daysAgoSecond: 24
+        }), { noRentBudget: true, noApplicantStep: true });
 
-        console.log('[STEP 8] Verify Household Income Totals Include Co-Applicant Income');
+        console.log('[STEP 7] Verify Household Income Totals Include Co-Applicant Income');
         await page.waitForTimeout(2000);
         const updatedGuarantorSessionPromise = page.waitForResponse(response =>
             response.url().includes(`/sessions/${guarantorSession.id}`) &&
@@ -196,19 +188,19 @@ test.describe('QA-353 coapp-income-guarantor-to-primary.spec', () => {
         await expect(coAppRaw).toBeVisible();
 
         console.log('    > Verifying income totals from API response...');
-        const guarantorTotalIncome = updatedGuarantorSession.state?.summary?.total_income || 0;//2068381
-        await expect(guarantorTotalIncome).toBeGreaterThan(0);
+        const guarantorTotalIncome = updatedGuarantorSession.state?.summary?.total_income || 0;
+        expect(guarantorTotalIncome).toBeGreaterThan(0);
 
         console.log('    > Verifying guarantor and co-applicant individual incomes from API response...');
         const guarantorTotalIncomeRatio = [
             updatedGuarantorSession?.state?.summary?.total_target_to_income_ratio,
             updatedGuarantorSession?.state?.summary?.target_to_income_ratio
         ].find(Boolean)
-        await expect(guarantorTotalIncomeRatio).toBeGreaterThan(0);
+        expect(guarantorTotalIncomeRatio).toBeGreaterThan(0);
 
         console.log('    > Verifying guarantor income...');
         const guarantorIncome = updatedGuarantorSession.state?.summary?.income || 0;
-        await expect(guarantorIncome).toBeGreaterThan(0);
+        expect(guarantorIncome).toBeGreaterThan(0);
 
         const coApplicantSession = updatedGuarantorSession.children.find(childSession => childSession.role === 'APPLICANT')
         expect(coApplicantSession).toBeDefined();
@@ -224,8 +216,8 @@ test.describe('QA-353 coapp-income-guarantor-to-primary.spec', () => {
         // UI verification
         console.log('    > Verifying income totals displayed in UI...');
         const sessionGrossIncomeEle = page.getByTestId('session-monthly-gross-income');
-        const primaryIncomeEle = page.getByTestId(`income-${guarantorSession.id}`);
-        const coAppIncomeEle = page.getByTestId(`income-${coAppSession.id}`);
+        const primaryIncomeEle = page.getByTestId(`session-income-${guarantorSession.id}`);
+        const coAppIncomeEle = page.getByTestId(`session-income-${coAppSession.id}`);
         const sessionGrossIncome = currencyToNumber(await sessionGrossIncomeEle.textContent())
         const primaryIncome = currencyToNumber(await primaryIncomeEle.textContent())
         const coAppUiIncome = currencyToNumber(await coAppIncomeEle.textContent())
@@ -238,14 +230,11 @@ test.describe('QA-353 coapp-income-guarantor-to-primary.spec', () => {
         console.log('✅ Income totals verified successfully in UI and API.');
     });
 
-    test.afterAll(async ({ request }, testInfo) => {
-        // Cleanup created sessions
-        if (testInfo.status === testInfo.expectedStatus) {
-            const sessionIdsToDelete = [createdGuarantorSessionId, createdCoApplicantSessionId, createdSessionId].filter(Boolean);
-            for (const sessionId of sessionIdsToDelete) {
-                console.log(`🗑️ Deleting session with ID: ${sessionId}`);
-                await cleanupSession(request, sessionId, true);
-            }
+    test.afterAll(async ({ request }) => {
+        const sessionIdsToDelete = [createdGuarantorSessionId, createdCoApplicantSessionId, createdSessionId].filter(Boolean);
+        for (const sessionId of sessionIdsToDelete) {
+            console.log(`🗑️ Deleting session with ID: ${sessionId}`);
+            await cleanupSession(request, sessionId, true);
         }
     });
 
