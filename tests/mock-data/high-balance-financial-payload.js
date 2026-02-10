@@ -329,27 +329,35 @@ function getBankStatementData(userData = null, multiply = 30) {
 }
 
 
-function getBankData(user) {
-    // Generate dynamic dates within the last 60 days
-    const fourteenDaysAgo = new Date();
-    fourteenDaysAgo.setUTCDate(fourteenDaysAgo.getUTCDate() - 14);
-    fourteenDaysAgo.setUTCHours(0, 0, 0, 0);
+function getBankData(user, options = {}) {
+    const daysAgoFirst = options.daysAgoFirst || 14;
+    const daysAgoSecond = options.daysAgoSecond || 28;
 
-    const twentyEightDaysAgo = new Date();
-    twentyEightDaysAgo.setUTCDate(twentyEightDaysAgo.getUTCDate() - 28);
-    twentyEightDaysAgo.setUTCHours(0, 0, 0, 0);
+    const firstDate = new Date();
+    firstDate.setUTCDate(firstDate.getUTCDate() - daysAgoFirst);
+    firstDate.setUTCHours(0, 0, 0, 0);
+
+    const secondDate = new Date();
+    secondDate.setUTCDate(secondDate.getUTCDate() - daysAgoSecond);
+    secondDate.setUTCHours(0, 0, 0, 0);
+
+    const accountNumber = options.accountNumber || "1234567890";
+    const institutionName = options.institutionName || "Test Bank";
+    const accountName = options.accountName || "Checking Account";
+    const balance = options.balance || 12500.00;
+    const amount = options.amount || 6000.00;
 
     return {
         id: null,
         institutions: [{
-            name: "Test Bank",
+            name: institutionName,
             accounts: [
                 {
                     id: null,
-                    account_number: "1234567890",
-                    name: "Checking Account",
+                    account_number: accountNumber,
+                    name: accountName,
                     type: "checking",
-                    balance: 12500.00,
+                    balance: balance,
                     currency: "USD",
                     owner: {
                         first_name: user.first_name,
@@ -366,15 +374,15 @@ function getBankData(user) {
                     transactions: [
                         {
                             id: null,
-                            date: fourteenDaysAgo.toISOString().split('T')[0],
-                            amount: 6000.00,
+                            date: firstDate.toISOString().split('T')[0],
+                            amount: amount,
                             description: "Payroll Deposit",
                             category: "income"
                         },
                         {
                             id: null,
-                            date: twentyEightDaysAgo.toISOString().split('T')[0],
-                            amount: 6000.00,
+                            date: secondDate.toISOString().split('T')[0],
+                            amount: amount,
                             description: "Payroll Deposit",
                             category: "income"
                         }

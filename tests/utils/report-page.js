@@ -1841,6 +1841,136 @@ async function verifySessionReferenceNo(adminClient, sessionId, expectedValue) {
     }
 }
 
+
+async function addApplicant(page, inviteModal, coApp, session) {
+
+    console.log(`✍️ [AddApplicant] Filling first name: ${coApp.first_name}`);
+    const first_name = inviteModal.getByTestId('applicant-first-name');
+    await expect(first_name).toBeVisible();
+    await first_name.fill(coApp.first_name);
+
+    console.log(`✍️ [AddApplicant] Filling last name: ${coApp.last_name}`);
+    const last_name = inviteModal.getByTestId('applicant-last-name');
+    await expect(last_name).toBeVisible();
+    await last_name.fill(coApp.last_name);
+
+    console.log(`📧 [AddApplicant] Filling email: ${coApp.email}`);
+    const email = inviteModal.getByTestId('applicant-email');
+    await expect(email).toBeVisible();
+    await email.fill(coApp.email);
+
+    console.log(`🪪 [AddApplicant] Selecting applicant role: ${coApp.role}`);
+    const role = inviteModal.getByTestId('applicant-role');
+    await expect(role).toBeVisible();
+    await fillMultiselect(page, role, [coApp.role]);
+
+    const submit = inviteModal.getByTestId('applicant-invite-submit');
+    await expect(submit).toBeVisible();
+    console.log('🚀 [AddApplicant] Waiting for create/applicant and session responses...');
+
+    const createResp = page.waitForResponse(resp => resp.url().endsWith('/applicants')
+        && resp.request().method() === 'POST'
+        && resp.ok(),
+        {
+            timeout: 60_000
+        }
+    )
+    console.log('🖱️ [AddApplicant] Clicking submit button...');
+    await submit.click()
+    const applicantResp = await createResp
+    const sessionResp = page.waitForResponse(resp => resp.url().includes(`/sessions/${session.id}?fields[session]`)
+        && resp.request().method() === 'GET'
+        && resp.ok(),
+        {
+            timeout: 60_000
+        }
+    )
+    const newSessionResp = await sessionResp
+    expect(await applicantResp.status()).toBe(201);
+    console.log('📝 [AddApplicant] Received applicant and updated session responses.');
+    const { data: applicant } = await waitForJsonResponse(applicantResp)
+    const { data: newSession } = await waitForJsonResponse(newSessionResp)
+    if (newSession) {
+        console.log(`🏠 [AddApplicant] Session updated with new applicant. Session ID: ${newSession.id}`)
+    }
+
+    const invitedApplicant = inviteModal.getByTestId('invited-applicants');
+    await expect(invitedApplicant).toBeVisible();
+
+    console.log('🔎 [AddApplicant] Finding session tile for the invited applicant...');
+    // Interactive step logs
+    console.log(`📄 [AddApplicant] newSession.id: ${newSession.id}`)
+    console.log(`👥 [AddApplicant] newSession.children.length: ${newSession.children.length}`)
+    console.log(`🔗 [AddApplicant] applicant.id: ${applicant.id}`)
+
+    const applicantSession = newSession.children.find(sess => {
+        return sess.applicant.id === applicant.id;
+    })
+
+    if (applicantSession) {
+        const sessionTile = invitedApplicant.getByTestId(`invited-applicant-${applicantSession.id}`)
+
+        await expect(sessionTile.getByTestId('invited-applicant-fullname')).toHaveText(`${coApp.first_name} ${coApp.last_name}`)
+        await expect(sessionTile.getByTestId('invited-applicant-email')).toHaveText(`${coApp.email}`)
+        await expect(sessionTile.getByTestId('invited-applicant-role')).toContainText(`${coApp.role}`)
+        console.log(`✅ [AddApplicant] Applicant "${coApp.first_name} ${coApp.last_name}" with role "${coApp.role}" successfully added and visible.`)
+    } else {
+        console.log(`❌ [AddApplicant] Error: Could not find applicant session for applicant id: ${applicant.id}`)
+    }
+    return applicantSession;
+}
+
+async function copyInviteLink(page, guarantorSession) {
+    await page
+        .getByTestId(
+            `copy-invite-link-${guarantorSession?.applicant?.id}`
+        )
+        .click({ timeout: 10000 });
+
+    let copiedLink;
+    try {
+        copiedLink = await page.evaluate(async () => {
+            try {
+                return await navigator.clipboard.readText();
+            } catch (error) {
+                console.log('Clipboard read failed:', error.message);
+                return null;
+            }
+        });
+
+        if (!copiedLink) {
+            throw new Error('Clipboard read returned null or empty');
+        }
+        console.log('✅ Link copied successfully from clipboard');
+        return copiedLink;
+    } catch (error) {
+        console.log('⚠️ Clipboard operation failed, trying alternative method');
+
+        // Fallback: try to get the link from the page directly
+        try {
+            const linkElement = page.locator('[data-testid="invite-link-input"] input, [data-testid="invite-link-input"] textarea');
+            copiedLink = await linkElement.inputValue();
+            console.log('✅ Link retrieved from input field as fallback');
+            return copiedLink;
+        } catch (fallbackError) {
+            console.log('❌ Both clipboard and fallback methods failed');
+            throw new Error(`Failed to get invite link: ${error.message}`);
+        }
+    }
+}
+
+const reInviteApplicant = async (page, applicantId) => {
+    const reinvitePromise = page.waitForResponse(response =>
+        response.url().includes(`/applicants/${applicantId}`) &&
+        response.request().method() === 'PATCH' &&
+        response.ok(),
+        { timeout: 60000 } // 1 minute timeout
+    );
+    const reinviteButton = page.getByTestId(`reinvite-${applicantId}`);
+    await expect(reinviteButton).toBeVisible();
+    await reinviteButton.click();
+    await reinvitePromise
+}
 export {
     checkSessionApproveReject,
     checkFlagsPresentInSection,
@@ -1873,6 +2003,8 @@ export {
     fillCreateSessionForm,
     submitCreateSessionForm,
     verifyReferenceNumberDisplay,
-    verifySessionReferenceNo
+    verifySessionReferenceNo,
+    addApplicant,
+    copyInviteLink,
+    reInviteApplicant
 };
-
