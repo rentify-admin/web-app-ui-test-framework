@@ -181,7 +181,9 @@ test.describe('QA-299 sessions_income_permissions.spec', () => {
 
     });
 
-    test('Verify Sessions Income Permissions Validation', async ({ page }) => {
+    test('Verify Sessions Income Permissions Validation', {
+        tags: ['@permissions', '@sessions', '@regression', '@qa-299']
+    },async ({ page }) => {
 
         console.log('[STEP 1] VIEW_SESSION_INCOME_SOURCES Permission - Positive Testing')
         await test.step('[STEP 1] VIEW_SESSION_INCOME_SOURCES Permission - Positive Testing', async () => {
