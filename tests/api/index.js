@@ -5,6 +5,8 @@ import ProviderApi from "./provider-api"
 import FinancialVerificationApi from "./financial-verification-api"
 import ApplicantApi from "./applicant-api"
 import ApplicationApi from "./application-api"
+import RoleApi from "./role-api"
+import OrganizationApi from "./organization-api"
 
 
 export {
@@ -14,5 +16,7 @@ export {
     ProviderApi,
     FinancialVerificationApi,
     ApplicantApi,
-    ApplicationApi
+    ApplicationApi,
+    RoleApi,
+    OrganizationApi
 }
