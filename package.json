@@ -49,7 +49,13 @@
     "flaky:tag": "node scripts/flaky_analysis/flaky-test-tagger.js tag",
     "flaky:clean": "node scripts/flaky_analysis/flaky-test-tagger.js clean",
     "docs:generate": "node scripts/generate-test-documentation.js",
-    "docs:update-all": "node scripts/generate-test-documentation.js --update-all"
+    "docs:update-all": "node scripts/generate-test-documentation.js --update-all",
+    "test:mobile-session": "npx playwright test tests/mobile/ --project=mobile-chrome",
+    "test:mobile-session:ui": "npx playwright test tests/mobile/ --project=mobile-chrome --ui",
+    "test:mobile-session:develop": "APP_ENV=development npx playwright test tests/mobile/ --project=mobile-chrome",
+    "test:mobile-session:staging": "APP_ENV=staging npx playwright test tests/mobile/ --project=mobile-chrome",
+    "test:web-session": "npx playwright test tests/mobile/ --project=chromium",
+    "test:session-both": "npx playwright test tests/mobile/ --project=chromium --project=mobile-chrome"
   },
   "devDependencies": {
     "@playwright/test": "^1.52.0",

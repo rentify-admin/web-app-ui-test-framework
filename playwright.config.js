@@ -87,6 +87,22 @@ export default defineConfig({
                     ]
                 }
             }
+        },
+        {
+            name: 'mobile-chrome',
+            use: {
+                ...devices['Pixel 5'],
+                contextOptions: {
+                    permissions: ['geolocation', 'notifications', 'clipboard-read', 'clipboard-write']
+                },
+                launchOptions: {
+                    args: [
+                        '--disable-web-security',
+                        '--use-fake-ui-for-media-stream',
+                        '--use-fake-device-for-media-stream'
+                    ]
+                }
+            }
         }
         // ,{
         //     name: 'firefox',
