@@ -79,7 +79,10 @@ test.describe('heartbeat_applications_menus.spec', () => {
         }
 
         if (portfolios.data.length > 0) {
-            const portfolioTableRows = await page.locator('table').locator('tbody>tr');
+            // Wait for portfolios page to fully load (heading visible confirms page transition complete)
+            await expect(page.getByTestId('portfolios-heading')).toBeVisible();
+            const portfolioTable = await page.getByTestId('data-table');
+            const portfolioTableRows = await portfolioTable.locator('tbody>tr');
             for (let index = 0; index < portfolios.data.length; index++) {
                 const row = await portfolioTableRows.nth(index);
                 await expect(row).toContainText(portfolios.data[index].name);

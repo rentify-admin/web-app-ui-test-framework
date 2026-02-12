@@ -51,6 +51,12 @@ const gotoPage = async (page, parentMenuTestId, submenuTestId, url, urlRegex = f
             const differentSubmenu = page.getByTestId(differentSubmenuTestId);
             await differentSubmenu.click();
 
+            // Wait for the different submenu's content to fully load before proceeding
+            const noRecordFound = page.getByText('No Record Found');
+            await noRecordFound.waitFor({ state: 'hidden', timeout: 10_000 }).catch(() => {
+                console.log(`   ℹ️ 'No Record Found' not detected or already hidden`);
+            });
+
             // CRITICAL: Wait for target submenu to lose 'sidebar-active' class before proceeding
             // This ensures the next click will trigger a fresh API call
             console.log(`   ⏳ Waiting for ${submenuTestId} to become inactive...`);
