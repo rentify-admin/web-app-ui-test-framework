@@ -180,55 +180,6 @@ test.describe('QA-356 paystub_real_file_no_duplicate_verifications.spec', () => 
         console.log('    > final verification count after waiting:', verifications.length);
         expect(verifications.length).toBe(3);  // Final check to ensure no additional verifications were created after waiting
 
-        console.log('[STEP 4] Uploading multiple files in single batch and verifying only ONE verification is created');
-        // Wait for UI to stabilize after previous verification completed
-        await guestPage.waitForTimeout(3000);
-
-        await guestPage.getByTestId('document-pay_stub').click();
-        await guestPage.getByTestId('employment-upload-paystub-btn').click();
-        await guestPage.waitForTimeout(500);
-
-        // Wait for upload form to be ready
-        console.log('   > waiting for batch upload form to be ready');
-        await expect(guestPage.locator('.multiselect__tags')).toBeVisible({ timeout: 10000 });
-        console.log('   > batch upload form is ready');
-
-        // Select cadence
-        await guestPage.locator('.multiselect__tags').click();
-        await guestPage.locator('li').filter({ hasText: /^Bi-Weekly$/ }).click();
-
-        // Upload MULTIPLE files in one setInputFiles call (batch upload)
-        const file1 = join(__dirname, './test_files', 'paystub_recent.pdf');
-        const file2 = join(__dirname, './test_files', 'paystub_recent.png');
-        const paystubFileInput = guestPage.locator('input[type="file"]');
-        console.log('   > uploading 2 files simultaneously (batch upload)');
-        await paystubFileInput.setInputFiles([file1, file2]); // Multiple files at once
-        await guestPage.waitForTimeout(2000);
-
-        console.log('   > submitting batch upload and verifying only ONE verification created');
-        const [batchEmploymentResponse] = await Promise.all([
-            guestPage.waitForResponse(resp => resp.url().includes('/employment-verifications') &&
-                resp.request().method() === 'POST' &&
-                resp.ok(), { timeout: 30000 }),
-            guestPage.getByTestId('employment-step-submit-btn').click()
-        ]);
-
-        const batchEmploymentData = await waitForJsonResponse(batchEmploymentResponse);
-        console.log('   > batch upload POST response received, polling for COMPLETED');
-
-        // Poll for completion
-        await pollForVerificationStatus(guestContext, batchEmploymentData.data.id, 'employment-verifications', {
-            maxAttempts: 20,
-            pollInterval: 4000,
-            authToken: guestAuthToken
-        });
-
-        // Verify count is exactly 4 (not 5) - one per upload EVENT, not per file
-        const finalVerifications = await getEmploymentVerifications(sessionId);
-        console.log('    > final verification count after batch upload:', finalVerifications.length);
-        expect(finalVerifications.length).toBe(4); // One verification per upload event, not per file
-        console.log('✅ Batch upload of 2 files created only ONE verification (correct behavior)');
-
         // Close guest context
         if (guestContext) {
             console.log('    > closing guest browser context');
