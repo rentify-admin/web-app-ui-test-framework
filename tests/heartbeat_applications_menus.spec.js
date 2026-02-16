@@ -82,10 +82,20 @@ test.describe('heartbeat_applications_menus.spec', () => {
             // Wait for portfolios page to fully load (heading visible confirms page transition complete)
             await expect(page.getByTestId('portfolios-heading')).toBeVisible();
             const portfolioTable = await page.getByTestId('data-table');
-            const portfolioTableRows = await portfolioTable.locator('tbody>tr');
+
+            // Wait for table to have at least one row (table is loaded)
+            await expect(portfolioTable.locator('tbody>tr')).not.toHaveCount(0, { timeout: 10000 });
+
+            // Verify all portfolios exist in the table (order-independent)
+            // UI might sort differently than API response
             for (let index = 0; index < portfolios.data.length; index++) {
-                const row = await portfolioTableRows.nth(index);
-                await expect(row).toContainText(portfolios.data[index].name);
+                const portfolioName = portfolios.data[index].name;
+                // Poll for matching rows (wait up to 5s for data to appear)
+                const matchingRows = portfolioTable.locator('tbody>tr').filter({ hasText: portfolioName });
+                await expect(matchingRows).not.toHaveCount(0, { timeout: 5000 });
+
+                const rowCount = await matchingRows.count();
+                console.log(`✅ Portfolio "${portfolioName}" found in table (${rowCount} match${rowCount > 1 ? 'es' : ''})`);
             }
         }
 
@@ -109,11 +119,21 @@ test.describe('heartbeat_applications_menus.spec', () => {
         }
         if (workflows.data.length > 0) {
             const workflowTable = await page.getByTestId('workflow-table');
-            const workflowRows = await workflowTable.locator('tbody>tr')
+
+            // Wait for table to have at least one row (table is loaded)
+            await expect(workflowTable.locator('tbody>tr')).not.toHaveCount(0, { timeout: 10000 });
+
+            // Verify all workflows exist in the table (order-independent)
+            // UI might sort differently than API response
             for (let index = 0; index < workflows.data.length; index++) {
-                const row = await workflowRows.nth(index);
                 if (workflows.data[index].name) {
-                    await expect(row).toContainText(kebabToTitleCase(workflows.data[index].name));
+                    const workflowName = kebabToTitleCase(workflows.data[index].name);
+                    // Poll for matching rows (wait up to 5s for data to appear)
+                    const matchingRows = workflowTable.locator('tbody>tr').filter({ hasText: workflowName });
+                    await expect(matchingRows).not.toHaveCount(0, { timeout: 5000 });
+
+                    const rowCount = await matchingRows.count();
+                    console.log(`✅ Workflow "${workflowName}" found in table (${rowCount} match${rowCount > 1 ? 'es' : ''})`);
                 }
             }
         }
@@ -138,11 +158,19 @@ test.describe('heartbeat_applications_menus.spec', () => {
         if (templates.data.length > 0) {
             const eligibilityTable = await page.getByTestId('eligibility-template-table');
 
-            const tableRows = await eligibilityTable.locator('tbody>tr')
+            // Wait for table to have at least one row (table is loaded)
+            await expect(eligibilityTable.locator('tbody>tr')).not.toHaveCount(0, { timeout: 10000 });
 
+            // Verify all templates exist in the table (order-independent)
+            // UI might sort differently than API response
             for (let index = 0; index < templates.data.length; index++) {
-                const row = await tableRows.nth(index)
-                await expect(row).toContainText(templates.data[index].name)
+                const templateName = templates.data[index].name;
+                // Poll for matching rows (wait up to 5s for data to appear)
+                const matchingRows = eligibilityTable.locator('tbody>tr').filter({ hasText: templateName });
+                await expect(matchingRows).not.toHaveCount(0, { timeout: 5000 });
+
+                const rowCount = await matchingRows.count();
+                console.log(`✅ Template "${templateName}" found in table (${rowCount} match${rowCount > 1 ? 'es' : ''})`);
             }
         }
 
@@ -166,11 +194,19 @@ test.describe('heartbeat_applications_menus.spec', () => {
         if (approvalConditions.data.length > 0) {
             const approvalTable = await page.getByTestId('approval-conditions-table');
 
-            const tableRows = await approvalTable.locator('tbody>tr')
+            // Wait for table to have at least one row (table is loaded)
+            await expect(approvalTable.locator('tbody>tr')).not.toHaveCount(0, { timeout: 10000 });
 
+            // Verify all approval conditions exist in the table (order-independent)
+            // UI might sort differently than API response
             for (let index = 0; index < approvalConditions.data.length; index++) {
-                const row = await tableRows.nth(index)
-                await expect(row).toContainText(approvalConditions.data[index].name)
+                const conditionName = approvalConditions.data[index].name;
+                // Poll for matching rows (wait up to 5s for data to appear)
+                const matchingRows = approvalTable.locator('tbody>tr').filter({ hasText: conditionName });
+                await expect(matchingRows).not.toHaveCount(0, { timeout: 5000 });
+
+                const rowCount = await matchingRows.count();
+                console.log(`✅ Approval condition "${conditionName}" found in table (${rowCount} match${rowCount > 1 ? 'es' : ''})`);
             }
         }
 

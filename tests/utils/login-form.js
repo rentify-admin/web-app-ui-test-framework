@@ -17,7 +17,24 @@ const fill = async (page, formData) => {
 };
 
 
-const submit = async page => {
+const submit = async (page, options = {}) => {
+    const { captureFlagsResponses = false } = options;
+
+    // Set up flags listener BEFORE clicking submit (if requested)
+    let flagsResponsesPromise = null;
+    if (captureFlagsResponses) {
+        console.log('🔍 [LOGIN] Setting up flags endpoint listeners...');
+        // Listen for ANY flags endpoint call after login (without session ID filter)
+        flagsResponsesPromise = page.waitForResponse(resp => {
+            return resp.url().includes('/flags')
+                && resp.request().method() === 'GET'
+                && resp.ok();
+        }, { timeout: 10000 }).catch(() => {
+            console.log('⚠️  [LOGIN] No flags endpoint captured after login');
+            return null;
+        });
+    }
+
     // Clicking login button to login
     await page.locator('button[type="submit"]').click();
     // Waiting for the login api response
@@ -35,6 +52,17 @@ const submit = async page => {
         const hasEmptyState = sidePanel.parentElement?.querySelector('[class*="no_applicants"]');
         return !skeletonUl || hasDateCollapse || hasEmptyState;
     }, { timeout: 30_000 });
+
+    // Wait for flags response if requested
+    if (captureFlagsResponses && flagsResponsesPromise) {
+        const flagsResponse = await flagsResponsesPromise;
+        if (flagsResponse) {
+            console.log('✅ [LOGIN] Flags endpoint captured after login');
+            return { flagsResponse };
+        }
+    }
+
+    return null;
 };
 
 /**
@@ -139,34 +167,38 @@ const submitAndSetLocale = async (page, options = {}) => {
  * Also sets user locale to English
  * @param {import('@playwright/test').Page} page
  * @param {Object} adminCredentials
- * @returns {Promise<string>} Admin authentication token for API calls
+ * @param {Object} options - Configuration options
+ * @param {boolean} [options.captureFlagsResponses] - Whether to capture flags responses after login (default: false)
+ * @returns {Promise<string|Object>} Admin authentication token for API calls, or { authToken, flagsResponse } if captureFlagsResponses is true
  */
-const adminLoginAndNavigate = async (page, adminCredentials) => {
+const adminLoginAndNavigate = async (page, adminCredentials, options = {}) => {
+    const { captureFlagsResponses = false } = options;
+
     await page.goto('/', { waitUntil: 'domcontentloaded' });
     await fill(page, adminCredentials);
-    
+
     // Wait for both auth response and users/self response
-    const [authResponse, selfResponse] = await Promise.all([
+    const [authResponse, selfResponse, submitResult] = await Promise.all([
         page.waitForResponse(LOGIN_API),
         page.waitForResponse(resp => resp.url().includes('/users/self') && resp.request().method() === 'GET'),
-        submit(page)
+        submit(page, { captureFlagsResponses })
     ]);
-    
+
     await expect(page).toHaveTitle(/Applicants/, { timeout: 10_000 });
-    
+
     // Get token from auth response
     const authData = await authResponse.json();
     const authToken = authData?.data?.token;
-    
+
     // Set locale to English for the logged-in user
     try {
         // Get user ID from self response
         const selfData = await selfResponse.json();
         const userId = selfData?.data?.id;
-        
+
         if (userId && authToken) {
             console.log('🔑 Auth token retrieved from /auth response, updating locale...');
-            
+
             // Update user locale to English
             const localeResponse = await page.request.patch(`${config.app.urls.api}/users/${userId}`, {
                 headers: {
@@ -176,7 +208,7 @@ const adminLoginAndNavigate = async (page, adminCredentials) => {
                 },
                 data: JSON.stringify({ locale: 'en' })
             });
-            
+
             if (!localeResponse.ok()) {
                 const responseText = await localeResponse.text();
                 console.log(`⚠️ Failed to set locale. Status: ${localeResponse.status()}, Response: ${responseText}`);
@@ -190,8 +222,12 @@ const adminLoginAndNavigate = async (page, adminCredentials) => {
         console.log('⚠️ Failed to set locale to English:', error.message);
         // Don't fail the test if locale update fails
     }
-    
-    // Return admin token for API calls
+
+    // Return admin token and optionally flags response
+    if (captureFlagsResponses && submitResult?.flagsResponse) {
+        return { authToken, flagsResponse: submitResult.flagsResponse };
+    }
+
     return authToken;
 };
 

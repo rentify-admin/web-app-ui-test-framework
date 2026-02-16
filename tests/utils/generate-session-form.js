@@ -64,7 +64,7 @@ const submit = async page => {
  * @returns {Object} { sessionData, sessionId, sessionUrl, link }
  */
 const generateSessionAndExtractLink = async (page, userData = {}, options = {}) => {
-    const generateForm = await page.locator('#generate-session-form');
+    const generateForm = page.getByTestId('generate-session');
     await expect(generateForm).toBeVisible();
 
     await fill(page, userData, options);

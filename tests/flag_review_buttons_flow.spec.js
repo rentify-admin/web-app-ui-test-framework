@@ -207,7 +207,6 @@ test.describe('QA-202 flag_review_buttons_flow', () => {
 
             await loginForm.adminLoginAndNavigate(page, admin)
 
-            // ✅ SMART FIX: Deselect session first to ensure fresh API calls
             // Navigate to applicants inbox
             const applicantsMenu = page.getByTestId('applicants-menu');
             const isMenuOpen = await applicantsMenu.evaluate(el => el.classList.contains('sidebar-item-open'));
@@ -216,33 +215,12 @@ test.describe('QA-202 flag_review_buttons_flow', () => {
                 await applicantsMenu.click({ force: true });
                 await page.waitForTimeout(1000);
             }
-            
+
             // Click applicants submenu (use .first() to handle duplicate elements)
             await page.getByTestId('applicants-submenu').first().click();
-            
+
             // Wait for sessions to be loaded in the UI
             await page.waitForTimeout(2000);
-
-            // Click a different session card first to deselect if target session is already selected
-            // This ensures that clicking the target session will trigger the API call
-            const allSessionCards = page.locator('.application-card');
-            const sessionCount = await allSessionCards.count();
-            
-            if (sessionCount > 1) {
-                // Find and click a session that is NOT our target session
-                for (let i = 0; i < Math.min(sessionCount, 5); i++) {
-                    const card = allSessionCards.nth(i);
-                    const sessionId = await card.getAttribute('data-session');
-                    
-                    if (sessionId && sessionId !== session.id) {
-                        console.log(`🔄 Clicking different session first to deselect: ${sessionId.substring(0, 25)}...`);
-                        await card.click();
-                        await page.waitForTimeout(2000); // Wait for page to load
-                        console.log('✅ Different session opened - target session is now deselected');
-                        break;
-                    }
-                }
-            }
 
             // Navigate to session and capture flags response from page load
             // This function will try to get flags automatically, or click View Details if needed
@@ -553,24 +531,28 @@ test.describe('QA-202 flag_review_buttons_flow', () => {
 
 })
 
-// Helper: standard predicate for waiting flags GET fetch excluding APPLICANT scope
+// Helper: standard predicate for waiting flags GET fetch
+// Accepts both requests with filters (excluding APPLICANT scope) and requests without filters (all flags)
 function buildFlagsFetchPredicate(sessionId) {
     return (resp) => {
         try {
             const url = resp.url();
             const decodedUrl = customUrlDecode(url);
             const link = new URL(decodedUrl);
-            
+
             // Check path matches flags endpoint for this session
             if (!link.pathname.includes(`/sessions/${sessionId}/flags`)) return false;
             if (resp.request().method() !== 'GET') return false;
             if (!resp.ok()) return false;
-            
+
             // Parse filters from URL
             const params = new URLSearchParams(link.search);
             const rawFilters = params.get('filters');
-            if (!rawFilters) return false;
-            
+
+            // ✅ Accept requests WITHOUT filters (fetches all flags)
+            if (!rawFilters) return true;
+
+            // ✅ Accept requests WITH filters that exclude APPLICANT scope
             // Try parsing the filters - handle both URL-encoded and already-decoded cases
             let filters;
             try {
@@ -583,20 +565,20 @@ function buildFlagsFetchPredicate(sessionId) {
                     return false;
                 }
             }
-            
+
             if (!filters?.session_flag) return false;
-            
+
             // Check for new filter structure: session_flag.$and[0].$has.flag.scope.$neq
             const andClause = filters.session_flag.$and?.[0];
             if (andClause?.$has?.flag?.scope?.$neq === 'APPLICANT') {
                 return true;
             }
-            
+
             // Fallback to old structure for backward compatibility: session_flag.flag.scope.$neq
             if (filters.session_flag.flag?.scope?.$neq === 'APPLICANT') {
                 return true;
             }
-            
+
             return false;
         } catch (error) {
             // Silently fail - predicate should not throw

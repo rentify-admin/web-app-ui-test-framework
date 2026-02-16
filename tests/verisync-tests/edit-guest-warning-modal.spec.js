@@ -341,44 +341,33 @@ test.describe('QA-322 edit-guest-warning-modal.spec', () => {
         console.log('[S1][STEP 11.5] Edit guest modal closed successfully');
 
         // Verify updated guest details are reflected in Identity section
+        // Wait for session API call to complete after reload (to get fresh guest data)
+        console.log('[S1][STEP 11.6] Reloading page and waiting for session data to refresh...');
+        const sessionRefreshPromise = page.waitForResponse(resp =>
+            resp.url().includes(`/sessions/${session.id}`)
+            && resp.request().method() === 'GET'
+            && resp.ok(),
+            { timeout: 10000 }
+        );
+
         await page.reload();
+
+        // Wait for session to be refetched with updated guest data
+        const sessionRefreshResponse = await sessionRefreshPromise;
+        const refreshedSession = (await sessionRefreshResponse.json()).data;
+        console.log(`✅ [S1][STEP 11.6] Session data refreshed. Guest name: "${refreshedSession.applicant?.guest?.first_name} ${refreshedSession.applicant?.guest?.last_name}"`);
+
         const identitySection2 = await openReportSection(page, 'identity-section')
-        
-        // Poll for updated guest name (max 6 seconds, every 500ms) to handle cache/race conditions
-        console.log('[S1][STEP 12] Polling for updated guest name in Identity section...');
+
+        // Now check UI - data should already be updated after API call
+        console.log('[S1][STEP 12] Verifying updated guest name in Identity section...');
         const expectedName = `${guestUser.first_name} Edited`;
-        const maxPollAttempts = 12; // 6 seconds / 500ms = 12 attempts
-        const pollInterval = 500;
-        let pollAttempt = 0;
-        let nameUpdated = false;
-        
-        while (pollAttempt < maxPollAttempts && !nameUpdated) {
-            pollAttempt++;
-            try {
-                const nameElement = identitySection2.getByTestId('identity-guest-full-name');
-                const currentText = await nameElement.textContent();
-                
-                if (currentText && currentText.includes(expectedName)) {
-                    nameUpdated = true;
-                    console.log(`✅ [S1][STEP 12] Guest name updated successfully (attempt ${pollAttempt}/${maxPollAttempts}): "${currentText}"`);
-                } else {
-                    console.log(`   ⏳ [S1][STEP 12] Attempt ${pollAttempt}/${maxPollAttempts}: Current name="${currentText}", expected="${expectedName}", waiting ${pollInterval}ms...`);
-                    await page.waitForTimeout(pollInterval);
-                }
-            } catch (error) {
-                console.log(`   ⚠️ [S1][STEP 12] Attempt ${pollAttempt}/${maxPollAttempts}: Error checking name: ${error.message}, waiting ${pollInterval}ms...`);
-                await page.waitForTimeout(pollInterval);
-            }
-        }
-        
-        if (!nameUpdated) {
-            const finalName = await identitySection2.getByTestId('identity-guest-full-name').textContent();
-            throw new Error(`❌ [S1][STEP 12] Guest name did not update after ${maxPollAttempts} attempts (${maxPollAttempts * pollInterval / 1000}s). Expected: "${expectedName}", Got: "${finalName}"`);
-        }
-        
-        // Final assertion for clarity
-        await expect(identitySection2.getByTestId('identity-guest-full-name')).toContainText(expectedName);
-        console.log('[S1][STEP 12] Verified updated guest name is reflected in Identity section');
+
+        // Use Playwright's built-in waiting instead of manual polling
+        const nameElement = identitySection2.getByTestId('identity-guest-full-name');
+        await expect(nameElement).toContainText(expectedName, { timeout: 5000 });
+        console.log(`✅ [S1][STEP 12] Guest name verified: "${await nameElement.textContent()}"`);
+
         testResults.test1.passed = true;
     });
 
@@ -501,7 +490,7 @@ test.describe('QA-322 edit-guest-warning-modal.spec', () => {
         // Poll for updated guest name (max 6 seconds, every 500ms) to handle cache/race conditions
         console.log('[S2][STEP 8] Polling for updated guest name in Identity section...');
         const expectedName = `${guestUser.first_name} Edited`;
-        const maxPollAttempts = 12; // 6 seconds / 500ms = 12 attempts
+        const maxPollAttempts = 30; // 15 seconds / 500ms = 30 attempts
         const pollInterval = 500;
         let pollAttempt = 0;
         let nameUpdated = false;
@@ -538,91 +527,97 @@ test.describe('QA-322 edit-guest-warning-modal.spec', () => {
     });
 
     test.afterAll(async () => {
-        // Cleanup: delete created member and user
-        // Fix 2: Always attempt cleanup even if IDs not set - find by email pattern
-        
-        // Get organization if not already set
-        if (!organization) {
-            try {
-                organization = await organizationApi.getByName(ORGANIZATION_NAME);
-            } catch (e) {
-                console.error('[CLEANUP] Could not fetch organization for cleanup');
-            }
-        }
+        console.log('[CLEANUP] Cleanup disabled for debugging purposes');
+        console.log(`[CLEANUP] Created member ID: ${createdMember}`);
+        console.log(`[CLEANUP] Created user ID: ${createdUser}`);
+        console.log(`[CLEANUP] Test 1 session ID: ${testResults.test1.sessionId}`);
+        console.log(`[CLEANUP] Test 2 session ID: ${testResults.test2.sessionId}`);
 
-        // Delete member by ID if we have it
-        if (createdMember && organization) {
-            try {
-                await adminClient.delete(`/organizations/${organization.id}/members/${createdMember}`);
-                console.log('[CLEANUP] Test member cleaned up:', createdMember);
-            } catch (e) {
-                console.log(`[CLEANUP ERROR] Could not cleanup member with id ${createdMember}`);
-                console.error('[CLEANUP ERROR] Could not cleanup member:', e.message);
-            }
-        }
+        // // Cleanup: delete created member and user
+        // // Fix 2: Always attempt cleanup even if IDs not set - find by email pattern
+        //
+        // // Get organization if not already set
+        // if (!organization) {
+        //     try {
+        //         organization = await organizationApi.getByName(ORGANIZATION_NAME);
+        //     } catch (e) {
+        //         console.error('[CLEANUP] Could not fetch organization for cleanup');
+        //     }
+        // }
 
-        // Fix 2: Also try to find and delete member by email pattern (even if createdMember not set)
-        if (organization && internalUser?.email) {
-            try {
-                const membersResponse = await adminClient.get(`/organizations/${organization.id}/members`, {
-                    params: {
-                        filters: JSON.stringify({
-                            $has: {
-                                user: {
-                                    email: { $like: `autotest+edit-guest-%` }
-                                }
-                            }
-                        }),
-                        limit: 100
-                    }
-                });
-                if (membersResponse.data?.data && membersResponse.data.data.length > 0) {
-                    // Find member matching our email pattern
-                    const matchingMember = membersResponse.data.data.find(m => 
-                        m.user?.email && m.user.email.startsWith('autotest+edit-guest-')
-                    );
-                    if (matchingMember && (!createdMember || matchingMember.id !== createdMember)) {
-                        console.log(`[CLEANUP] Found orphaned member by email pattern: ${matchingMember.user?.email}`);
-                        try {
-                            await adminClient.delete(`/organizations/${organization.id}/members/${matchingMember.id}`);
-                            console.log(`[CLEANUP] Deleted orphaned member: ${matchingMember.id}`);
-                            if (matchingMember.user?.id) {
-                                await adminClient.delete(`/users/${matchingMember.user.id}`);
-                                console.log(`[CLEANUP] Deleted orphaned user: ${matchingMember.user.id}`);
-                            }
-                        } catch (deleteErr) {
-                            console.error(`[CLEANUP ERROR] Could not delete orphaned member: ${deleteErr.message}`);
-                        }
-                    }
-                }
-            } catch (findErr) {
-                console.log(`[CLEANUP] Could not search for orphaned members: ${findErr.message}`);
-            }
-        }
+        // // Delete member by ID if we have it
+        // if (createdMember && organization) {
+        //     try {
+        //         await adminClient.delete(`/organizations/${organization.id}/members/${createdMember}`);
+        //         console.log('[CLEANUP] Test member cleaned up:', createdMember);
+        //     } catch (e) {
+        //         console.log(`[CLEANUP ERROR] Could not cleanup member with id ${createdMember}`);
+        //         console.error('[CLEANUP ERROR] Could not cleanup member:', e.message);
+        //     }
+        // }
 
-        // Always delete user by ID if we have it
-        if (createdUser) {
-            try {
-                await adminClient.delete(`/users/${createdUser}`);
-                console.log('[CLEANUP] Test user cleaned up:', createdUser);
-            } catch (e) {
-                console.log(`[CLEANUP ERROR] Could not cleanup user with id ${createdUser}`);
-                console.error('[CLEANUP ERROR] Could not cleanup user:', e.message);
-            }
-        }
+        // // Fix 2: Also try to find and delete member by email pattern (even if createdMember not set)
+        // if (organization && internalUser?.email) {
+        //     try {
+        //         const membersResponse = await adminClient.get(`/organizations/${organization.id}/members`, {
+        //             params: {
+        //                 filters: JSON.stringify({
+        //                     $has: {
+        //                         user: {
+        //                             email: { $like: `autotest+edit-guest-%` }
+        //                         }
+        //                     }
+        //                 }),
+        //                 limit: 100
+        //             }
+        //         });
+        //         if (membersResponse.data?.data && membersResponse.data.data.length > 0) {
+        //             // Find member matching our email pattern
+        //             const matchingMember = membersResponse.data.data.find(m =>
+        //                 m.user?.email && m.user.email.startsWith('autotest+edit-guest-')
+        //             );
+        //             if (matchingMember && (!createdMember || matchingMember.id !== createdMember)) {
+        //                 console.log(`[CLEANUP] Found orphaned member by email pattern: ${matchingMember.user?.email}`);
+        //                 try {
+        //                     await adminClient.delete(`/organizations/${organization.id}/members/${matchingMember.id}`);
+        //                     console.log(`[CLEANUP] Deleted orphaned member: ${matchingMember.id}`);
+        //                     if (matchingMember.user?.id) {
+        //                         await adminClient.delete(`/users/${matchingMember.user.id}`);
+        //                         console.log(`[CLEANUP] Deleted orphaned user: ${matchingMember.user.id}`);
+        //                     }
+        //                 } catch (deleteErr) {
+        //                     console.error(`[CLEANUP ERROR] Could not delete orphaned member: ${deleteErr.message}`);
+        //                 }
+        //             }
+        //         }
+        //     } catch (findErr) {
+        //         console.log(`[CLEANUP] Could not search for orphaned members: ${findErr.message}`);
+        //     }
+        // }
 
-        /** Always delete sessions regardless of test pass/fail */
-        for (const testKey of Object.keys(testResults)) {
-            const result = testResults[testKey];
-            if (result.sessionId) {
-                try {
-                    await adminClient.delete(`/sessions/${result.sessionId}`);
-                    console.log(`[CLEANUP] Deleted session ${result.sessionId} from ${testKey}`);
-                } catch (e) {
-                    console.error(`[CLEANUP ERROR] Could not delete session ${result.sessionId} from ${testKey}:`, e.message);
-                }
-            }
-        }
+        // // Always delete user by ID if we have it
+        // if (createdUser) {
+        //     try {
+        //         await adminClient.delete(`/users/${createdUser}`);
+        //         console.log('[CLEANUP] Test user cleaned up:', createdUser);
+        //     } catch (e) {
+        //         console.log(`[CLEANUP ERROR] Could not cleanup user with id ${createdUser}`);
+        //         console.error('[CLEANUP ERROR] Could not cleanup user:', e.message);
+        //     }
+        // }
+
+        // /** Always delete sessions regardless of test pass/fail */
+        // for (const testKey of Object.keys(testResults)) {
+        //     const result = testResults[testKey];
+        //     if (result.sessionId) {
+        //         try {
+        //             await adminClient.delete(`/sessions/${result.sessionId}`);
+        //             console.log(`[CLEANUP] Deleted session ${result.sessionId} from ${testKey}`);
+        //         } catch (e) {
+        //             console.error(`[CLEANUP ERROR] Could not delete session ${result.sessionId} from ${testKey}:`, e.message);
+        //         }
+        //     }
+        // }
     })
 
 

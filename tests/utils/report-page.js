@@ -179,6 +179,23 @@ const checkFlagsPresentInSection = async (
         checkIssueButtonNotPresent: false
     }
 ) => {
+    // If there are flags to check, wait for the first flag to render (not placeholder)
+    // This ensures Vue has finished rendering the flags list
+    console.log(`[DEBUG checkFlagsPresentInSection] Flags array length: ${flags.length}`);
+    if (flags.length > 0) {
+        console.log(`[DEBUG checkFlagsPresentInSection] First flag:`, {
+            description: flags[0].flag?.description,
+            ignored: flags[0].ignored,
+            reviewed_by: flags[0].reviewed_by
+        });
+    }
+
+    if (flags.length > 0 && flags[0].flag?.description) {
+        // Wait for the first flag to contain the expected description (10 second timeout for Vue reactivity)
+        // This ensures the section has transitioned from placeholder ("No Reviewed Items", "No flags", etc.) to actual flag items
+        await expect(locator.locator('li').first()).toContainText(flags[0].flag.description, { timeout: 10000 });
+    }
+
     for (let index = 0;index < flags.length;index++) {
         const item = flags[index];
         if (item.flag?.description) {
@@ -212,7 +229,25 @@ const checkAllFlagsSection = async (
     const flagsRequiredReview = flags.filter(flag => flag.severity === 'ERROR' && !flag.ignored);
     const flagsWithWarning = flags.filter(flag => flag.severity === 'WARNING' && !flag.ignored);
     const flagsWithInformation = flags.filter(flag => flag.severity === 'INFO' && !flag.ignored);
-    const flagsReviewed = flags.filter(flag => flag.ignored);
+
+    // DEBUG: Log all ignored flags to see their reviewed_by state
+    const allIgnoredFlags = flags.filter(flag => flag.ignored);
+    console.log(`[DEBUG] Total ignored flags: ${allIgnoredFlags.length}`);
+    allIgnoredFlags.forEach((flag, index) => {
+        console.log(`[DEBUG] Ignored flag ${index}:`, {
+            description: flag.flag?.description,
+            ignored: flag.ignored,
+            reviewed_by: flag.reviewed_by,
+            reviewed_by_type: typeof flag.reviewed_by,
+            reviewed_by_null_check: flag.reviewed_by === null,
+            reviewed_by_not_null_check: flag.reviewed_by !== null
+        });
+    });
+
+    // IMPORTANT: UI only shows ignored flags that have reviewed_by set (see EventHistory.vue:482)
+    // visibilityMatch = !flag.ignored || flag.reviewed_by !== null
+    const flagsReviewed = flags.filter(flag => flag.ignored && flag.reviewed_by !== null);
+    console.log(`[DEBUG] Flags passing filter (ignored && reviewed_by !== null): ${flagsReviewed.length}`);
 
     const itemCausingDeclineSection = await page.getByTestId('items-causing-decline-section');
     const itemRequireReviewSection = await page.getByTestId('items-requiring-review-section');
@@ -1194,17 +1229,23 @@ const navigateToSessionById = async (page, sessionId, submenu = 'all') => {
 
 /**
  * Navigate to session by ID and capture flags response from page load
- * This function uses a conditional approach:
+ * This function uses a multi-level fallback approach:
+ * 0. Use flags captured from login (if provided) - instant
  * 1. Try to capture flags automatically from page load (10s timeout)
- * 2. If that fails, click "View Details" button to trigger the flags request (10s timeout)
- * 
+ * 2. Clear sessionStorage cache and wait for revalidation (6s timeout)
+ * 3. Click "View Details" button to force flags fetch (6s timeout)
+ *
  * @param {import('@playwright/test').Page} page - Playwright page object
  * @param {string} sessionId - Session ID to navigate to
  * @param {Function} buildFlagsPredicate - Function that builds the flags response predicate
  * @param {string} submenu - Submenu to use ('all', 'approved', etc.)
+ * @param {Object} options - Configuration options
+ * @param {Response} [options.flagsFromLogin] - Flags response captured from login (optional)
  * @returns {Promise<Object>} - Flags data object
  */
-const navigateToSessionByIdAndGetFlags = async (page, sessionId, buildFlagsPredicate, submenu = 'all') => {
+const navigateToSessionByIdAndGetFlags = async (page, sessionId, buildFlagsPredicate, submenu = 'all', options = {}) => {
+    const { flagsFromLogin = null } = options;
+
     console.log(`🧭 Navigating to session ${sessionId} and capturing flags response...`);
 
     // Navigate directly to the session
@@ -1228,39 +1269,79 @@ const navigateToSessionByIdAndGetFlags = async (page, sessionId, buildFlagsPredi
             && resp.ok();
     }, { timeout: 20000 });
 
-    const flagsResponsePromise = page.waitForResponse(buildFlagsPredicate(sessionId), { timeout: 20000 });
-
     // Click the session link (this triggers navigation and API calls)
     await sessionLink.click();
-    
+
     // Wait for session response first
     await sessionResponsePromise;
     console.log('✅ Session loaded');
-    
+
     // Wait for page to stabilize
     await page.waitForLoadState('domcontentloaded');
 
-    // Try to get flags from page load (conditional approach)
+    // Multi-level fallback approach for flags (flags might be cached from login)
     let flags;
+
+    // TRY #0: Use flags captured from login (if provided) - INSTANT
+    if (flagsFromLogin) {
+        try {
+            console.log('🔍 [TRY #0] Using flags captured from login...');
+            flags = await waitForJsonResponse(flagsFromLogin);
+            console.log('✅ [TRY #0] Flags from login used successfully');
+            return flags;
+        } catch (error) {
+            console.log('⚠️  [TRY #0] Failed to parse flags from login, falling back to page load');
+        }
+    }
+
+    // TRY #1: Capture flags from initial page load (10s timeout)
     try {
-        console.log('🔍 Attempting to capture flags from initial page load (20s timeout)...');
+        console.log('🔍 [TRY #1] Attempting to capture flags from initial page load (10s timeout)...');
+        const flagsResponsePromise = page.waitForResponse(buildFlagsPredicate(sessionId), { timeout: 10000 });
         const flagsResponse = await flagsResponsePromise;
         flags = await waitForJsonResponse(flagsResponse);
-        console.log('✅ Flags captured from automatic page load');
+        console.log('✅ [TRY #1] Flags captured from automatic page load');
     } catch (error) {
-        console.log('⚠️  Flags not captured from initial load, trying "View Details" button...');
-        
-        // Fallback: Click Alert button to trigger flags request
-        const alertBtn = page.getByRole('button', { name: 'Alert' });
-        await expect(alertBtn).toBeVisible({ timeout: 10000 });
-        
-        const flagsResponseFallback = await Promise.all([
-            page.waitForResponse(buildFlagsPredicate(sessionId), { timeout: 20000 }),
-            alertBtn.click()
-        ]);
-        
-        flags = await waitForJsonResponse(flagsResponseFallback[0]);
-        console.log('✅ Flags captured after clicking View Details');
+        console.log('⚠️  [TRY #1] Flags not captured from initial load');
+
+        // FALLBACK #1: Clear sessionStorage cache and wait for revalidation (6s timeout)
+        try {
+            console.log('🔄 [FALLBACK #1] Clearing sessionStorage cache and waiting for revalidation (6s timeout)...');
+            await page.evaluate(() => {
+                // Clear all sessionStorage entries with 'vf:' prefix (flags cache)
+                Object.keys(sessionStorage).forEach(key => {
+                    if (key.includes('vf:') && key.includes('/flags')) {
+                        sessionStorage.removeItem(key);
+                    }
+                });
+            });
+
+            // Wait for flags revalidation request
+            const flagsResponseFallback1 = page.waitForResponse(buildFlagsPredicate(sessionId), { timeout: 6000 });
+            const flagsResponse1 = await flagsResponseFallback1;
+            flags = await waitForJsonResponse(flagsResponse1);
+            console.log('✅ [FALLBACK #1] Flags captured after clearing cache');
+        } catch (error2) {
+            console.log('⚠️  [FALLBACK #1] No flags after cache clear');
+
+            // FALLBACK #2: Click Alert button to force flags fetch (6s timeout)
+            try {
+                console.log('🔄 [FALLBACK #2] Clicking "Alert" button to force flags fetch (6s timeout)...');
+                const alertBtn = page.getByRole('button', { name: 'Alert' });
+                await expect(alertBtn).toBeVisible({ timeout: 10000 });
+
+                const flagsResponseFallback2 = await Promise.all([
+                    page.waitForResponse(buildFlagsPredicate(sessionId), { timeout: 6000 }),
+                    alertBtn.click()
+                ]);
+
+                flags = await waitForJsonResponse(flagsResponseFallback2[0]);
+                console.log('✅ [FALLBACK #2] Flags captured after clicking Alert button');
+            } catch (error3) {
+                console.error('❌ All fallbacks failed - no flags endpoint response captured');
+                throw new Error(`Failed to capture flags endpoint after all fallbacks: ${error3.message}`);
+            }
+        }
     }
 
     return flags;
@@ -1408,6 +1489,12 @@ const markFlagAsIssue = async (page, sessionId, flagTestId, comment) => {
             && resp.ok()),
         flagElement.locator('button[type=submit]').click()
     ]);
+
+    // Wait for the flag to disappear from items-requiring-review-section (UI update)
+    // This ensures the UI has reactively updated after the PATCH response
+    console.log(`⏳ Waiting for flag ${flagTestId} to disappear from items-requiring-review-section...`);
+    await expect(reviewSection.getByTestId(flagTestId)).not.toBeVisible({ timeout: 10000 });
+    console.log(`✅ Flag ${flagTestId} removed from items-requiring-review-section`);
 };
 
 /**
@@ -1434,6 +1521,12 @@ const markFlagAsNonIssue = async (page, sessionId, flagTestId, comment) => {
             && resp.ok()),
         flagElement.locator('button[type=submit]').click()
     ]);
+
+    // Wait for the flag to disappear from items-requiring-review-section (UI update)
+    // This ensures the UI has reactively updated after the PATCH response
+    console.log(`⏳ Waiting for flag ${flagTestId} to disappear from items-requiring-review-section...`);
+    await expect(reviewSection.getByTestId(flagTestId)).not.toBeVisible({ timeout: 10000 });
+    console.log(`✅ Flag ${flagTestId} removed from items-requiring-review-section`);
 };
 
 /**

@@ -67,7 +67,7 @@ const daysAgo = (n) => {
  * @returns {Object} Complete PERSONA_PAYLOAD structure
  */
 export function getPersonaPayload(userData = {}, userType = 'primary') {
-    const { subMinutes, dateAfter2Years, dateBefore1Year, dateBefore20Years } = getDates();
+    const { subMinutes, dateAfter2Years, dateBefore1Year, dateBefore20Years, currentDate } = getDates();
     
     // Extract user data with defaults
     const firstName = userData.first_name || "Permission";
