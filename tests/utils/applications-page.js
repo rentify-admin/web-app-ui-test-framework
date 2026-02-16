@@ -433,12 +433,12 @@ async function navigateToDashboard(page) {
 }
 
 // Complete session generation flow: find app, invite, fill form, and get link
-async function generateSessionForApplication(page, appName, userData) {
+async function generateSessionForApplication(page, appName, userData, options = {}) {
     // Find and invite application
     await findAndInviteApplication(page, appName);
     
     // Fill and submit session form
-    await generateSessionForm.fill(page, userData);
+    await generateSessionForm.fill(page, userData, options);
     const sessionData = await generateSessionForm.submit(page);
     
     // Get the session link

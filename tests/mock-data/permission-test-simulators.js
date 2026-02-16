@@ -9,7 +9,7 @@
 
 // Helper: Generate UUID
 const generateUUID = () => {
-    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
         const r = Math.random() * 16 | 0;
         const v = c === 'x' ? r : (r & 0x3 | 0x8);
         return v.toString(16);
@@ -68,12 +68,12 @@ const daysAgo = (n) => {
  */
 export function getPersonaPayload(userData = {}, userType = 'primary') {
     const { subMinutes, dateAfter2Years, dateBefore1Year, dateBefore20Years } = getDates();
-    
+
     // Extract user data with defaults
     const firstName = userData.first_name || "Permission";
     const lastName = userData.last_name || "Test";
     const email = userData.email || "test@example.com";
-    
+
     // Differentiate between Primary and Guarantor
     const isGuarantor = userType === 'guarantor' || userType === 'co-applicant';
     const identificationNumber = isGuarantor ? "G7654321" : "I1234562";
@@ -170,7 +170,17 @@ export function getPersonaPayload(userData = {}, userType = 'primary') {
  * @param {Object} userData - User data { first_name, last_name }
  * @returns {Object} Complete VERIDOCS_PAYLOAD structure
  */
-export function getVeridocsBankStatementPayload(userData = {}) {
+export function getVeridocsBankStatementPayload(userData = {}, options = {}) {
+
+    const {
+        numTransactions = 6,    // Total transactions
+        daysAgoEnd = 1,         // The most recent date (e.g., 1 day ago)
+        daysGap = 5,            // Fixed gap between each transaction
+        initialBalance = 10000,
+        incomeAmount = 2500,
+        expenseAmount = 150
+    } = options;
+
     // Generate dynamic dates
     const createDate = (daysAgo) => {
         const date = new Date();
@@ -181,85 +191,48 @@ export function getVeridocsBankStatementPayload(userData = {}) {
         return `${month}/${day}/${year}`;
     };
 
-    const dynamicDates = {
-        day1: createDate(1),     // Most recent
-        day5: createDate(5),
-        day10: createDate(10),
-        day15: createDate(15),
-        day20: createDate(20),
-        day25: createDate(25),
-        day30: createDate(30),   // Oldest
-        day35: createDate(35)
-    };
+    const transactions = [];
+    let runningBalance = initialBalance;
+
+    const daysAgoStart = daysAgoEnd + ((numTransactions - 1) * daysGap);
+
+    for (let i = 0; i < numTransactions; i++) {
+        // We iterate from oldest (i = max) to newest (i = 0) 
+        // to keep the balance calculation logical
+        const transactionIndex = (numTransactions - 1) - i;
+        const daysAgo = daysAgoEnd + (transactionIndex * daysGap);
+
+        const isIncome = transactionIndex % 2 === 0;
+        const amount = isIncome ? incomeAmount : -Math.abs(expenseAmount);
+
+        runningBalance += amount;
+
+        transactions.push({
+            "type": isIncome ? "credit" : "debit",
+            "description": isIncome ? "Payroll Deposit" : "Service Payment",
+            "date": createDate(daysAgo),
+            "amount": amount,
+            "balance": Number(runningBalance.toFixed(2)),
+            "page_number": 2
+        });
+    }
+
+    // Sort transactions by date (optional: depends on if Veridocs expects Newest first or Oldest first)
+    // Most bank statements show Newest at the top.
+    transactions.sort((a, b) => new Date(b.date) - new Date(a.date));
 
     // Use user name or default
     const accountOwnerName = userData && userData.first_name && userData.last_name
         ? `${userData.first_name} ${userData.last_name}`
         : 'Permission Test User';
 
-    // 6 transactions: 3 employment income + 3 expenses
-    const transactions = [
-        // Employment Income #1
-        {
-            "type": "credit",
-            "description": "Payroll Deposit Employment",
-            "date": dynamicDates.day5,
-            "amount": 2500,
-            "balance": 12500.00,
-            "page_number": 2
-        },
-        // Employment Income #2
-        {
-            "type": "credit",
-            "description": "Payroll Deposit Employment",
-            "date": dynamicDates.day20,
-            "amount": 2500,
-            "balance": 10000.00,
-            "page_number": 2
-        },
-        // Employment Income #3
-        {
-            "type": "credit",
-            "description": "Payroll Deposit Employment",
-            "date": dynamicDates.day35,
-            "amount": 2500,
-            "balance": 7500.00,
-            "page_number": 2
-        },
-        // Expense #1
-        {
-            "type": "debit",
-            "description": "Grocery Store Purchase",
-            "date": dynamicDates.day10,
-            "amount": -150,
-            "balance": 12350.00,
-            "page_number": 2
-        },
-        // Expense #2
-        {
-            "type": "debit",
-            "description": "Utility Payment",
-            "date": dynamicDates.day25,
-            "amount": -200,
-            "balance": 9800.00,
-            "page_number": 2
-        },
-        // Expense #3
-        {
-            "type": "debit",
-            "description": "Rent Payment",
-            "date": dynamicDates.day30,
-            "amount": -1500,
-            "balance": 9000.00,
-            "page_number": 2
-        }
-    ];
+
 
     // Calculate totals
-    const totalCredits = 7500.00; // 3 x $2500
-    const totalDebits = 1850.00;  // $150 + $200 + $1500
-    const balanceStart = 10000.00;
-    const balanceEnd = 10000.00 + totalCredits - totalDebits;
+    const balanceStart = initialBalance;
+    const totalCredits = transactions.filter(t => t.type === 'credit').reduce((sum, t) => sum + t.amount, 0);
+    const totalDebits = Math.abs(transactions.filter(t => t.type === 'debit').reduce((sum, t) => sum + t.amount, 0));
+    const balanceEnd = initialBalance + totalCredits - totalDebits;
 
     return {
         "documents": [
@@ -280,8 +253,8 @@ export function getVeridocsBankStatementPayload(userData = {}) {
                         "page_end": 3,
                         "language": "en_US",
                         "extraction_hints": {
-                            "period_start_date": dynamicDates.day30,
-                            "period_end_date": dynamicDates.day1,
+                            "period_start_date": createDate(daysAgoStart),
+                            "period_end_date": createDate(daysAgoEnd),
                             "accounts": [
                                 {
                                     "name": "checking account",
@@ -309,8 +282,8 @@ export function getVeridocsBankStatementPayload(userData = {}) {
                                     "account_owners": [
                                         { "name": accountOwnerName }
                                     ],
-                                    "balance_start_date": dynamicDates.day30,
-                                    "balance_end_date": dynamicDates.day1,
+                                    "balance_start_date": createDate(daysAgoStart),
+                                    "balance_end_date": createDate(daysAgoEnd),
                                     "balance_total_start": balanceStart,
                                     "balance_total_end": balanceEnd,
                                     "total_credits": totalCredits,
@@ -391,11 +364,11 @@ export function getAtomicEmploymentPayload(userData = {}) {
         const startOffset = 14 * (i + 1) + 3;
         const endOffset = 14 * (i + 1);
         const payDate = daysAgo(endOffset - 2);
-        
+
         const hoursPerPeriod = 80; // 2 weeks * 40 hours
         const gross = Math.round(hourlyIncome * hoursPerPeriod * 100) / 100;
         const net = Math.round(gross * 0.77 * 100) / 100;
-        
+
         statements.push({
             date: payDate,
             payPeriodStartDate: daysAgo(startOffset),
@@ -460,13 +433,13 @@ export function getAtomicEmploymentPayload(userData = {}) {
                             startDate,
                             employer: {
                                 name: companyName,
-                                address: { 
-                                    line1: '12345 Enterprise Rd', 
-                                    line2: 'Suite 105', 
-                                    city, 
-                                    state, 
-                                    postalCode, 
-                                    country: 'USA' 
+                                address: {
+                                    line1: '12345 Enterprise Rd',
+                                    line2: 'Suite 105',
+                                    city,
+                                    state,
+                                    postalCode,
+                                    country: 'USA'
                                 }
                             }
                         },
