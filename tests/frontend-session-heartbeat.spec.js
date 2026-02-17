@@ -98,12 +98,7 @@ test.describe('frontend-session-heartbeat', () => {
 
             await page.waitForTimeout(4000);
             console.log('🚀 Going to Invite Page')
-            await page.locator('div[role=button]').filter({
-                hasText: 'Applicants',
-                visible: true
-            }).filter({
-                hasText: 'Skipped'
-            }).click();
+            await page.getByTestId('step-APPLICANTS-lg').filter({ visible: true }).click();
 
             await expect(page.getByTestId('applicant-invite-step')).toBeVisible({ timeout: 10_000 });
             console.log('✅ On Invite Page')
@@ -166,11 +161,11 @@ test.describe('frontend-session-heartbeat', () => {
             await waitForButtonOrAutoAdvance(
                 page,
                 'employment-step-continue',
-                'summary-completed-section',
+                'summary-step',
                 'employment'
             );
 
-            await expect(page.getByTestId('summary-completed-section')).toBeVisible({ timeout: 10_000 });
+            await expect(page.getByTestId('summary-step')).toBeVisible({ timeout: 10_000 });
             console.log('✅ On summary page')
 
             console.log('🚀 Logging out guest page')

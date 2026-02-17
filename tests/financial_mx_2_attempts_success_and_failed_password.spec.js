@@ -573,9 +573,11 @@ test.describe('financial_mx_2_attempts_success_and_failed_password', () => {
         console.log('\n🎯 Part 1.5: Testing additional bank connect modal from applicant summary');
         
         console.log('🚀 Opening additional bank connect modal...');
-        await applicantPage.getByTestId('financial-verification-row-expand-toggle').click();
+        // VC-1440 summary redesign: financial connections are now inside a collapsible AccordionStep.
+        // Expand the Financial step accordion first, then additional-connect-bank is directly accessible.
+        await applicantPage.getByRole('button', { name: /financial/i }).first().click();
         await applicantPage.waitForTimeout(500);
-        
+
         await applicantPage.getByTestId('additional-connect-bank').click();
         console.log('   ✅ Additional connect button clicked');
         

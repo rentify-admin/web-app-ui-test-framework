@@ -300,9 +300,15 @@ test.describe('co_app_household_with_flag_errors', () => {
         const applicant = await fillhouseholdForm(applicantPage, coapplicant);
         await applicantPage.waitForTimeout(800);
         
-        // Click continue to invite co-applicant
-        await applicantPage.locator('[data-testid="applicant-invite-continue-btn"]:visible').click({ timeout: 18_000 });
-        await applicantPage.waitForTimeout(2000);
+        // Click continue - waits for PATCH /steps/{id} (changeStepStatus COMPLETED)
+        await Promise.all([
+            applicantPage.waitForResponse(
+                resp => resp.url().includes('/steps/')
+                    && resp.request().method() === 'PATCH'
+                    && resp.ok()
+            ),
+            applicantPage.locator('[data-testid="applicant-invite-continue-btn"]:visible').click({ timeout: 18_000 })
+        ]);
         console.log('✅ Co-applicant added to household');
         
         // Close the primary applicant page now
@@ -369,7 +375,8 @@ test.describe('co_app_household_with_flag_errors', () => {
         await pollForUIText(page, {
             testId: 'household-status-alert',
             expectedText: 'Criteria Not Met',
-            maxPolls: 15
+            maxPolls: 15,
+            reloadPage: true
         });
         console.log('✅ ASSERTION 2b (UI) PASSED: UI shows "Criteria Not Met"');
         

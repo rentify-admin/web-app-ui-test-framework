@@ -100,107 +100,82 @@ test.describe('application_step_should_skip_properly', () => {
         console.log('✅ Done Skip employment step')
     
         console.log('🚀 Summary page')
-        await expect(page.getByTestId('summary-completed-section')).toBeVisible({ timeout: 10_000 });
+        await expect(page.getByTestId('summary-step')).toBeVisible({ timeout: 10_000 });
         await page.waitForTimeout(3000);
 
         console.log('🚀 Going to Invite Page')
-        await page.locator('div[role=button]').filter({
-            hasText: 'Applicants',
-            visible: true
-        }).filter({
-            hasText: 'Skipped'
-        }).click();
-    
+        await page.getByTestId('step-APPLICANTS-lg').filter({ visible: true }).click();
+
         await expect(page.getByTestId('applicant-invite-step')).toBeVisible({ timeout: 10_000 });
         console.log('✅ On Invite Page')
-    
+
         console.log('🚀 Skipping Invite Page')
         await page.getByTestId('applicant-invite-skip-btn').click();
         await handleSkipReasonModal(page, "Skipping applicants step for test purposes");
-    
-        await expect(page.getByTestId('summary-completed-section')).toBeVisible({ timeout: 10_000 });
+
+        await expect(page.getByTestId('summary-step')).toBeVisible({ timeout: 10_000 });
         console.log('✅ On Summary Page')
-    
+
         console.log('🚀 Going to employment page')
-        await page.locator('div[role=button]').filter({
-            hasText: 'Employment Verification',
-            visible: true
-        }).filter({
-            hasText: 'Skipped'
-        }).click();
-    
+        await page.getByTestId('step-EMPLOYMENT_VERIFICATION-lg').filter({ visible: true }).click();
+
         await expect(page.getByTestId('employment-step-skip-btn')).toBeVisible({ timeout: 10_000 });
         console.log('✅ On employment page')
-    
+
         console.log('🚀 Skipping employment page')
         await page.getByTestId('employment-step-skip-btn').click();
         await handleSkipReasonModal(page, "Skipping employment step for test purposes");
-    
-        await expect(page.getByTestId('summary-completed-section')).toBeVisible({ timeout: 10_000 });;
+
+        await expect(page.getByTestId('summary-step')).toBeVisible({ timeout: 10_000 });
         console.log('✅ On Summary page')
         await page.waitForTimeout(3000);
-    
+
         console.log('🚀 Going to rent budget')
-        await page.locator('div[role=button]').filter({
-            hasText: 'Rent Amount',
-            visible: true
-        }).filter({
-            hasText: 'Completed'
-        }).click();
-    
+        await page.getByTestId('step-START-lg').filter({ visible: true }).click();
+
         await expect(page.locator('label[for="rent_budget"]')).toBeVisible({ timeout: 10_000 });
         console.log('✅ On rent budget')
-    
+
         console.log('🚀 Updating rent budget')
         await updateRentBudget(page, sessionId, '1000', { handlePrerequisite: true });
-    
-        await expect(page.getByTestId('summary-completed-section')).toBeVisible({ timeout: 10_000 });
+
+        await expect(page.getByTestId('summary-step')).toBeVisible({ timeout: 10_000 });
         console.log('✅ On Summary page')
-    
+
         console.log('🚀 Going to invite page')
-        await page.locator('div[role=button]').filter({
-            hasText: 'Applicants',
-            visible: true
-        }).filter({
-            hasText: 'Skipped'
-        }).click();
-    
+        await page.getByTestId('step-APPLICANTS-lg').filter({ visible: true }).click();
+
         await expect(page.getByTestId('applicant-invite-step')).toBeVisible({ timeout: 10_000 });
         console.log('✅ On invite page')
-    
+
         console.log('🚀 Adding co applicant')
         await fillhouseholdForm(page, coApp);
         console.log('✅ Added co applicant')
-    
+
         console.log('🚀 Completing invite step')
         await page.getByTestId('applicant-invite-continue-btn').filter({ visible: true }).click();
         console.log('✅ Completed invite step')
 
         await page.waitForTimeout(3000);
-    
-        await expect(page.getByTestId('summary-completed-section')).toBeVisible({ timeout: 10_000 });
+
+        await expect(page.getByTestId('summary-step')).toBeVisible({ timeout: 10_000 });
         console.log('✅ On Summary step')
-    
+
         await page.waitForTimeout(6000);
-        
+
         console.log('🚀 Going to employment step')
-        await page.locator('div[role=button]').filter({
-            hasText: 'Employment Verification',
-            visible: true
-        }).filter({
-            hasText: 'Skipped'
-        }).click();
+        await page.getByTestId('step-EMPLOYMENT_VERIFICATION-lg').filter({ visible: true }).click();
         console.log('✅ On employment step')
-    
+
         console.log('🚀 Completing paystub connection')
         await completePaystubConnection(page);
         console.log('✅ Completed paystub connection')
-    
+
         console.log('🚀 Completing employment step')
         await page.getByTestId('employment-step-continue').click();
         console.log('✅ Completed employment step')
     
-        await expect(page.getByTestId('summary-completed-section')).toBeVisible({ timeout: 10_000 });
+        await expect(page.getByTestId('summary-step')).toBeVisible({ timeout: 10_000 });
         console.log('✅ On summary page')
     
         await page.close();

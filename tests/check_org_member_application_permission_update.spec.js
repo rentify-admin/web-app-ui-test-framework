@@ -78,6 +78,8 @@ test('Admin should be able to update an organization member\'s application permi
         await expect(page.getByTestId('member-role-modal')).toBeVisible();
         console.log('✅ Member role modal is visible.');
 
+        await page.waitForTimeout(3000); // wait for animation and stabilization, necessary for the test to pass
+
         const permissionTable = await page.getByTestId('all-application-table');
         console.log('🚀 Got permission table locator.');
 

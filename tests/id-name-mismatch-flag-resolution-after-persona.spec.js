@@ -112,7 +112,7 @@ test.describe('QA-268 id-name-mismatch-flag-resolution-after-persona.spec', () =
         
         for (let attempt = 1; attempt <= maxPolls; attempt++) {
             try {
-                const summarySection = applicantPage.getByTestId('summary-completed-section');
+                const summarySection = applicantPage.getByTestId('summary-step');
                 await expect(summarySection).toBeVisible({ timeout: 2000 });
                 console.log(`✅ Summary step appeared after ${attempt} attempt(s)`);
                 console.log('🎉 Verification complete! Applicant reached summary step.');
@@ -123,7 +123,7 @@ test.describe('QA-268 id-name-mismatch-flag-resolution-after-persona.spec', () =
                     await applicantPage.waitForTimeout(pollInterval);
                 } else {
                     console.error(`❌ Summary step did not appear after ${maxPolls} attempts`);
-                    throw new Error(`Summary step timeout: summary-completed-section not found after ${maxPolls * pollInterval / 1000} seconds`);
+                    throw new Error(`Summary step timeout: summary-step not found after ${maxPolls * pollInterval / 1000} seconds`);
                 }
             }
         }
