@@ -1413,12 +1413,12 @@ const navigateToSessionFlags = async (page, sessionId) => {
             console.log(`🔄 Attempt ${attempt}/${maxRetries}: Navigating to session flags for session ${sessionId}`);
             
             // Wait for Alert button to be ready first
-            await expect(page.getByRole('button', { name: 'Alert' })).toBeVisible({ timeout: 10000 });
+            await expect(page.getByTestId('report-alerts-btn')).toBeVisible({ timeout: 10000 });
             await page.waitForTimeout(1000); // Allow UI to stabilize
 
             // Click Alert button; flags may already be loaded from a previous request,
             // so we rely primarily on the UI becoming visible rather than a fresh network call.
-            await page.getByRole('button', { name: 'Alert' }).click();
+            await page.getByTestId('report-alerts-btn').click();
 
             const flagSection = await page.getByTestId('report-view-details-flags-section');
             await expect(flagSection).toBeVisible({ timeout: 10000 });
