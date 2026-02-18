@@ -228,14 +228,14 @@ test.describe('QA-202 flag_review_buttons_flow', () => {
 
             // Wait for Alert button to be visible (indicates report page is loaded)
             // Note: household-status-alert is only visible inside the Alert modal, so we wait for the button instead
-            await expect(page.getByRole('button', { name: 'Alert' })).toBeVisible({ timeout: 10_000 });
+            await expect(page.getByTestId('report-alerts-btn')).toBeVisible({ timeout: 10_000 });
 
             // Ensure View Details section is open (might already be open from navigateToSessionByIdAndGetFlags)
             const flagSectionVisible = await page.getByTestId('report-view-details-flags-section').isVisible().catch(() => false);
             
             if (!flagSectionVisible) {
                 console.log('🔍 Opening View Details section...');
-                const alertBtn = await page.getByRole('button', { name: 'Alert' });
+                const alertBtn = await page.getByTestId('report-alerts-btn');
                 await alertBtn.click();
             } else {
                 console.log('✅ View Details section already open');
@@ -288,11 +288,64 @@ test.describe('QA-202 flag_review_buttons_flow', () => {
 
             const completeReview = page.getByTestId('flags-complete-review-btn')
             await expect(completeReview).toBeVisible();
+            console.log('✅ "Complete Review" button is visible');
+
+            await page.getByTestId('close-event-history-modal').click();
+            console.log('✅ Closed event history modal');
+            await page.waitForTimeout(500);
+
+            console.log('🔄 Navigating back to applicants inbox to verify "In review" badge...');
+
+            console.log('📄 Navigating to applicants inbox...');
+            // Click applicants submenu (use .first() to handle duplicate elements)
+            await page.getByTestId('applicants-submenu').first().click();
+
+            // Wait for sessions to be loaded in the UI
+            await page.waitForTimeout(2000);
+
+            // Click a different session card first to deselect if target session is already selected
+            // This ensures that clicking the target session will trigger the API call
+            const sessionCountAgain = await allSessionCards.count();
+
+            if (sessionCountAgain > 1) {
+                // Find and click a session that is NOT our target session
+                for (let i = 0; i < Math.min(sessionCountAgain, 5); i++) {
+                    const card = allSessionCards.nth(i);
+                    const sessionId = await card.getAttribute('data-session');
+
+                    if (sessionId && sessionId !== session.id) {
+                        console.log(`🔄 Clicking different session first to deselect: ${sessionId.substring(0, 25)}...`);
+                        await card.click();
+                        await page.waitForTimeout(2000); // Wait for page to load
+                        console.log('✅ Different session opened - target session is now deselected');
+                        break;
+                    }
+                }
+            }
+
+            const sessionTile = page.locator(`.application-card[data-session="${session.id}"]`);
+
+            console.log('🔍 Checking for "In review" badge on session tile...');
+            await expect(sessionTile.getByTestId('in-review-badge')).toBeVisible({ timeout: 10_000 });
+            await expect(sessionTile.getByTestId('in-review-badge')).toHaveClass(/text-warning/, { timeout: 10_000 });
+            // Navigate to session and capture flags response from page load
+            // This function will try to get flags automatically, or click View Details if needed
+            flags = await navigateToSessionByIdAndGetFlags(page, session.id, buildFlagsFetchPredicate);
+
+            const flagSectionVisibleNow = await page.getByTestId('report-view-details-flags-section').isVisible().catch(() => false);
+
+            if (!flagSectionVisibleNow) {
+                console.log('🔍 Opening View Details section...');
+                const alertBtn = await page.getByTestId('report-alerts-btn');
+                await alertBtn.click();
+            } else {
+                console.log('✅ View Details section already open');
+            }
 
             // Verify session-level "In review by" text is displayed (not flag-level)
             // After refactor, review status is session-level, so "In review by" appears at session level
             // The text appears in Report.vue around line 335-339, inside a span with class "font-medium text-gray-700"
-            await expect(page.locator('span.font-medium.text-gray-700').filter({ hasText: new RegExp(`In review by.*${adminUser.full_name}`, 'i') })).toBeVisible({ timeout: 10_000 });
+            await expect(page.getByTestId('in-review-by').filter({ hasText: new RegExp(`In review by.*${adminUser.full_name}`, 'i') })).toBeVisible({ timeout: 10_000 });
             console.log(`✅ Session-level "In review by: ${adminUser.full_name}" is displayed`);
 
             const reviewedFlags = [];
@@ -449,6 +502,20 @@ test.describe('QA-202 flag_review_buttons_flow', () => {
 
             // Wait a bit for events to be created after completing review
             await page.waitForTimeout(2000);
+            console.log('📄 Closing event history modal...');
+            await page.getByTestId('close-event-history-modal').click();
+
+            console.log('🔍 Verifying "In review" badge is removed from session tile...');
+            await expect(sessionTile.getByTestId('in-review-badge')).not.toBeVisible({ timeout: 10_000 });
+            console.log('✅ "In review" badge is removed');
+
+            console.log('🔍 Verifying session-level "In review by" text is removed...');
+            await expect(page.getByTestId('in-review-by')).not.toBeVisible({ timeout: 10_000 });
+            console.log('✅ Session-level "In review by" text is removed');
+
+            console.log('🔍 Verifying "Reviewed by" text is displayed with correct reviewer name...');
+            await expect(page.getByTestId('reviewed-by').filter({ hasText: new RegExp(`Reviewed by.*${adminUser.full_name}`, 'i') })).toBeVisible({ timeout: 10_000 });
+            console.log('✅ "Reviewed by" text is displayed with correct reviewer name');
 
             // Checking event history - poll for events to ensure they're created
             // When flags are reviewed (mark as issue/non-issue), FlagObserver logs FlagEvent::UPDATED
