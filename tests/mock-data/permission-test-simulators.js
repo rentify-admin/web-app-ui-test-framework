@@ -195,8 +195,11 @@ export function getVeridocsBankStatementPayload(userData = {}, {
     };
 
     // Use user name or default
-    const accountOwnerName = userData && userData.first_name && userData.last_name
-        ? `${userData.first_name} ${userData.last_name}`
+    const firstName = userData?.first_name;
+    const lastName = userData?.last_name;
+
+    const accountOwnerName = (firstName != null || lastName != null)
+        ? `${firstName ?? ''} ${lastName ?? ''}`.trim()
         : 'Permission Test User';
 
     // 6 transactions: 3 employment income + 3 expenses
@@ -375,9 +378,9 @@ export function getAtomicEmploymentPayload(userData = {}) {
     const companyName = 'Permission Test Company Inc.';
 
     // Extract user data
-    const firstName = userData.first_name || 'Permission';
-    const lastName = userData.last_name || 'Test';
-    const email = userData.email || 'test@example.com';
+    const firstName = typeof userData.first_name === 'undefined' ? 'Permission' : userData.first_name;
+    const lastName = typeof userData.last_name === 'undefined' ? 'Test' : userData.last_name;
+    const email = typeof userData.email === 'undefined' ? 'test@example.com' : userData.email;
     const dob = '1990-01-01T00:00:00.000Z';
     const phone = '2055551234';
     const ssn = 'XXXXX5678';
