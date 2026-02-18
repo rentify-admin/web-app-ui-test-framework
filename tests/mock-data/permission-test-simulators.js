@@ -9,7 +9,7 @@
 
 // Helper: Generate UUID
 const generateUUID = () => {
-    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
         const r = Math.random() * 16 | 0;
         const v = c === 'x' ? r : (r & 0x3 | 0x8);
         return v.toString(16);
@@ -68,12 +68,12 @@ const daysAgo = (n) => {
  */
 export function getPersonaPayload(userData = {}, userType = 'primary') {
     const { subMinutes, dateAfter2Years, dateBefore1Year, dateBefore20Years, currentDate } = getDates();
-    
+
     // Extract user data with defaults
     const firstName = userData.first_name || "Permission";
     const lastName = userData.last_name || "Test";
     const email = userData.email || "test@example.com";
-    
+
     // Differentiate between Primary and Guarantor
     const isGuarantor = userType === 'guarantor' || userType === 'co-applicant';
     const identificationNumber = isGuarantor ? "G7654321" : "I1234562";
@@ -170,7 +170,9 @@ export function getPersonaPayload(userData = {}, userType = 'primary') {
  * @param {Object} userData - User data { first_name, last_name }
  * @returns {Object} Complete VERIDOCS_PAYLOAD structure
  */
-export function getVeridocsBankStatementPayload(userData = {}) {
+export function getVeridocsBankStatementPayload(userData = {}, {
+    currencyDetails
+} = {}) {
     // Generate dynamic dates
     const createDate = (daysAgo) => {
         const date = new Date();
@@ -206,7 +208,8 @@ export function getVeridocsBankStatementPayload(userData = {}) {
             "date": dynamicDates.day5,
             "amount": 2500,
             "balance": 12500.00,
-            "page_number": 2
+            "page_number": 2,
+            ...(currencyDetails ? currencyDetails : {})
         },
         // Employment Income #2
         {
@@ -215,7 +218,8 @@ export function getVeridocsBankStatementPayload(userData = {}) {
             "date": dynamicDates.day20,
             "amount": 2500,
             "balance": 10000.00,
-            "page_number": 2
+            "page_number": 2,
+            ...(currencyDetails ? currencyDetails : {})
         },
         // Employment Income #3
         {
@@ -224,7 +228,8 @@ export function getVeridocsBankStatementPayload(userData = {}) {
             "date": dynamicDates.day35,
             "amount": 2500,
             "balance": 7500.00,
-            "page_number": 2
+            "page_number": 2,
+            ...(currencyDetails ? currencyDetails : {})
         },
         // Expense #1
         {
@@ -233,7 +238,8 @@ export function getVeridocsBankStatementPayload(userData = {}) {
             "date": dynamicDates.day10,
             "amount": -150,
             "balance": 12350.00,
-            "page_number": 2
+            "page_number": 2,
+            ...(currencyDetails ? currencyDetails : {})
         },
         // Expense #2
         {
@@ -242,7 +248,9 @@ export function getVeridocsBankStatementPayload(userData = {}) {
             "date": dynamicDates.day25,
             "amount": -200,
             "balance": 9800.00,
-            "page_number": 2
+            "page_number": 2,
+            ...(currencyDetails ? currencyDetails : {})
+
         },
         // Expense #3
         {
@@ -251,7 +259,8 @@ export function getVeridocsBankStatementPayload(userData = {}) {
             "date": dynamicDates.day30,
             "amount": -1500,
             "balance": 9000.00,
-            "page_number": 2
+            "page_number": 2,
+            ...(currencyDetails ? currencyDetails : {})
         }
     ];
 
@@ -301,6 +310,8 @@ export function getVeridocsBankStatementPayload(userData = {}) {
                             "institution_name": "Wells Fargo",
                             "bank_country": "US",
                             "bank_account_currency": "USD",
+                            "original_currency": "USD",
+                            ...(currencyDetails ? currencyDetails : {}),
                             "accounts": [
                                 {
                                     "account_type": "Checking",
@@ -315,7 +326,8 @@ export function getVeridocsBankStatementPayload(userData = {}) {
                                     "balance_total_end": balanceEnd,
                                     "total_credits": totalCredits,
                                     "total_debits": totalDebits,
-                                    "transactions": transactions
+                                    "transactions": transactions,
+                                    ...(currencyDetails ? currencyDetails : {}) 
                                 }
                             ]
                         },
@@ -391,11 +403,11 @@ export function getAtomicEmploymentPayload(userData = {}) {
         const startOffset = 14 * (i + 1) + 3;
         const endOffset = 14 * (i + 1);
         const payDate = daysAgo(endOffset - 2);
-        
+
         const hoursPerPeriod = 80; // 2 weeks * 40 hours
         const gross = Math.round(hourlyIncome * hoursPerPeriod * 100) / 100;
         const net = Math.round(gross * 0.77 * 100) / 100;
-        
+
         statements.push({
             date: payDate,
             payPeriodStartDate: daysAgo(startOffset),
@@ -460,13 +472,13 @@ export function getAtomicEmploymentPayload(userData = {}) {
                             startDate,
                             employer: {
                                 name: companyName,
-                                address: { 
-                                    line1: '12345 Enterprise Rd', 
-                                    line2: 'Suite 105', 
-                                    city, 
-                                    state, 
-                                    postalCode, 
-                                    country: 'USA' 
+                                address: {
+                                    line1: '12345 Enterprise Rd',
+                                    line2: 'Suite 105',
+                                    city,
+                                    state,
+                                    postalCode,
+                                    country: 'USA'
                                 }
                             }
                         },
