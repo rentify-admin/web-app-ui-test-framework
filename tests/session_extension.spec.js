@@ -18,7 +18,9 @@ test.describe('QA-363 session_extension.spec', () => {
         sessionId = null;
     });
 
-    test('Should Display Time Remaining and Extend Session', async ({ page }) => {
+    test('Should Display Time Remaining and Extend Session', {
+        tag: ['@smoke', '@regression']
+    }, async ({ page }) => {
         // Setup
         console.log('[Setup] Login as admin with CREATE_SESSION_EXTENSIONS and VIEW_SESSION_EXTENSIONS permissions');
         const authToken = await loginForm.adminLoginAndNavigate(page, admin);
@@ -179,7 +181,9 @@ test.describe('QA-363 session_extension.spec', () => {
         expect(latestExtension.extension_hours).toBe(24);
     });
 
-    test('Validate Extension Form Errors', async ({ page }) => {
+    test('Validate Extension Form Errors', {
+        tag: ['@regression']
+    }, async ({ page }) => {
         // Setup
         console.log('[Setup] Login as admin and navigate to the session applicant report page');
         await loginForm.adminLoginAndNavigate(page, admin);
