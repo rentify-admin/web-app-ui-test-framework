@@ -18,7 +18,7 @@ let adminClient;
  * @param {import('@playwright/test').Page} params.page
  * @param {import('@playwright/test').Locator} params.saveAppBtn
  * @param {string} [params.applicationId] - If provided, will PATCH. If omitted, will POST.
- * @param {string} params.expectedValue - Expected value of upload_trigger ('session_approval'|'session_completion')
+ * @param {string} params.expectedValue - Expected value of upload_trigger ('session_approval'|'session_acceptance')
  * @param {string} [params.httpMethodOverride] - Optionally force a method: 'POST' or 'PATCH' (to disambiguate when appId is unknown or for other flexibility)
  * @param {string} [params.testNumber] - testnumber key to log test in testResults
  * @returns {Promise<void>}
@@ -41,18 +41,20 @@ async function saveAndAssertUploadTrigger({ page, saveAppBtn, applicationId, exp
     console.log(`🧠 [saveAndAssertUploadTrigger] About to click save. Method: ${method}, urlIncludes: ${urlIncludes} ${applicationId ? `, applicationId: ${applicationId}` : ''}`);
 
     // Wait for the correct request and click save
+    // NOTE: resp.ok() intentionally excluded from filter — if the API returns 422, the filter
+    // would never match and waitForResponse would silently hang until the 100s test timeout.
+    // Instead, capture any response matching URL+method and assert status explicitly below.
     const [setupResponse] = await Promise.all([
         page.waitForResponse(resp =>
             resp.url().includes(urlIncludes) &&
-            resp.request().method() === method &&
-            resp.ok()
+            resp.request().method() === method
         ),
         saveAppBtn.click()
     ]);
 
-    console.log(`🟢 [saveAndAssertUploadTrigger] Save triggered and response received for ${method} ${urlIncludes} ${applicationId ? `(appId: ${applicationId})` : ''}`);
+    console.log(`🟢 [saveAndAssertUploadTrigger] Save triggered and response received for ${method} ${urlIncludes} (status: ${setupResponse.status()}) ${applicationId ? `(appId: ${applicationId})` : ''}`);
 
-    expect(setupResponse.ok()).toBeTruthy();
+    expect(setupResponse.ok(), `Expected ${method} ${urlIncludes} to succeed, got ${setupResponse.status()}`).toBeTruthy();
 
     let _applicationId = applicationId;
     if (!_applicationId) {
@@ -88,10 +90,10 @@ async function saveAndAssertUploadTrigger({ page, saveAppBtn, applicationId, exp
     console.log(`🌐 [saveAndAssertUploadTrigger] Verifying application value from API for applicationId: ${_applicationId} ...`);
     const appResponse = await adminClient.get(`/applications/${_applicationId}?fields[application]=settings`)
     const updatedApplication = appResponse.data.data;
-    await expect(updatedApplication.settings).toBeDefined();
+    expect(updatedApplication.settings).toBeDefined();
     const setting = updatedApplication.settings.find(setting => setting.key === 'settings.applications.pms.pdf.upload_trigger')
-    await expect(setting).toBeDefined();
-    await expect(setting.value).toBe(expectedValue);
+    expect(setting).toBeDefined();
+    expect(setting.value).toBe(expectedValue);
 
     console.log(`✅ [saveAndAssertUploadTrigger] API returned trigger value: "${setting.value}". Assertion passed! 🎉`);
 
@@ -113,8 +115,8 @@ test.describe('QA-274 pms-upload-toggle-configuration.spec', async () => {
         console.log("🟢 Admin logged in and ApiClient initialized! 🚀");
     });
 
-    test('Create Application with Checkbox Unchecked - Saves session_completion (Bug Fix)', {
-        tag: ['@core', '@regression']
+    test('Create Application with Checkbox Unchecked - Saves session_acceptance', {
+        tag: ['@core', '@regression', '@staging-ready', '@rc-ready']
     }, async ({ page }) => {
         console.log('🧪 [test1] Starting test: Create Application with Checkbox Unchecked');
         await adminLoginAndNavigateToApplications(page, admin)
@@ -125,11 +127,10 @@ test.describe('QA-274 pms-upload-toggle-configuration.spec', async () => {
         await applicationCreateBtn.click();
         console.log("📋 Clicked application create button!");
 
-        await fillSelect(page, 'orgnization-input', 'Permissions Test Org')
+        await fillSelect(page, 'organization-input', 'Permissions Test Org')
         console.log("🏢 Selected organization: Permissions Test Org");
 
-        await page.getByTestId('application-name-input').fill('Test Application')
-        await page.getByTestId('slug-input').fill(`permissions-test-org-test-application-${Date.now()}`)
+        await page.getByTestId('application-name-input').fill(`Autotest PMS Unchecked ${Date.now()}`)
 
         const verisyncIntegrationCheck = page.locator('#enable_verisync_integration')
 
@@ -141,19 +142,22 @@ test.describe('QA-274 pms-upload-toggle-configuration.spec', async () => {
         await page.locator('#pms_integration_id').fill(`test-integration-id-${Date.now()}`)
         await page.locator('#pms_property_id').fill(`test-property-id-${Date.now()}`)
 
-        const uploadPdfBtn = await page.locator('#upload_pdf_on_household_approval');
+        const uploadPdfBtn = page.locator('#upload_pdf_on_household_approval');
         await expect(uploadPdfBtn).toBeVisible()
-        await expect(uploadPdfBtn).not.toBeChecked();
+        await expect.poll(
+            () => uploadPdfBtn.isChecked(),
+            { timeout: 3000, intervals: [100, 200, 300, 500] }
+        ).toBe(false);
 
         const saveAppBtn = page.getByTestId('submit-application-setup');
         await expect(saveAppBtn).toBeVisible();
 
         // Use utility for POST case
-        console.log("💾 [test1] Saving new application (expect session_completion)... 🟢");
+        console.log("💾 [test1] Saving new application (expect session_acceptance)... 🟢");
         const applicationId = await saveAndAssertUploadTrigger({
             page,
             saveAppBtn,
-            expectedValue: 'session_completion',
+            expectedValue: 'session_acceptance',
             httpMethodOverride: 'POST',
             testNumber: 'test1'
         });
@@ -165,7 +169,7 @@ test.describe('QA-274 pms-upload-toggle-configuration.spec', async () => {
     })
 
     test('Create Application with Checkbox Checked - Saves session_approval', {
-        tag: ['@core', '@regression']
+        tag: ['@core', '@regression', '@staging-ready', '@rc-ready']
     }, async ({ page }) => {
         console.log('🧪 [test2] Starting test: Create Application with Checkbox Checked');
         await adminLoginAndNavigateToApplications(page, admin)
@@ -176,11 +180,10 @@ test.describe('QA-274 pms-upload-toggle-configuration.spec', async () => {
         await applicationCreateBtn.click();
         console.log("📋 Clicked application create button!");
 
-        await fillSelect(page, 'orgnization-input', 'Permissions Test Org')
+        await fillSelect(page, 'organization-input', 'Permissions Test Org')
         console.log("🏢 Selected organization: Permissions Test Org");
 
-        await page.getByTestId('application-name-input').fill('Test Application 2')
-        await page.getByTestId('slug-input').fill(`permissions-test-org-test-application-${Date.now()}`)
+        await page.getByTestId('application-name-input').fill(`Autotest PMS Checked ${Date.now()}`)
 
         const verisyncIntegrationCheck = page.locator('#enable_verisync_integration')
 
@@ -192,9 +195,12 @@ test.describe('QA-274 pms-upload-toggle-configuration.spec', async () => {
         await page.locator('#pms_integration_id').fill(`test-integration-id-${Date.now()}`)
         await page.locator('#pms_property_id').fill(`test-property-id-${Date.now()}`)
 
-        const uploadPdfBtn = await page.locator('#upload_pdf_on_household_approval');
+        const uploadPdfBtn = page.locator('#upload_pdf_on_household_approval');
         await expect(uploadPdfBtn).toBeVisible()
-        await expect(uploadPdfBtn).not.toBeChecked();
+        await expect.poll(
+            () => uploadPdfBtn.isChecked(),
+            { timeout: 3000, intervals: [100, 200, 300, 500] }
+        ).toBe(false);
 
         await uploadPdfBtn.check()
         console.log("📝 Checked upload PDF on household approval!");
@@ -219,7 +225,7 @@ test.describe('QA-274 pms-upload-toggle-configuration.spec', async () => {
     })
 
     test('Edit Application - Checkbox State and Toggle Behavior', {
-        tag: ['@core', '@regression']
+        tag: ['@core', '@regression', '@staging-ready', '@rc-ready']
     }, async ({ page }) => {
         console.log("🧪 [test3] Starting test: Edit Application - Checkbox State and Toggle Behavior");
         const ORGANIZATION_NAME = "Permissions Test Org"
@@ -241,7 +247,7 @@ test.describe('QA-274 pms-upload-toggle-configuration.spec', async () => {
             slug: `permissions-test-org-test-application-${Date.now()}`,
             settings: {
                 "settings.applications.applicant_types": [],
-                "settings.applications.pms.pdf.upload_trigger": "session_completion",
+                "settings.applications.pms.pdf.upload_trigger": "session_acceptance",
                 "settings.applications.pms.pdf.components": []
             }
         })).data.data;
@@ -266,9 +272,12 @@ test.describe('QA-274 pms-upload-toggle-configuration.spec', async () => {
         const verisyncIntegrationCheck = page.locator('#enable_verisync_integration')
         await expect(verisyncIntegrationCheck).toBeChecked();
 
-        const uploadPdfBtn = await page.locator('#upload_pdf_on_household_approval');
+        const uploadPdfBtn = page.locator('#upload_pdf_on_household_approval');
         await expect(uploadPdfBtn).toBeVisible()
-        await expect(uploadPdfBtn).not.toBeChecked();
+        await expect.poll(
+            () => uploadPdfBtn.isChecked(),
+            { timeout: 3000, intervals: [100, 200, 300, 500] }
+        ).toBe(false);
         await uploadPdfBtn.check();
         console.log("✔️ Checked upload PDF on household approval for edit scenario!");
 
@@ -295,12 +304,12 @@ test.describe('QA-274 pms-upload-toggle-configuration.spec', async () => {
         console.log("🚫 Unchecked upload PDF on household approval for toggle-off!");
 
         // Second toggle OFF and verify (PATCH)
-        console.log("💾 [test3] Toggling OFF upload_trigger (expect session_completion)... 🟢");
+        console.log("💾 [test3] Toggling OFF upload_trigger (expect session_acceptance)... 🟢");
         await saveAndAssertUploadTrigger({
             page,
             saveAppBtn,
             applicationId: application.id,
-            expectedValue: 'session_completion'
+            expectedValue: 'session_acceptance'
         });
 
         testResults.test3.passed = true;
@@ -331,6 +340,11 @@ const fillSelect = async (page, testid, value) => {
     await select.click()
     await page.waitForTimeout(300)
     await select.getByTestId(`${testid}-search`).fill(value)
-    await select.locator('ul.multiselect__content>li').nth(0).click()
+    // Wait for the filtered option matching the value to be visible before clicking.
+    // nth(0) without this wait is flaky: Vue's search watcher flushes asynchronously,
+    // so the unfiltered list (with preselect-first) may still be visible when nth(0) fires.
+    const option = select.locator('ul.multiselect__content>li').filter({ hasText: value }).first()
+    await expect(option).toBeVisible()
+    await option.click()
     console.log(`👉 [fillSelect] Selected "${value}" for "${testid}" 🪄`);
 }
