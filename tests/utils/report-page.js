@@ -225,10 +225,14 @@ const checkAllFlagsSection = async (
 ) => {
 
     // Verify that the Flags section is populated.
-    const flagsCausingDecline = flags.filter(flag => flag.severity === 'CRITICAL' && !flag.ignored);
-    const flagsRequiredReview = flags.filter(flag => flag.severity === 'ERROR' && !flag.ignored);
-    const flagsWithWarning = flags.filter(flag => flag.severity === 'WARNING' && !flag.ignored);
-    const flagsWithInformation = flags.filter(flag => flag.severity === 'INFO' && !flag.ignored);
+    // The staff dashboard "System" tab (default) only shows INTERNAL-scoped flags.
+    // Since the backend now also creates companion APPLICANT-scoped flags, we must
+    // exclude them here to match what EventHistory.vue renders in each section.
+    const isInternalFlag = (flag) => flag.flag?.scope !== 'APPLICANT';
+    const flagsCausingDecline = flags.filter(flag => flag.severity === 'CRITICAL' && !flag.ignored && isInternalFlag(flag));
+    const flagsRequiredReview = flags.filter(flag => flag.severity === 'ERROR' && !flag.ignored && isInternalFlag(flag));
+    const flagsWithWarning = flags.filter(flag => flag.severity === 'WARNING' && !flag.ignored && isInternalFlag(flag));
+    const flagsWithInformation = flags.filter(flag => flag.severity === 'INFO' && !flag.ignored && isInternalFlag(flag));
 
     // DEBUG: Log all ignored flags to see their reviewed_by state
     const allIgnoredFlags = flags.filter(flag => flag.ignored);

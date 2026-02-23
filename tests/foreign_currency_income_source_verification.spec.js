@@ -33,7 +33,7 @@ test.describe('QA-365: Foreign Currency Income Source Verification', () => {
     });
 
     test('CAD Bank Statement with Foreign Currency Badge and Modal', {
-        tag: ['@regression'],
+        tag: ['@regression', '@staging-ready', '@rc-ready'],
         timeout: 240_000
     }, async ({ page, browser, dataManager }) => {
 
@@ -250,25 +250,28 @@ test.describe('QA-365: Foreign Currency Income Source Verification', () => {
 
         const transaction = transactionsData.data[0];
 
-        // Verify transaction contains currency fields
-        // const hasCadOrUsd = transaction.currency  === 'CAD' || transaction.currency === 'USD';
-        // expect(hasCadOrUsd).toBeTruthy();
-        console.log(`✅ Transaction currency: ${transaction.currency}`);
+        // Payload must exist for a CAD transaction
+        expect(transaction.payload).toBeDefined();
 
-        // Verify payload contains conversion data
-        if (transaction.payload) {
-            expect(transaction.payload.original_currency).toBe('CAD');
-            expect(transaction.payload.conversion_currency).toBe('USD');
-            expect(transaction.payload.conversion_rate).toBeDefined();
-            expect(typeof transaction.payload.conversion_rate).toBe('number');
-            expect(transaction.payload.original_data.amount).toBeDefined();
-            expect(typeof transaction.payload.original_data.amount).toBe('number');
-            console.log('✅ Transaction payload contains conversion data:');
-            console.log(`   - original_currency: ${transaction.payload.original_currency}`);
-            console.log(`   - conversion_currency: ${transaction.payload.conversion_currency}`);
-            console.log(`   - conversion_rate: ${transaction.payload.conversion_rate}`);
-            console.log(`   - original_amount: ${transaction.payload.original_data.amount}`);
-        }
+        // Top-level payload fields
+        expect(transaction.payload.original_currency).toBe('CAD');
+        expect(transaction.payload.conversion_currency).toBe('USD');
+        expect(typeof transaction.payload.conversion_rate).toBe('number');
+        expect(typeof transaction.payload.amount).toBe('number');
+
+        // original_data mirrors the raw source values
+        expect(transaction.payload.original_data).toBeDefined();
+        expect(transaction.payload.original_data.original_currency).toBe('CAD');
+        expect(transaction.payload.original_data.conversion_currency).toBe('USD');
+        expect(typeof transaction.payload.original_data.conversion_rate).toBe('number');
+        expect(typeof transaction.payload.original_data.amount).toBe('number');
+
+        console.log('✅ Transaction payload contains conversion data:');
+        console.log(`   - original_currency: ${transaction.payload.original_currency}`);
+        console.log(`   - conversion_currency: ${transaction.payload.conversion_currency}`);
+        console.log(`   - conversion_rate: ${transaction.payload.conversion_rate}`);
+        console.log(`   - amount (original CAD): ${transaction.payload.amount}`);
+        console.log(`   - original_data.amount: ${transaction.payload.original_data.amount}`);
 
         // ============================================================
         // STEP 5: Click Badge and Verify Modal Opens
@@ -341,7 +344,8 @@ test.describe('QA-365: Foreign Currency Income Source Verification', () => {
 
         // Verify "Amount" column shows both original and converted amounts
         const amountCol = await firstRow.getByTestId('foreign-currency-transaction-amount-col').textContent();
-        expect(amountCol).toContain('$');   // USD symbol
+        expect(amountCol).toContain('CA$'); // original CAD amount
+        expect(amountCol).toContain('$');   // converted USD amount
         console.log('✅ Amount column shows both original (CA$) and converted ($) amounts');
 
         // Verify "Rate" column shows conversion rate value
@@ -358,7 +362,7 @@ test.describe('QA-365: Foreign Currency Income Source Verification', () => {
 
         // Click "Close" button
         console.log('🖱️ Clicking close button...');
-        const closeBtn = page.getByTestId('foreign-currency-modal-cancel');
+        const closeBtn = page.getByTestId('foreign-currency-modal-close-btn');
         await expect(closeBtn).toBeVisible();
         await closeBtn.click();
         await page.waitForTimeout(500);
