@@ -472,9 +472,9 @@ test.describe('QA-274 pms-upload-toggle-configuration.spec', async () => {
         console.log('✅ [test4] Approving session via UI...');
         await approveSessionOnly(page, sessionId);
 
-        // Step 5: Poll GET /sessions/{sessionId}/events for pms.file.uploaded OR pms.file.upload.failed
+        // Step 5: Poll GET /sessions/{sessionId}/events for session.approved OR session.acceptance.approved
         console.log('📡 [test4] Polling for PMS upload event (60s timeout)...');
-        const event = await pollForSessionEvent(adminClient, sessionId, ['pms.file.uploaded', 'pms.file.upload.failed'],  60000);
+        const event = await pollForSessionEvent(adminClient, sessionId, ['session.approved', 'session.acceptance.approved'],  60000);
         expect(event).toBeDefined();
         console.log(`✅ [test4] PMS event found: "${event.event || event.type}" — upload triggered on re-evaluation! ✅`);
 
@@ -517,14 +517,14 @@ test.describe('QA-274 pms-upload-toggle-configuration.spec', async () => {
         console.log(`✅ [test5] Session created: ${sessionId}`);
 
         // Step 2: PATCH /sessions/{sessionId} with { acceptance_status: "approved" } via API
-        // This simulates the org acceptance event that triggers pms.file.uploaded for session_acceptance trigger
+        // This simulates the org acceptance event that triggers session.approved for session_acceptance trigger
         console.log('📝 [test5] Patching session acceptance_status → approved via API...');
         await adminClient.patch(`/sessions/${sessionId}`, { acceptance_status: 'approved' });
         console.log('✅ [test5] acceptance_status patched to approved');
 
-        // Step 3: Poll GET /sessions/{sessionId}/events for pms.file.uploaded OR pms.file.upload.failed
+        // Step 3: Poll GET /sessions/{sessionId}/events for session.approved OR session.acceptance.approved
         console.log('📡 [test5] Polling for PMS upload event (60s timeout)...');
-        const event = await pollForSessionEvent(adminClient, sessionId, ['pms.file.uploaded', 'pms.file.upload.failed'],  60000);
+        const event = await pollForSessionEvent(adminClient, sessionId, ['session.approved', 'session.acceptance.approved'],  60000);
         expect(event).toBeDefined();
         console.log(`✅ [test5] PMS event found: "${event.event || event.type}" — upload triggered on org acceptance! ✅`);
 
