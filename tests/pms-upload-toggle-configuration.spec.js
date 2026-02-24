@@ -1,17 +1,23 @@
 import { expect, test } from "@playwright/test";
 import { admin, app } from "./test_config";
-import { adminLoginAndNavigateToApplications } from "./utils/session-utils";
+import { adminLoginAndNavigateToApplications, findSessionLocator } from "./utils/session-utils";
 import { waitForJsonResponse } from "./utils/wait-response";
 import { ApiClient } from "./api";
 import { loginWithAdmin } from "./endpoint-utils/auth-helper";
-import { cleanupApplication } from "./utils/cleanup-helper";
+import { cleanupApplication, cleanupTrackedSession } from "./utils/cleanup-helper";
+import { createPermissionTestSession } from "./utils/session-generator";
+import { searchSessionWithText } from "./utils/report-page";
 
 const testResults = {
     test1: { applicationId: null, passed: false },
     test2: { applicationId: null, passed: false },
     test3: { applicationId: null, passed: false },
+    test4: { sessionId: null, passed: false, applicantContext: null },
+    test5: { sessionId: null, passed: false, applicantContext: null },
 }
 let adminClient;
+let targetApplicationId = null; // ID for 'Autotest - Simulator Financial Step'
+
 /**
  * Utility function to perform POST or PATCH on /applications and assert settings
  * @param {Object} params
@@ -107,12 +113,143 @@ async function saveAndAssertUploadTrigger({ page, saveAppBtn, applicationId, exp
     return;
 }
 
+/**
+ * Poll GET /sessions/{sessionId}/events until pms.file.uploaded or pms.file.upload.failed is found.
+ * @param {ApiClient} client - Authenticated ApiClient instance
+ * @param {string} sessionId - Session ID to poll events for
+ * @param {number} maxWaitMs - Max wait time in milliseconds (default 60000)
+ * @returns {Promise<Object>} The matching event object
+ */
+async function pollForPmsEvent(client, sessionId, maxWaitMs = 60000) {
+    const PMS_EVENTS = ['pms.file.uploaded', 'pms.file.upload.failed'];
+    const startTime = Date.now();
+    const pollInterval = 2000;
+
+    console.log(`📡 [pollForPmsEvent] Polling for PMS events on session ${sessionId} (timeout: ${maxWaitMs}ms)...`);
+
+    while (Date.now() - startTime < maxWaitMs) {
+        try {
+            const eventsResp = await client.get(`/sessions/${sessionId}/events`, { params: { limit: 100, filters: JSON.stringify({ event: { $in: PMS_EVENTS } }) } });
+            const events = eventsResp.data?.data || [];
+            // Events use "event" as primary key field; check both "event" and "type" for safety
+            const targetEvent = events.find(e => PMS_EVENTS.includes(e.event) || PMS_EVENTS.includes(e.type));
+            if (targetEvent) {
+                console.log(`✅ [pollForPmsEvent] Event found: "${targetEvent.event || targetEvent.type}"`);
+                return targetEvent;
+            }
+            console.log(`   ⏳ [pollForPmsEvent] No PMS event yet (elapsed: ${Math.round((Date.now() - startTime) / 1000)}s)...`);
+        } catch (e) {
+            console.log(`   ⚠️ [pollForPmsEvent] Error fetching events: ${e.message}`);
+        }
+        await new Promise(resolve => setTimeout(resolve, pollInterval));
+    }
+
+    throw new Error(`PMS event (pms.file.uploaded / pms.file.upload.failed) not found after ${maxWaitMs}ms`);
+}
+
+/**
+ * Approve a session via UI.
+ * Opens the Alert modal, clicks the approve button from the session-action dropdown,
+ * polls until the button is enabled, then confirms.
+ * @param {import('@playwright/test').Page} page
+ * @param {string} sessionId
+ */
+async function approveSessionOnly(page, sessionId) {
+    console.log(`🔓 [approveSessionOnly] Approving session: ${sessionId}`);
+
+    // Open Alert modal to access household-status-alert
+    const householdStatusAlert = page.getByTestId('household-status-alert');
+    const isModalOpen = await householdStatusAlert.isVisible({ timeout: 2000 }).catch(() => false);
+
+    if (!isModalOpen) {
+        const alertBtn = page.getByRole('button', { name: /alert/i }).first();
+        await expect(alertBtn).toBeVisible({ timeout: 15_000 });
+        await alertBtn.click();
+        await expect(householdStatusAlert).toBeVisible({ timeout: 8_000 });
+    }
+
+    const detailsActionBtn = page.getByTestId('household-status-alert').getByTestId('session-action-btn');
+    await expect(detailsActionBtn).toBeVisible({ timeout: 10_000 });
+    await detailsActionBtn.click();
+    await page.waitForTimeout(500);
+
+    const approveBtn = page.getByTestId('household-status-alert').getByTestId('approve-session-btn');
+
+    // Ensure approve button is visible inside dropdown (retry if dropdown closed)
+    let retryAttempt = 0;
+    while (!await approveBtn.isVisible().catch(() => false) && retryAttempt < 5) {
+        retryAttempt++;
+        console.log(`   🔄 [approveSessionOnly] Re-opening dropdown (attempt ${retryAttempt}/5)...`);
+        await detailsActionBtn.click().catch(() => { });
+        await page.waitForTimeout(500);
+    }
+
+    if (!await approveBtn.isVisible().catch(() => false)) {
+        throw new Error('❌ Approve button not visible after 5 retries — ensure Alert modal is open and session is in approvable state.');
+    }
+
+    // Poll until approve button is enabled (no pointer-events-none class)
+    let isEnabled = false;
+    for (let i = 0; i < 30 && !isEnabled; i++) {
+        const hasDisabledClass = await approveBtn.evaluate(el => el.classList.contains('pointer-events-none'));
+        if (!hasDisabledClass) {
+            isEnabled = true;
+            console.log(`✅ [approveSessionOnly] Approve button enabled (attempt ${i + 1}/30)`);
+        } else {
+            console.log(`   ⏳ [approveSessionOnly] Waiting for approve button to be enabled (${i + 1}/30)...`);
+            await page.waitForTimeout(1000);
+            // Re-open dropdown if button disappeared while waiting
+            if (!await approveBtn.isVisible().catch(() => false)) {
+                await detailsActionBtn.click().catch(() => { });
+                await page.waitForTimeout(500);
+            }
+        }
+    }
+
+    if (!isEnabled) {
+        throw new Error('❌ Approve button still disabled after 30s — ensure all flags are resolved and session is in approvable state.');
+    }
+
+    await approveBtn.click();
+
+    // Confirm approval and wait for PATCH response
+    const [approveResponse] = await Promise.all([
+        page.waitForResponse(resp =>
+            resp.url().includes(`/sessions/${sessionId}`) &&
+            resp.request().method() === 'PATCH' &&
+            resp.ok()
+        ),
+        page.getByTestId('confirm-btn').click()
+    ]);
+
+    console.log(`✅ [approveSessionOnly] Session ${sessionId} approved (status: ${approveResponse.status()})`);
+}
+
 test.describe('QA-274 pms-upload-toggle-configuration.spec', async () => {
+    test.describe.configure({ mode: 'serial', timeout: 300000 });
+
     test.beforeAll(async () => {
         console.log("🔑 Logging in as admin and setting up ApiClient...");
         adminClient = new ApiClient(app.urls.api, null, 120000)
         await loginWithAdmin(adminClient)
         console.log("🟢 Admin logged in and ApiClient initialized! 🚀");
+
+        // Find 'Autotest - Simulator Financial Step' application for tests 4 & 5
+        try {
+            const appsResp = await adminClient.get('/applications', {
+                params: { filters: JSON.stringify({ name: 'Autotest - Simulator Financial Step' }) }
+            });
+            const apps = appsResp.data?.data || [];
+            const targetApp = apps.find(a => a.name === 'Autotest - Simulator Financial Step');
+            if (targetApp) {
+                targetApplicationId = targetApp.id;
+                console.log(`✅ Found 'Autotest - Simulator Financial Step' (id: ${targetApplicationId})`);
+            } else {
+                console.warn('⚠️ [beforeAll] Autotest - Simulator Financial Step not found — tests 4 & 5 may fail');
+            }
+        } catch (e) {
+            console.error(`❌ [beforeAll] Failed to find target application: ${e.message}`);
+        }
     });
 
     test('Create Application with Checkbox Unchecked - Saves session_acceptance', {
@@ -316,18 +453,175 @@ test.describe('QA-274 pms-upload-toggle-configuration.spec', async () => {
         console.log('🏁 [test3] Edit/Test complete! ✅\n');
     })
 
-    test.afterAll(async ({ request }) => {
-        console.log('🧹 [CleanUp] Test suite cleanup (delete any remaining test application if needed) 🧽');
+    test('Behavioral - Checkbox Checked (session_approval) - Upload fires on re-evaluation', {
+        tag: ['@regression', '@staging-ready', '@rc-ready']
+    }, async ({ page, browser }) => {
+        console.log('🧪 [test4] Starting: Behavioral - session_approval upload trigger');
+
+        if (!targetApplicationId) {
+            throw new Error('❌ [test4] targetApplicationId not set — beforeAll may have failed to find the application');
+        }
+
+        // Step 1: PATCH app upload_trigger = session_approval before test
+        console.log(`⚙️ [test4] Patching upload_trigger → session_approval (appId: ${targetApplicationId})`);
+        await adminClient.patch(`/applications/${targetApplicationId}`, {
+            settings: { 'settings.applications.pms.pdf.upload_trigger': 'session_approval' }
+        });
+        console.log('✅ [test4] upload_trigger patched to session_approval');
+
+        // Step 2: Create session via createPermissionTestSession
+        // Uses financial-only workflow (Autotest - Simulator Financial Step has no identity/employment steps)
+        console.log('🏗️ [test4] Creating test session via createPermissionTestSession...');
+        const { sessionId, applicantContext } = await createPermissionTestSession(page, browser, {
+            applicationName: 'Autotest - Simulator Financial Step',
+            firstName: 'PMS',
+            lastName: 'Approval Test',
+            email: `pms-approval-${Date.now()}@verifast.com`,
+            completeIdentity: false,
+            completeFinancial: true,
+            completeEmployment: false,
+            addChildApplicant: false,
+            skipApplicantInviteStep: true,
+            useCorrectMockData: true,  // Flag-free data so approve button is immediately enabled
+        });
+        testResults.test4.sessionId = sessionId;
+        testResults.test4.applicantContext = applicantContext;
+        console.log(`✅ [test4] Session created: ${sessionId}`);
+
+        // Step 3: Navigate to applicants section and open the session
+        // After createPermissionTestSession, admin is logged in and page is on the applications section
+        console.log('🔍 [test4] Navigating to applicants section...');
+        await page.getByTestId('applicants-menu').click();
+        await page.getByTestId('applicants-submenu').click();
+        await expect(page.getByTestId('side-panel')).toBeVisible({ timeout: 15_000 });
+
+        await searchSessionWithText(page, sessionId);
+        const sessionCard = await findSessionLocator(page, `.application-card[data-session="${sessionId}"]`);
+        await sessionCard.click();
+        await expect(page.locator('#applicant-report')).toBeVisible({ timeout: 15_000 });
+        await page.waitForTimeout(2000);  // Allow report to fully load
+
+        // Step 4: Resolve flags (none expected with useCorrectMockData) and approve via UI
+        console.log('✅ [test4] Approving session via UI...');
+        await approveSessionOnly(page, sessionId);
+
+        // Step 5: Poll GET /sessions/{sessionId}/events for pms.file.uploaded OR pms.file.upload.failed
+        console.log('📡 [test4] Polling for PMS upload event (60s timeout)...');
+        const event = await pollForPmsEvent(adminClient, sessionId, 60000);
+        expect(event).toBeDefined();
+        console.log(`✅ [test4] PMS event found: "${event.event || event.type}" — upload triggered on re-evaluation! ✅`);
+
+        testResults.test4.passed = true;
+        console.log('🏁 [test4] Test complete! ✅\n');
+    });
+
+    test('Behavioral - Checkbox Unchecked (session_acceptance) - Upload fires on org acceptance', {
+        tag: ['@regression', '@staging-ready', '@rc-ready']
+    }, async ({ page, browser }) => {
+        console.log('🧪 [test5] Starting: Behavioral - session_acceptance upload trigger');
+
+        if (!targetApplicationId) {
+            throw new Error('❌ [test5] targetApplicationId not set — beforeAll may have failed to find the application');
+        }
+
+        // Ensure upload_trigger is session_acceptance (default; also restores it after test4)
+        console.log(`⚙️ [test5] Ensuring upload_trigger = session_acceptance (appId: ${targetApplicationId})`);
+        await adminClient.patch(`/applications/${targetApplicationId}`, {
+            settings: { 'settings.applications.pms.pdf.upload_trigger': 'session_acceptance' }
+        });
+        console.log('✅ [test5] upload_trigger confirmed as session_acceptance');
+
+        // Step 1: Create session via createPermissionTestSession
+        console.log('🏗️ [test5] Creating test session via createPermissionTestSession...');
+        const { sessionId, applicantContext } = await createPermissionTestSession(page, browser, {
+            applicationName: 'Autotest - Simulator Financial Step',
+            firstName: 'PMS',
+            lastName: 'Acceptance Test',
+            email: `pms-acceptance-${Date.now()}@verifast.com`,
+            completeIdentity: false,
+            completeFinancial: true,
+            completeEmployment: false,
+            addChildApplicant: false,
+            skipApplicantInviteStep: true,
+            useCorrectMockData: true,
+        });
+        testResults.test5.sessionId = sessionId;
+        testResults.test5.applicantContext = applicantContext;
+        console.log(`✅ [test5] Session created: ${sessionId}`);
+
+        // Step 2: PATCH /sessions/{sessionId} with { acceptance_status: "approved" } via API
+        // This simulates the org acceptance event that triggers pms.file.uploaded for session_acceptance trigger
+        console.log('📝 [test5] Patching session acceptance_status → approved via API...');
+        await adminClient.patch(`/sessions/${sessionId}`, { acceptance_status: 'approved' });
+        console.log('✅ [test5] acceptance_status patched to approved');
+
+        // Step 3: Poll GET /sessions/{sessionId}/events for pms.file.uploaded OR pms.file.upload.failed
+        console.log('📡 [test5] Polling for PMS upload event (60s timeout)...');
+        const event = await pollForPmsEvent(adminClient, sessionId, 60000);
+        expect(event).toBeDefined();
+        console.log(`✅ [test5] PMS event found: "${event.event || event.type}" — upload triggered on org acceptance! ✅`);
+
+        testResults.test5.passed = true;
+        console.log('🏁 [test5] Test complete! ✅\n');
+    });
+
+    test.afterAll(async ({ request }, testInfo) => {
+        console.log('🧹 [CleanUp] Test suite cleanup (delete any remaining test data) 🧽');
+
+        // Always restore upload_trigger to session_acceptance for the target application
+        // (regardless of test4/5 pass/fail — ensures no side effects on shared app config)
+        if (targetApplicationId) {
+            try {
+                console.log(`🔄 [Cleanup] Restoring upload_trigger → session_acceptance (appId: ${targetApplicationId})`);
+                await adminClient.patch(`/applications/${targetApplicationId}`, {
+                    settings: { 'settings.applications.pms.pdf.upload_trigger': 'session_acceptance' }
+                });
+                console.log('✅ [Cleanup] upload_trigger restored to session_acceptance');
+            } catch (e) {
+                console.error(`⚠️ [Cleanup] Failed to restore upload_trigger: ${e.message}`);
+            }
+        }
+
+        // Cleanup test4 session
+        if (testResults.test4.sessionId && testResults.test4.passed) {
+            try {
+                console.log(`🗑️ [Cleanup] Cleaning up test4 session: ${testResults.test4.sessionId}`);
+                await cleanupTrackedSession(request, testResults.test4.sessionId, testInfo);
+                console.log('✅ [Cleanup] test4 session cleaned up');
+            } catch (e) {
+                console.error(`⚠️ [Cleanup] Failed to cleanup test4 session: ${e.message}`);
+            }
+        }
+        if (testResults.test4.applicantContext && testResults.test4.passed) {
+            try { await testResults.test4.applicantContext.close(); } catch (_) { }
+        }
+
+        // Cleanup test5 session
+        if (testResults.test5.sessionId && testResults.test5.passed) {
+            try {
+                console.log(`🗑️ [Cleanup] Cleaning up test5 session: ${testResults.test5.sessionId}`);
+                await cleanupTrackedSession(request, testResults.test5.sessionId, testInfo);
+                console.log('✅ [Cleanup] test5 session cleaned up');
+            } catch (e) {
+                console.error(`⚠️ [Cleanup] Failed to cleanup test5 session: ${e.message}`);
+            }
+        }
+        if (testResults.test5.applicantContext) {
+            try { await testResults.test5.applicantContext.close(); } catch (_) { }
+        }
+
+        // Cleanup test1-3 applications (delete only if test passed)
+        console.log('🧹 [CleanUp] Cleaning up test1-3 applications...');
         const results = Object.entries(testResults);
         for (let index = 0; index < results.length; index++) {
             const [key, element] = results[index];
-            if (element.passed && element.applicationId) {
+            if (['test1', 'test2', 'test3'].includes(key) && element.passed && element.applicationId) {
                 try {
                     console.log(`🗑️ [Cleanup] Attempting to clean up application for test '${key}' (applicationId: ${element.applicationId})...`);
                     await cleanupApplication(request, element.applicationId);
                     console.log(`✅ [Cleanup] Successfully cleaned up application for test '${key}'! 🧹`);
                 } catch (error) {
-                    console.error(`❗ [Cleanup] Failed to clean up application for test '${key}' (applicationId: ${element.applicationId}): ${error} 😓`);
+                    console.error(`⚠️ [Cleanup] Failed to clean up application for test '${key}' (applicationId: ${element.applicationId}): ${error} 😓`);
                 }
             }
         }
