@@ -13,9 +13,9 @@ test.describe("QA-359 application-url-autofill.spec", () => {
 
 
     const cleanupData = {
-        test1: { applicationId: null, passed: false },
-        test2: { applicationId: null, passed: false },
-        test3: { applicationId: null, passed: false }
+        test1: { applicationId: null },
+        test2: { applicationId: null, applicationId2: null },
+        test3: { applicationId: null }
     }
 
     test("[TEST 1] Verify Autofill application custom URL with app name (VC-1589)", {
@@ -129,11 +129,13 @@ test.describe("QA-359 application-url-autofill.spec", () => {
         const saveButton = applicationSetupPage.getByTestId('submit-application-setup');
         const applicationPromise = page.waitForResponse(response =>
             response.url().includes('/applications') &&
-            response.ok() &&
             response.request().method() === 'POST'
         );
         await saveButton.click();
         const applicationResponse = await applicationPromise;
+        expect(applicationResponse.status()).toBe(201);
+        const requestPayload = JSON.parse(applicationResponse.request().postData() || '{}');
+        expect(requestPayload.slug).toBe(expectedURL);
         const applicationData = await waitForJsonResponse(applicationResponse);
         const { data: application } = applicationData;
         cleanupData.test2.applicationId = application.id; // Store application ID for cleanup
@@ -173,7 +175,19 @@ test.describe("QA-359 application-url-autofill.spec", () => {
         secondExpectedURL = `${expectedURL}-001`;
         await expect(slugInput).toHaveValue(secondExpectedURL);
 
-        cleanupData.test2.passed = true; // Mark test as passed for cleanup
+        console.log('[TEST 2] > Saving the second application with the collision-resolved slug and verifying API response');
+        const secondSavePromise = page.waitForResponse(response =>
+            response.url().includes('/applications') &&
+            response.request().method() === 'POST'
+        );
+        await submitButton.click();
+        const secondSaveResponse = await secondSavePromise;
+        expect(secondSaveResponse.status()).toBe(201);
+        const secondRequestPayload = JSON.parse(secondSaveResponse.request().postData() || '{}');
+        expect(secondRequestPayload.slug).toBe(secondExpectedURL);
+        const secondApplicationData = await waitForJsonResponse(secondSaveResponse);
+        const { data: secondApplication } = secondApplicationData;
+        cleanupData.test2.applicationId2 = secondApplication.id;
     })
 
     test("[TEST 3] Editing existing application does NOT auto-fill", {
@@ -229,11 +243,13 @@ test.describe("QA-359 application-url-autofill.spec", () => {
         const saveButton = applicationSetupPage.getByTestId('submit-application-setup');
         const applicationPromise = page.waitForResponse(response =>
             response.url().includes('/applications') &&
-            response.ok() &&
             response.request().method() === 'POST'
         );
-        await saveButton.click();   
+        await saveButton.click();
         const applicationResponse = await applicationPromise;
+        expect(applicationResponse.status()).toBe(201);
+        const requestPayload = JSON.parse(applicationResponse.request().postData() || '{}');
+        expect(requestPayload.slug).toBe(expectedURL);
         const applicationData = await waitForJsonResponse(applicationResponse);
         const { data: application } = applicationData;
         cleanupData.test3.applicationId = application.id; // Store application ID for cleanup
@@ -267,30 +283,23 @@ test.describe("QA-359 application-url-autofill.spec", () => {
         // Verify that the slug does NOT change and auto-fill does NOT trigger
         await expect(slugInput).toHaveValue(expectedURL); // Slug should remain the same as original URL
         await expect(slugInput).toBeEditable(); // Slug field should still be editable
-        cleanupData.test3.passed = true; // Mark test as passed for cleanup        
     })
 
 
-    test.afterAll(async ({ request }) => {
+    test.afterAll(async () => {
 
         const adminClient = new ApiClient(app.urls.api, null, 120_000)
         await loginWithAdmin(adminClient);
 
         // Cleanup created applications
         for (const key of Object.keys(cleanupData)) {
-            const { applicationId, passed } = cleanupData[key];
-            if (applicationId) {
-                if (passed) {
-                    try {
-                        await adminClient.delete(`/applications/${applicationId}`);
-                        console.log(`Cleaned up application with ID: ${applicationId}`);
-                    } catch (error) {
-                        console.error(`Failed to delete application with ID: ${applicationId}`, error);
-                    }
-                }
-                else {
-                    // Skip deletion if test did not pass to allow debugging
-                    console.log(`Skipping cleanup for debugging, application ID: ${applicationId} as test did not pass`);
+            const { applicationId, applicationId2 } = cleanupData[key];
+            for (const id of [applicationId, applicationId2].filter(Boolean)) {
+                try {
+                    await adminClient.delete(`/applications/${id}`);
+                    console.log(`Cleaned up application with ID: ${id}`);
+                } catch (error) {
+                    console.error(`Failed to delete application with ID: ${id}`, error);
                 }
             }
         }
