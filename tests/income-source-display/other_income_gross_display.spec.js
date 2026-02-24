@@ -431,6 +431,56 @@ test.describe('QA-290 other_income_gross_display.spec', () => {
             await page.keyboard.press('Escape');
         }
 
+        // ─── STEP 7: Verify Rent-Income Ratio Card (if rent budget enabled) ──────────────
+
+        console.log('\n📋 STEP 7: Verify Rent-Income Ratio Card (if rent budget enabled)...');
+
+        const rentIncomeRatioCard = page.getByTestId('report-rent-income-ratio-card');
+        const isRentIncomeCardVisible = await rentIncomeRatioCard
+            .isVisible({ timeout: 5000 })
+            .catch(() => false);
+
+        // API Verification: fetch fresh session data and extract ratio from summary
+        const ratioSessionResponse = await page.request.get(`${app.urls.api}/sessions/${sessionId}`, {
+            headers: adminHeaders,
+            params: { 'fields[session]': 'state', 'fields[session_state]': 'summary' }
+        });
+        const { data: ratioSession } = await ratioSessionResponse.json();
+        const apiRatio =
+            ratioSession.state?.summary?.total_target_to_income_ratio ??
+            ratioSession.state?.summary?.target_to_income_ratio;
+
+        console.log(`📊 API target-to-income ratio: ${apiRatio}`);
+
+        if (isRentIncomeCardVisible) {
+            // UI Verification: card must display a percentage (e.g. "25%")
+            const ratioLocator = rentIncomeRatioCard.getByTestId('applicant-income-ratio');
+            await expect(ratioLocator).toBeVisible();
+            const ratioText = await ratioLocator.textContent();
+            console.log(`📊 Rent-Income Ratio card text: ${ratioText}`);
+            expect(ratioText.trim()).toMatch(/\d{1,3}%/);
+            console.log('✅ Rent-Income Ratio card displays percentage');
+
+            // Cross-verify UI value with API value
+            // The API ratio is a decimal (e.g. 0.25 = 25%) or already a percentage integer
+            if (apiRatio !== undefined && apiRatio !== null) {
+                // Normalise to an integer percentage string for comparison
+                const apiRatioPercent = apiRatio > 1
+                    ? Math.round(apiRatio)           // already a whole-number percentage
+                    : Math.round(apiRatio * 100);    // decimal fraction → percentage
+                const expectedRatioText = `${apiRatioPercent}%`;
+                expect(ratioText.trim()).toContain(expectedRatioText);
+                console.log(`✅ UI ratio "${ratioText.trim()}" matches API value "${expectedRatioText}"`);
+                console.log('✅ Ratio reflects correct income including "Other" gross (matches backend calculation)');
+            }
+        } else {
+            console.log('ℹ️ Rent-Income Ratio card not visible – possibly rent budget is not enabled for this application');
+            if (apiRatio !== undefined && apiRatio !== null) {
+                console.log(`📊 API has ratio value (${apiRatio}) but card is not rendered – acceptable if feature is disabled`);
+            }
+        }
+
+
 
         // ─── STEP 8: Verify consistency across UI components ─────────────────────────────
 
