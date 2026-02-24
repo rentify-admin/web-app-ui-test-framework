@@ -6,7 +6,7 @@ import { ApiClient } from "./api";
 import { loginWithAdmin } from "./endpoint-utils/auth-helper";
 import { cleanupApplication, cleanupTrackedSession } from "./utils/cleanup-helper";
 import { createPermissionTestSession } from "./utils/session-generator";
-import { searchSessionWithText } from "./utils/report-page";
+import { pollForSessionEvent, searchSessionWithText } from "./utils/report-page";
 
 const testResults = {
     test1: { applicationId: null, passed: false },
@@ -113,39 +113,6 @@ async function saveAndAssertUploadTrigger({ page, saveAppBtn, applicationId, exp
     return;
 }
 
-/**
- * Poll GET /sessions/{sessionId}/events until pms.file.uploaded or pms.file.upload.failed is found.
- * @param {ApiClient} client - Authenticated ApiClient instance
- * @param {string} sessionId - Session ID to poll events for
- * @param {number} maxWaitMs - Max wait time in milliseconds (default 60000)
- * @returns {Promise<Object>} The matching event object
- */
-async function pollForPmsEvent(client, sessionId, maxWaitMs = 60000) {
-    const PMS_EVENTS = ['pms.file.uploaded', 'pms.file.upload.failed'];
-    const startTime = Date.now();
-    const pollInterval = 2000;
-
-    console.log(`📡 [pollForPmsEvent] Polling for PMS events on session ${sessionId} (timeout: ${maxWaitMs}ms)...`);
-
-    while (Date.now() - startTime < maxWaitMs) {
-        try {
-            const eventsResp = await client.get(`/sessions/${sessionId}/events`, { params: { limit: 100, filters: JSON.stringify({ event: { $in: PMS_EVENTS } }) } });
-            const events = eventsResp.data?.data || [];
-            // Events use "event" as primary key field; check both "event" and "type" for safety
-            const targetEvent = events.find(e => PMS_EVENTS.includes(e.event) || PMS_EVENTS.includes(e.type));
-            if (targetEvent) {
-                console.log(`✅ [pollForPmsEvent] Event found: "${targetEvent.event || targetEvent.type}"`);
-                return targetEvent;
-            }
-            console.log(`   ⏳ [pollForPmsEvent] No PMS event yet (elapsed: ${Math.round((Date.now() - startTime) / 1000)}s)...`);
-        } catch (e) {
-            console.log(`   ⚠️ [pollForPmsEvent] Error fetching events: ${e.message}`);
-        }
-        await new Promise(resolve => setTimeout(resolve, pollInterval));
-    }
-
-    throw new Error(`PMS event (pms.file.uploaded / pms.file.upload.failed) not found after ${maxWaitMs}ms`);
-}
 
 /**
  * Approve a session via UI.
@@ -474,7 +441,7 @@ test.describe('QA-274 pms-upload-toggle-configuration.spec', async () => {
         console.log('🏗️ [test4] Creating test session via createPermissionTestSession...');
         const { sessionId, applicantContext } = await createPermissionTestSession(page, browser, {
             applicationName: 'Autotest - Simulator Financial Step',
-            firstName: 'PMS',
+            firstName: 'Autot - PMS',
             lastName: 'Approval Test',
             email: `pms-approval-${Date.now()}@verifast.com`,
             completeIdentity: false,
@@ -507,7 +474,7 @@ test.describe('QA-274 pms-upload-toggle-configuration.spec', async () => {
 
         // Step 5: Poll GET /sessions/{sessionId}/events for pms.file.uploaded OR pms.file.upload.failed
         console.log('📡 [test4] Polling for PMS upload event (60s timeout)...');
-        const event = await pollForPmsEvent(adminClient, sessionId, 60000);
+        const event = await pollForSessionEvent(adminClient, sessionId, ['pms.file.uploaded', 'pms.file.upload.failed'],  60000);
         expect(event).toBeDefined();
         console.log(`✅ [test4] PMS event found: "${event.event || event.type}" — upload triggered on re-evaluation! ✅`);
 
@@ -535,7 +502,7 @@ test.describe('QA-274 pms-upload-toggle-configuration.spec', async () => {
         console.log('🏗️ [test5] Creating test session via createPermissionTestSession...');
         const { sessionId, applicantContext } = await createPermissionTestSession(page, browser, {
             applicationName: 'Autotest - Simulator Financial Step',
-            firstName: 'PMS',
+            firstName: 'Autot - PMS',
             lastName: 'Acceptance Test',
             email: `pms-acceptance-${Date.now()}@verifast.com`,
             completeIdentity: false,
@@ -557,7 +524,7 @@ test.describe('QA-274 pms-upload-toggle-configuration.spec', async () => {
 
         // Step 3: Poll GET /sessions/{sessionId}/events for pms.file.uploaded OR pms.file.upload.failed
         console.log('📡 [test5] Polling for PMS upload event (60s timeout)...');
-        const event = await pollForPmsEvent(adminClient, sessionId, 60000);
+        const event = await pollForSessionEvent(adminClient, sessionId, ['pms.file.uploaded', 'pms.file.upload.failed'],  60000);
         expect(event).toBeDefined();
         console.log(`✅ [test5] PMS event found: "${event.event || event.type}" — upload triggered on org acceptance! ✅`);
 
