@@ -168,9 +168,9 @@ test.describe('QA-368 paystub_employment_count_validation.spec', () => {
 
     })
 
-    test.afterAll(async ({ request }) => {
+    test.afterAll(async ({ request }, testInfo) => {
         if (cleanupSessionId) {
-            await cleanupSession(request, cleanupSessionId, false);
+            await cleanupSession(request, cleanupSessionId, testInfo.status === 'passed');
             console.log(`Cleaned up session with ID: ${cleanupSessionId}`);
         }
     })
