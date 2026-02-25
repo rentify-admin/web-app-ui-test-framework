@@ -559,4 +559,13 @@ const generateUniqueName = (baseName) => {
     return `${baseName} ${browserPrefix} ${randomNumber}`;
 };
 
-export { gotoPage, fillMultiselect, dragAndDrop, checkHeaderAndProfileMenu, checkSidebarMenusAndTitles, generateUniqueName };
+const adminLogout = async (page) => {
+    await page.getByTestId('user-dropdown-toggle-btn').click();
+    const logoutPromise = page.waitForResponse(resp => resp.url().includes('/auth')
+        && resp.request().method() === 'DELETE'
+        && resp.ok(), { timeout: 5000 });
+    await page.getByTestId('user-logout-dropdown-item').click();
+    await logoutPromise;    
+    await expect(page.getByTestId('admin-login-btn')).toBeVisible({ timeout: 5000 });
+}
+export { gotoPage, fillMultiselect, dragAndDrop, checkHeaderAndProfileMenu, checkSidebarMenusAndTitles, generateUniqueName, adminLogout };

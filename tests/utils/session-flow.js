@@ -3802,7 +3802,12 @@ const handleSkipReasonModal = async (page, reason = 'Test skip reason', options 
     console.log('✅ Skip reason modal handled successfully');
 };
 
-
+/**
+ * Handle optional state modal and terms checkbox that may appear on session start
+ * 
+ * @param {import('@playwright/test').Page} page 
+ * @param {*} session 
+ */
 async function handleStateAndTermsCheckbox(page, session) {
 
     console.log('🔍 Checking for state modal requirement...');
@@ -3867,5 +3872,6 @@ export {
     handleSkipReasonModal,
     handleBankConnectInfoModal,
     handleStateAndTermsCheckbox
+
 };
 
