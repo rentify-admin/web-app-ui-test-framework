@@ -23,8 +23,8 @@ const APPLICATION_NAME = 'AutoTest - Identity Sim Step Only';
 const cleanupData = {
     test1: { sessionId: null, passed: false },
     test2: { sessionId: null, passed: false },
-    test3a: { sessionId: null, passed: true },
-    test3b: { sessionId: null, passed: true },
+    test3a: { sessionId: null, passed: false },
+    test3b: { sessionId: null, passed: false },
 };
 
 
