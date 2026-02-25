@@ -15,7 +15,7 @@ let applicantContextForCleanup = null;
 
 const appName = 'AutoTest - Simulation financial employment';
 
-test.describe('QA-364: Employment Verification - Missing Employee Name', () => {
+test.describe('QA-364: Verify "Not Provided" Message for Missing Employee/Accountholder Name', () => {
     test.describe.configure({
         mode: 'serial',
         timeout: 240000
@@ -30,7 +30,7 @@ test.describe('QA-364: Employment Verification - Missing Employee Name', () => {
     });
 
     test('Verify "Not provided by institution" message for blank employee name', {
-        tag: ['@regression'],
+        tag: ['@regression', '@staging-ready', '@rc-ready'],
         timeout: 240_000
     }, async ({ page, browser, dataManager }) => {
 
@@ -102,7 +102,7 @@ test.describe('QA-364: Employment Verification - Missing Employee Name', () => {
         await waitForStep(applicantPage, sessionId, authToken, 'FINANCIAL_VERIFICATION');
 
         const financialPayload = getVeridocsBankStatementPayload(user);
-        console.log(`✅ Financial payload generated with blank account owner name`);
+        console.log(`✅ Financial payload generated (using real name — blank name tested in employment step)`);
 
         await submitFinancialVerification(applicantPage, applicantContext, sessionId, authToken, financialPayload);
         console.log('✅ Financial verification completed');
@@ -130,7 +130,7 @@ test.describe('QA-364: Employment Verification - Missing Employee Name', () => {
         const reportUrl = joinUrl(app.urls.app, `applicants/all/${sessionId}`);
         console.log(`📊 Opening report: ${reportUrl}`);
         await page.goto(reportUrl);
-        await page.waitForTimeout(2000);
+        await page.waitForLoadState('domcontentloaded');
         console.log('✅ Report page loaded');
 
         // ============================================================
@@ -139,16 +139,17 @@ test.describe('QA-364: Employment Verification - Missing Employee Name', () => {
         console.log('\n📋 STEP 3: Expanding employment section...');
         const employmentsPromise = page.waitForResponse(
             resp => resp.url().includes(`/sessions/${sessionId}/employments`) &&
-                resp.request().method() === 'GET' &&
-                resp.ok()
+                resp.request().method() === 'GET',
+            { timeout: 6_000 }
         );
         const employmentSection = await openReportSection(page, 'employment-section');
         const employmentsResponse = await employmentsPromise;
+        expect(employmentsResponse.status()).toBe(200);
         await expect(employmentSection).toBeVisible({ timeout: 20_000 });
         console.log('✅ Employment section expanded');
-        const employments = await waitForJsonResponse(employmentsResponse)
-        await expect(employments.data).toBeDefined();
-        await expect(employments.data.length).toBeGreaterThan(0);
+        const employments = await waitForJsonResponse(employmentsResponse);
+        expect(employments.data).toBeDefined();
+        expect(employments.data.length).toBeGreaterThan(0);
         // ============================================================
         // STEP 4: Verify "Not Provided" Message for Employee Name
         // ============================================================
@@ -220,7 +221,7 @@ test.describe('QA-364: Employment Verification - Missing Employee Name', () => {
     });
 
     test('Verify Financial Verification with Missing Accountholder Name', {
-        tag: ['@regression'],
+        tag: ['@regression', '@staging-ready', '@rc-ready'],
         timeout: 240_000
     }, async ({ page, browser, dataManager }) => {
 
@@ -319,7 +320,7 @@ test.describe('QA-364: Employment Verification - Missing Employee Name', () => {
         const reportUrl = joinUrl(app.urls.app, `applicants/all/${sessionId}`);
         console.log(`📊 Opening report: ${reportUrl}`);
         await page.goto(reportUrl);
-        await page.waitForTimeout(2000);
+        await page.waitForLoadState('domcontentloaded');
         console.log('✅ Report page loaded');
 
         // ============================================================
@@ -328,17 +329,18 @@ test.describe('QA-364: Employment Verification - Missing Employee Name', () => {
         console.log('\n📋 STEP 3: Expanding financial section...');
         const financialVerifPromise = page.waitForResponse(
             resp => resp.url().includes(`/financial-verifications`) &&
-                resp.request().method() === 'GET' &&
-                resp.ok()
+                resp.request().method() === 'GET',
+            { timeout: 6_000 }
         );
         const financialSection = await openReportSection(page, 'financial-section');
         const financialVerifResponse = await financialVerifPromise;
+        expect(financialVerifResponse.status()).toBe(200);
         await expect(financialSection).toBeVisible({ timeout: 20_000 });
         console.log('✅ Financial section expanded');
 
         const financialVerifications = await waitForJsonResponse(financialVerifResponse);
-        await expect(financialVerifications.data).toBeDefined();
-        await expect(financialVerifications.data.length).toBeGreaterThan(0);
+        expect(financialVerifications.data).toBeDefined();
+        expect(financialVerifications.data.length).toBeGreaterThan(0);
 
         // ============================================================
         // STEP 4 (UI): Verify Financial Table Displays "Not Provided" Message
