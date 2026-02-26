@@ -8,44 +8,57 @@ import generateSessionForm from "../utils/generate-session-form";
 import { expectAndFillGuestForm, findSessionLocator, openReportSection, searchSessionWithText } from "../utils/report-page";
 import loginForm from "../utils/login-form";
 import { joinUrl } from "../utils/helper";
+import { waitForJsonResponse } from "../utils/wait-response";
 
 /**
  * QA-245: Edit-Guest-Button-Permission Test
  *
  * Test Steps
  * ----------
- * 
- * SETUP:
- *   1. Login as admin user via API.
- *   2. Navigate to Applications page in UI.
- *   3. Search for an AutoTest app; invite applicant (unique guest user).
- *   4. Extract sessionId from invite.
- *   5. Create INTERNAL test user via API (role with VIEW_SESSIONS but WITHOUT MANAGE_GUESTS).
- *   6. Complete user onboarding flow (simulate invited "internal" user join).
- * 
+ *
+ * SETUP (beforeAll — API only):
+ *   1. Authenticate as admin via API.
+ *   2. Get or create internal role ('Autotest - Internal Role') via API.
+ *   3. Retrieve organization ID from admin's memberships.
+ *   4. Create INTERNAL test user (org member) with VIEW_SESSIONS permission only.
+ *   5. Complete user onboarding via API (POST /users with invite token).
+ *
+ * 0: Admin Invites Guest (UI)
+ *   - Admin logs in via UI and navigates to Applications page.
+ *   - Finds 'Autotest - Heartbeat Test - Financial' app and invites a unique guest user.
+ *   - Extracts sessionId from the generated session form.
+ *
  * 1: Verify Edit Guest Button Hidden Without MANAGE_GUESTS
- *   - Login as test user.
- *   - Navigate to session report page (/applicants/all/{sessionId}).
+ *   - Login as internal user in a new browser context.
+ *   - Navigate to Applicants page, find and open the session.
  *   - Expand Identity section, verify Edit Guest button is NOT visible.
  *
- * 2: Assign MANAGE_GUESTS Permission
- *   - Use API to grant manage_guests to the test user.
+ * 2: Assign MANAGE_GUESTS + VIEW_SESSION_EVENTS Permissions
+ *   - Use API to grant manage_guests and view_session_events to the test user.
  *
  * 3: Verify Edit Guest Button Visible With MANAGE_GUESTS
- *   - Reload page.
+ *   - Reload page, navigate back to the session.
  *   - Verify Edit Guest button IS now visible.
  *
  * 4: Verify Edit Guest Functionality
- *   - Click Edit Guest button. Check modal opens with correct data.
+ *   - Click Edit Guest button. Check modal opens with correct current data.
  *   - Update first & last name. Click save.
- *   - Intercept PATCH API, confirm payload & response.
- *   - Confirm modal closes & Identity section updates.
+ *   - Intercept PATCH /guests/{id}, confirm payload & response body.
+ *   - Confirm modal closes & Identity section reflects updated name and original email.
  *
- * 5: Verify Cancel/Close Functionality
- *   - Change only firstname, hit cancel, ensure NO changes saved.
- *   - Change only lastname, close modal via 'X', ensure NO changes saved.
+ * 5: Verify Cancel Functionality
+ *   - Change only firstname, click Cancel → modal closes, name unchanged.
+ *   - Change only lastname, click Cancel → modal closes, name unchanged.
+ *   - Open modal with no changes, click Cancel → modal closes.
  *
- * CLEANUP: Remove test user and session via API.
+ * 6: Verify Event History Shows Internal User Attribution
+ *   - Open event history modal via alert button.
+ *   - Sort events using sort toggle.
+ *   - Verify 'guest-update-caused-by' elements are present.
+ *   - Verify the first element contains "Updated by" text and the internal user's email.
+ *   - Close the event history modal.
+ *
+ * CLEANUP: Remove test member, test user, and session via API.
  */
 
 test.describe('QA-245 edit-guest-button-permission.spec', () => {
@@ -194,11 +207,11 @@ test.describe('QA-245 edit-guest-button-permission.spec', () => {
         await expect(memberPage.getByTestId('side-panel')).toBeVisible({ timeout: 10_000 });
 
         console.log('[STEP 1] Loading session details as test user');
-        const sessionLocator =  await findSessionLocator(memberPage, `.application-card[data-session="${sessionId}"]`);
+        const sessionLocator = await findSessionLocator(memberPage, `.application-card[data-session="${sessionId}"]`);
         // Click session and wait for report to render
         await sessionLocator.click();
         await expect(memberPage.locator('#applicant-report')).toBeVisible({ timeout: 10_000 });
-        
+
         // Open identity section, verify Edit Guest button is NOT visible ("step 1" of functional test)
         console.log('[STEP 1] Expanding Identity section and checking no Edit Guest button (NO manage_guests)');
         const identitySection = await openReportSection(memberPage, 'identity-section');
@@ -211,7 +224,8 @@ test.describe('QA-245 edit-guest-button-permission.spec', () => {
             const resp = await adminClient.patch(`/organizations/${organizationId}/members/${createdMember}`, {
                 permissions: [
                     { name: 'view_sessions', bindings: [] },
-                    { name: 'manage_guests', bindings: [] }
+                    { name: 'manage_guests', bindings: [] },
+                    { name: 'view_session_events', bindings: [] },
                 ]
             });
             if (resp.status !== 200) throw new Error('Failed to update permissions');
@@ -353,6 +367,33 @@ test.describe('QA-245 edit-guest-button-permission.spec', () => {
         await cancelBtn3.click();
         await expect(guestEditModal3).toBeHidden();
 
+        // Additional verification: check that session events load and show "Updated By" with internal user email (requires view_session_events permission)
+        const alertBtn = memberPage.getByTestId('report-alerts-btn')
+        await expect(alertBtn).toBeVisible();
+
+        await alertBtn.click();
+        
+        await expect(memberPage.getByTestId('close-event-history-modal'))
+            .toBeVisible({
+                timeout: 20_000
+            });
+        
+        const sortByToggle = memberPage.getByTestId('event-history-sort-toggle');
+        await expect(sortByToggle).toBeVisible();
+        await sortByToggle.click();
+
+        const updateCausedByElements = memberPage.locator('[data-testid="guest-update-caused-by"]');
+        await memberPage.waitForTimeout(3000); // Wait for events to re-render after sorting
+        const updateCounts = await updateCausedByElements.count();
+        console.log(`Found ${updateCounts} event caused by elements`);
+        expect(updateCounts).toBeGreaterThan(0);
+        const firstUpdateCausedBy = await updateCausedByElements.first();
+        await expect(firstUpdateCausedBy).toBeVisible();
+        await expect(firstUpdateCausedBy).toHaveText(/Updated by/i);
+        // expect firstUpdateCausedBy contain user.email (the internal user who made the change)
+        await expect(firstUpdateCausedBy).toContainText(internalUser.email);
+
+        await memberPage.getByTestId('close-event-history-modal').click();
         console.log("✅ Test flow completed successfully");
     });
 
@@ -360,7 +401,7 @@ test.describe('QA-245 edit-guest-button-permission.spec', () => {
         try {
             // Close browser context if it exists
             if (memberContext) {
-            try {
+                try {
                     await memberContext.close();
                     console.log('[CLEANUP] Member browser context closed');
                 } catch (e) {
@@ -369,26 +410,26 @@ test.describe('QA-245 edit-guest-button-permission.spec', () => {
             }
 
             // Delete member first (remove organization relationship)
-                if (createdMember) {
-                    try {
+            if (createdMember) {
+                try {
                     await adminClient.delete(`/organizations/${organizationId}/members/${createdMember}`);
-                        console.log('[CLEANUP] Test member cleaned up:', createdMember);
-                    } catch (e) {
-                        console.log(`[CLEANUP ERROR] Could not cleanup member with id ${createdMember}`);
-                        console.error('[CLEANUP ERROR] Could not cleanup member:', e.message);
-                    }
+                    console.log('[CLEANUP] Test member cleaned up:', createdMember);
+                } catch (e) {
+                    console.log(`[CLEANUP ERROR] Could not cleanup member with id ${createdMember}`);
+                    console.error('[CLEANUP ERROR] Could not cleanup member:', e.message);
                 }
+            }
 
             // Always delete user (to prevent orphaned users)
-                if (createdUser) {
-                    try {
+            if (createdUser) {
+                try {
                     await adminClient.delete(`/users/${createdUser}`);
-                        console.log('[CLEANUP] Test user cleaned up:', createdUser);
-                    } catch (e) {
-                        console.log(`[CLEANUP ERROR] Could not cleanup user with id ${createdUser}`);
-                        console.error('[CLEANUP ERROR] Could not cleanup user:', e.message);
-                    }
+                    console.log('[CLEANUP] Test user cleaned up:', createdUser);
+                } catch (e) {
+                    console.log(`[CLEANUP ERROR] Could not cleanup user with id ${createdUser}`);
+                    console.error('[CLEANUP ERROR] Could not cleanup user:', e.message);
                 }
+            }
 
             // Delete session (policy-controlled via cleanupTrackedSession)
             if (createdSessionId) {
@@ -396,7 +437,7 @@ test.describe('QA-245 edit-guest-button-permission.spec', () => {
                 console.log('[CLEANUP] Session cleanup handled:', createdSessionId);
             }
         } catch (cleanupError) {
-                console.error('[CLEANUP ERROR] Test cleanup failed:', cleanupError.message);
+            console.error('[CLEANUP ERROR] Test cleanup failed:', cleanupError.message);
         }
     });
 });
