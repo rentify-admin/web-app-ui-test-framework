@@ -1,10 +1,10 @@
 import { test, expect } from '@playwright/test';
-import { ApiClient } from '../api';
-import { admin, app } from '../test_config';
-import { loginWithAdmin } from '../endpoint-utils/auth-helper';
-import BaseApi from '../api/base-api';
-import loginForm from '../utils/login-form';
-import { cleanupOrganizationMembers, authenticateAdmin } from '../utils/cleanup-helper';
+import { ApiClient } from './api';
+import { admin, app } from './test_config';
+import { loginWithAdmin } from './endpoint-utils/auth-helper';
+import BaseApi from './api/base-api';
+import loginForm from './utils/login-form';
+import { cleanupOrganizationMembers, authenticateAdmin } from './utils/cleanup-helper';
 import {
     createMemberWithInvite,
     navigateToOrgMembersPage,
@@ -14,7 +14,7 @@ import {
     toggleArchivedOnlyFilter,
     verifyArchivedMemberCannotLogin,
     createViewOnlyMemberAndVerifyToggleHidden,
-} from './org-member-helpers';
+} from './utils/org-member-helpers';
 
 
 const adminClient = new ApiClient(app.urls.api, null, 120_000);

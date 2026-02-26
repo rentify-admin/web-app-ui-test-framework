@@ -1,5 +1,5 @@
 import { expect } from '@playwright/test';
-import loginForm from '../utils/login-form';
+import loginForm from './login-form';
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -140,7 +140,6 @@ export async function archiveMemberAndVerifyApi(page, organizationId, memberId) 
  * @returns {Promise<{ unarchiveResponseData: object }>}
  */
 export async function unarchiveMemberAndVerifyApi(page, organizationId, memberId) {
-    page.once('dialog', dialog => dialog.accept());
     const [unarchiveResponse] = await Promise.all([
         page.waitForResponse(resp =>
             new RegExp(`/organizations/${organizationId}/members/${memberId}`).test(resp.url()) &&
