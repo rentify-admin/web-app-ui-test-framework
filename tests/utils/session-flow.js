@@ -3824,6 +3824,48 @@ async function handleStateAndTermsCheckbox(page, session) {
     await page.waitForTimeout(1000);
 }
 
+/**
+ * Handle the connection acknowledgement modal that appears when clicking
+ * "Directly Connect to Employer". When upload limit is reached, only the
+ * acknowledge-connect-employer-btn should be visible (upload section hidden).
+ *
+ * @param {import('@playwright/test').Page} page
+ */
+const handleConnectAcknowledgeModal = async page => {
+    const maxAttempts = 10;
+    const intervalMs = 1000;
+
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+        const dialog = page.getByRole('dialog');
+        const dialogVisible = await dialog.isVisible().catch(() => false);
+
+        if (dialogVisible) {
+            const connectBtn = dialog.getByTestId('acknowledge-connect-employer-btn');
+            const btnVisible = await connectBtn.isVisible().catch(() => false);
+
+            if (btnVisible) {
+                console.log('   Found acknowledge-connect-employer-btn — clicking');
+                await connectBtn.click({ timeout: 20_000 });
+                await page.waitForTimeout(1500);
+                return;
+            }
+
+            // Fallback: text match for connect button
+            const textBtn = dialog.getByRole('button', { name: /Directly Connect/i });
+            const textBtnVisible = await textBtn.isVisible().catch(() => false);
+            if (textBtnVisible) {
+                await textBtn.click({ timeout: 20_000 });
+                await page.waitForTimeout(1500);
+                return;
+            }
+        }
+
+        await page.waitForTimeout(intervalMs);
+    }
+    console.log('   info No connection acknowledge modal appeared — continuing');
+};
+
+
 export {
     uploadStatementFinancialStep,
     simulatorFinancialStepWithVeridocs,
@@ -3866,6 +3908,7 @@ export {
     sessionFlow,
     handleSkipReasonModal,
     handleBankConnectInfoModal,
-    handleStateAndTermsCheckbox
+    handleStateAndTermsCheckbox,
+    handleConnectAcknowledgeModal
 };
 
