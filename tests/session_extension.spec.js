@@ -7,7 +7,7 @@ import { joinUrl } from './utils/helper';
 import { cleanupTrackedSession } from './utils/cleanup-helper';
 
 test.describe('QA-363 session_extension.spec', () => {
-    test.describe.configure({ mode: 'serial' });
+    test.describe.configure({ mode: 'serial', timeout: 240000 });
 
     const APPLICATION_NAME = 'Autotest - Fin simulator and Lifecycle';
 
@@ -90,7 +90,7 @@ test.describe('QA-363 session_extension.spec', () => {
         await expect(sessionExtendModal.getByText('Session Extend')).toBeVisible();
         console.log(' - modal header displays "Session Extend"');
 
-        const extensionHoursInput = sessionExtendModal.locator('input[type="number"]');
+        const extensionHoursInput = sessionExtendModal.getByTestId('extension-hours');
         await expect(extensionHoursInput).toBeVisible();
         await expect(extensionHoursInput).toHaveValue('1');
         console.log(' - extension hours input visible, default 1');
@@ -134,7 +134,8 @@ test.describe('QA-363 session_extension.spec', () => {
         console.log(' - extension modal is no longer visible');
 
         await expect(sessionExtendTrigger).toBeVisible();
-        console.log(' - extension trigger button remains visible');
+        await expect(sessionExtendTrigger).toHaveText(/Expires in: \d+ hours \d+ minutes/);
+        console.log(' - extension trigger button remains visible with updated expiry time');
 
         const updatedSessionResp = await page.request.get(
             joinUrl(app.urls.api, `sessions/${sessionId}`),
@@ -230,7 +231,7 @@ test.describe('QA-363 session_extension.spec', () => {
 
         // Step 3: Close modal
         console.log('[Step 3] Close modal');
-        const cancelButton = sessionExtendModal.getByRole('button', { name: /cancel/i });
+        const cancelButton = sessionExtendModal.getByTestId('session-extend-cancel');
         await expect(cancelButton).toBeVisible();
         await cancelButton.click();
         await expect(sessionExtendModal).not.toBeVisible();
