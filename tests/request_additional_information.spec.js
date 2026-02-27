@@ -155,10 +155,10 @@ test.describe('request_additional_information', () => {
             await handleSkipReasonModal(applicantPage, "Skipping financial step for test purposes");
             console.log('✅ Financial step skipped');
 
-            // Wait for Employment step to load - document-pay_stub should appear
-            console.log('⏳ Waiting for document-pay_stub to appear...');
-            await applicantPage.getByTestId('document-pay_stub').waitFor({ state: 'visible', timeout: 30000 });
-            console.log('✅ Employment step loaded, document-pay_stub visible');
+            // Wait for Employment step to load - upload-paystubs-btn should appear
+            console.log('⏳ Waiting for upload-paystubs-btn to appear...');
+            await applicantPage.getByTestId('upload-paystubs-btn').waitFor({ state: 'visible', timeout: 30000 });
+            console.log('✅ Employment step loaded, upload-paystubs-btn visible');
 
             // CRITICAL: Capture baseline step state BEFORE document request
             console.log('📊 Capturing baseline step state before document request...');

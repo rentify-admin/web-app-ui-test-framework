@@ -288,10 +288,10 @@ async function handleUploadPaystubsIntroModal(page) {
 }
 
 async function uploadVeridocsDoc(applicationPage, paystubData) {
-    console.log('🚀 Waiting for pay_stub document tile to be visible');
-    await expect(applicationPage.getByTestId('document-pay_stub')).toBeVisible({ timeout: 20000 });  // ✅ Added explicit timeout
-    console.log('✅ pay_stub tile visible, clicking...');
-    await applicationPage.getByTestId('document-pay_stub').click()
+    console.log('🚀 Waiting for upload paystubs button to be visible');
+    await expect(applicationPage.getByTestId('upload-paystubs-btn')).toBeVisible({ timeout: 20000 });
+    console.log('✅ upload-paystubs-btn visible, clicking...');
+    await applicationPage.getByTestId('upload-paystubs-btn').click();
 
     console.log('🚀 Clicking upload paystub button');
     await applicationPage.getByTestId('employment-upload-paystub-btn').click();

@@ -126,10 +126,22 @@ test('Admin should be able to update an organization member\'s application permi
         ]);
         console.log('✅ Permissions updated successfully.');
 
-        await page.waitForTimeout(2000);
-        console.log('🚀 Reverting the change to clean up the test...');
+        // After save, savePermissions() calls result.mutate() which triggers an API reload.
+        // While reloading, result.data.value.permissions is null → toggleBound() returns early
+        // and setPending(true) is never called → save button stays disabled.
+        // Fix: wait for the checkbox to display the SAVED state before reverting.
+        // That confirms result.data.value has been refreshed with the new permissions.
+        console.log('🚀 Waiting for checkbox to reflect saved state (API data reload)...');
+        if (isInitiallyChecked) {
+            // We unchecked → saved false → wait for DOM to show unchecked
+            await expect(checkbox).not.toBeChecked({ timeout: 10_000 });
+        } else {
+            // We checked → saved true → wait for DOM to show checked
+            await expect(checkbox).toBeChecked({ timeout: 10_000 });
+        }
+        console.log('✅ Checkbox reflects saved state — permissions data reloaded.');
 
-        // Now, perform the opposite action to revert to the original state
+        console.log('🚀 Reverting the change to clean up the test...');
         if (isInitiallyChecked) {
             console.log('🚀 Initial state was checked. Re-checking the box.');
             await checkbox.check();
@@ -138,10 +150,8 @@ test('Admin should be able to update an organization member\'s application permi
             await checkbox.uncheck();
         }
 
-        await page.waitForTimeout(2000);
-
         console.log('🚀 Waiting for save button to be enabled again...');
-        await expect(saveBtn).toBeEnabled({ timeout: 5000 });
+        await expect(saveBtn).toBeEnabled({ timeout: 10_000 });
         console.log('✅ Save button is enabled for revert.');
 
         console.log('🚀 Clicking save button again to revert permissions...');

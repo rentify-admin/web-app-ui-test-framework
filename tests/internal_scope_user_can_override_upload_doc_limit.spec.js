@@ -54,7 +54,8 @@ const handleUploadPaystubsIntroModal = async page => {
 test.describe('QA-212 internal_scope_user_can_override_upload_doc_limit.spec', () => {
 
     test.afterEach(async ({ request }, testInfo) => {
-        await cleanupTrackedSession(request, createdSessionId, testInfo);
+        // Cleanup disabled
+        // await cleanupTrackedSession(request, createdSessionId, testInfo);
         // Reset for next test
         createdSessionId = null;
         guestAuthToken = null;
@@ -146,7 +147,7 @@ test.describe('QA-212 internal_scope_user_can_override_upload_doc_limit.spec', (
         console.log('✅ Employment verification COMPLETED via API polling');
 
         console.log('🚫 STEP 9: Attempting extra applicant paystub upload (should see upload limit error)');
-        await applicantPage.getByTestId('document-pay_stub').click();
+        await applicantPage.getByTestId('upload-paystubs-btn').click();
         await expect(applicantPage.getByTestId('pay_stub-limit-error')).toBeVisible();
         console.log('   ⚠️ Upload limit error visible for applicant!');
 
@@ -200,8 +201,8 @@ async function uploadDocument(page, filePaths, options = {}) {
     const { cadence = 'Bi-Weekly', timeout = 10000, continueStep = true } = options;
 
     console.log('🟢 STEP 1: Applicant uploading paystub(s) 📥');
-    await page.getByTestId('document-pay_stub').click();
-    await page.locator('button').filter({ hasText: /^Upload Paystubs$/ }).click();
+    await page.getByTestId('upload-paystubs-btn').click();
+    await page.getByTestId('employment-upload-paystub-btn').click();
 
     // Handle employment intro modal, if present
     await handleUploadPaystubsIntroModal(page);
