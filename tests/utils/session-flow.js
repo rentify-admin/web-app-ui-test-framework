@@ -2162,7 +2162,7 @@ const selectApplicantType = async (applicantPage, sessionUrl, selectorKey = '#af
 /**
  * Handle Atomic payroll choice modal
  *
- * This modal appears after clicking the "directly-connect-emp-btn" button and
+ * This modal appears after clicking the "directly-connect-to-employer-btn" button and
  * lets the user choose between connecting employer or uploading paystubs.
  *
  * We select the option by button text so we don't depend on missing data-test-ids
@@ -2245,10 +2245,7 @@ const handleFinancialIntroDialogs = async page => {
  */
 const completePaystubConnection = async applicantPage => {
     await applicantPage
-        .getByTestId('document-pay_stub')
-        .click({ timeout: 20000 });
-    await applicantPage
-        .getByTestId('directly-connect-emp-btn')
+        .getByTestId('directly-connect-to-employer-btn')
         .click({ timeout: 20000 });
 
     // New Atomic modal: choose employer connection before entering iframe
@@ -2328,10 +2325,7 @@ const completePaystubConnection = async applicantPage => {
  */
 const failPaystubConnection = async applicantPage => {
     await applicantPage
-        .getByTestId('document-pay_stub')
-        .click({ timeout: 20000 });
-    await applicantPage
-        .getByTestId('directly-connect-emp-btn')
+        .getByTestId('directly-connect-to-employer-btn')
         .click({ timeout: 20000 });
 
     // New Atomic modal: choose employer connection before entering iframe

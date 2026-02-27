@@ -248,11 +248,13 @@ async function fillFinancialStep(page, financialData) {
             
             if (isFormVisible) {
                 console.log(`⚠️  Document type "${element.docType}" already exists (found form: ${element.testid}-doc). Deleting it first...`);
-                // Get delete button from within the form
-                const deleteButton = documentForm.getByTestId(`doc-${element.testid}-delete`);
+                // Accept the native confirm() dialog that the delete button triggers
+                page.once('dialog', dialog => dialog.accept());
+                // Get delete button from page level (not scoped inside the form container)
+                const deleteButton = page.getByTestId(`doc-${element.testid}-delete`);
                 await deleteButton.click({ timeout: 5000 });
-                // Wait for form to be removed from DOM
-                await documentForm.waitFor({ state: 'detached', timeout: 5000 }).catch(() => {
+                // Wait for form to be removed from DOM after API delete completes
+                await documentForm.waitFor({ state: 'detached', timeout: 10000 }).catch(() => {
                     // If it doesn't detach, at least wait a bit
                     return page.waitForTimeout(500);
                 });
@@ -306,7 +308,7 @@ async function fillFinancialStep(page, financialData) {
         if (policyValue && policyValue.trim()) {
             // Just ensure that it is not starting with a Sample System
             try {
-                await expect(policyValue.startsWith('Sample System')).toBeFalsy();
+                expect(policyValue.startsWith('Sample System')).toBeFalsy();
             } catch (err) {
                 console.error(`❌ FAILED: Auto-selection incorrectly used "Sample System" policy: ${policyValue.trim()}`);
                 console.error(`   Expected: Should NOT auto-select "Sample System" policies for Default applicant type`);
@@ -321,7 +323,7 @@ async function fillFinancialStep(page, financialData) {
                 .locator('.multiselect__single').textContent()
             if (bankPolicyValue && bankPolicyValue.trim()) {
                 try {
-                    await expect(bankPolicyValue.trim().toLowerCase()).toBe(element.policy.toLowerCase());
+                    expect(bankPolicyValue.trim().toLowerCase()).toBe(element.policy.toLowerCase());
                 } catch (err) {
                     console.error(`Found different value in selection: ${bankPolicyValue.trim()}`)
                     throw err;

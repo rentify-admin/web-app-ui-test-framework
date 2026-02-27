@@ -148,7 +148,7 @@ test.describe('frontend-session-heartbeat', () => {
             console.log('🚀 Skipping financial step')
             await page.getByTestId('skip-financials-btn').click({ timeout: 10_000 });
             await handleSkipReasonModal(page, "Skipping financial step for test purposes");
-            await expect(page.getByTestId('document-pay_stub')).toBeVisible({ timeout: 20_000 })
+            await expect(page.getByTestId('upload-paystubs-btn')).toBeVisible({ timeout: 20_000 })
             console.log('✅ On employment step')
 
             console.log('🚀 Completing paystub connection')

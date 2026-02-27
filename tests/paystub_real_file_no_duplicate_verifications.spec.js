@@ -123,7 +123,7 @@ test.describe('QA-356 paystub_real_file_no_duplicate_verifications.spec', () => 
 
         console.log('[STEP 1] Uploading paystub files and verifying no duplicate verifications are created');
         // Click paystub upload button
-        await guestPage.getByTestId('document-pay_stub').click();
+        await guestPage.getByTestId('upload-paystubs-btn').click();
         await guestPage.getByTestId('employment-upload-paystub-btn').click();
         await guestPage.waitForTimeout(500);
         const acknowledgeBtn = guestPage.getByTestId('acknowledge-upload-paystubs-btn');
@@ -145,7 +145,7 @@ test.describe('QA-356 paystub_real_file_no_duplicate_verifications.spec', () => 
         console.log('    > waiting for employment step to be ready for next upload');
         await expect(guestPage.getByTestId('employment-verification-step')).toBeVisible({ timeout: 10000 });
 
-        await guestPage.getByTestId('document-pay_stub').click();
+        await guestPage.getByTestId('upload-paystubs-btn').click();
         await guestPage.getByTestId('employment-upload-paystub-btn').click();
         await guestPage.waitForTimeout(500);
 
@@ -162,7 +162,7 @@ test.describe('QA-356 paystub_real_file_no_duplicate_verifications.spec', () => 
         console.log('    > waiting for employment step to be ready for next upload');
         await expect(guestPage.getByTestId('employment-verification-step')).toBeVisible({ timeout: 10000 });
 
-        await guestPage.getByTestId('document-pay_stub').click();
+        await guestPage.getByTestId('upload-paystubs-btn').click();
         await guestPage.getByTestId('employment-upload-paystub-btn').click();
         await guestPage.waitForTimeout(500);
         await uploadPaystub(guestPage, guestContext, guestAuthToken, 'paystub_recent.pdf');

@@ -70,7 +70,8 @@ test.describe('QA-310 workflow_creation_background_check_step.spec', () => {
                     data: {
                         required: false,
                         skip_authority: 'anyone',
-                        service_provider: 'TransUnion'
+                        service_provider: 'TransUnion',
+                    criminal_provider: 'Simulation'
                     }
                 }
             ]
@@ -178,6 +179,10 @@ test.describe('QA-310 workflow_creation_background_check_step.spec', () => {
         console.log('🏢 Selecting service provider...');
         const serviceProviderInput = page.getByTestId('background-check-service-provider-dropdown')
         await fillMultiselect(page, serviceProviderInput, [stepDetails.data.service_provider])
+
+        console.log('🔍 Selecting criminal check service provider...');
+        const criminalProviderInput = page.getByTestId('background-check-criminal-provider-dropdown');
+        await fillMultiselect(page, criminalProviderInput, [stepDetails.data.criminal_provider]);
 
         console.log('⌨️ Filling TransUnion credit settings...');
         const prefixCodeInput = page.getByTestId('inquiry-prefix-code-input');
