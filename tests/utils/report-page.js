@@ -2068,6 +2068,41 @@ const reInviteApplicant = async (page, applicantId) => {
     await reinviteButton.click();
     await reinvitePromise
 }
+
+
+/**
+ * Poll GET /sessions/{sessionId}/events until pms.file.uploaded or pms.file.upload.failed is found.
+ * @param {ApiClient} client - Authenticated ApiClient instance
+ * @param {string} sessionId - Session ID to poll events for
+ * @param {number} maxWaitMs - Max wait time in milliseconds (default 60000)
+ * @returns {Promise<Object>} The matching event object
+ */
+async function pollForSessionEvent(client, sessionId, eventKeys, maxWaitMs = 60000) {
+    const startTime = Date.now();
+    const pollInterval = 2000;
+
+    console.log(`📡 [pollForSessionEvent] Polling for events on session ${sessionId} (timeout: ${maxWaitMs}ms)...`);
+
+    while (Date.now() - startTime < maxWaitMs) {
+        try {
+            const eventsResp = await client.get(`/sessions/${sessionId}/events`, { params: { limit: 100, filters: JSON.stringify({ event: { $in: eventKeys } }) } });
+            const events = eventsResp.data?.data || [];
+            // Events use "event" as primary key field; check both "event" and "type" for safety
+            const targetEvent = events.find(e => eventKeys.includes(e.event) || eventKeys.includes(e.type));
+            if (targetEvent) {
+                console.log(`✅ [pollForSessionEvent] Event found: "${targetEvent.event || targetEvent.type}"`);
+                return targetEvent;
+            }
+            console.log(`   ⏳ [pollForSessionEvent] No PMS event yet (elapsed: ${Math.round((Date.now() - startTime) / 1000)}s)...`);
+        } catch (e) {
+            console.log(`   ⚠️ [pollForSessionEvent] Error fetching events: ${e.message}`);
+        }
+        await new Promise(resolve => setTimeout(resolve, pollInterval));
+    }
+
+    throw new Error(`PMS event (${eventKeys.join(' / ')}) not found after ${maxWaitMs}ms`);
+}
+
 export {
     checkSessionApproveReject,
     checkFlagsPresentInSection,
@@ -2103,5 +2138,6 @@ export {
     verifySessionReferenceNo,
     addApplicant,
     copyInviteLink,
-    reInviteApplicant
+    reInviteApplicant,
+    pollForSessionEvent
 };
