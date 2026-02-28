@@ -178,6 +178,7 @@ test.describe('QA-280 applicant_inbox_filters_internal_users.spec', () => {
     test('Test 3: Internal User Specific Filters - Verification Step, Acceptance Status, Organization, Only Trashed', {
         tag: ['@core', '@regression']
     }, async ({ page }) => {
+        test.setTimeout(120_000)
         await page.goto('/');
         console.log('🛬 [Test3] Landed on "/"');
         await loginWith(page, admin);
@@ -189,6 +190,16 @@ test.describe('QA-280 applicant_inbox_filters_internal_users.spec', () => {
 
         await clearFilters(page)
         console.log('🧹 [Test3] Cleared filters after single verification step filter');
+
+        console.log('📝 Step 3a: Prescreening Questions filter verification');
+        await verifySingleVerificationFilter(page, adminClient, { name: 'Prescreening Questions', key: 'questions' });
+        await clearFilters(page)
+        console.log('🧹 Step 3a: Cleared filters after Prescreening Questions filter');
+
+        console.log('📝 Step 3b: Background Screening filter verification');
+        await verifySingleVerificationFilter(page, adminClient, { name: 'Background Screening', key: 'background_check' }, true);
+        await clearFilters(page)
+        console.log('🧹 Step 3b: Cleared filters after Background Screening filter');
 
         console.log('📝 [Test3] Verifying single verification step completed filter...');
         await verifySingleVerificationStepCompletedFilter(page, adminClient);
@@ -771,7 +782,7 @@ async function verifySingleVerificationStepCompletedFilter(page, adminClient) {
     console.log(`[verifySingleVerificationStepCompletedFilter] All checked sessions have completed the verification step.`);
 }
 
-async function verifySingleVerificationFilter(page, adminClient) {
+async function verifySingleVerificationFilter(page, adminClient, verificationStep = { name: 'Financial Verification', key: 'financial_verification' }) {
     console.log("[verifySingleVerificationFilter] Opening filter modal...");
     const filterBtn = page.getByTestId('session-filter-modal-btn');
     await filterBtn.click();
@@ -779,12 +790,7 @@ async function verifySingleVerificationFilter(page, adminClient) {
     await expect(filterModal).toBeVisible();
     console.log("[verifySingleVerificationFilter] Filter modal is visible.");
 
-    // Verification Step Filter:
-    const verificationStep = {
-        name: 'Financial Verification',
-        key: 'financial_verification'
-    };
-    console.log(`[verifySingleVerificationFilter] Will filter by verification step:`, verificationStep);
+    console.log(`[verifySingleVerificationFilter] Will filter by verification step:`, verificationStep.name);
 
     await fillMultiselect(page, page.getByTestId('filter-verification-input'), [verificationStep.name]);
 
