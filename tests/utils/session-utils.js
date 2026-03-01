@@ -7,27 +7,31 @@ import { waitForJsonResponse } from './wait-response';
  * Login helper function with locale set to English
  * @param {import('@playwright/test').Page} page
  * @param {Object} data - Login credentials
+ * @return {Promise<string>} - Returns the auth token after successful login
  */
 const loginWith = async (page, data) => {
 
     // Step 1: Admin Login and Navigate
     await loginForm.fill(page, data);
-    await loginForm.submitAndSetLocale(page);
+    const authToken = await loginForm.submitAndSetLocale(page);
     // submitAndSetLocale() already waits for side-panel and sessions to load
     await expect(page).toHaveTitle(/Applicants/, { timeout: 10_000 });
+    return authToken;
 };
 
 /**
  * Complete admin login and navigation to applications with locale set to English
  * @param {import('@playwright/test').Page} page
  * @param {Object} data - Login credentials
+ * @returns {Promise<string>} - Returns the auth token after successful login
  */
 const adminLoginAndNavigateToApplications = async (page, data) => {
     await page.goto('/');
-    await loginWith(page, data);
+    const authToken = await loginWith(page, data);
     await page.getByTestId('applications-menu').click();
     await page.getByTestId('applications-submenu').click();
     await page.waitForTimeout(1500); // Wait after navigation to allow menu state to settle
+    return authToken;
 };
 
 /**
